@@ -1,0 +1,11 @@
+.build/
+.swiftpm/
+*.xcodeproj
+xcuserdata/
+DerivedData/
+build/
+*.xcresult
+.DS_Store
+.env
+testbed/.env
+testbed/data/
