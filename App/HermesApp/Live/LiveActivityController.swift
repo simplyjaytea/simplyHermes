@@ -66,11 +66,11 @@ final class LiveActivityController {
     func finish(sessionID: String, state: LiveTurnState) {
         guard let entry = tracked.removeValue(forKey: sessionID) else { return }
         entry.flush?.cancel()
-        let activity = entry.activity
+        let id = entry.activity.id
         let content = ActivityContent(state: state, staleDate: nil)
         let dismissal = ActivityUIDismissalPolicy.after(.now.addingTimeInterval(Self.finishedLinger))
-        Task {
-            await activity.end(content, dismissalPolicy: dismissal)
+        Task.detached {
+            await Self.activity(id: id)?.end(content, dismissalPolicy: dismissal)
         }
     }
 
@@ -100,10 +100,16 @@ final class LiveActivityController {
     }
 
     private func send(_ state: LiveTurnState, to activity: Activity<BotActivityAttributes>) {
+        let id = activity.id
         let content = content(for: state)
-        Task {
-            await activity.update(content)
+        Task.detached {
+            await Self.activity(id: id)?.update(content)
         }
+    }
+
+    /// `Activity` is not `Sendable`, so background tasks look it up by ID instead of capturing it.
+    nonisolated private static func activity(id: String) -> Activity<BotActivityAttributes>? {
+        Activity<BotActivityAttributes>.activities.first { $0.id == id }
     }
 
     private func content(for state: LiveTurnState) -> ActivityContent<LiveTurnState> {
