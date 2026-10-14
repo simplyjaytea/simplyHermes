@@ -44,6 +44,7 @@
                     ForEach(model.transcripts[sessionID] ?? []) { message in
                         row(for: message)
                             .id(message.id)
+                            .accessibilityIdentifier("message.\(message.id)")
                     }
                 }
                 .scrollTargetLayout()

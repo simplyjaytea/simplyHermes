@@ -46,7 +46,7 @@ final class HermesAppUITests: XCTestCase {
         for _ in 0..<4 {
             transcript.swipeDown()
         }
-        let anchor = try? XCTUnwrap(lastVisibleQuestion(app))
+        let anchor = lastVisibleQuestion(app)
         XCTAssertNotNil(anchor, "Scrolling up should show an earlier question")
 
         switchLayout(app, to: "innerPortrait")
@@ -54,8 +54,8 @@ final class HermesAppUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Hermes is replying"].exists, "The reply should still be streaming")
         XCTAssertEqual(element(app, "composer.field").value as? String, draft)
         if let anchor {
-            XCTAssertTrue(app.staticTexts[anchor].waitForExistence(timeout: 5))
-            XCTAssertTrue(app.staticTexts[anchor].isHittable, "Scroll position should survive the layout change")
+            XCTAssertTrue(element(app, anchor).waitForExistence(timeout: 5))
+            XCTAssertTrue(element(app, anchor).isHittable, "Scroll position should survive the layout change")
         }
 
         switchLayout(app, to: "halfFold")
@@ -83,10 +83,12 @@ final class HermesAppUITests: XCTestCase {
         }
     }
 
+    @MainActor
     private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
+    @MainActor
     private func switchLayout(_ app: XCUIApplication, to layout: String) {
         let menu = element(app, "debugLayoutMenu")
         XCTAssertTrue(menu.waitForExistence(timeout: 5))
@@ -97,12 +99,13 @@ final class HermesAppUITests: XCTestCase {
     }
 
     /// The lowest question on screen, used as the scroll anchor to compare across layouts.
+    @MainActor
     private func lastVisibleQuestion(_ app: XCUIApplication) -> String? {
         for index in stride(from: 24, through: 1, by: -1) {
-            let label = "Question \(index) about backup cron fix"
-            let text = app.staticTexts[label]
-            if text.exists && text.isHittable {
-                return label
+            let identifier = "message.backup-q\(index)"
+            let bubble = element(app, identifier)
+            if bubble.exists && bubble.isHittable {
+                return identifier
             }
         }
         return nil
