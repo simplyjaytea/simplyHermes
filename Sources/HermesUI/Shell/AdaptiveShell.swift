@@ -8,7 +8,8 @@
         private let showsDebugLayoutMenu: Bool
 
         @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-        @Environment(\.hermesPosture) private var posture
+        @Environment(\.hermesPosture) private var forcedPosture
+        @State private var postureMonitor = DevicePostureMonitor()
         @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
         public init(model: ShellModel, showsDebugLayoutMenu: Bool = false) {
@@ -16,7 +17,27 @@
             self.showsDebugLayoutMenu = showsDebugLayoutMenu
         }
 
+        /// A posture forced from outside (launch argument or preview) wins; otherwise the hinge decides (WP-02).
+        private var posture: DevicePosture { postureMonitor.posture }
+
         public var body: some View {
+            if UserDefaults.standard.string(forKey: "HermesScreen") == "postureDebug" {
+                NavigationStack { PostureDebugView(monitor: postureMonitor) }
+                    .hermesPostureSource(postureMonitor)
+                    .task(id: forcedPosture) { applyForcedPosture() }
+            } else {
+                shell
+                    .hermesPostureSource(postureMonitor)
+                    .environment(\.hermesPosture, posture)
+                    .task(id: forcedPosture) { applyForcedPosture() }
+            }
+        }
+
+        private func applyForcedPosture() {
+            postureMonitor.override = forcedPosture == .flat ? nil : forcedPosture
+        }
+
+        private var shell: some View {
             GeometryReader { proxy in
                 let layout =
                     model.layoutOverride
