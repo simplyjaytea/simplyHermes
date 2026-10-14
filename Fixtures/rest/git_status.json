@@ -1,0 +1,23 @@
+{
+ "added": 0,
+ "ahead": 0,
+ "behind": 0,
+ "branch": null,
+ "changed": 1,
+ "conflicted": 0,
+ "defaultBranch": null,
+ "detached": true,
+ "files": [
+  {
+   "conflicted": false,
+   "path": "testbed-entrypoints/",
+   "staged": false,
+   "unstaged": true,
+   "untracked": true
+  }
+ ],
+ "removed": 0,
+ "staged": 0,
+ "unstaged": 1,
+ "untracked": 1
+}

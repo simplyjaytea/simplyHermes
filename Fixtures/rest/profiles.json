@@ -1,0 +1,40 @@
+{
+ "profiles": [
+  {
+   "bot_title": "",
+   "description": "",
+   "description_auto": false,
+   "display_name": "",
+   "distribution_name": null,
+   "distribution_source": null,
+   "distribution_version": null,
+   "gateway_running": false,
+   "has_alias": false,
+   "has_env": false,
+   "is_default": true,
+   "model": "fake-model",
+   "name": "default",
+   "path": "/data/hermes",
+   "provider": "custom",
+   "skill_count": 0
+  },
+  {
+   "bot_title": "",
+   "description": "Ops bot",
+   "description_auto": false,
+   "display_name": "",
+   "distribution_name": null,
+   "distribution_source": null,
+   "distribution_version": null,
+   "gateway_running": false,
+   "has_alias": true,
+   "has_env": true,
+   "is_default": false,
+   "model": "fake-model",
+   "name": "ops",
+   "path": "/data/hermes/profiles/ops",
+   "provider": "custom",
+   "skill_count": 0
+  }
+ ]
+}

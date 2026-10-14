@@ -114,7 +114,7 @@ public actor RESTClient {
         _ method: String, _ path: String, query: [URLQueryItem] = [], body: (any Encodable & Sendable)? = nil,
         scoped: Bool = true
     ) async throws -> HTTPResponse {
-        let encoded: Data? = try body.map { try JSONEncoder().encode(AnyEncodable($0)) }
+        let encoded: Data? = try body.map { try Self.encoder.encode(AnyEncodable($0)) }
         var retriedAuth = false
         var rateLimitRetries = 0
         while true {
@@ -193,10 +193,24 @@ public actor RESTClient {
 
     private func decode<Result: Decodable>(_ response: HTTPResponse) throws -> Result {
         do {
-            return try JSONDecoder().decode(Result.self, from: response.body)
+            return try Self.decoder.decode(Result.self, from: response.body)
         } catch {
             throw RESTError.decoding("\(error)")
         }
+    }
+
+    /// Decodes snake_case keys into camelCase properties. Keys that are already camelCase stay as they are.
+    static var decoder: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
+    }
+
+    /// Encodes camelCase properties as snake_case keys.
+    static var encoder: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        return encoder
     }
 
     private static func detail(in body: Data) -> String? {

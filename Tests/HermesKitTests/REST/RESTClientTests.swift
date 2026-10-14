@@ -2,29 +2,7 @@ import Foundation
 import HermesKit
 import Testing
 
-private let jsonHeaders = ["Content-Type": "application/json"]
-
-private final class FakeHTTP: HTTPTransport, @unchecked Sendable {
-    private let lock = NSLock()
-    private var queue: [HTTPResponse] = []
-    private var seen: [HTTPRequest] = []
-
-    func enqueue(_ status: Int, _ json: String = "{}", headers: [String: String] = jsonHeaders) {
-        lock.withLock { queue.append(HTTPResponse(status: status, headers: headers, body: Data(json.utf8))) }
-    }
-
-    var requests: [HTTPRequest] { lock.withLock { seen } }
-
-    func send(_ request: HTTPRequest) async throws -> HTTPResponse {
-        try lock.withLock {
-            seen.append(request)
-            guard !queue.isEmpty else { throw RESTError.transport("no scripted response") }
-            return queue.removeFirst()
-        }
-    }
-}
-
-private func makeClient(
+func makeClient(
     _ http: FakeHTTP, prefix: String = "", auth: RESTAuth = .cookie, profile: String? = nil,
     clock: ManualClock = ManualClock(),
     reauth: RESTReauthenticator? = nil

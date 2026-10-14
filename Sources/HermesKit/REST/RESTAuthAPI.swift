@@ -12,11 +12,6 @@ public struct WebSocketTicket: Sendable, Equatable, Codable {
         self.ticket = ticket
         self.ttlSeconds = ttlSeconds
     }
-
-    enum CodingKeys: String, CodingKey {
-        case ticket
-        case ttlSeconds = "ttl_seconds"
-    }
 }
 
 private struct PasswordLoginBody: Encodable {

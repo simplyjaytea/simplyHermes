@@ -1,0 +1,34 @@
+{
+ "model": "fake-model",
+ "provider": "custom",
+ "providers": [
+  {
+   "aliases": [
+    "custom",
+    "custom endpoint",
+    "custom-endpoint",
+    "custom:custom",
+    "custom:custom-endpoint"
+   ],
+   "api_url": "http://fake-llm:8700/v1",
+   "authenticated": true,
+   "capabilities": {
+    "fake-model": {
+     "fast": false,
+     "reasoning": true
+    }
+   },
+   "featured_models": [],
+   "is_current": true,
+   "is_user_defined": true,
+   "models": [
+    "fake-model"
+   ],
+   "name": "Custom endpoint",
+   "native_catalog_empty": false,
+   "slug": "custom",
+   "source": "model-config",
+   "total_models": 1
+  }
+ ]
+}

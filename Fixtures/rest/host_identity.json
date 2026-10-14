@@ -1,0 +1,7 @@
+{
+ "ok": true,
+ "pid": 1,
+ "protocolVersion": 1,
+ "role": "serve",
+ "servesSpa": false
+}

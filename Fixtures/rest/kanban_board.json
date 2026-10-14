@@ -1,0 +1,43 @@
+{
+ "assignees": [
+  "default",
+  "ops"
+ ],
+ "columns": [
+  {
+   "name": "triage",
+   "tasks": []
+  },
+  {
+   "name": "todo",
+   "tasks": []
+  },
+  {
+   "name": "scheduled",
+   "tasks": []
+  },
+  {
+   "name": "ready",
+   "tasks": []
+  },
+  {
+   "name": "running",
+   "tasks": []
+  },
+  {
+   "name": "blocked",
+   "tasks": []
+  },
+  {
+   "name": "review",
+   "tasks": []
+  },
+  {
+   "name": "done",
+   "tasks": []
+  }
+ ],
+ "latest_event_id": 0,
+ "now": 1791985341,
+ "tenants": []
+}

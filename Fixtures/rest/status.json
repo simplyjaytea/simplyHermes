@@ -1,0 +1,75 @@
+{
+ "active_agents": 0,
+ "active_sessions": 0,
+ "auth_flows": [
+  "cookie",
+  "native_pkce"
+ ],
+ "auth_providers": [
+  "basic"
+ ],
+ "auth_required": true,
+ "can_update_hermes": true,
+ "components": {
+  "dashboard": {
+   "last_error_at": null,
+   "recent_unhandled_errors": 0,
+   "selftest": "unknown",
+   "status": "ok"
+  },
+  "gateway": {
+   "state": "stopped",
+   "status": "degraded"
+  },
+  "platforms": {
+   "configured": 0,
+   "connected": 0,
+   "status": "ok"
+  },
+  "storage": {
+   "status": "ok"
+  }
+ },
+ "config_version": 0,
+ "disk": {
+  "free_mb": 19910,
+  "pressure": "ok",
+  "total_mb": 258019,
+  "used_percent": 7.7
+ },
+ "gateway_busy": false,
+ "gateway_drainable": false,
+ "gateway_exit_reason": null,
+ "gateway_heartbeat_stale_s": null,
+ "gateway_mode": "none",
+ "gateway_platforms": {},
+ "gateway_running": false,
+ "gateway_shared_with": null,
+ "gateway_state": null,
+ "gateway_updated_at": null,
+ "install_id": "97c7d6c44c1c48a38f4b6db8ea9ea09d",
+ "latest_config_version": 50,
+ "memory": {
+  "boot_id": null,
+  "gateway_rss_mb": null,
+  "last_boot_suspected_oom": false,
+  "last_boot_unclean": false,
+  "pressure": "unknown",
+  "sampled_at": null,
+  "swap_used_mb": null,
+  "system_available_mb": null,
+  "system_total_mb": null
+ },
+ "multiplex_standalone_reason": null,
+ "nous_session_valid": "unknown",
+ "overall": "degraded",
+ "parked_profiles": [],
+ "profiles": [
+  "default",
+  "ops"
+ ],
+ "release_date": "2026.9.24",
+ "restart_drain_timeout": 0.0,
+ "shared_profile_warning": false,
+ "version": "unknown"
+}
