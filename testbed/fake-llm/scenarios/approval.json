@@ -1,0 +1,1 @@
+{"steps":[{"text":"I will delete a scratch file.","tool_calls":[{"name":"terminal","arguments":{"command":"rm -rf /tmp/testbed-approval-target"}}]},{"text":"Approval flow finished."}]}

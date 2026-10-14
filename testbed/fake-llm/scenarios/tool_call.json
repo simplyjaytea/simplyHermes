@@ -1,0 +1,1 @@
+{"steps":[{"text":"Running a command.","tool_calls":[{"name":"terminal","arguments":{"command":"echo testbed-tool-ok"}}]},{"text":"The command printed testbed-tool-ok."}]}

@@ -23,6 +23,26 @@ jobs:
       - name: Test
         run: swift test
 
+  testbed:
+    name: Testbed smoke (Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Start testbed
+        run: testbed/scripts/up.sh
+      - name: Smoke test
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install websockets
+          .venv/bin/python testbed/smoke_test.py
+      - name: Logs on failure
+        if: failure()
+        run: docker compose -f testbed/docker-compose.yml logs --tail=200
+      - name: Stop
+        if: always()
+        run: testbed/scripts/down.sh
+
   macos:
     name: App (Xcode 27, simulator)
     runs-on: xcode-27
