@@ -64,7 +64,8 @@ final class HermesAppUITests: XCTestCase {
         XCTAssertEqual(scrollAnchor(app), anchor, "Showing the keyboard should keep the scroll position")
 
         switchLayout(app, to: "innerPortrait")
-        XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 5))
+        // The inner screen names the chat in its tab strip, not a navigation bar.
+        XCTAssertTrue(element(app, "tab.backup").waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Hermes is replying"].exists, "The reply should still be streaming")
         XCTAssertEqual(element(app, "composer.field").value as? String, draft)
         XCTAssertEqual(scrollAnchor(app), anchor, "Scroll position should survive the layout change")

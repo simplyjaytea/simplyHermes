@@ -17,6 +17,8 @@
         /// True while the transcript sticks to the newest text. A drag stops it; settling at the bottom resumes it.
         @State private var isFollowing = true
         @State private var visibleIDs: [String] = []
+        /// True from the user's touch until the scroll comes to rest; programmatic scrolls never set it.
+        @State private var isUserScrolling = false
 
         var body: some View {
             switch style {
@@ -67,7 +69,10 @@
                 switch phase {
                 case .tracking, .interacting:
                     isFollowing = false
+                    isUserScrolling = true
                 case .idle:
+                    guard isUserScrolling else { return }
+                    isUserScrolling = false
                     let geometry = context.geometry
                     let atBottom = geometry.visibleRect.maxY >= geometry.contentSize.height - 40
                     isFollowing = atBottom
@@ -77,10 +82,12 @@
                 }
             }
             .task {
-                if let anchor = model.scrollAnchors[sessionID] {
-                    isFollowing = false
-                    position.scrollTo(id: anchor, anchor: .top)
-                }
+                guard let anchor = model.scrollAnchors[sessionID] else { return }
+                isFollowing = false
+                position.scrollTo(id: anchor, anchor: .top)
+                // Again once the lazy rows have laid out after a fold.
+                try? await Task.sleep(for: .milliseconds(150))
+                position.scrollTo(id: anchor, anchor: .top)
             }
             .onChange(of: model.transcripts[sessionID]?.last?.text) {
                 if isFollowing {
