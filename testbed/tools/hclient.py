@@ -26,7 +26,10 @@ class Gateway:
         try:
             with self.opener.open(req, timeout=20) as r:
                 raw = r.read()
-                return r.status, (json.loads(raw) if raw else None)
+                try:
+                    return r.status, (json.loads(raw) if raw else None)
+                except ValueError:
+                    return r.status, raw.decode(errors="replace")
         except urllib.error.HTTPError as e:
             raw = e.read()
             try:

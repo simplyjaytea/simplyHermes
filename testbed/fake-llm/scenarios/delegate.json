@@ -1,0 +1,1 @@
+{"steps":[{"text":"Delegating.","tool_calls":[{"name":"delegate_task","arguments":{"goal":"say hello","context":"testbed"}}]},{"text":"Delegation finished."}]}

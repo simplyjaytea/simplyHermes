@@ -28,10 +28,12 @@ testbed/scripts/down.sh
 | `text` | One short reply. |
 | `tool_call` | `terminal` tool call (`echo`), then a final reply. |
 | `approval` | Dangerous `terminal` command that triggers an approval request. |
-| `clarify` | `clarify` tool call with two choices. |
+| `clarify` | `clarify` tool call with two questions (one with choices). |
 | `sudo` | `terminal` `sudo -n true`. |
 | `error_429` | HTTP 429 with `Retry-After: 30`. |
 | `error_500` | HTTP 500. |
+| `delegate` | `delegate_task` tool call (background subagent). |
+| `medium_stream` | 120 chunks at 60 ms; for drop/catch-up tests. |
 | `long_stream` | ~48 KB streamed in small chunks. |
 | `slow` | Slow stream, for interrupt tests. |
 

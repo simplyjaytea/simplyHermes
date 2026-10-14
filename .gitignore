@@ -9,3 +9,5 @@ build/
 .env
 testbed/.env
 testbed/data/
+__pycache__/
+*.pyc
