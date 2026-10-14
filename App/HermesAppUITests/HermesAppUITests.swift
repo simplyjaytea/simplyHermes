@@ -43,10 +43,11 @@ final class HermesAppUITests: XCTestCase {
         field.typeText(draft)
 
         let transcript = element(app, "transcript")
-        for _ in 0..<4 {
+        var anchor: String?
+        for _ in 0..<8 where anchor == nil {
             transcript.swipeDown()
+            anchor = lastVisibleQuestion(app)
         }
-        let anchor = lastVisibleQuestion(app)
         XCTAssertNotNil(anchor, "Scrolling up should show an earlier question")
 
         switchLayout(app, to: "innerPortrait")

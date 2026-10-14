@@ -51,7 +51,10 @@
                 .padding(.vertical, 12)
             }
             .scrollPosition(id: model.scrollAnchorBinding(for: sessionID), anchor: .bottom)
-            .defaultScrollAnchor(.bottom)
+            // Start at the newest message, but do not pin to the bottom while a reply grows,
+            // or scrolling up mid-stream jumps back down. The scroll position id keeps up with new text.
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
+            .defaultScrollAnchor(.bottom, for: .alignment)
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .top) {
                 if let session = model.session(id: sessionID) {
