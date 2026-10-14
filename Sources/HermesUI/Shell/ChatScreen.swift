@@ -13,6 +13,11 @@
         let sessionID: String
         var style: Style = .standard
 
+        @State private var position = ScrollPosition(idType: String.self)
+        @State private var isNearBottom = true
+        /// False until a saved scroll position is restored, so the first layout pass cannot overwrite it.
+        @State private var isRestored = false
+
         var body: some View {
             switch style {
             case .standard:
@@ -43,7 +48,6 @@
                 LazyVStack(spacing: HermesMetrics.bubbleSpacing) {
                     ForEach(model.transcripts[sessionID] ?? []) { message in
                         row(for: message)
-                            .id(message.id)
                             .accessibilityIdentifier("message.\(message.id)")
                     }
                 }
@@ -52,11 +56,35 @@
             }
             // On the scroll view itself, so UI tests can swipe it (on the outer view it lands on the status strip).
             .accessibilityIdentifier("transcript")
-            .scrollPosition(id: model.scrollAnchorBinding(for: sessionID), anchor: .bottom)
-            // Start at the newest message, but do not pin to the bottom while a reply grows,
-            // or scrolling up mid-stream jumps back down. The scroll position id keeps up with new text.
+            .scrollPosition($position)
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .defaultScrollAnchor(.bottom, for: .alignment)
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.visibleRect.maxY >= geometry.contentSize.height - 40
+            } action: { _, nearBottom in
+                isNearBottom = nearBottom
+                if nearBottom && isRestored {
+                    model.scrollAnchors[sessionID] = nil
+                }
+            }
+            // Remember the lowest visible message while the user reads history; at the bottom, follow new text.
+            .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.3) { visibleIDs in
+                guard isRestored else { return }
+                model.scrollAnchors[sessionID] = isNearBottom ? nil : visibleIDs.last
+            }
+            .task {
+                if let anchor = model.scrollAnchors[sessionID] {
+                    position.scrollTo(id: anchor, anchor: .bottom)
+                }
+                // Let the restored position settle before tracking scrolls again.
+                try? await Task.sleep(for: .milliseconds(300))
+                isRestored = true
+            }
+            .onChange(of: model.transcripts[sessionID]?.last?.text) {
+                if isNearBottom && model.scrollAnchors[sessionID] == nil {
+                    position.scrollTo(edge: .bottom)
+                }
+            }
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .top) {
                 if let session = model.session(id: sessionID) {

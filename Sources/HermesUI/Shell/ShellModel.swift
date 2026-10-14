@@ -130,13 +130,6 @@
             )
         }
 
-        public func scrollAnchorBinding(for id: String) -> Binding<String?> {
-            Binding(
-                get: { self.scrollAnchors[id] },
-                set: { self.scrollAnchors[id] = $0 }
-            )
-        }
-
         public func isStreaming(_ id: String) -> Bool {
             streamingSessionIDs.contains(id)
         }
