@@ -20,6 +20,7 @@ final class HermesAppUITests: XCTestCase {
         app.launchArguments += ["-HermesLayout", "innerPortrait"]
         app.launch()
         XCTAssertTrue(element(app, "transcript").waitForExistence(timeout: 10))
+        XCTAssertTrue(element(app, "tab.backup").exists, "The open chat should show in the tab strip")
     }
 
     /// WP-21 CI gate: change layout mid-stream, as folding and unfolding do,

@@ -113,6 +113,9 @@
                         SectionPlaceholder(section: model.selectedSection)
                     } else if let id = model.selectedSessionID {
                         chat(id, style: .standard)
+                            .safeAreaInset(edge: .top, spacing: 0) {
+                                ChatTabStrip(model: model)
+                            }
                             .inspector(isPresented: railBinding(showsRail: showsRail)) {
                                 PreviewRail(model: model, sessionID: id)
                                     .inspectorColumnWidth(min: 260, ideal: 300, max: 360)

@@ -179,4 +179,71 @@
             .accessibilityIdentifier("glance")
         }
     }
+
+    /// Open chats as glass capsules above the chat on the inner screen (JT's pick, 2026-10-14).
+    struct ChatTabStrip: View {
+        let model: ShellModel
+        @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+        @Environment(\.hermesReduceMotion) private var reduceMotionOverride
+
+        var body: some View {
+            let reduceMotion = HermesMotion.resolveReduceMotion(
+                system: systemReduceMotion, override: reduceMotionOverride)
+            ScrollView(.horizontal) {
+                HStack(spacing: 6) {
+                    ForEach(model.openSessionIDs, id: \.self) { id in
+                        if let session = model.session(id: id) {
+                            capsule(for: session, isSelected: id == model.selectedSessionID)
+                                .transition(.scale(scale: 0.8).combined(with: .opacity))
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .animation(
+                    HermesMotion.animation(HermesMotion.snappy, reduceMotion: reduceMotion), value: model.openSessionIDs
+                )
+            }
+            .scrollIndicators(.hidden)
+            .accessibilityIdentifier("tabStrip")
+        }
+
+        private func capsule(for session: ChatSessionSummary, isSelected: Bool) -> some View {
+            HStack(spacing: 4) {
+                Button {
+                    model.open(session.id)
+                } label: {
+                    HStack(spacing: 6) {
+                        if model.isStreaming(session.id) {
+                            Circle()
+                                .fill(HermesColor.accent)
+                                .frame(width: 6, height: 6)
+                                .accessibilityHidden(true)
+                        }
+                        Text(session.title)
+                            .font(HermesFont.subheadline.weight(isSelected ? .semibold : .regular))
+                            .lineLimit(1)
+                    }
+                    .padding(.leading, 12)
+                    .frame(minHeight: HermesMetrics.minTapTarget)
+                }
+                .buttonStyle(.plain)
+                Button {
+                    model.close(session.id)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(HermesColor.secondaryText)
+                        .frame(width: 28, height: HermesMetrics.minTapTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Close \(session.title)"))
+                .padding(.trailing, 4)
+            }
+            .foregroundStyle(isSelected ? HermesColor.accent : HermesColor.primaryText)
+            .glassEffect(isSelected ? .regular.tint(HermesColor.accent.opacity(0.15)) : .regular, in: Capsule())
+            .accessibilityIdentifier("tab.\(session.id)")
+        }
+    }
 #endif
