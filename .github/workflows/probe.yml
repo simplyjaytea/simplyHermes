@@ -1,0 +1,25 @@
+name: Probe SDK
+on:
+  push:
+    branches: [claude/wp-02-posture]
+jobs:
+  probe:
+    runs-on: xcode-27
+    steps:
+      - name: Dump Duo API names from the iOS SDK
+        run: |
+          sudo xcode-select -s /Applications/Xcode_27.1.app
+          xcodebuild -version
+          sdk=$(xcrun --sdk iphonesimulator --show-sdk-path); echo "$sdk"
+          xcrun simctl list devicetypes | grep -i -E "duo|fold" || echo "no duo device type"
+          for key in onHingeChange UIHingeInteraction HingeState ReservedRegion UIViewReservedRegion ArrangementView; do
+            echo "=== $key"
+            grep -r -l --include='*.swiftinterface' --include='*.h' --include='*.tbd' "$key" "$sdk/System/Library/Frameworks/UIKit.framework" "$sdk/System/Library/Frameworks/SwiftUI.framework" "$sdk/usr/lib/swift" 2>/dev/null | head -5
+          done
+          for f in $(grep -r -l --include='*.swiftinterface' -E "onHingeChange|HingeInteraction|ReservedRegion" "$sdk" 2>/dev/null | grep -v '\.private\.' | head -6); do
+            echo "##### $f"
+            grep -n -i -E -B1 -A6 "hinge|reservedRegion|DivisionRegion|OcclusionRegion|posture" "$f" | head -150
+          done
+          for f in $(grep -r -l --include='*.h' -E "UIHingeInteraction|UIViewReservedRegion|UIArrangement" "$sdk/System/Library/Frameworks/UIKit.framework" 2>/dev/null | head -6); do
+            echo "##### $f"; grep -n -i -E -B1 -A6 "hinge|reservedregion|posture|arrangement" "$f" | head -150
+          done
