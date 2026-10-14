@@ -102,6 +102,7 @@ jobs:
             -scheme simplyHermes \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -resultBundlePath build/test.xcresult \
+            -retry-tests-on-failure -test-iterations 2 \
             IPHONEOS_DEPLOYMENT_TARGET="${{ steps.sim.outputs.os }}" \
             CODE_SIGNING_ALLOWED=NO | xcbeautify
       - name: Screenshot app on simulator
