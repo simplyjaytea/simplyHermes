@@ -3,7 +3,8 @@ import HermesUI
 import SwiftUI
 import WidgetKit
 
-struct BotsEntry: TimelineEntry {
+// Qualified: HermesKit has its own `TimelineEntry` (session timeline).
+struct BotsEntry: WidgetKit.TimelineEntry {
     let date: Date
     let content: BotsWidgetContent
 }
