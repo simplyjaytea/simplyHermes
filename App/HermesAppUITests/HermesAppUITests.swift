@@ -38,12 +38,9 @@ final class HermesAppUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Hermes is replying"].waitForExistence(timeout: 5))
 
-        let draft = "draft survives fold"
-        let field = element(app, "composer.field")
-        field.tap()
-        field.typeText(draft)
-
+        // Scroll up before the keyboard shows, so the swipe lands on the transcript and not on the keyboard.
         let transcript = transcriptScrollView(app)
+        let beforeSwipes = app.debugDescription
         for _ in 0..<3 {
             transcript.swipeDown(velocity: .fast)
         }
@@ -55,9 +52,16 @@ final class HermesAppUITests: XCTestCase {
         )
         let anchor = scrollAnchor(app)
         if !anchor.hasPrefix("backup-") {
+            add(XCTAttachment(string: beforeSwipes))
             add(XCTAttachment(string: app.debugDescription))
         }
         XCTAssertTrue(anchor.hasPrefix("backup-"), "Scrolling up should anchor on an earlier message, got \(anchor)")
+
+        let draft = "draft survives fold"
+        let field = element(app, "composer.field")
+        field.tap()
+        field.typeText(draft)
+        XCTAssertEqual(scrollAnchor(app), anchor, "Showing the keyboard should keep the scroll position")
 
         switchLayout(app, to: "innerPortrait")
         XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 5))
