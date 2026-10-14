@@ -43,7 +43,7 @@ final class HermesAppUITests: XCTestCase {
         field.tap()
         field.typeText(draft)
 
-        let transcript = element(app, "transcript")
+        let transcript = transcriptScrollView(app)
         var anchor: String?
         for _ in 0..<8 where anchor == nil {
             transcript.swipeDown()
@@ -56,8 +56,8 @@ final class HermesAppUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Hermes is replying"].exists, "The reply should still be streaming")
         XCTAssertEqual(element(app, "composer.field").value as? String, draft)
         if let anchor {
-            XCTAssertTrue(element(app, anchor).waitForExistence(timeout: 5))
-            XCTAssertTrue(element(app, anchor).isHittable, "Scroll position should survive the layout change")
+            XCTAssertTrue(bubble(app, anchor).waitForExistence(timeout: 5))
+            XCTAssertTrue(bubble(app, anchor).isHittable, "Scroll position should survive the layout change")
         }
 
         switchLayout(app, to: "halfFold")
@@ -75,7 +75,7 @@ final class HermesAppUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += ["-HermesLayout", "compact"]
         app.launch()
-        let transcript = element(app, "transcript")
+        let transcript = transcriptScrollView(app)
         XCTAssertTrue(transcript.waitForExistence(timeout: 10))
         let options = XCTMeasureOptions()
         options.iterationCount = 3
@@ -100,14 +100,29 @@ final class HermesAppUITests: XCTestCase {
         item.tap()
     }
 
+    /// The chat's scroll view. Falls back to the first scroll view if the identifier is not exposed.
+    @MainActor
+    private func transcriptScrollView(_ app: XCUIApplication) -> XCUIElement {
+        let byID = app.scrollViews["transcript"]
+        return byID.waitForExistence(timeout: 5) ? byID : app.scrollViews.firstMatch
+    }
+
+    /// A message bubble by its text. Bubbles expose the text as their accessibility value.
+    @MainActor
+    private func bubble(_ app: XCUIApplication, _ text: String) -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(NSPredicate(format: "value == %@ OR label == %@", text, text))
+            .firstMatch
+    }
+
     /// The lowest question on screen, used as the scroll anchor to compare across layouts.
     @MainActor
     private func lastVisibleQuestion(_ app: XCUIApplication) -> String? {
         for index in stride(from: 24, through: 1, by: -1) {
-            let identifier = "message.backup-q\(index)"
-            let bubble = element(app, identifier)
-            if bubble.exists && bubble.isHittable {
-                return identifier
+            let text = "Question \(index) about backup cron fix"
+            let element = bubble(app, text)
+            if element.exists && element.isHittable {
+                return text
             }
         }
         return nil

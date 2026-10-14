@@ -50,6 +50,8 @@
                 .scrollTargetLayout()
                 .padding(.vertical, 12)
             }
+            // On the scroll view itself, so UI tests can swipe it (on the outer view it lands on the status strip).
+            .accessibilityIdentifier("transcript")
             .scrollPosition(id: model.scrollAnchorBinding(for: sessionID), anchor: .bottom)
             // Start at the newest message, but do not pin to the bottom while a reply grows,
             // or scrolling up mid-stream jumps back down. The scroll position id keeps up with new text.
@@ -68,7 +70,6 @@
                     .padding(.top, 4)
                 }
             }
-            .accessibilityIdentifier("transcript")
         }
 
         @ViewBuilder
