@@ -1,0 +1,56 @@
+[
+ {
+  "available": true,
+  "configured": true,
+  "description": "web_search, web_extract",
+  "enabled": true,
+  "label": "Web Search & Scraping",
+  "name": "web",
+  "platform": "cli",
+  "platform_label": "CLI",
+  "tools": [
+   "web_extract",
+   "web_search"
+  ]
+ },
+ {
+  "available": true,
+  "configured": true,
+  "description": "navigate, click, type, scroll",
+  "enabled": true,
+  "label": "Browser Automation",
+  "name": "browser",
+  "platform": "cli",
+  "platform_label": "CLI",
+  "tools": [
+   "browser_back",
+   "browser_cdp",
+   "browser_click",
+   "browser_console",
+   "browser_dialog",
+   "browser_exec",
+   "browser_get_images",
+   "browser_navigate",
+   "browser_press",
+   "browser_scroll",
+   "browser_snapshot",
+   "browser_type",
+   "browser_vault",
+   "browser_vision"
+  ]
+ },
+ {
+  "available": true,
+  "configured": true,
+  "description": "terminal, process",
+  "enabled": true,
+  "label": "Terminal & Processes",
+  "name": "terminal",
+  "platform": "cli",
+  "platform_label": "CLI",
+  "tools": [
+   "process_manage",
+   "terminal"
+  ]
+ }
+]

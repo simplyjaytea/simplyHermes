@@ -1,0 +1,26 @@
+[
+ {
+  "category": "autonomous-ai-agents",
+  "description": "Delegate coding to Claude Code CLI (features, PRs).",
+  "enabled": true,
+  "name": "claude-code",
+  "provenance": "bundled",
+  "usage": 0
+ },
+ {
+  "category": "autonomous-ai-agents",
+  "description": "Delegate coding to OpenAI Codex CLI (features, PRs).",
+  "enabled": true,
+  "name": "codex",
+  "provenance": "bundled",
+  "usage": 0
+ },
+ {
+  "category": "autonomous-ai-agents",
+  "description": "Drive the desktop background-first; escalate on signal.",
+  "enabled": true,
+  "name": "computer-use",
+  "provenance": "bundled",
+  "usage": 0
+ }
+]
