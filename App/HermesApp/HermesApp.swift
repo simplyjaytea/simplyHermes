@@ -46,7 +46,6 @@ struct RootView: View {
     var body: some View {
         AdaptiveShell(model: model, showsDebugLayoutMenu: launch.showsDebugLayoutSwitcher)
             .environment(\.hermesPosture, launch.posture ?? .flat)
-            .accessibilityIdentifier("root")
             .task {
                 if let layout = launch.layout {
                     model.layoutOverride = layout
