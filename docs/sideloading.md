@@ -14,3 +14,13 @@ SideStore re-signs it with a free Apple ID and installs it on the iPhone.
 - Background modes that need special entitlements are not available.
 
 SideStore setup on a Linux machine is a one-time manual step for JT and is not done by CI.
+
+## Widgets and Live Activity (WP-63/64)
+
+The app ships one extension, `simplyHermesWidgets` (Bots widget, Lock Screen widgets, Live Activity), so a SideStore install uses 2 App IDs. The planned Share extension will be the third and last.
+
+Check once on the first sideloaded build:
+
+1. Add the Bots widget to the Home Screen. If it shows bots and "Updated … ago", the App Group works. If it shows "Open simplyHermes to see your bots" even after opening the app, SideStore dropped the App Group: widgets stay in that state, while Live Activity buttons still work (they run in the app through App Intents).
+2. Start a chat turn and lock the phone: the Live Activity shows Stop; with an approval waiting, Deny and Approve. Approve asks for Face ID.
+3. Settings, turn on Keep bots live, start a long turn, leave the app: the Live Activity keeps updating. With it off, the activity shows "Open simplyHermes to refresh" about 90 seconds after the app is suspended.
