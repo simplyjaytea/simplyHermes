@@ -1,1 +1,1 @@
-{"steps":[{"tool_calls":[{"name":"clarify","arguments":{"question":"Which target?","choices":["staging","prod"]}}]},{"text":"Clarify flow finished."}]}
+{"steps":[{"tool_calls":[{"name":"clarify","arguments":{"questions":[{"question":"Which target?","choices":["staging","prod"]},{"question":"Any notes?"}]}}]},{"text":"Clarify flow finished."}]}

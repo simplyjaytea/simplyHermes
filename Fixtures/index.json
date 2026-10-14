@@ -1,0 +1,447 @@
+{
+ "handshake": {
+  "description": "Connect: gateway.ready, client.capabilities, gateway.capabilities, ping, read-only RPCs",
+  "status": "ok",
+  "frames": 21,
+  "methods": [
+   "client.capabilities",
+   "commands.catalog",
+   "config.get",
+   "gateway.capabilities",
+   "gateway.ping",
+   "model.options",
+   "ping",
+   "profiles.list",
+   "session.active_list",
+   "session.list"
+  ],
+  "events": [
+   "gateway.ready"
+  ],
+  "server_requests": [],
+  "notes": []
+ },
+ "chat_simple": {
+  "description": "One text turn",
+  "status": "ok",
+  "frames": 31,
+  "methods": [
+   "client.capabilities",
+   "prompt.submit",
+   "session.create",
+   "session.history",
+   "session.usage"
+  ],
+  "events": [
+   "gateway.ready",
+   "message.complete",
+   "message.delta",
+   "message.start",
+   "reasoning.available",
+   "session.info",
+   "session.title",
+   "thinking.delta"
+  ],
+  "server_requests": [],
+  "notes": []
+ },
+ "chat_tool_call": {
+  "description": "Turn with a terminal tool call",
+  "status": "ok",
+  "frames": 38,
+  "methods": [
+   "client.capabilities",
+   "prompt.submit",
+   "session.create"
+  ],
+  "events": [
+   "gateway.ready",
+   "message.complete",
+   "message.delta",
+   "message.interim",
+   "message.start",
+   "reasoning.available",
+   "session.info",
+   "session.title",
+   "sessions.changed",
+   "thinking.delta",
+   "tool.complete",
+   "tool.generating",
+   "tool.start"
+  ],
+  "server_requests": [],
+  "notes": []
+ },
+ "approval": {
+  "description": "Approval request answered with a JSON-RPC response",
+  "status": "ok",
+  "frames": 39,
+  "methods": [
+   "client.capabilities",
+   "prompt.submit",
+   "session.create"
+  ],
+  "events": [
+   "gateway.ready",
+   "message.complete",
+   "message.delta",
+   "message.interim",
+   "message.start",
+   "reasoning.available",
+   "session.info",
+   "session.title",
+   "thinking.delta",
+   "tool.complete",
+   "tool.generating",
+   "tool.start"
+  ],
+  "server_requests": [
+   "approval"
+  ],
+  "notes": []
+ },
+ "approval_denied": {
+  "description": "Approval denied",
+  "status": "ok",
+  "frames": 39,
+  "methods": [
+   "client.capabilities",
+   "prompt.submit",
+   "session.create"
+  ],
+  "events": [
+   "gateway.ready",
+   "message.complete",
+   "message.delta",
+   "message.interim",
+   "message.start",
+   "reasoning.available",
+   "session.info",
+   "session.title",
+   "thinking.delta",
+   "tool.complete",
+   "tool.generating",
+   "tool.start"
+  ],
+  "server_requests": [
+   "approval"
+  ],
+  "notes": []
+ },
+ "approval_answered_elsewhere": {
+  "description": "Two sockets; B answers the approval through approval.respond, A gets request.cancel",
+  "status": "ok",
+  "frames": 44,
+  "methods": [
+   "approval.respond",
+   "client.capabilities",
+   "prompt.submit",
+   "session.create"
+  ],
+  "events": [
+   "gateway.ready",
+   "message.complete",
+   "message.delta",
+   "message.interim",
+   "message.start",
+   "reasoning.available",
+   "request.cancel",
+   "session.info",
+   "session.title",
+   "thinking.delta",
+   "tool.complete",
+   "tool.generating",
+   "tool.start"
+  ],
+  "server_requests": [
+   "approval"
+  ],
+  "notes": [
+   "A got request srq-8ea0edbdbb81 (request_id 20b64e0bb3cb4a96b4ebe9f3aa0a173a)",
+   "B approval.respond -> {\"jsonrpc\": \"2.0\", \"id\": \"B2\", \"result\": {\"resolved\": 1}}"
+  ]
+ },
+ "clarify": {
+  "description": "Clarify request with choices",
+  "status": "ok",
+  "frames": 29,
+  "methods": [
+   "client.capabilities",
+   "prompt.submit",
+   "session.create"
+  ],
+  "events": [
+   "gateway.ready",
+   "message.complete",
+   "message.delta",
+   "message.start",
+   "reasoning.available",
+   "session.info",
+   "sessions.changed",
+   "thinking.delta",
+   "tool.complete",
+   "tool.generating",
+   "tool.start"
+  ],
+  "server_requests": [
+   "clarify"
+  ],
+  "notes": []
+ },
+ "sudo": {
+  "description": "Sudo/secret style request (answered with a value)",
+  "status": "ok",
+  "frames": 27,
+  "methods": [
+   "client.capabilities",
+   "prompt.submit",
+   "session.create"
+  ],
+  "events": [
+   "gateway.ready",
+   "message.complete",
+   "message.delta",
+   "message.start",
+   "reasoning.available",
+   "session.info",
+   "thinking.delta",
+   "tool.complete",
+   "tool.generating",
+   "tool.start"
+  ],
+  "server_requests": [
+   "sudo"
+  ],
+  "notes": [
+   "server requests seen: ['sudo']"
+  ]
+ },
+ "interrupt": {
+  "description": "Interrupt a streaming turn",
+  "status": "ok",
+  "frames": 17,
+  "methods": [
+   "client.capabilities",
+   "prompt.submit",
+   "session.create",
+   "session.interrupt"
+  ],
+  "events": [
+   "gateway.ready",
+   "message.complete",
+   "message.delta",
+   "message.start",
+   "session.info",
+   "session.title",
+   "thinking.delta"
+  ],
+  "server_requests": [],
+  "notes": []
+ },
+ "drop_and_catch_up": {
+  "description": "Drop the socket mid-stream, reconnect, catch up with session.events.since and session.resume",
+  "status": "ok",
+  "frames": 108,
+  "methods": [
+   "client.capabilities",
+   "prompt.submit",
+   "session.create",
+   "session.events.since",
+   "session.resume"
+  ],
+  "events": [
+   "gateway.ready",
+   "message.complete",
+   "message.delta",
+   "message.start",
+   "reasoning.available",
+   "session.info",
+   "session.title",
+   "sessions.changed",
+   "thinking.delta"
+  ],
+  "server_requests": [],
+  "notes": [
+   "dropping socket A at seq 25",
+   "events.since count=37 truncated=False",
+   "session.resume(stored id) -> {\"jsonrpc\": \"2.0\", \"id\": \"B3\", \"result\": {\"info\": {\"model\": \"fake-model\", \"provider\": \"custom\", \"reasoning_effort\": \"\", \"reasoning_effort_wire\": \"\", \"service_tier\": \"\", \"fast\": false, \"yolo\": false, \""
+  ]
+ },
+ "cold_resume_inflight": {
+  "description": "Cold attach to an in-flight turn: session.activate / session.resume return inflight",
+  "status": "ok",
+  "frames": 66,
+  "methods": [
+   "client.capabilities",
+   "prompt.submit",
+   "session.activate",
+   "session.active_list",
+   "session.create",
+   "session.resume",
+   "session.status"
+  ],
+  "events": [
+   "gateway.ready",
+   "message.complete",
+   "message.delta",
+   "message.start",
+   "reasoning.available",
+   "session.info",
+   "session.title",
+   "sessions.changed",
+   "thinking.delta"
+  ],
+  "server_requests": [],
+  "notes": []
+ },
+ "rewind": {
+  "description": "Rewind: prompt.submit with truncate_before_row_id, and each error path",
+  "status": "ok",
+  "frames": 105,
+  "methods": [
+   "client.capabilities",
+   "prompt.submit",
+   "session.create"
+  ],
+  "events": [
+   "gateway.ready",
+   "message.complete",
+   "message.delta",
+   "message.start",
+   "reasoning.available",
+   "session.info",
+   "session.title",
+   "sessions.changed",
+   "thinking.delta"
+  ],
+  "server_requests": [],
+  "notes": [
+   "user_row_ids [159, 161, 163]",
+   "attempt: missing confirm_truncate",
+   "attempt: boolean ordinal",
+   "attempt: ordinal-only (unsafe)",
+   "attempt: ordinal and row mismatch",
+   "attempt: stale row id",
+   "attempt: cut to empty without confirm_empty_truncate",
+   "attempt: ok: deep cut with confirm_deep_truncate"
+  ]
+ },
+ "provider_errors": {
+  "description": "Provider errors: 429 with Retry-After, 500",
+  "status": "ok",
+  "frames": 52,
+  "methods": [
+   "client.capabilities",
+   "prompt.submit",
+   "session.create",
+   "session.interrupt"
+  ],
+  "events": [
+   "gateway.ready",
+   "message.complete",
+   "message.start",
+   "session.info",
+   "session.reclaimed",
+   "session.title",
+   "sessions.changed",
+   "status.update",
+   "thinking.delta"
+  ],
+  "server_requests": [],
+  "notes": [
+   "error_500: no error/complete event in 45 s (agent retries internally)"
+  ]
+ },
+ "ws_rejections": {
+  "description": "WebSocket upgrade rejections (HTTP-level; recorded as notes, no frames)",
+  "status": "ok",
+  "frames": 0,
+  "methods": [],
+  "events": [],
+  "server_requests": [],
+  "notes": [
+   "bogus ticket: HTTP 403 at upgrade",
+   "no credential: HTTP 403 at upgrade",
+   "ticket reuse: HTTP 403 at upgrade",
+   "foreign Origin: ACCEPTED"
+  ]
+ },
+ "subagents": {
+  "description": "Subagent: delegate_task (skipped if the fake LLM scenario is missing)",
+  "status": "ok",
+  "frames": 41,
+  "methods": [
+   "client.capabilities",
+   "prompt.submit",
+   "session.create",
+   "spawn_tree.list",
+   "subagent.list"
+  ],
+  "events": [
+   "gateway.ready",
+   "message.complete",
+   "message.delta",
+   "message.interim",
+   "message.start",
+   "reasoning.available",
+   "session.info",
+   "session.title",
+   "subagent.complete",
+   "subagent.start",
+   "subagent.thinking",
+   "thinking.delta",
+   "tool.complete",
+   "tool.generating",
+   "tool.start"
+  ],
+  "server_requests": [],
+  "notes": []
+ },
+ "catch_up_truncated": {
+  "description": "Catch-up after a long outage: session.events.since reports truncated=true (ring overflow)",
+  "status": "ok",
+  "frames": 13,
+  "methods": [
+   "client.capabilities",
+   "prompt.submit",
+   "session.create",
+   "session.events.since"
+  ],
+  "events": [
+   "gateway.ready",
+   "session.info"
+  ],
+  "server_requests": [],
+  "notes": [
+   "count=512 truncated=True latest_seq=1006"
+  ]
+ },
+ "bot_and_group_room": {
+  "description": "Bot profile + same-gateway group room: profiles.*, groups.capabilities/create/send/log/state/stop/disband",
+  "status": "ok",
+  "frames": 26,
+  "methods": [
+   "client.capabilities",
+   "groups.capabilities",
+   "groups.create",
+   "groups.disband",
+   "groups.list",
+   "groups.log",
+   "groups.send",
+   "groups.state",
+   "groups.stop",
+   "profiles.create",
+   "profiles.describe",
+   "profiles.list"
+  ],
+  "events": [
+   "gateway.ready",
+   "sessions.changed"
+  ],
+  "server_requests": [],
+  "notes": [
+   "groups.send -> {\"jsonrpc\": \"2.0\", \"id\": \"A8\", \"result\": {\"event\": {\"room_id\": \"room-1791948523\", \"seq\": 1, \"event_id\": \"user:7b409f932d2c88e97f0c17676c8420d3ea0dab6edb150a89b5684a8ad6d6c4c7\", \"kind\": \"message.user\",",
+   "room log events: 4"
+  ]
+ }
+}
