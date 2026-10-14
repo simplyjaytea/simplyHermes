@@ -20,7 +20,7 @@ targets:
   simplyHermes:
     type: application
     platform: iOS
-    sources: [App/HermesApp]
+    sources: [App/HermesApp, App/Shared]
     dependencies:
       - package: simplyHermes
         product: HermesKit
@@ -28,6 +28,7 @@ targets:
         product: HermesSSH
       - package: simplyHermes
         product: HermesUI
+      - target: simplyHermesWidgets
     entitlements:
       path: App/HermesApp/simplyHermes.entitlements
       properties:
@@ -52,11 +53,47 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         ITSAppUsesNonExemptEncryption: false
+        # Live Activity for running bot turns (WP-63/64).
+        NSSupportsLiveActivities: true
+        # "Keep bots live" holds a silent audio session while bots work (plans/ios-integration.md, D1).
+        UIBackgroundModes: [audio]
+        # simplyhermes://chat/<id>, opened by widgets and the Live Activity.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.simplyjaytea.simplyhermes
+            CFBundleURLSchemes: [simplyhermes]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.simplyjaytea.simplyhermes
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  # The only extension besides the planned Share extension: free signing allows few App IDs.
+  simplyHermesWidgets:
+    type: app-extension
+    platform: iOS
+    sources: [App/HermesWidgets, App/Shared]
+    dependencies:
+      - package: simplyHermes
+        product: HermesKit
+      - package: simplyHermes
+        product: HermesUI
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+    entitlements:
+      path: App/HermesWidgets/simplyHermesWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.simplyjaytea.simplyhermes
+    info:
+      path: App/HermesWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: simplyHermes
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.simplyjaytea.simplyhermes.widgets
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
   simplyHermesTests:
     type: bundle.unit-test
     platform: iOS
