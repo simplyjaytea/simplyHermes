@@ -14,29 +14,39 @@
 
         public var body: some View {
             GeometryReader { proxy in
-                List {
-                    Section("Posture") {
-                        row("posture", monitor.posture.rawValue)
-                        row("hinge.status", monitor.hinge.map { "\($0.status)" } ?? "none")
-                        row("hinge.angle", monitor.hinge.map { String(format: "%.1f°", $0.angleDegrees) } ?? "none")
-                        row("posture.source", monitor.override != nil ? "forced" : "hinge")
-                    }
-                    Section("Screen") {
-                        row("size", "\(Int(proxy.size.width)) × \(Int(proxy.size.height)) pt")
-                        row("sizeClass.horizontal", name(horizontal))
-                        row("sizeClass.vertical", name(vertical))
-                        row("orientation", proxy.size.width > proxy.size.height ? "landscape" : "portrait")
-                        row("safeArea", insets(proxy.safeAreaInsets))
-                    }
-                    Section("Reserved regions") {
-                        row("regions.count", "\(monitor.reservedRegions.count)")
-                        ForEach(monitor.reservedRegions) { region in
-                            Text("\(region.kind)\(region.isActive ? "" : " (inactive)"): \(rect(region.frame))")
-                                .font(.footnote.monospaced())
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        group("Posture") {
+                            row("posture", monitor.posture.rawValue)
+                            row("hinge.status", monitor.hinge.map { "\($0.status)" } ?? "none")
+                            row("hinge.angle", monitor.hinge.map { String(format: "%.1f°", $0.angleDegrees) } ?? "none")
+                            row("posture.source", monitor.override != nil ? "forced" : "hinge")
+                        }
+                        group("Screen") {
+                            row("size", "\(Int(proxy.size.width)) × \(Int(proxy.size.height)) pt")
+                            row("sizeClass.horizontal", name(horizontal))
+                            row("sizeClass.vertical", name(vertical))
+                            row("orientation", proxy.size.width > proxy.size.height ? "landscape" : "portrait")
+                            row("safeArea", insets(proxy.safeAreaInsets))
+                        }
+                        group("Reserved regions") {
+                            row("regions.count", "\(monitor.reservedRegions.count)")
+                            ForEach(monitor.reservedRegions) { region in
+                                Text("\(region.kind)\(region.isActive ? "" : " (inactive)"): \(rect(region.frame))")
+                                    .font(.footnote.monospaced())
+                            }
                         }
                     }
+                    .padding()
                 }
                 .navigationTitle("Posture")
+            }
+        }
+
+        private func group(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title).font(.headline)
+                content()
             }
         }
 

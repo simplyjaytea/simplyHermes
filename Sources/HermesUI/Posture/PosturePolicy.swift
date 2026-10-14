@@ -35,7 +35,8 @@
 
         public func posture(for hinge: HingeReading?) -> DevicePosture {
             guard let hinge, hinge.status == .partiallyOpen else { return .flat }
-            return hinge.angleDegrees <= tentMaxDegrees ? .tent : .halfFolded
+            // The tolerance absorbs the radians-to-degrees rounding, so exactly 75° counts as tent.
+            return hinge.angleDegrees <= tentMaxDegrees + 1e-6 ? .tent : .halfFolded
         }
     }
 #endif

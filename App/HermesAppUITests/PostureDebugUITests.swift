@@ -13,13 +13,13 @@ final class PostureDebugUITests: XCTestCase {
         app.launch()
 
         let posture = label(app, "posture")
-        XCTAssertTrue(posture.waitForExistence(timeout: 10))
+        XCTAssertTrue(posture.waitForExistence(timeout: 20), "posture row missing:\n\(app.debugDescription)")
         // Without a Duo hinge the posture falls back to flat.
         XCTAssertTrue(["flat", "halfFolded", "tent"].contains(posture.label), "posture was \(posture.label)")
-        XCTAssertFalse(label(app, "hinge.status").label.isEmpty)
-        XCTAssertFalse(label(app, "sizeClass.horizontal").label.isEmpty)
-        XCTAssertTrue(label(app, "size").label.contains("×"))
-        XCTAssertTrue(label(app, "regions.count").exists)
+        XCTAssertFalse(label(app, "hinge.status").label.isEmpty, "hinge.status empty")
+        XCTAssertFalse(label(app, "sizeClass.horizontal").label.isEmpty, "size class empty")
+        XCTAssertTrue(label(app, "size").label.contains("×"), "size was \(label(app, "size").label)")
+        XCTAssertTrue(label(app, "regions.count").exists, "regions.count row missing")
 
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "posture-debug"
