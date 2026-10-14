@@ -47,6 +47,12 @@ final class HermesAppUITests: XCTestCase {
         for _ in 0..<3 {
             transcript.swipeDown(velocity: .fast)
         }
+        // The anchor is saved once the scroll comes to rest.
+        let settled = NSPredicate(format: "label BEGINSWITH 'backup-'")
+        _ = XCTWaiter.wait(
+            for: [XCTNSPredicateExpectation(predicate: settled, object: element(app, "debug.scrollAnchor"))],
+            timeout: 5
+        )
         let anchor = scrollAnchor(app)
         if !anchor.hasPrefix("backup-") {
             add(XCTAttachment(string: app.debugDescription))

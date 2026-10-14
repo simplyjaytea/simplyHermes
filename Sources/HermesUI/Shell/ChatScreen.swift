@@ -14,9 +14,9 @@
         var style: Style = .standard
 
         @State private var position = ScrollPosition(idType: String.self)
-        @State private var isNearBottom = true
-        /// False until a saved scroll position is restored, so the first layout pass cannot overwrite it.
-        @State private var isRestored = false
+        /// True while the transcript sticks to the newest text. A drag stops it; settling at the bottom resumes it.
+        @State private var isFollowing = true
+        @State private var visibleIDs: [String] = []
 
         var body: some View {
             switch style {
@@ -59,29 +59,31 @@
             .scrollPosition($position)
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .defaultScrollAnchor(.bottom, for: .alignment)
-            .onScrollGeometryChange(for: Bool.self) { geometry in
-                geometry.visibleRect.maxY >= geometry.contentSize.height - 40
-            } action: { _, nearBottom in
-                isNearBottom = nearBottom
-                if nearBottom && isRestored {
-                    model.scrollAnchors[sessionID] = nil
-                }
+            .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.1) { ids in
+                visibleIDs = ids
             }
-            // Remember the lowest visible message while the user reads history; at the bottom, follow new text.
-            .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.3) { visibleIDs in
-                guard isRestored else { return }
-                model.scrollAnchors[sessionID] = isNearBottom ? nil : visibleIDs.last
+            // Only the user's own scrolling moves the saved position, so streaming never fights their finger.
+            .onScrollPhaseChange { _, phase, context in
+                switch phase {
+                case .tracking, .interacting:
+                    isFollowing = false
+                case .idle:
+                    let geometry = context.geometry
+                    let atBottom = geometry.visibleRect.maxY >= geometry.contentSize.height - 40
+                    isFollowing = atBottom
+                    model.scrollAnchors[sessionID] = atBottom ? nil : topVisibleID
+                default:
+                    break
+                }
             }
             .task {
                 if let anchor = model.scrollAnchors[sessionID] {
-                    position.scrollTo(id: anchor, anchor: .bottom)
+                    isFollowing = false
+                    position.scrollTo(id: anchor, anchor: .top)
                 }
-                // Let the restored position settle before tracking scrolls again.
-                try? await Task.sleep(for: .milliseconds(300))
-                isRestored = true
             }
             .onChange(of: model.transcripts[sessionID]?.last?.text) {
-                if isNearBottom && model.scrollAnchors[sessionID] == nil {
+                if isFollowing {
                     position.scrollTo(edge: .bottom)
                 }
             }
@@ -98,6 +100,12 @@
                     .padding(.top, 4)
                 }
             }
+        }
+
+        /// The first message on screen, in transcript order. Restoring puts it back at the top.
+        private var topVisibleID: String? {
+            let messages = model.transcripts[sessionID] ?? []
+            return messages.first { visibleIDs.contains($0.id) }?.id
         }
 
         @ViewBuilder
