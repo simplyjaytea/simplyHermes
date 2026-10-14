@@ -5,3 +5,15 @@ included:
 line_length: 140
 disabled_rules:
   - trailing_comma
+# Model files mirror wire contracts: long switches over event names and one file per method family.
+file_length:
+  warning: 800
+  error: 1200
+cyclomatic_complexity:
+  ignores_case_statements: true
+function_body_length:
+  warning: 80
+identifier_name:
+  excluded:
+    - ok
+    - id
