@@ -102,8 +102,57 @@ jobs:
             -scheme simplyHermes \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -resultBundlePath build/test.xcresult \
+            -retry-tests-on-failure -test-iterations 2 \
             IPHONEOS_DEPLOYMENT_TARGET="${{ steps.sim.outputs.os }}" \
             CODE_SIGNING_ALLOWED=NO | xcbeautify
+      - name: Screenshot app on simulator
+        if: always()
+        run: |
+          set -eo pipefail
+          mkdir -p build/shots
+          udid="${{ steps.sim.outputs.udid }}"
+          xcrun simctl boot "$udid" || true
+          xcrun simctl bootstatus "$udid" -b
+          xcodebuild build \
+            -project simplyHermes.xcodeproj \
+            -scheme simplyHermes \
+            -destination "id=$udid" \
+            -derivedDataPath build/dd \
+            IPHONEOS_DEPLOYMENT_TARGET="${{ steps.sim.outputs.os }}" \
+            CODE_SIGNING_ALLOWED=NO | xcbeautify
+          app=$(find build/dd/Build/Products -name "*.app" -maxdepth 3 | head -1)
+          xcrun simctl install "$udid" "$app"
+          bundle=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$app/Info.plist")
+          xcrun simctl launch "$udid" "$bundle"
+          sleep 5
+          xcrun simctl io "$udid" screenshot build/shots/launch.png
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: build/shots
+          if-no-files-found: warn
+      - name: Build unsigned .ipa for sideloading
+        run: |
+          set -eo pipefail
+          xcodebuild build \
+            -project simplyHermes.xcodeproj \
+            -scheme simplyHermes \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build/ddi \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | xcbeautify
+          app=$(find build/ddi/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1 | head -1)
+          mkdir -p build/ipa/Payload
+          cp -R "$app" build/ipa/Payload/
+          (cd build/ipa && zip -qr simplyHermes-unsigned.ipa Payload && rm -rf Payload)
+          ls -l build/ipa
+      - name: Upload unsigned .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: simplyHermes-unsigned-ipa
+          path: build/ipa/simplyHermes-unsigned.ipa
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
