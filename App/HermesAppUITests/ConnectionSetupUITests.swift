@@ -47,11 +47,9 @@ final class ConnectionSetupUITests: XCTestCase {
         }
 
         element(app, "connection.save").tap()
-        // Saving the first server opens the app on the first chat; the chat list shows the server switcher.
+        // Saving the first server replaces the welcome screen with the app, open on the first chat.
         XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 10))
-        // The back button's label differs between iOS versions, so tap it by position.
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(element(app, "serverSwitcher").waitForExistence(timeout: 5))
+        XCTAssertFalse(element(app, "welcome.addGateway").exists)
     }
 
     @MainActor
