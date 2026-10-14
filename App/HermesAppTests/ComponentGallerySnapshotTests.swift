@@ -39,7 +39,9 @@ final class ComponentGallerySnapshotTests: XCTestCase {
     }
 
     private func verifyRecordingMissing(_ view: AnyView, named name: String, style: UIUserInterfaceStyle) throws {
+        // Drawn in the key window so Liquid Glass and materials render as on a device.
         let strategy = Snapshotting<AnyView, UIImage>.image(
+            drawHierarchyInKeyWindow: true,
             perceptualPrecision: 0.98,
             layout: .sizeThatFits,
             traits: UITraitCollection(userInterfaceStyle: style)
