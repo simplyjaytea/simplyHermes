@@ -1,0 +1,65 @@
+# Test Hermes backend for simplyHermes CI and local runs. See testbed/README.md.
+name: simplyhermes-testbed
+services:
+  fake-llm:
+    build: ./hermes
+    image: simplyhermes-testbed/hermes:pinned
+    command: ["python3", "/testbed/fake-llm/server.py"]
+    environment:
+      FAKE_LLM_HOST: 0.0.0.0
+      FAKE_LLM_PORT: "8700"
+      FAKE_LLM_DEFAULT: text
+    volumes:
+      - ./fake-llm:/testbed/fake-llm:ro
+    ports:
+      - "127.0.0.1:8700:8700"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8700/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  dashboard:
+    image: simplyhermes-testbed/hermes:pinned
+    depends_on:
+      fake-llm: {condition: service_healthy}
+    entrypoint: ["/opt/hermes/testbed-entrypoints/dashboard-entrypoint.sh"]
+    environment:
+      # Non-loopback bind engages the auth gate: basic provider with a stable secret
+      # so sessions survive restarts.
+      HERMES_DASHBOARD_BASIC_AUTH_USERNAME: tester
+      HERMES_DASHBOARD_BASIC_AUTH_PASSWORD: testbed-password
+      HERMES_DASHBOARD_BASIC_AUTH_SECRET: testbed-stable-secret-0123456789abcdef
+    volumes:
+      - ./hermes/dashboard-entrypoint.sh:/opt/hermes/testbed-entrypoints/dashboard-entrypoint.sh:ro
+    ports:
+      - "127.0.0.1:9119:9119"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9119/api/status"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  # sshd with Hermes installed. The app (or smoke test) starts `hermes serve` over SSH.
+  sshd:
+    image: simplyhermes-testbed/hermes:pinned
+    depends_on:
+      fake-llm: {condition: service_healthy}
+    entrypoint: ["/opt/hermes/testbed-entrypoints/sshd-entrypoint.sh"]
+    environment:
+      FAKE_LLM_URL: http://fake-llm:8700/v1
+    volumes:
+      - ./hermes/sshd-entrypoint.sh:/opt/hermes/testbed-entrypoints/sshd-entrypoint.sh:ro
+      - ./data/ssh:/testbed-keys:ro
+    ports:
+      - "127.0.0.1:2222:22"
+
+  # Optional local OIDC for the `self-hosted` provider: docker compose --profile oidc up
+  dex:
+    profiles: ["oidc"]
+    image: ghcr.io/dexidp/dex:v2.41.1
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    volumes:
+      - ./dex/config.yaml:/etc/dex/config.yaml:ro
+    ports:
+      - "127.0.0.1:5556:5556"

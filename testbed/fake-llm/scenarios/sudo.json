@@ -1,0 +1,1 @@
+{"steps":[{"tool_calls":[{"name":"terminal","arguments":{"command":"sudo -n true"}}]},{"text":"Sudo flow finished."}]}
