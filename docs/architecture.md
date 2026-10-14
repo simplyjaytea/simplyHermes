@@ -1,0 +1,36 @@
+# Architecture
+
+Source of truth: `plans/hermes-iphone-plan.md` section 3 (kept in the project files; summarized here).
+
+## Modules (Swift packages in one repo)
+
+- `HermesKit` — pure Swift, Linux-buildable, no UIKit, no Combine: models, transport abstraction, JSON-RPC client, REST client, auth, event reducer, connection manager.
+- `HermesSSH` — Citadel/SwiftNIO SSH: session, exec, loopback forwarder. Linux-buildable.
+- `HermesUI` — SwiftUI design system and feature views.
+- `App/` — app target, widgets, intents, Live Activity, Share extension.
+
+## Transport abstraction
+
+A `HermesEndpoint` value (base URL with optional path prefix, extra headers such as `Host`) is produced by both gateway and SSH modes. REST and WebSocket code run on `URLSession` identically for both.
+
+## Concurrency and UI
+
+Structured concurrency; one `actor` per connection; events as `AsyncStream`; `@Observable` view models on the main actor. Streaming deltas are coalesced into frame-sized batches; markdown parses the tail block only.
+
+## Persistence and secrets
+
+GRDB (async/observation APIs only) in an App Group container (`group.com.simplyjaytea.simplyhermes`). Keychain (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`) in the shared access group `$(AppIdentifierPrefix)com.simplyjaytea.simplyhermes.shared`.
+
+## Networking permissions
+
+LAN gateways need `NSLocalNetworkUsageDescription` (set). ATS: `NSAllowsLocalNetworking` covers local hosts only, not Tailscale `100.x` / `*.ts.net`.
+
+## Project file
+
+XcodeGen `project.yml`; the `.xcodeproj` is generated and git-ignored.
+
+## Build and CI
+
+- Linux job: format lint, `swift build`, `swift test` (container `swift:6.1`).
+- macOS job: runner label `xcode-27`, Xcode 27.1, `swiftlint`, `xcodegen`, `xcodebuild test` on the Duo simulator if present, else the newest iPhone simulator.
+- Swift in the cloud dev container: install the Linux toolchain from download.swift.org (6.1.2 works for `HermesKit`/`HermesSSH`); no setup script is committed.

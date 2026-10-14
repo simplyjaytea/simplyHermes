@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Packages (Linux)
+    runs-on: ubuntu-latest
+    container: swift:6.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Format lint
+        run: swift format lint --strict -r Sources Tests App
+      - name: Build
+        run: swift build
+      - name: Test
+        run: swift test
+
+  macos:
+    name: App (Xcode 27, simulator)
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 27.1
+        run: |
+          sudo xcode-select -s /Applications/Xcode_27.1.app
+          xcodebuild -version
+      - name: Install tools
+        run: brew install xcodegen swiftlint xcbeautify
+      - name: Lint
+        run: swiftlint --strict
+      - name: Generate project
+        run: xcodegen generate
+      - name: Get iOS 27.1 simulator runtime (best effort)
+        continue-on-error: true
+        run: xcodebuild -downloadPlatform iOS -buildVersion 27.1 || xcodebuild -downloadPlatform iOS
+      - name: Pick simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          xcrun simctl list runtimes
+          xcrun simctl list devicetypes | grep -iE "duo|iphone" || true
+          # Create an iPhone Duo device on the newest iOS runtime if the device type exists.
+          rt=$(xcrun simctl list runtimes -j | python3 -c "import sys,json;r=[x for x in json.load(sys.stdin)['runtimes'] if x.get('isAvailable') and x['identifier'].split('.')[-1].startswith('iOS-')];r.sort(key=lambda x:[int(n) for n in x['version'].split('.')]);print(r[-1]['identifier'])")
+          duo=$(xcrun simctl list devicetypes -j | python3 -c "import sys,json;d=[x['identifier'] for x in json.load(sys.stdin)['devicetypes'] if 'duo' in x['name'].lower()];print(d[0] if d else '')")
+          if [ -n "$duo" ]; then xcrun simctl create "iPhone Duo CI" "$duo" "$rt" || true; fi
+          xcrun simctl list devices available -j > devices.json
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, re
+          d = json.load(open("devices.json"))["devices"]
+          best = None
+          for rt, devs in d.items():
+              m = re.search(r"iOS-(\d+)-(\d+)", rt)
+              if not m:
+                  continue
+              ver = (int(m.group(1)), int(m.group(2)))
+              for dev in devs:
+                  name = dev["name"]
+                  if "iPhone" not in name:
+                      continue
+                  score = (1 if "Duo" in name else 0, ver, name)
+                  if best is None or score > best[0]:
+                      best = (score, dev["udid"], name, ver)
+          print(f"udid={best[1]}")
+          print(f"name={best[2]}")
+          print(f"os={best[3][0]}.{best[3][1]}")
+          PY
+      - name: Test
+        run: |
+          set -o pipefail
+          echo "Simulator: ${{ steps.sim.outputs.name }} (iOS ${{ steps.sim.outputs.os }})"
+          # If only an older runtime exists, lower the deployment target so the app still runs in CI.
+          xcodebuild test \
+            -project simplyHermes.xcodeproj \
+            -scheme simplyHermes \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -resultBundlePath build/test.xcresult \
+            IPHONEOS_DEPLOYMENT_TARGET="${{ steps.sim.outputs.os }}" \
+            CODE_SIGNING_ALLOWED=NO | xcbeautify
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcresult
+          path: build/test.xcresult

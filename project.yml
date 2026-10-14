@@ -1,0 +1,82 @@
+name: simplyHermes
+options:
+  bundleIdPrefix: com.simplyjaytea
+  deploymentTarget:
+    iOS: "27.1"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+packages:
+  simplyHermes:
+    path: .
+targets:
+  simplyHermes:
+    type: application
+    platform: iOS
+    sources: [App/HermesApp]
+    dependencies:
+      - package: simplyHermes
+        product: HermesKit
+      - package: simplyHermes
+        product: HermesSSH
+      - package: simplyHermes
+        product: HermesUI
+    entitlements:
+      path: App/HermesApp/simplyHermes.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.simplyjaytea.simplyhermes
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)com.simplyjaytea.simplyhermes.shared
+    info:
+      path: App/HermesApp/Info.plist
+      properties:
+        CFBundleDisplayName: simplyHermes
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+        NSLocalNetworkUsageDescription: simplyHermes connects to a Hermes server on your local network.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.simplyjaytea.simplyhermes
+        TARGETED_DEVICE_FAMILY: "1"
+  simplyHermesTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [App/HermesAppTests]
+    dependencies:
+      - target: simplyHermes
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.simplyjaytea.simplyhermes.tests
+        GENERATE_INFOPLIST_FILE: YES
+  simplyHermesUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [App/HermesAppUITests]
+    dependencies:
+      - target: simplyHermes
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.simplyjaytea.simplyhermes.uitests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  simplyHermes:
+    build:
+      targets:
+        simplyHermes: all
+    test:
+      targets:
+        - simplyHermesTests
+        - simplyHermesUITests
