@@ -49,7 +49,8 @@ final class ConnectionSetupUITests: XCTestCase {
         element(app, "connection.save").tap()
         // Saving the first server opens the app on the first chat; the chat list shows the server switcher.
         XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 10))
-        app.navigationBars.buttons["Chats"].tap()
+        // The back button's label differs between iOS versions, so tap it by position.
+        app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(element(app, "serverSwitcher").waitForExistence(timeout: 5))
     }
 
@@ -74,7 +75,11 @@ final class ConnectionSetupUITests: XCTestCase {
         element(app, "welcome.addSSH").tap()
         XCTAssertTrue(element(app, "connection.publicKey").waitForExistence(timeout: 5))
         XCTAssertTrue((element(app, "connection.publicKey").label).hasPrefix("ssh-ed25519 "))
-        XCTAssertEqual(element(app, "connection.faceID").value as? String, "1", "Face ID is on by default for SSH")
+        // The Security section is below the fold; the form only builds rows it shows.
+        let faceID = element(app, "connection.faceID")
+        for _ in 0..<4 where !faceID.exists { app.swipeUp() }
+        XCTAssertTrue(faceID.waitForExistence(timeout: 5))
+        XCTAssertEqual(faceID.value as? String, "1", "Face ID is on by default for SSH")
     }
 
     @MainActor
