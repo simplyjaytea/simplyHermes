@@ -92,3 +92,18 @@ import Testing
         #expect(RemoteDashboard.parseServedToken(html: "<html></html>") == nil)
     }
 }
+
+@Suite struct SSHTunnelEndpointTests {
+    @Test func adaptsToHermesEndpoint() throws {
+        let hostKey = try HostKeyInfo(
+            openSSHKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl")
+        let token = String(repeating: "a", count: 64)
+        let endpoint = SSHTunnelEndpoint(
+            baseURL: try #require(URL(string: "http://127.0.0.1:51234")), sessionToken: token, hostKey: hostKey,
+            hermesVersion: "test")
+        #expect(
+            endpoint.hermesEndpoint.url(forPath: "/api/status").absoluteString == "http://127.0.0.1:51234/api/status")
+        #expect(endpoint.restHeaders == ["X-Hermes-Session-Token": token])
+        #expect(endpoint.webSocketURL().absoluteString == "ws://127.0.0.1:51234/api/ws?token=\(token)")
+    }
+}

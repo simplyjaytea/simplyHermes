@@ -1,0 +1,19 @@
+{
+ "entries": [
+  {
+   "preview": "delegate [[scenario:delegate]]",
+   "row_id": 170,
+   "timestamp": 1791948457.5607176
+  }
+ ],
+ "pagination": {
+  "after_row_id": 0,
+  "has_more": false,
+  "limit": 500,
+  "next_cursor": null,
+  "returned": 1,
+  "total": 1
+ },
+ "profile": "default",
+ "session_id": "20261014_032737_07e33f"
+}
