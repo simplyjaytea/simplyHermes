@@ -44,25 +44,25 @@ final class HermesAppUITests: XCTestCase {
         field.typeText(draft)
 
         let transcript = transcriptScrollView(app)
-        var anchor: String?
-        for _ in 0..<8 where anchor == nil {
-            transcript.swipeDown()
-            anchor = lastVisibleQuestion(app)
+        for _ in 0..<3 {
+            transcript.swipeDown(velocity: .fast)
         }
-        XCTAssertNotNil(anchor, "Scrolling up should show an earlier question")
+        let anchor = scrollAnchor(app)
+        if !anchor.hasPrefix("backup-") {
+            add(XCTAttachment(string: app.debugDescription))
+        }
+        XCTAssertTrue(anchor.hasPrefix("backup-"), "Scrolling up should anchor on an earlier message, got \(anchor)")
 
         switchLayout(app, to: "innerPortrait")
         XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Hermes is replying"].exists, "The reply should still be streaming")
         XCTAssertEqual(element(app, "composer.field").value as? String, draft)
-        if let anchor {
-            XCTAssertTrue(bubble(app, anchor).waitForExistence(timeout: 5))
-            XCTAssertTrue(bubble(app, anchor).isHittable, "Scroll position should survive the layout change")
-        }
+        XCTAssertEqual(scrollAnchor(app), anchor, "Scroll position should survive the layout change")
 
         switchLayout(app, to: "halfFold")
         XCTAssertTrue(element(app, "quick.stop").waitForExistence(timeout: 5))
         XCTAssertEqual(element(app, "composer.field").value as? String, draft)
+        XCTAssertEqual(scrollAnchor(app), anchor)
 
         switchLayout(app, to: "compact")
         XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 5))
@@ -107,24 +107,11 @@ final class HermesAppUITests: XCTestCase {
         return byID.waitForExistence(timeout: 5) ? byID : app.scrollViews.firstMatch
     }
 
-    /// A message bubble by its text. Bubbles expose the text as their accessibility value.
+    /// The selected chat's scroll anchor, read from the debug overlay.
     @MainActor
-    private func bubble(_ app: XCUIApplication, _ text: String) -> XCUIElement {
-        app.descendants(matching: .any)
-            .matching(NSPredicate(format: "value == %@ OR label == %@", text, text))
-            .firstMatch
-    }
-
-    /// The lowest question on screen, used as the scroll anchor to compare across layouts.
-    @MainActor
-    private func lastVisibleQuestion(_ app: XCUIApplication) -> String? {
-        for index in stride(from: 24, through: 1, by: -1) {
-            let text = "Question \(index) about backup cron fix"
-            let element = bubble(app, text)
-            if element.exists && element.isHittable {
-                return text
-            }
-        }
-        return nil
+    private func scrollAnchor(_ app: XCUIApplication) -> String {
+        let label = element(app, "debug.scrollAnchor")
+        XCTAssertTrue(label.waitForExistence(timeout: 5))
+        return label.label
     }
 }

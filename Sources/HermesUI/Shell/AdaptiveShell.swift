@@ -28,7 +28,10 @@
                 content(for: layout)
                     .overlay(alignment: .leading) {
                         if showsDebugLayoutMenu {
-                            debugLayoutMenu(current: layout)
+                            VStack(alignment: .leading, spacing: 4) {
+                                debugLayoutMenu(current: layout)
+                                debugScrollAnchor
+                            }
                         }
                     }
             }
@@ -183,6 +186,14 @@
                     Label("New chat", systemImage: "square.and.pencil")
                 }
             }
+        }
+
+        /// The selected chat's scroll anchor, so the fold UI test can check it survives a layout change.
+        private var debugScrollAnchor: some View {
+            Text(model.selectedSessionID.flatMap { model.scrollAnchors[$0] } ?? "none")
+                .font(HermesFont.codeSmall)
+                .padding(.leading, 8)
+                .accessibilityIdentifier("debug.scrollAnchor")
         }
 
         private func debugLayoutMenu(current: DisplayLayout) -> some View {
