@@ -141,7 +141,8 @@ private func frameKind(_ frame: RPCFrame) -> String {
     #expect(result.serverRequests.isEmpty)
 
     let event = try decodeFrame(
-        #"{"jsonrpc":"2.0","method":"event","params":{"type":"status.update","session_id":"s","seq":2,"x":1,"payload":{"kind":"lifecycle","text":"t","new":[]}}}"#
+        #"{"jsonrpc":"2.0","method":"event","params":{"type":"status.update","session_id":"s","seq":2,"x":1,"#
+            + #""payload":{"kind":"lifecycle","text":"t","new":[]}}}"#
     )
     guard case .event(let envelope) = event else {
         Issue.record("expected an event")

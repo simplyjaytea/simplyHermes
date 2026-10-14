@@ -197,10 +197,8 @@ extension GatewayEvent {
         _ container: KeyedDecodingContainer<EventWireKey>,
         _ wrap: (Payload) -> GatewayEvent
     ) -> GatewayEvent {
-        if let decoder = try? container.superDecoder(forKey: .payload),
-            let payload = try? Payload(from: decoder)
-        {
-            return wrap(payload)
+        if let decoder = try? container.superDecoder(forKey: .payload) {
+            if let payload = try? Payload(from: decoder) { return wrap(payload) }
         }
         return .unknown(type: type, payload: payloadValue(container))
     }

@@ -1,9 +1,7 @@
 import Foundation
 
 /// A JSON-RPC 2.0 request id: a string or an integer. The client uses strings.
-public enum RPCID: Sendable, Hashable, Codable, CustomStringConvertible, ExpressibleByStringLiteral,
-    ExpressibleByIntegerLiteral
-{
+public enum RPCID: Sendable, Hashable, Codable, CustomStringConvertible {
     /// A string id, such as `"A1"` or `"srq-bb333022bf70"`.
     case string(String)
     /// An integer id.
@@ -28,6 +26,16 @@ public enum RPCID: Sendable, Hashable, Codable, CustomStringConvertible, Express
         }
     }
 
+    /// The id as text.
+    public var description: String {
+        switch self {
+        case .string(let value): value
+        case .int(let value): String(value)
+        }
+    }
+}
+
+extension RPCID: ExpressibleByStringLiteral, ExpressibleByIntegerLiteral {
     /// String literals become `.string`.
     public init(stringLiteral value: String) {
         self = .string(value)
@@ -36,14 +44,6 @@ public enum RPCID: Sendable, Hashable, Codable, CustomStringConvertible, Express
     /// Integer literals become `.int`.
     public init(integerLiteral value: Int) {
         self = .int(value)
-    }
-
-    /// The id as text.
-    public var description: String {
-        switch self {
-        case .string(let value): value
-        case .int(let value): String(value)
-        }
     }
 }
 

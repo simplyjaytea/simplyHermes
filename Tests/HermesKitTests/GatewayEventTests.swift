@@ -11,8 +11,8 @@ private func decodeEnvelope(_ json: String) throws -> GatewayEventEnvelope {
     let frame = try JSONDecoder().decode(
         RPCFrame.self,
         from: Data(
-            #"{"jsonrpc":"2.0","method":"event","params":{"type":"made.up.event","session_id":"abc123","payload":{"n":1,"nested":{"xs":[1,"two",null]}},"seq":7}}"#
-                .utf8))
+            (#"{"jsonrpc":"2.0","method":"event","params":{"type":"made.up.event","session_id":"abc123","#
+                + #""payload":{"n":1,"nested":{"xs":[1,"two",null]}},"seq":7}}"#).utf8))
     guard case .event(let envelope) = frame else {
         Issue.record("expected an event frame")
         return
