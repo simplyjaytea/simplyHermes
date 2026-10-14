@@ -40,6 +40,8 @@ targets:
       properties:
         CFBundleDisplayName: simplyHermes
         UILaunchScreen: {}
+        # Lets SwiftUI animations run at 120 Hz on ProMotion screens.
+        CADisableMinimumFrameDurationOnPhone: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft

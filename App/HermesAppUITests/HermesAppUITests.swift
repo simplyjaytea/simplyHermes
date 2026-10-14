@@ -67,6 +67,22 @@ final class HermesAppUITests: XCTestCase {
         XCTAssertEqual(element(app, "composer.field").value as? String, draft)
     }
 
+    /// Reports scroll hitch time in the test results, so smoothness regressions show up in CI.
+    @MainActor
+    func testTranscriptScrollHitches() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-HermesLayout", "compact"]
+        app.launch()
+        let transcript = element(app, "transcript")
+        XCTAssertTrue(transcript.waitForExistence(timeout: 10))
+        let options = XCTMeasureOptions()
+        options.iterationCount = 3
+        measure(metrics: [XCTOSSignpostMetric.scrollDecelerationMetric], options: options) {
+            transcript.swipeDown(velocity: .fast)
+            transcript.swipeUp(velocity: .fast)
+        }
+    }
+
     private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
