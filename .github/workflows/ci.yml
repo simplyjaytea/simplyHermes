@@ -133,6 +133,26 @@ jobs:
           name: screenshots
           path: build/shots
           if-no-files-found: warn
+      - name: Build unsigned .ipa for sideloading
+        run: |
+          set -eo pipefail
+          xcodebuild build \
+            -project simplyHermes.xcodeproj \
+            -scheme simplyHermes \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build/ddi \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | xcbeautify
+          app=$(find build/ddi/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1 | head -1)
+          mkdir -p build/ipa/Payload
+          cp -R "$app" build/ipa/Payload/
+          (cd build/ipa && zip -qr simplyHermes-unsigned.ipa Payload && rm -rf Payload)
+          ls -l build/ipa
+      - name: Upload unsigned .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: simplyHermes-unsigned-ipa
+          path: build/ipa/simplyHermes-unsigned.ipa
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
