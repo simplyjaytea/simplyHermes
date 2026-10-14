@@ -36,6 +36,11 @@ jobs:
           python3 -m venv .venv
           .venv/bin/pip install websockets
           .venv/bin/python testbed/smoke_test.py
+      - name: SSH transport integration (WP-14)
+        run: |
+          docker run --rm --network host -v "$PWD:/src" -w /src \
+            -e HERMES_SSH_TEST_KEY=/src/testbed/data/ssh/id_ed25519 \
+            swift:6.1 swift test --filter SSHTunnelIntegrationTests
       - name: Logs on failure
         if: failure()
         run: docker compose -f testbed/docker-compose.yml logs --tail=200
