@@ -17,3 +17,6 @@ identifier_name:
   excluded:
     - ok
     - id
+type_body_length:
+  warning: 500
+  error: 800
