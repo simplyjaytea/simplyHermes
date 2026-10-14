@@ -36,6 +36,7 @@
 
                 HStack(alignment: .bottom, spacing: 4) {
                     TextField(placeholder, text: $text, axis: .vertical)
+                        .accessibilityIdentifier("composer.field")
                         .font(HermesFont.body)
                         .lineLimit(1...6)
                         .padding(.vertical, 11)

@@ -1,0 +1,252 @@
+#if canImport(UIKit)
+    import SwiftUI
+
+    /// The app shell. Picks a layout from the screen and posture and keeps chat state in `ShellModel`,
+    /// so folding and unfolding never lose the session, scroll position or draft (WP-21).
+    public struct AdaptiveShell: View {
+        @Bindable private var model: ShellModel
+        private let showsDebugLayoutMenu: Bool
+
+        @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+        @Environment(\.hermesPosture) private var posture
+        @State private var columnVisibility: NavigationSplitViewVisibility = .all
+
+        public init(model: ShellModel, showsDebugLayoutMenu: Bool = false) {
+            self.model = model
+            self.showsDebugLayoutMenu = showsDebugLayoutMenu
+        }
+
+        public var body: some View {
+            GeometryReader { proxy in
+                let layout =
+                    model.layoutOverride
+                    ?? DisplayLayout.resolve(
+                        horizontalSizeClass: horizontalSizeClass,
+                        size: proxy.size,
+                        posture: posture
+                    )
+                content(for: layout)
+                    .overlay(alignment: .leading) {
+                        if showsDebugLayoutMenu {
+                            debugLayoutMenu(current: layout)
+                        }
+                    }
+            }
+            .background { KeyboardShortcuts(model: model) }
+            .sheet(isPresented: $model.isPalettePresented) {
+                CommandPalette(model: model)
+            }
+        }
+
+        @ViewBuilder
+        private func content(for layout: DisplayLayout) -> some View {
+            switch layout {
+            case .compact:
+                compactTabs
+            case .innerPortrait, .innerLandscape:
+                splitView(showsRail: layout == .innerLandscape)
+            case .halfFold:
+                NavigationStack {
+                    if let id = model.selectedSessionID {
+                        chat(id, style: .halfFold)
+                    } else {
+                        NoChatSelected { model.newChat() }
+                    }
+                }
+            case .tent:
+                GlanceView(model: model)
+            }
+        }
+
+        // MARK: Outer screen: chat-first tabs (plan Q4, Q6)
+
+        private var compactTabs: some View {
+            TabView(selection: $model.selectedSection) {
+                Tab(AppSection.chats.title, systemImage: AppSection.chats.systemImage, value: AppSection.chats) {
+                    NavigationStack {
+                        List(model.sessions) { session in
+                            Button {
+                                model.open(session.id)
+                            } label: {
+                                SessionRow(session: session, isStreaming: model.isStreaming(session.id))
+                            }
+                            .tint(HermesColor.primaryText)
+                        }
+                        .navigationTitle("Chats")
+                        .toolbar { newChatButton }
+                        .navigationDestination(item: $model.selectedSessionID) { id in
+                            chat(id, style: .standard)
+                        }
+                    }
+                }
+                ForEach(AppSection.allCases.filter { $0 != .chats }) { section in
+                    Tab(section.title, systemImage: section.systemImage, value: section) {
+                        NavigationStack { SectionPlaceholder(section: section) }
+                    }
+                }
+            }
+        }
+
+        // MARK: Inner screen: sidebar, chat and preview rail (plan Q3, Q6)
+
+        private func splitView(showsRail: Bool) -> some View {
+            NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: .constant(.detail)) {
+                List(selection: sidebarSelection) {
+                    Section("Chats") {
+                        ForEach(model.sessions) { session in
+                            SessionRow(session: session, isStreaming: model.isStreaming(session.id))
+                                .tag(SidebarItem.session(session.id))
+                        }
+                    }
+                    Section {
+                        ForEach(AppSection.allCases.filter { $0 != .chats }) { section in
+                            Label(section.title, systemImage: section.systemImage)
+                                .tag(SidebarItem.section(section))
+                        }
+                    }
+                }
+                .navigationTitle("simplyHermes")
+                .toolbar { newChatButton }
+            } detail: {
+                NavigationStack {
+                    if model.selectedSection != .chats {
+                        SectionPlaceholder(section: model.selectedSection)
+                    } else if let id = model.selectedSessionID {
+                        chat(id, style: .standard)
+                            .inspector(isPresented: railBinding(showsRail: showsRail)) {
+                                PreviewRail(model: model, sessionID: id)
+                                    .inspectorColumnWidth(min: 260, ideal: 300, max: 360)
+                            }
+                    } else {
+                        NoChatSelected { model.newChat() }
+                    }
+                }
+            }
+        }
+
+        private enum SidebarItem: Hashable {
+            case session(String)
+            case section(AppSection)
+        }
+
+        private var sidebarSelection: Binding<SidebarItem?> {
+            Binding(
+                get: {
+                    if model.selectedSection == .chats {
+                        return model.selectedSessionID.map(SidebarItem.session)
+                    }
+                    return .section(model.selectedSection)
+                },
+                set: { item in
+                    switch item {
+                    case .session(let id): model.open(id)
+                    case .section(let section): model.selectedSection = section
+                    case nil: break
+                    }
+                }
+            )
+        }
+
+        /// The rail shows only in inner landscape. In a compact width an inspector becomes a sheet, so it stays off.
+        private func railBinding(showsRail: Bool) -> Binding<Bool> {
+            Binding(
+                get: { showsRail && horizontalSizeClass == .regular && model.showsPreviewRail },
+                set: { model.showsPreviewRail = $0 }
+            )
+        }
+
+        // MARK: Shared pieces
+
+        private func chat(_ id: String, style: ChatScreen.Style) -> some View {
+            ChatScreen(model: model, sessionID: id, style: style)
+                .navigationTitle(model.session(id: id)?.title ?? "Chat")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            model.isPalettePresented = true
+                        } label: {
+                            Label("Commands", systemImage: "command")
+                        }
+                    }
+                }
+        }
+
+        private var newChatButton: some ToolbarContent {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    model.newChat()
+                } label: {
+                    Label("New chat", systemImage: "square.and.pencil")
+                }
+            }
+        }
+
+        private func debugLayoutMenu(current: DisplayLayout) -> some View {
+            Menu {
+                Button("Automatic") { model.layoutOverride = nil }
+                ForEach(DisplayLayout.allCases, id: \.self) { layout in
+                    Button(layout.rawValue) { model.layoutOverride = layout }
+                }
+            } label: {
+                Text(current.rawValue)
+                    .font(HermesFont.codeSmall)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .glassEffect(.regular, in: Capsule())
+            }
+            .accessibilityIdentifier("debugLayoutMenu")
+            .padding(.leading, 4)
+        }
+    }
+
+    /// Hardware keyboard shortcuts. Invisible buttons, so they work in every layout.
+    private struct KeyboardShortcuts: View {
+        let model: ShellModel
+
+        var body: some View {
+            ZStack {
+                Button("New chat") { model.newChat() }
+                    .keyboardShortcut("n")
+                Button("Command palette") { model.isPalettePresented.toggle() }
+                    .keyboardShortcut("k")
+                Button("Close chat") { model.closeSelected() }
+                    .keyboardShortcut("w")
+                Button("Reopen closed chat") { model.reopenLastClosed() }
+                    .keyboardShortcut("t", modifiers: [.command, .shift])
+                Button("Toggle preview rail") { model.showsPreviewRail.toggle() }
+                    .keyboardShortcut("0", modifiers: [.command, .option])
+                ForEach(Array(AppSection.allCases.enumerated()), id: \.element) { index, section in
+                    Button(section.title) { model.selectedSection = section }
+                        .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")))
+                }
+            }
+            .opacity(0)
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+        }
+    }
+
+    /// A second window with one chat, opened from the command palette (Split View on the inner screen).
+    public struct ChatWindow: View {
+        @Bindable private var model: ShellModel
+        private let sessionID: String?
+
+        public init(model: ShellModel, sessionID: String?) {
+            self.model = model
+            self.sessionID = sessionID
+        }
+
+        public var body: some View {
+            NavigationStack {
+                if let sessionID, model.session(id: sessionID) != nil {
+                    ChatScreen(model: model, sessionID: sessionID)
+                        .navigationTitle(model.session(id: sessionID)?.title ?? "Chat")
+                        .navigationBarTitleDisplayMode(.inline)
+                } else {
+                    ContentUnavailableView("Chat not found", systemImage: "bubble.left")
+                }
+            }
+        }
+    }
+#endif

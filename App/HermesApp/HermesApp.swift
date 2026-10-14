@@ -4,30 +4,56 @@ import SwiftUI
 
 @main
 struct HermesApp: App {
+    @State private var model = ShellModel()
+    private let launch = LaunchOptions(defaults: .standard)
+
     var body: some Scene {
         WindowGroup {
-            RootView()
+            RootView(model: model, launch: launch)
+                .tint(HermesColor.accent)
+        }
+        WindowGroup(id: ShellWindow.chat, for: String.self) { $sessionID in
+            ChatWindow(model: model, sessionID: sessionID)
                 .tint(HermesColor.accent)
         }
     }
 }
 
+/// Launch arguments for UI tests and debugging, read from `UserDefaults`
+/// (pass them as `-HermesLayout innerLandscape`).
+struct LaunchOptions {
+    /// Forces a layout: compact, innerPortrait, innerLandscape, halfFold or tent.
+    var layout: DisplayLayout?
+    /// Forces a posture until WP-02 reads the real one: flat, halfFolded or tent.
+    var posture: DevicePosture?
+    /// Shows the layout switcher used by the fold UI test.
+    var showsDebugLayoutSwitcher: Bool
+    /// "stream" starts a long demo reply in the first chat.
+    var demo: String?
+
+    init(defaults: UserDefaults) {
+        layout = defaults.string(forKey: "HermesLayout").flatMap(DisplayLayout.init(rawValue:))
+        posture = defaults.string(forKey: "HermesPosture").flatMap(DevicePosture.init(rawValue:))
+        showsDebugLayoutSwitcher = defaults.bool(forKey: "HermesDebugLayoutSwitcher")
+        demo = defaults.string(forKey: "HermesDemo")
+    }
+}
+
 struct RootView: View {
+    let model: ShellModel
+    let launch: LaunchOptions
+
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 8) {
-                Text("simplyHermes")
-                    .font(.largeTitle.bold())
-                Text("Hermes \(HermesKit.minimumServerVersion)+")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                NavigationLink("Component gallery") {
-                    ScrollView { ComponentGallery() }
-                        .navigationTitle("Components")
-                }
-                .padding(.top, 16)
-            }
+        AdaptiveShell(model: model, showsDebugLayoutMenu: launch.showsDebugLayoutSwitcher)
+            .environment(\.hermesPosture, launch.posture ?? .flat)
             .accessibilityIdentifier("root")
-        }
+            .task {
+                if let layout = launch.layout {
+                    model.layoutOverride = layout
+                }
+                if launch.demo == "stream", let id = model.selectedSessionID {
+                    model.startDemoStream(in: id, words: 400)
+                }
+            }
     }
 }
