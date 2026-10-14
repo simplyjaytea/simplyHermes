@@ -1,5 +1,6 @@
 @preconcurrency import Citadel
 import Foundation
+import HermesKit
 import NIOCore
 import NIOSSH
 
@@ -49,16 +50,19 @@ public struct SSHTunnelEndpoint: Sendable, Equatable {
     /// What the remote `hermes --version` printed.
     public let hermesVersion: String
 
+    /// The shared transport value (WP-10) for REST and WebSocket clients. Pass ``sessionToken`` alongside it:
+    /// `requestHeaders(sessionToken:)` for REST, `webSocketURL(path:token:)` for `/api/ws` (no ticket on loopback).
+    public var hermesEndpoint: HermesEndpoint {
+        // baseURL is always http://127.0.0.1:<port>, which HermesEndpoint accepts.
+        HermesEndpoint(baseURL: baseURL)!
+    }
+
     /// Headers for every REST call.
-    public var restHeaders: [String: String] { ["X-Hermes-Session-Token": sessionToken] }
+    public var restHeaders: [String: String] { hermesEndpoint.requestHeaders(sessionToken: sessionToken) }
 
     /// WebSocket URL with the `?token=` query the loopback server expects (no ticket).
     public func webSocketURL(path: String = "/api/ws") -> URL {
-        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
-        components.scheme = "ws"
-        components.path = path
-        components.queryItems = [URLQueryItem(name: "token", value: sessionToken)]
-        return components.url!
+        hermesEndpoint.webSocketURL(path: path, token: sessionToken)
     }
 }
 
