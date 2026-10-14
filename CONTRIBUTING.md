@@ -7,7 +7,7 @@
 - Only approved dependencies: Citadel, SwiftNIO (via Citadel), GRDB, swift-markdown, SwiftTerm, swift-snapshot-testing, mlx-swift + MLX LM, swift-openapi-generator (only if the server exposes `/openapi.json`), one syntax highlighter chosen in WP-00. Anything else: ask first.
 - Tests: `swift test` for packages. UI changes include SwiftUI previews for outer, inner portrait, inner landscape and half-fold, plus snapshot tests where the WP says so.
 - Acceptance criteria are literal. If one cannot be met, stop and report. Do not improvise.
-- Every acceptance has a **CI gate** (automatic; the WP is not done until green) and a **Manual check** (JT, on a TestFlight build; short checklist in the PR). "—" means none.
+- Every acceptance has a **CI gate** (automatic; the WP is not done until green) and a **Manual check** (JT, on CI simulator screenshots or a build on the iPhone; short checklist in the PR). "—" means none.
 - Design choices go to JT first.
 
 ## Local checks
