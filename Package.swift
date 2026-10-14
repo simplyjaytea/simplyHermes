@@ -34,7 +34,7 @@ let package = Package(
             ]
         ),
         // SwiftUI design system and feature views. Apple platforms only.
-        .target(name: "HermesUI", dependencies: ["HermesKit"]),
+        .target(name: "HermesUI", dependencies: ["HermesKit", "HermesSSH"]),
         .testTarget(
             name: "HermesKitTests",
             dependencies: [

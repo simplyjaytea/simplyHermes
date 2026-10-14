@@ -21,9 +21,18 @@ Structured concurrency; one `actor` per connection; events as `AsyncStream`; `@O
 
 GRDB (async/observation APIs only) in an App Group container (`group.com.simplyjaytea.simplyhermes`). Keychain (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`) in the shared access group `$(AppIdentifierPrefix)com.simplyjaytea.simplyhermes.shared`.
 
+Connections (WP-22): `ServerConnection` values (no secrets) are saved by `ConnectionStore` as JSON until GRDB lands.
+Secrets go through `CredentialStore`: `KeychainCredentialStore` in the app, keyed `<connection id>/<kind>` (gateway
+password only when "Remember password" is on, session token, SSH key as `StoredSSHKey` JSON). It uses the app's
+default access group for now; the shared group needs its team prefix read at runtime on a sideloaded build. Face ID
+(`deviceOwnerAuthentication`) gates reading an SSH connection's secrets; on by default for SSH, optional for gateways.
+
 ## Networking permissions
 
-LAN gateways need `NSLocalNetworkUsageDescription` (set). ATS: `NSAllowsLocalNetworking` covers local hosts only, not Tailscale `100.x` / `*.ts.net`.
+LAN gateways need `NSLocalNetworkUsageDescription` (set); the app explains the prompt once before the first Test of a
+private-network host. ATS: `NSAllowsLocalNetworking` covers local hosts only, not Tailscale `100.x` / `*.ts.net`, so
+`NSAllowsArbitraryLoads` is on and the app enforces plan Q14 itself (`ConnectionAddress`): `http://` only for
+loopback, private and Tailscale hosts, with a warning; HTTPS everywhere else.
 
 ## Project file
 

@@ -5,14 +5,17 @@
     /// so folding and unfolding never lose the session, scroll position or draft (WP-21).
     public struct AdaptiveShell: View {
         @Bindable private var model: ShellModel
+        private let connections: ConnectionsModel?
         private let showsDebugLayoutMenu: Bool
 
         @Environment(\.horizontalSizeClass) private var horizontalSizeClass
         @Environment(\.hermesPosture) private var posture
         @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
-        public init(model: ShellModel, showsDebugLayoutMenu: Bool = false) {
+        /// `connections` fills Settings > Servers and the server switcher (WP-22). Nil shows placeholders.
+        public init(model: ShellModel, connections: ConnectionsModel? = nil, showsDebugLayoutMenu: Bool = false) {
             self.model = model
+            self.connections = connections
             self.showsDebugLayoutMenu = showsDebugLayoutMenu
         }
 
@@ -76,7 +79,10 @@
                             .tint(HermesColor.primaryText)
                         }
                         .navigationTitle("Chats")
-                        .toolbar { newChatButton }
+                        .toolbar {
+                            serverSwitcher
+                            newChatButton
+                        }
                         .navigationDestination(item: $model.selectedSessionID) { id in
                             chat(id, style: .standard)
                         }
@@ -84,7 +90,7 @@
                 }
                 ForEach(AppSection.allCases.filter { $0 != .chats }) { section in
                     Tab(section.title, systemImage: section.systemImage, value: section) {
-                        NavigationStack { SectionPlaceholder(section: section) }
+                        NavigationStack { sectionContent(section) }
                     }
                 }
             }
@@ -109,11 +115,14 @@
                     }
                 }
                 .navigationTitle("simplyHermes")
-                .toolbar { newChatButton }
+                .toolbar {
+                    serverSwitcher
+                    newChatButton
+                }
             } detail: {
                 NavigationStack {
                     if model.selectedSection != .chats {
-                        SectionPlaceholder(section: model.selectedSection)
+                        sectionContent(model.selectedSection)
                     } else if let id = model.selectedSessionID {
                         chat(id, style: .standard)
                             .safeAreaInset(edge: .top, spacing: 0) {
@@ -176,6 +185,24 @@
                         }
                     }
                 }
+        }
+
+        @ViewBuilder
+        private func sectionContent(_ section: AppSection) -> some View {
+            if section == .settings, let connections {
+                SettingsHome(connections: connections)
+            } else {
+                SectionPlaceholder(section: section)
+            }
+        }
+
+        @ToolbarContentBuilder
+        private var serverSwitcher: some ToolbarContent {
+            if let connections {
+                ToolbarItem(placement: .topBarLeading) {
+                    ServerSwitcher(connections: connections) { model.selectedSection = .settings }
+                }
+            }
         }
 
         private var newChatButton: some ToolbarContent {
