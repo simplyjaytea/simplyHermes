@@ -22,12 +22,12 @@ private func loadFixtures() throws -> [FixtureLine] {
     var out: [FixtureLine] = []
     for file in files {
         let text = try String(contentsOf: dir.appendingPathComponent(file), encoding: .utf8)
-        for (n, raw) in text.split(separator: "\n", omittingEmptySubsequences: true).enumerated() {
+        for (index, raw) in text.split(separator: "\n", omittingEmptySubsequences: true).enumerated() {
             guard let obj = try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any],
                 let dirValue = obj["dir"] as? String,
                 let frame = obj["frame"] as? [String: Any]
             else {
-                Issue.record("\(file):\(n + 1) is not a {dir, frame} line")
+                Issue.record("\(file):\(index + 1) is not a {dir, frame} line")
                 continue
             }
             out.append(FixtureLine(name: file, dir: dirValue, frame: frame))
@@ -63,10 +63,9 @@ private func isValidJSONRPC(_ frame: [String: Any]) -> Bool {
         guard let method = line.frame["method"] as? String else { continue }
         if line.dir == "out" {
             methodsSent.insert(method)
-        } else if method == "event", let params = line.frame["params"] as? [String: Any],
-            let type = params["type"] as? String
-        {
-            events.insert(type)
+        } else if method == "event" {
+            let params = line.frame["params"] as? [String: Any]
+            if let type = params?["type"] as? String { events.insert(type) }
         } else if line.frame["id"] != nil {
             serverRequests.insert(method)
         }
