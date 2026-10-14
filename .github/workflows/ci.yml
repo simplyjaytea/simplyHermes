@@ -41,6 +41,11 @@ jobs:
           docker run --rm --network host -v "$PWD:/src" -w /src \
             -e HERMES_SSH_TEST_KEY=/src/testbed/data/ssh/id_ed25519 \
             swift:6.1 swift test --filter SSHTunnelIntegrationTests
+      - name: REST and gateway clients against the testbed (WP-11, WP-12)
+        run: |
+          docker run --rm --network host -v "$PWD:/src" -w /src \
+            -e HERMES_TESTBED_URL=http://127.0.0.1:9119 \
+            swift:6.1 swift test --filter "RESTLiveTests|GatewayLiveTests"
       - name: Logs on failure
         if: failure()
         run: docker compose -f testbed/docker-compose.yml logs --tail=200
