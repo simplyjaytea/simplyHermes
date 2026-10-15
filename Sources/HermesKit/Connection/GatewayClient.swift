@@ -15,6 +15,7 @@ public actor GatewayClient {
     private let clock: any GatewayClock
     private let config: GatewayClientConfig
 
+    private var profile: String?
     private var wanted = false
     private var runTask: Task<Void, Never>?
     private var connection: (any WebSocketConnection)?
@@ -127,12 +128,19 @@ public actor GatewayClient {
         sessions[liveID]?.watermark
     }
 
+    /// Sets the active profile. Every later call to a method that takes `profile` carries it unless the caller set one.
+    public func setProfile(_ name: String?) { profile = name }
+
+    /// The active profile, if one is set.
+    public func activeProfile() -> String? { profile }
+
     /// Sends a request and returns the raw response. Error responses are returned, not thrown.
     public func send(method: String, params: JSONValue? = nil, timeout: Double? = nil) async throws -> RPCResponse {
         guard connection != nil, handshakeDone || method == "client.capabilities" else {
             throw GatewayClientError.notConnected
         }
-        return try await sendRaw(method: method, params: params, timeout: timeout)
+        let scoped = ProfileScope.scoped(method: method, params: params, profile: profile)
+        return try await sendRaw(method: method, params: scoped, timeout: timeout)
     }
 
     /// Calls a method and decodes `result`. Throws ``RPCError`` for an error response.
