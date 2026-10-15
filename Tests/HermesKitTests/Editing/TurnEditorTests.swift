@@ -12,10 +12,11 @@ private final class FakeSession: PromptSession, @unchecked Sendable {
     init(_ script: [Result<PromptSubmitResult, RPCError>]) { self.script = script }
 
     func submitPrompt(_ params: PromptSubmitParams) async throws -> PromptSubmitResult {
-        let next = lock.withLock { () -> Result<PromptSubmitResult, RPCError> in
+        let next = lock.withLock { () -> Result<PromptSubmitResult, RPCError>? in
             submitted.append(params)
-            return script.isEmpty ? .success(PromptSubmitResult.empty) : script.removeFirst()
+            return script.isEmpty ? nil : script.removeFirst()
         }
+        guard let next else { return try PromptSubmitResult.empty() }
         return try next.get()
     }
 
@@ -25,8 +26,8 @@ private final class FakeSession: PromptSession, @unchecked Sendable {
 }
 
 extension PromptSubmitResult {
-    fileprivate static var empty: PromptSubmitResult {
-        try! JSONDecoder().decode(PromptSubmitResult.self, from: Data(#"{"status":"streaming","user_row_id":9}"#.utf8))
+    fileprivate static func empty() throws -> PromptSubmitResult {
+        try JSONDecoder().decode(PromptSubmitResult.self, from: Data(#"{"status":"streaming","user_row_id":9}"#.utf8))
     }
 }
 
