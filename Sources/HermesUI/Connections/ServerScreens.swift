@@ -106,19 +106,30 @@
                         Button {
                             edit(connection)
                         } label: {
-                            ServerRow(connection: connection, isActive: connection.id == connections.active?.id)
+                            ServerRow(
+                                connection: connection, isActive: connection.id == connections.active?.id,
+                                isPrimary: connection.id == connections.primary?.id,
+                                phase: connections.phase(of: connection.id))
                         }
                         .tint(HermesColor.primaryText)
                         .swipeActions {
                             Button("Delete", role: .destructive) { pendingDelete = connection }
                         }
-                        .contextMenu {
-                            Button("Use this server", systemImage: "checkmark") { connections.setActive(connection.id) }
-                            Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = connection }
-                        }
+                        .contextMenu { menu(for: connection) }
                     }
                 } footer: {
-                    Text("Tap a server to edit it or run Test again. Swipe left to delete.")
+                    Text("Tap a server to edit it or run Test again. Touch and hold for more. Swipe left to delete.")
+                }
+                if connections.connections.count > 1 {
+                    Section {
+                        Picker("Open on launch", selection: openOnLaunch) {
+                            Text("Primary server").tag(SavedConnections.OpenOnLaunch.primary)
+                            Text("Last used").tag(SavedConnections.OpenOnLaunch.lastUsed)
+                        }
+                        .accessibilityIdentifier("servers.openOnLaunch")
+                    } footer: {
+                        Text("The primary server has a star. Last used opens the last server that connected.")
+                    }
                 }
             }
             .navigationTitle("Servers")
@@ -151,6 +162,29 @@
             } message: { _ in
                 Text("Its password, token or SSH key is removed from this iPhone. This can't be undone.")
             }
+        }
+
+        @ViewBuilder
+        private func menu(for connection: ServerConnection) -> some View {
+            Button("Use this server", systemImage: "checkmark") { connections.setActive(connection.id) }
+            if connection.id != connections.primary?.id {
+                Button("Make primary", systemImage: "star") { connections.setPrimary(connection.id) }
+            }
+            if connections.manager != nil {
+                switch connections.phase(of: connection.id) {
+                case .idle, .failed, .signInRequired, .updateRequired:
+                    Button("Connect", systemImage: "bolt.horizontal") { connections.connect(connection.id) }
+                default:
+                    Button("Disconnect", systemImage: "bolt.horizontal.slash") {
+                        connections.disconnect(connection.id)
+                    }
+                }
+            }
+            Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = connection }
+        }
+
+        private var openOnLaunch: Binding<SavedConnections.OpenOnLaunch> {
+            Binding(get: { connections.openOnLaunch }, set: { connections.openOnLaunch = $0 })
         }
 
         private var deleteBinding: Binding<Bool> {
@@ -187,6 +221,8 @@
     struct ServerRow: View {
         let connection: ServerConnection
         let isActive: Bool
+        var isPrimary = false
+        var phase: ConnectionPhase = .idle
 
         var body: some View {
             HStack(spacing: 12) {
@@ -196,6 +232,12 @@
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
                         Text(connection.name).font(HermesFont.body.weight(.semibold))
+                        if isPrimary {
+                            Image(systemName: "star.fill")
+                                .font(HermesFont.caption)
+                                .foregroundStyle(HermesColor.statusWarning)
+                                .accessibilityLabel(Text("Primary"))
+                        }
                         if connection.requiresUnlock {
                             Image(systemName: "faceid")
                                 .font(HermesFont.caption)
@@ -207,6 +249,9 @@
                         .font(HermesFont.codeSmall)
                         .foregroundStyle(HermesColor.secondaryText)
                         .lineLimit(1)
+                    if let status = ConnectionStatusText(phase: phase) {
+                        status
+                    }
                 }
                 Spacer(minLength: 8)
                 if isActive {
@@ -217,6 +262,51 @@
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("server.\(connection.name)")
+        }
+    }
+
+    /// One line under a server row saying where its connection is. Nil while idle.
+    struct ConnectionStatusText: View {
+        let title: String
+        let color: Color
+
+        init?(phase: ConnectionPhase) {
+            guard let style = Self.style(for: phase) else { return nil }
+            title = style.title
+            color = style.color
+        }
+
+        private static func style(for phase: ConnectionPhase) -> (title: String, color: Color)? {
+            switch phase {
+            case .idle:
+                return nil
+            case .unlocking, .openingTunnel, .checkingServer, .connecting:
+                return ("Connecting…", HermesColor.secondaryText)
+            case .connected(let summary):
+                if case .newerThanApp = summary.compatibility {
+                    return ("Connected. Update simplyHermes for new features.", HermesColor.statusWarning)
+                } else {
+                    return ("Connected", HermesColor.statusConnected)
+                }
+            case .reconnecting:
+                return ("Reconnecting…", HermesColor.statusWarning)
+            case .signInRequired:
+                return ("Sign in again", HermesColor.statusWarning)
+            case .updateRequired:
+                return ("Update your Hermes", HermesColor.destructive)
+            case .failed(let failure):
+                return (failure.message, HermesColor.destructive)
+            }
+        }
+
+        var body: some View {
+            Label {
+                Text(title).lineLimit(2)
+            } icon: {
+                Circle().fill(color).frame(width: 7, height: 7)
+            }
+            .font(HermesFont.caption)
+            .foregroundStyle(color == HermesColor.statusConnected ? HermesColor.secondaryText : color)
         }
     }
 

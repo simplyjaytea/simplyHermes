@@ -47,7 +47,7 @@ jobs:
             -e HERMES_TESTBED_URL=http://127.0.0.1:9119 \
             -e HERMES_TESTBED_OIDC_URL=http://127.0.0.1:9120 \
             swift:6.1 swift test --filter \
-            "RESTLiveTests|GatewayLiveTests|GatewayConnectionTesterLiveTests|NativeAuthLiveTests|OIDCSignInLiveTests"
+            "RESTLiveTests|GatewayLiveTests|GatewayConnectionTesterLiveTests|NativeAuthLiveTests|OIDCSignInLiveTests|ConnectionManagerLiveTests"
       - name: Logs on failure
         if: failure()
         run: docker compose -f testbed/docker-compose.yml logs --tail=200
@@ -166,7 +166,7 @@ jobs:
           xcrun simctl io "$udid" screenshot build/shots/launch.png
           # WP-02: the posture debug view, as the Duo simulator (or the newest iPhone) reports it.
           xcrun simctl terminate "$udid" "$bundle" || true
-          xcrun simctl launch "$udid" "$bundle" -HermesScreen postureDebug
+          xcrun simctl launch "$udid" "$bundle" -HermesScreen postureDebug -HermesOnboarding skip
           sleep 4
           xcrun simctl io "$udid" screenshot build/shots/posture-debug.png
           # Live Activity (WP-63/64): run a long demo turn, then switch to Safari so the

@@ -156,7 +156,7 @@ import Testing
         _ http: FakeHTTP, _ signIn: GatewaySignIn, _ secrets: ConnectionSecrets = ConnectionSecrets()
     ) async throws -> ConnectionTestReport {
         let steps = StepLog()
-        let report = try await GatewayConnectionTester(makeTransport: { http }).test(
+        let report = try await GatewayConnectionTester(makeTransport: { http }, makeWebSocket: nil).test(
             connection(signIn), secrets: secrets, progress: { steps.append($0) }, confirmHostKey: { _ in false })
         #expect(steps.values.first == .reachingServer)
         return report
@@ -228,7 +228,7 @@ import Testing
         guard let base = ProcessInfo.processInfo.environment["HERMES_TESTBED_URL"],
             let endpoint = HermesEndpoint(string: base)
         else { return }
-        let tester = GatewayConnectionTester()
+        let tester = GatewayConnectionTester(makeWebSocket: { NIOWebSocketTransport() })
         let good = ServerConnection(
             name: "Testbed", kind: .gateway(GatewaySettings(endpoint: endpoint, signIn: .password(username: "tester"))))
         let report = try await tester.test(
@@ -236,6 +236,8 @@ import Testing
             confirmHostKey: { _ in false })
         #expect(report.signedInAs != nil)
         #expect(report.usesBasicAuth)
+        #expect(report.webSocketChecked, "WP-15: the WebSocket leg ran")
+        #expect(report.compatibility == .compatible)
 
         await #expect(throws: ConnectionTestFailure.wrongCredentials) {
             _ = try await tester.test(
