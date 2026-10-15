@@ -47,7 +47,7 @@ jobs:
             -e HERMES_TESTBED_URL=http://127.0.0.1:9119 \
             -e HERMES_TESTBED_OIDC_URL=http://127.0.0.1:9120 \
             swift:6.1 swift test --filter \
-            "RESTLiveTests|GatewayLiveTests|GatewayConnectionTesterLiveTests|NativeAuthLiveTests|OIDCSignInLiveTests"
+            "RESTLiveTests|GatewayLiveTests|GatewayConnectionTesterLiveTests|NativeAuthLiveTests|OIDCSignInLiveTests|ConnectionManagerLiveTests"
       - name: Logs on failure
         if: failure()
         run: docker compose -f testbed/docker-compose.yml logs --tail=200

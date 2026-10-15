@@ -448,7 +448,11 @@
         /// Saves the connection. Returns the saved value, or throws a message for the form.
         @discardableResult
         public func save(to connections: ConnectionsModel) throws -> ServerConnection {
-            let connection = try makeConnection()
+            var connection = try makeConnection()
+            if name.trimmingCharacters(in: .whitespaces).isEmpty {
+                // A name made from the host gets " 2", " 3"… when another server already uses it.
+                connection.name = connections.saved.uniqueName(connection.name, for: connection.id)
+            }
             try connections.save(connection, secrets: try makeSecrets())
             return connection
         }

@@ -37,6 +37,7 @@ public enum ConnectionTestStep: Sendable, Equatable {
     case connectingSSH
     case startingDashboard
     case forwarding
+    case openingWebSocket
 
     /// Short text for the progress row.
     public var title: String {
@@ -47,6 +48,7 @@ public enum ConnectionTestStep: Sendable, Equatable {
         case .connectingSSH: "Connecting over SSH…"
         case .startingDashboard: "Starting Hermes on the server…"
         case .forwarding: "Opening the tunnel…"
+        case .openingWebSocket: "Opening the live connection…"
         }
     }
 }
@@ -63,6 +65,10 @@ public struct ConnectionTestReport: Sendable, Equatable {
     public var authProviders: [String]
     /// SSH: the host key the user trusted. Save it to pin later connects.
     public var acceptedHostKey: HostKeyFingerprint?
+    /// True when the WebSocket leg ran and passed (WP-15). False when the tester had no WebSocket transport.
+    public var webSocketChecked = false
+    /// The compatibility verdict from `/api/status`.
+    public var compatibility: ServerCompatibility = .compatible
 
     /// Creates a report.
     public init(
@@ -105,6 +111,10 @@ public enum ConnectionTestFailure: Error, Sendable, Equatable {
     case ssh(String)
     /// A form field is missing or wrong.
     case invalidForm(String)
+    /// HTTP worked but the WebSocket did not.
+    case webSocket(String)
+    /// The server's Hermes is older than this app supports. `found` says what was too old.
+    case serverTooOld(found: String)
 
     /// One or two sentences for the form.
     public var message: String {
@@ -132,6 +142,11 @@ public enum ConnectionTestFailure: Error, Sendable, Equatable {
             "The server's key changed since you trusted it. This can mean someone is intercepting the connection."
         case .ssh(let detail), .invalidForm(let detail):
             detail
+        case .webSocket(let detail):
+            "The server answered, but the live connection (WebSocket) failed. A proxy in front of Hermes may block "
+                + "WebSockets. (\(detail))"
+        case .serverTooOld(let found):
+            "This Hermes is too old for simplyHermes (\(found)). Update Hermes on the server with `hermes update`."
         }
     }
 }
@@ -164,13 +179,31 @@ public protocol ConnectionTesting: Sendable {
     ) async throws -> ConnectionTestReport
 }
 
-/// Tests a gateway connection over REST: health, status, sign-in, then a WebSocket ticket to prove chat will work.
+/// Tests a gateway connection: the HTTP leg (health, status, compatibility, sign-in), then the WebSocket leg
+/// (open `/api/ws` with a fresh ticket, wait for the handshake, call `gateway.capabilities`).
 public struct GatewayConnectionTester: ConnectionTesting {
     private let makeTransport: @Sendable () -> any HTTPTransport
+    private let makeWebSocket: (@Sendable () -> any WebSocketTransport)?
+    private let webSocketTimeout: Double
 
-    /// Creates a tester. `makeTransport` gives each test a fresh transport (its own cookies).
-    public init(makeTransport: @escaping @Sendable () -> any HTTPTransport = { URLSessionHTTPTransport(timeout: 15) }) {
+    /// Creates a tester. `makeTransport` gives each test a fresh transport (its own cookies). Without
+    /// `makeWebSocket` (Linux, where Foundation has no WebSockets) the WebSocket leg is skipped.
+    public init(
+        makeTransport: @escaping @Sendable () -> any HTTPTransport = { URLSessionHTTPTransport(timeout: 15) },
+        makeWebSocket: (@Sendable () -> any WebSocketTransport)? = Self.defaultWebSocket, webSocketTimeout: Double = 15
+    ) {
         self.makeTransport = makeTransport
+        self.makeWebSocket = makeWebSocket
+        self.webSocketTimeout = webSocketTimeout
+    }
+
+    /// `URLSessionWebSocketTransport` on Apple platforms, nil elsewhere.
+    public static var defaultWebSocket: (@Sendable () -> any WebSocketTransport)? {
+        #if canImport(Darwin)
+            { URLSessionWebSocketTransport() }
+        #else
+            nil
+        #endif
     }
 
     /// How the REST client authenticates for `signIn`. Throws ``ConnectionTestFailure/missingSecret``.
@@ -217,37 +250,104 @@ public struct GatewayConnectionTester: ConnectionTesting {
         var report = ConnectionTestReport(
             serverVersion: health.displayVersion ?? health.version, releaseDate: status?.releaseDate,
             authProviders: status?.authProviders ?? [])
+        if let status { report.compatibility = ServerCompatibility.check(status) }
+        if case .updateRequired(let found) = report.compatibility {
+            throw ConnectionTestFailure.serverTooOld(found: found)
+        }
+        let authRequired = health.authRequired ?? status?.authRequired ?? false
 
-        if health.authRequired ?? status?.authRequired ?? false {
+        if authRequired {
             progress(.signingIn)
+            report.signedInAs = try await signIn(
+                client, settings.signIn, secrets: secrets, providers: report.authProviders)
+        }
+        progress(.checkingServer)
+        if authRequired {
+            // The ticket proves the session may open the WebSocket; the leg below mints its own.
             do {
-                switch settings.signIn {
-                case .none:
-                    throw ConnectionTestFailure.signInRequired(providers: report.authProviders)
-                case .password(let username):
-                    guard let password = secrets.password, !password.isEmpty else {
-                        throw ConnectionTestFailure.missingSecret
-                    }
-                    try await client.passwordLogin(username: username, password: password)
-                case .sessionToken, .browser:
-                    break
-                }
-                let user = try await client.currentUser()
-                report.signedInAs = user.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? user.userId
-                progress(.checkingServer)
-                switch settings.signIn {
-                case .password, .browser: _ = try await client.webSocketTicket()
-                case .none, .sessionToken: break
-                }
-            } catch let failure as ConnectionTestFailure {
-                throw failure
+                _ = try await client.webSocketTicket()
             } catch {
                 throw Self.signInFailure(error)
             }
-        } else {
-            progress(.checkingServer)
+        }
+        if let makeWebSocket {
+            progress(.openingWebSocket)
+            try await webSocketLeg(
+                settings.endpoint, transport: makeWebSocket(),
+                credential: { _ in
+                    authRequired ? .ticket(try await client.webSocketTicket().ticket) : .none
+                })
+            report.webSocketChecked = true
         }
         return report
+    }
+
+    /// Signs in as `signIn` says and returns who the server says the user is.
+    private func signIn(
+        _ client: RESTClient, _ signIn: GatewaySignIn, secrets: ConnectionSecrets, providers: [String]
+    ) async throws -> String {
+        do {
+            switch signIn {
+            case .none:
+                throw ConnectionTestFailure.signInRequired(providers: providers)
+            case .password(let username):
+                guard let password = secrets.password, !password.isEmpty else {
+                    throw ConnectionTestFailure.missingSecret
+                }
+                try await client.passwordLogin(username: username, password: password)
+            case .sessionToken, .browser:
+                break
+            }
+            let user = try await client.currentUser()
+            return user.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? user.userId
+        } catch let failure as ConnectionTestFailure {
+            throw failure
+        } catch {
+            throw Self.signInFailure(error)
+        }
+    }
+
+    /// Opens the gateway WebSocket once, waits for the handshake and calls `gateway.capabilities`.
+    /// Throws ``ConnectionTestFailure/webSocket(_:)``.
+    public func webSocketLeg(
+        _ endpoint: HermesEndpoint, transport: any WebSocketTransport,
+        credential: @escaping GatewayCredentialProvider
+    ) async throws {
+        var config = GatewayClientConfig()
+        config.connectTimeout = webSocketTimeout
+        let client = GatewayClient(endpoint: endpoint, transport: transport, credentials: credential, config: config)
+        let events = await client.events()
+        await client.start()
+        defer { Task { await client.stop() } }
+        var outcome: ConnectionTestFailure? = .webSocket("no answer")
+        for await event in events {
+            guard case .state(let state) = event else { continue }
+            if state == .connected {
+                outcome = nil
+                break
+            }
+            if let failure = Self.webSocketFailure(state) {
+                outcome = failure
+                break
+            }
+        }
+        if let outcome { throw outcome }
+        do {
+            let _: GatewayCapabilitiesResult = try await client.call(
+                "gateway.capabilities", params: EmptyParams(), timeout: webSocketTimeout)
+        } catch {
+            throw ConnectionTestFailure.webSocket("gateway.capabilities: \(error)")
+        }
+    }
+
+    /// A client state that ends the WebSocket leg, as a failure. Nil while the first attempt is still running.
+    static func webSocketFailure(_ state: GatewayConnectionState) -> ConnectionTestFailure? {
+        switch state {
+        case .waitingToReconnect: .webSocket("the connection closed during the handshake")
+        case .failed: .wrongCredentials
+        case .stopped: .webSocket("stopped")
+        case .idle, .connecting, .connected: nil
+        }
     }
 
     /// Reads health and status without signing in, so the form can show the right sign-in method.

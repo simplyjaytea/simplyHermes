@@ -55,10 +55,15 @@ public enum SSHKeyMaterial {
 /// then stop everything.
 public struct SSHConnectionTester: ConnectionTesting {
     private let makeTransport: @Sendable () -> any HTTPTransport
+    private let makeWebSocket: (@Sendable () -> any WebSocketTransport)?
 
-    /// Creates a tester.
-    public init(makeTransport: @escaping @Sendable () -> any HTTPTransport = { URLSessionHTTPTransport(timeout: 15) }) {
+    /// Creates a tester. Without `makeWebSocket` the WebSocket leg is skipped.
+    public init(
+        makeTransport: @escaping @Sendable () -> any HTTPTransport = { URLSessionHTTPTransport(timeout: 15) },
+        makeWebSocket: (@Sendable () -> any WebSocketTransport)? = GatewayConnectionTester.defaultWebSocket
+    ) {
         self.makeTransport = makeTransport
+        self.makeWebSocket = makeWebSocket
     }
 
     public func test(
@@ -89,17 +94,41 @@ public struct SSHConnectionTester: ConnectionTesting {
         let client = RESTClient(
             endpoint: endpoint.hermesEndpoint, transport: makeTransport(), auth: .sessionToken(endpoint.sessionToken))
         do {
-            let health = try await client.health()
-            let status = try? await client.status()
+            let report = try await checkThroughTunnel(endpoint, client: client, progress: progress)
             await tunnel.stop()
-            return ConnectionTestReport(
-                serverVersion: health.displayVersion ?? endpoint.hermesVersion, releaseDate: status?.releaseDate,
-                acceptedHostKey: HostKeyFingerprint(
-                    openSSHKey: endpoint.hostKey.openSSHKey, fingerprint: endpoint.hostKey.fingerprint))
+            return report
+        } catch let failure as ConnectionTestFailure {
+            await tunnel.stop()
+            throw failure
         } catch {
             await tunnel.stop()
             throw GatewayConnectionTester.reachFailure(error)
         }
+    }
+
+    /// Health, status and compatibility through the tunnel, then the WebSocket leg with the session token.
+    private func checkThroughTunnel(
+        _ endpoint: SSHTunnelEndpoint, client: RESTClient,
+        progress: @escaping @Sendable (ConnectionTestStep) -> Void
+    ) async throws -> ConnectionTestReport {
+        let health = try await client.health()
+        let status = try? await client.status()
+        var report = ConnectionTestReport(
+            serverVersion: health.displayVersion ?? endpoint.hermesVersion, releaseDate: status?.releaseDate,
+            acceptedHostKey: HostKeyFingerprint(
+                openSSHKey: endpoint.hostKey.openSSHKey, fingerprint: endpoint.hostKey.fingerprint))
+        if let status { report.compatibility = ServerCompatibility.check(status) }
+        if case .updateRequired(let found) = report.compatibility {
+            throw ConnectionTestFailure.serverTooOld(found: found)
+        }
+        if let makeWebSocket {
+            progress(.openingWebSocket)
+            let token = endpoint.sessionToken
+            try await GatewayConnectionTester().webSocketLeg(
+                endpoint.hermesEndpoint, transport: makeWebSocket(), credential: { _ in .token(token) })
+            report.webSocketChecked = true
+        }
+        return report
     }
 
     /// The tunnel configuration for saved settings and secrets.
