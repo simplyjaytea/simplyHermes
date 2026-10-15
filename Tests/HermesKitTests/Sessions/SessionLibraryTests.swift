@@ -2,10 +2,9 @@ import Foundation
 import HermesKit
 import Testing
 
-private func record(_ id: String, _ activity: Double, title: String? = nil, extra: String = "") throws -> SessionRecord
-{
+private func record(_ id: String, _ time: Double, title: String? = nil, extra: String = "") throws -> SessionRecord {
     let titleJSON = title.map { #","title":"\#($0)""# } ?? ""
-    let json = #"{"id":"\#(id)","lastActivityAt":\#(activity)\#(titleJSON)\#(extra)}"#
+    let json = #"{"id":"\#(id)","lastActivityAt":\#(time)\#(titleJSON)\#(extra)}"#
     return try JSONDecoder().decode(SessionRecord.self, from: Data(json.utf8))
 }
 
@@ -52,7 +51,7 @@ private final class FakeBackend: SessionsBackend, @unchecked Sendable {
 extension SessionList {
     fileprivate static func make(_ sessions: [SessionRecord], total: Int) throws -> SessionList {
         let data = try JSONEncoder().encode(sessions)
-        let json = #"{"sessions":\#(String(decoding: data, as: UTF8.self)),"total":\#(total)}"#
+        let json = #"{"sessions":\#(String(bytes: data, encoding: .utf8) ?? ""),"total":\#(total)}"#
         return try JSONDecoder().decode(SessionList.self, from: Data(json.utf8))
     }
 }
@@ -215,6 +214,6 @@ private func library(_ backend: FakeBackend) throws -> SessionLibrary {
 
     @Test func exportReturnsTheServersJSON() async throws {
         let lib = try library(FakeBackend())
-        #expect(String(decoding: try await lib.export("a"), as: UTF8.self) == #"{"id":"a"}"#)
+        #expect(String(bytes: try await lib.export("a"), encoding: .utf8) == #"{"id":"a"}"#)
     }
 }
