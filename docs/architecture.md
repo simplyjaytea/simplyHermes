@@ -17,6 +17,10 @@ A `HermesEndpoint` value (base URL with optional path prefix, extra headers such
 
 Structured concurrency; one `actor` per connection; events as `AsyncStream`; `@Observable` view models on the main actor. Streaming deltas are coalesced into frame-sized batches; markdown parses the tail block only.
 
+## Transcript reducer
+
+`TranscriptState.apply(_:)` (`Sources/HermesKit/Transcript/`) is a pure reducer: gateway events, attach results and the user's own actions (submit, answer) in, chat rows out. One state per open session; events for other live ids and duplicate `seq` values are dropped. A turn with tool calls becomes one assistant segment per stretch of text, with the tool rows between them. Feed it with `TranscriptAction(clientEvent)`: a live re-attach maps to nothing (the replay already filled the gap), a cold one rebuilds from the attach result. `apply(contentsOf:)` merges delta bursts first, with the same result as one at a time.
+
 ## Persistence and secrets
 
 GRDB (async/observation APIs only) in an App Group container (`group.com.simplyjaytea.simplyhermes`). Keychain (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`) in the shared access group `$(AppIdentifierPrefix)com.simplyjaytea.simplyhermes.shared`.
