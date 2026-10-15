@@ -27,8 +27,8 @@ public final class HermesCache: Sendable {
 
     private static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
-        migrator.registerMigration("v1") { db in
-            try db.execute(
+        migrator.registerMigration("v1") { handle in
+            try handle.execute(
                 sql: """
                     CREATE TABLE session (
                         connection TEXT NOT NULL,
@@ -62,8 +62,8 @@ public final class HermesCache: Sendable {
     /// Adds or updates sessions, newest data winning. Sessions not listed stay (a page is not the whole list).
     public func saveSessions(_ sessions: [SessionRecord], connection: String, syncedAt: Date = Date()) async throws {
         let rows = try sessions.map { ($0.id, $0.lastActivityAt ?? $0.startedAt ?? 0, try Self.encoder.encode($0)) }
-        try await database.write { db in
-            let statement = try db.makeStatement(
+        try await database.write { handle in
+            let statement = try handle.makeStatement(
                 sql: """
                     INSERT INTO session (connection, session_id, last_activity, synced_at, json)
                     VALUES (?, ?, ?, ?, ?)
@@ -78,9 +78,9 @@ public final class HermesCache: Sendable {
 
     /// The cached sessions, most recently active first.
     public func sessions(connection: String, limit: Int = 200) async throws -> [SessionRecord] {
-        try await database.read { db in
+        try await database.read { handle in
             let rows = try Data.fetchAll(
-                db,
+                handle,
                 sql: "SELECT json FROM session WHERE connection = ? ORDER BY last_activity DESC LIMIT ?",
                 arguments: [connection, limit])
             return try rows.map { try Self.decoder.decode(SessionRecord.self, from: $0) }
@@ -89,9 +89,9 @@ public final class HermesCache: Sendable {
 
     /// Forgets one session with its messages and reading position (after a delete on any device).
     public func removeSession(_ id: String, connection: String) async throws {
-        try await database.write { db in
+        try await database.write { handle in
             for table in ["session", "message", "reading_position"] {
-                try db.execute(
+                try handle.execute(
                     sql: "DELETE FROM \(table) WHERE connection = ? AND session_id = ?", arguments: [connection, id])
             }
         }
@@ -102,8 +102,8 @@ public final class HermesCache: Sendable {
     /// Adds or updates stored messages of one session.
     public func saveMessages(_ messages: [StoredMessage], connection: String) async throws {
         let rows = try messages.map { ($0.sessionId, $0.id, try Self.encoder.encode($0)) }
-        try await database.write { db in
-            let statement = try db.makeStatement(
+        try await database.write { handle in
+            let statement = try handle.makeStatement(
                 sql: """
                     INSERT INTO message (connection, session_id, row_id, json) VALUES (?, ?, ?, ?)
                     ON CONFLICT (connection, session_id, row_id) DO UPDATE SET json = excluded.json
@@ -118,9 +118,9 @@ public final class HermesCache: Sendable {
     public func messages(
         sessionID: String, connection: String, beforeRowID: Int? = nil, limit: Int = 200
     ) async throws -> [StoredMessage] {
-        try await database.read { db in
+        try await database.read { handle in
             let rows = try Data.fetchAll(
-                db,
+                handle,
                 sql: """
                     SELECT json FROM message
                     WHERE connection = ? AND session_id = ? AND row_id < ?
@@ -133,17 +133,17 @@ public final class HermesCache: Sendable {
 
     /// How many messages of a session are cached.
     public func messageCount(sessionID: String, connection: String) async throws -> Int {
-        try await database.read { db in
+        try await database.read { handle in
             try Int.fetchOne(
-                db, sql: "SELECT COUNT(*) FROM message WHERE connection = ? AND session_id = ?",
+                handle, sql: "SELECT COUNT(*) FROM message WHERE connection = ? AND session_id = ?",
                 arguments: [connection, sessionID]) ?? 0
         }
     }
 
     /// Drops cached messages from `rowID` on, after an edit or rewind cut the session there.
     public func removeMessages(sessionID: String, connection: String, fromRowID rowID: Int) async throws {
-        try await database.write { db in
-            try db.execute(
+        try await database.write { handle in
+            try handle.execute(
                 sql: "DELETE FROM message WHERE connection = ? AND session_id = ? AND row_id >= ?",
                 arguments: [connection, sessionID, rowID])
         }
@@ -151,8 +151,8 @@ public final class HermesCache: Sendable {
 
     /// Replaces all cached messages of a session, for a rebuilt history.
     public func replaceMessages(_ messages: [StoredMessage], sessionID: String, connection: String) async throws {
-        try await database.write { db in
-            try db.execute(
+        try await database.write { handle in
+            try handle.execute(
                 sql: "DELETE FROM message WHERE connection = ? AND session_id = ?", arguments: [connection, sessionID])
         }
         try await saveMessages(messages, connection: connection)
@@ -163,8 +163,8 @@ public final class HermesCache: Sendable {
     /// Saves where the user stopped reading a session.
     public func setReadingPosition(_ position: ReadingPosition, sessionID: String, connection: String) async throws {
         let json = try Self.encoder.encode(position)
-        try await database.write { db in
-            try db.execute(
+        try await database.write { handle in
+            try handle.execute(
                 sql: """
                     INSERT INTO reading_position (connection, session_id, json) VALUES (?, ?, ?)
                     ON CONFLICT (connection, session_id) DO UPDATE SET json = excluded.json
@@ -175,9 +175,9 @@ public final class HermesCache: Sendable {
 
     /// Where the user stopped reading a session, if known.
     public func readingPosition(sessionID: String, connection: String) async throws -> ReadingPosition? {
-        try await database.read { db in
+        try await database.read { handle in
             try Data.fetchOne(
-                db, sql: "SELECT json FROM reading_position WHERE connection = ? AND session_id = ?",
+                handle, sql: "SELECT json FROM reading_position WHERE connection = ? AND session_id = ?",
                 arguments: [connection, sessionID]
             ).map { try Self.decoder.decode(ReadingPosition.self, from: $0) }
         }
@@ -187,9 +187,9 @@ public final class HermesCache: Sendable {
 
     /// Forgets everything about one connection (when it is deleted or the user signs out).
     public func purge(connection: String) async throws {
-        try await database.write { db in
+        try await database.write { handle in
             for table in ["session", "message", "reading_position"] {
-                try db.execute(sql: "DELETE FROM \(table) WHERE connection = ?", arguments: [connection])
+                try handle.execute(sql: "DELETE FROM \(table) WHERE connection = ?", arguments: [connection])
             }
         }
     }
