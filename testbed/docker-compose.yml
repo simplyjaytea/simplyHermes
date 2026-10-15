@@ -54,12 +54,42 @@ services:
     ports:
       - "127.0.0.1:2222:22"
 
-  # Optional local OIDC for the `self-hosted` provider: docker compose --profile oidc up
+  # Optional local OIDC for the `self-hosted` provider: scripts/up.sh --profile oidc
+  # Both run on the host network so the issuer URL (127.0.0.1:5556) is the same for the dashboard and the client.
   dex:
     profiles: ["oidc"]
     image: ghcr.io/dexidp/dex:v2.41.1
     command: ["dex", "serve", "/etc/dex/config.yaml"]
+    network_mode: host
     volumes:
       - ./dex/config.yaml:/etc/dex/config.yaml:ro
-    ports:
-      - "127.0.0.1:5556:5556"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5556/dex/.well-known/openid-configuration"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  # A second dashboard gated by Dex instead of basic auth (WP-13 OIDC sign-in test), on port 9120.
+  dashboard-oidc:
+    profiles: ["oidc"]
+    image: simplyhermes-testbed/hermes:pinned
+    depends_on:
+      dex: {condition: service_healthy}
+      fake-llm: {condition: service_healthy}
+    network_mode: host
+    entrypoint: ["/opt/hermes/testbed-entrypoints/dashboard-entrypoint.sh"]
+    environment:
+      HERMES_HOME: /data/hermes-oidc
+      DASHBOARD_PORT: "9120"
+      FAKE_LLM_URL: http://127.0.0.1:8700/v1
+      HERMES_DASHBOARD_PUBLIC_URL: http://127.0.0.1:9120
+      HERMES_DASHBOARD_OIDC_ISSUER: http://127.0.0.1:5556/dex
+      HERMES_DASHBOARD_OIDC_CLIENT_ID: simplyhermes-testbed
+      HERMES_DASHBOARD_OIDC_CLIENT_SECRET: testbed-dex-secret
+    volumes:
+      - ./hermes/dashboard-entrypoint.sh:/opt/hermes/testbed-entrypoints/dashboard-entrypoint.sh:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9120/api/status"]
+      interval: 2s
+      timeout: 3s
+      retries: 60

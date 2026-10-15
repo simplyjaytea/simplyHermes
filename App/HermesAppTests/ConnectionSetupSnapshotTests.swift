@@ -22,6 +22,10 @@ final class ConnectionSetupSnapshotTests: XCTestCase {
     private static let screens: [(String, @MainActor () -> AnyView)] = [
         ("welcome", { AnyView(WelcomeView(connections: .preview([]))) }),
         ("gateway", { AnyView(ConnectionFormView(form: gatewayForm(), connections: .preview()) { _ in }) }),
+        (
+            "gateway-browser",
+            { AnyView(ConnectionFormView(form: browserForm(), connections: .preview()) { _ in }) }
+        ),
         ("ssh", { AnyView(ConnectionFormView(form: sshForm(), connections: .preview()) { _ in }) }),
         ("servers", { AnyView(NavigationStack { ServerListView(connections: .preview()) }) }),
         (
@@ -55,6 +59,20 @@ final class ConnectionSetupSnapshotTests: XCTestCase {
         form.signInMethod = .password
         form.username = "jt"
         return form
+    }
+
+    /// WP-13: a gateway signed in through the browser.
+    private static func browserForm() -> ConnectionFormModel {
+        let connection = ServerConnection(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000013")!, name: "Office",
+            kind: .gateway(
+                GatewaySettings(
+                    endpoint: HermesEndpoint(string: "https://hermes.example.com")!,
+                    signIn: .browser(provider: "self-hosted"))),
+            createdAt: Date(timeIntervalSince1970: 0))
+        let tokens = NativeTokens(
+            accessToken: "a", refreshToken: "r", expiresAt: 0, provider: "self-hosted", userID: "jt@example.com")
+        return ConnectionFormModel(editing: connection, secrets: ConnectionSecrets(nativeTokens: tokens))
     }
 
     /// A fixed key, so the public key line is the same on every run.

@@ -38,19 +38,36 @@
         public var unlocker: any DeviceUnlocking
         /// Reads a gateway's sign-in needs before the user signs in.
         public var probe: @Sendable (HermesEndpoint) async -> ServerProbe?
+        /// Browser sign-in (WP-13).
+        public var browserSignIn: any BrowserSigningIn
+        /// Connects saved servers on demand (WP-15). Nil keeps everything offline (previews, snapshots).
+        public var connectionDriver: (any ConnectionDriver)?
 
         public init(
             credentials: any CredentialStore,
             gatewayTester: any ConnectionTesting = GatewayConnectionTester(),
             sshTester: any ConnectionTesting = SSHConnectionTester(),
             unlocker: any DeviceUnlocking = SystemDeviceUnlocker(),
-            probe: (@Sendable (HermesEndpoint) async -> ServerProbe?)? = nil
+            probe: (@Sendable (HermesEndpoint) async -> ServerProbe?)? = nil,
+            browserSignIn: any BrowserSigningIn = SystemBrowserSignIn(),
+            connectionDriver: (any ConnectionDriver)? = nil, offline: Bool = false
         ) {
             self.credentials = credentials
             self.gatewayTester = gatewayTester
             self.sshTester = sshTester
             self.unlocker = unlocker
             self.probe = probe ?? { await GatewayConnectionTester().probe($0) }
+            self.browserSignIn = browserSignIn
+            self.connectionDriver =
+                offline
+                ? nil
+                : connectionDriver
+                    ?? StandardConnectionDriver(
+                        credentials: credentials,
+                        unlock: { [unlocker] connection in
+                            await unlocker.unlock(reason: "Connect to \(connection.name)")
+                        },
+                        makeWebSocket: { URLSessionWebSocketTransport() })
         }
     }
 
@@ -60,10 +77,13 @@
         case duplicate(name: String)
         /// The Keychain or the file refused the write.
         case storage(String)
+        /// The name is empty, too long or taken.
+        case name(ConnectionNameProblem)
 
         public var message: String {
             switch self {
             case .duplicate(let name): "“\(name)” already connects to this server."
+            case .name(let problem): problem.message
             case .storage(let detail): "Couldn't save the connection. \(detail)"
             }
         }
@@ -74,14 +94,29 @@
     @Observable
     public final class ConnectionsModel {
         public private(set) var saved: SavedConnections
+        /// The live phase of each connection the manager has seen (WP-15).
+        public private(set) var phases: [UUID: ConnectionPhase] = [:]
         @ObservationIgnored private let store: ConnectionStore?
         @ObservationIgnored public let services: ConnectionServices
+        /// Connects on demand. Nil when ``ConnectionServices/connectionDriver`` is nil.
+        @ObservationIgnored public private(set) var manager: ConnectionManager?
+        @ObservationIgnored private var phaseWatcher: Task<Void, Never>?
 
         /// Loads saved connections from `store`. Nil keeps them in memory only (previews, UI tests).
         public init(store: ConnectionStore?, services: ConnectionServices, initial: SavedConnections? = nil) {
             self.store = store
             self.services = services
             saved = initial ?? (try? store?.load()) ?? SavedConnections()
+            guard let driver = services.connectionDriver else { return }
+            let manager = ConnectionManager(
+                driver: driver,
+                onConnected: { [weak self] id in Task { @MainActor in self?.markConnected(id) } })
+            self.manager = manager
+            phaseWatcher = Task { [weak self] in
+                for await change in await manager.phaseChanges() {
+                    self?.phases[change.id] = change.phase
+                }
+            }
         }
 
         public var connections: [ServerConnection] { saved.connections }
@@ -99,8 +134,59 @@
             persist()
         }
 
+        /// The primary connection: opened on launch unless ``openOnLaunch`` says Last used.
+        public var primary: ServerConnection? { saved.primary }
+
+        /// Makes a connection the primary one.
+        public func setPrimary(_ id: UUID) {
+            saved.setPrimary(id)
+            persist()
+        }
+
+        /// Which connection opens after a restart.
+        public var openOnLaunch: SavedConnections.OpenOnLaunch {
+            get { saved.openOnLaunch }
+            set {
+                saved.openOnLaunch = newValue
+                persist()
+            }
+        }
+
+        /// The connection to open at launch.
+        public var launchConnection: ServerConnection? { saved.launchConnection }
+
+        /// At app start: makes the Open on launch connection the active one. It connects when a screen needs it.
+        public func applyOpenOnLaunch() {
+            guard let launch = saved.launchConnection, launch.id != saved.activeID else { return }
+            saved.activeID = launch.id
+            persist()
+        }
+
+        /// The live phase of a connection.
+        public func phase(of id: UUID) -> ConnectionPhase { phases[id] ?? .idle }
+
+        /// Starts connecting (connect on demand also happens when a screen asks the manager for a client).
+        public func connect(_ id: UUID) {
+            guard let connection = connection(id: id), let manager else { return }
+            Task { await manager.connect(connection) }
+        }
+
+        /// Disconnects a connection. It connects again on demand.
+        public func disconnect(_ id: UUID) {
+            guard let manager else { return }
+            Task { await manager.disconnect(id) }
+        }
+
+        private func markConnected(_ id: UUID) {
+            saved.markConnected(id)
+            persist()
+        }
+
         /// Saves a new or edited connection and its secrets. Refuses a duplicate server.
         public func save(_ connection: ServerConnection, secrets: ConnectionSecrets) throws(ConnectionSaveError) {
+            if let problem = saved.nameProblem(connection.name, for: connection.id) {
+                throw .name(problem)
+            }
             if let other = saved.duplicate(of: connection) {
                 throw .duplicate(name: other.name)
             }
@@ -111,10 +197,15 @@
             }
             saved.upsert(connection)
             persist()
+            // An edit takes effect on the next connect.
+            if let manager { Task { await manager.remove(connection.id) } }
+            phases[connection.id] = nil
         }
 
         /// Deletes a connection and every secret it had.
         public func delete(_ id: UUID) {
+            if let manager { Task { await manager.remove(id) } }
+            phases[id] = nil
             try? services.credentials.removeAll(connection: id)
             saved.remove(id: id)
             persist()
@@ -132,7 +223,11 @@
                 password: try? credentials.string(for: .gatewayPassword, connection: id),
                 sessionToken: try? credentials.string(for: .sessionToken, connection: id),
                 sshKey: try? credentials.sshKey(connection: id),
-                sshPassword: try? credentials.string(for: .sshPassword, connection: id))
+                sshPassword: try? credentials.string(for: .sshPassword, connection: id),
+                nativeTokens: (try? credentials.data(for: .nativeTokens, connection: id))
+                    .flatMap { try? JSONDecoder().decode(NativeTokens.self, from: $0) },
+                webCookies: (try? credentials.data(for: .webCookies, connection: id))
+                    .flatMap { try? JSONDecoder().decode([StoredCookie].self, from: $0) })
         }
 
         /// The tester for a connection's kind.
@@ -150,6 +245,13 @@
                     try credentials.remove(kind, connection: id)
                 }
             }
+            func putJSON(_ value: (some Encodable)?, _ kind: CredentialKind) throws {
+                if let value {
+                    try credentials.set(try JSONEncoder().encode(value), for: kind, connection: id)
+                } else {
+                    try credentials.remove(kind, connection: id)
+                }
+            }
             switch connection.kind {
             case .gateway(let settings):
                 var password: String?
@@ -158,6 +260,14 @@
                 if case .sessionToken = settings.signIn { token = secrets.sessionToken }
                 try put(password, .gatewayPassword)
                 try put(token, .sessionToken)
+                var tokens: NativeTokens?
+                var cookies: [StoredCookie]?
+                if case .browser = settings.signIn {
+                    tokens = secrets.nativeTokens
+                    cookies = tokens == nil ? secrets.webCookies : nil
+                }
+                try putJSON(tokens, .nativeTokens)
+                try putJSON(cookies, .webCookies)
                 try credentials.remove(.sshKey, connection: id)
                 try credentials.remove(.sshPassword, connection: id)
             case .ssh(let settings):
@@ -170,6 +280,8 @@
                 }
                 try credentials.remove(.gatewayPassword, connection: id)
                 try credentials.remove(.sessionToken, connection: id)
+                try credentials.remove(.nativeTokens, connection: id)
+                try credentials.remove(.webCookies, connection: id)
             }
         }
 
@@ -185,7 +297,8 @@
             for connection in connections ?? sampleConnections { saved.upsert(connection) }
             let services = ConnectionServices(
                 credentials: InMemoryCredentialStore(), gatewayTester: PreviewTester(), sshTester: PreviewTester(),
-                unlocker: AlwaysUnlocked(), probe: { _ in ServerProbe(authRequired: true, authProviders: ["basic"]) })
+                unlocker: AlwaysUnlocked(), probe: { _ in ServerProbe(authRequired: true, authProviders: ["basic"]) },
+                browserSignIn: PreviewBrowserSignIn(), offline: true)
             return ConnectionsModel(store: nil, services: services, initial: saved)
         }
 
@@ -199,6 +312,16 @@
             ServerConnection(
                 name: "Studio Mac", kind: .ssh(SSHSettings(host: "studio.tail1234.ts.net", username: "jt"))),
         ]
+    }
+
+    /// A browser sign-in that succeeds at once. For previews.
+    struct PreviewBrowserSignIn: BrowserSigningIn {
+        @MainActor
+        func signIn(
+            endpoint: HermesEndpoint, options: SignInOptions?, provider: String?
+        ) async throws -> BrowserSignInResult {
+            .tokens(NativeTokens(accessToken: "a", refreshToken: "r", expiresAt: 0, provider: provider, userID: "jt"))
+        }
     }
 
     /// A tester that passes after a short pause. For previews.

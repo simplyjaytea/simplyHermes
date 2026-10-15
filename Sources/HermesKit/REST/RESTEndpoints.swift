@@ -163,3 +163,41 @@ extension RESTClient {
         try await get("/api/git/status", query: [URLQueryItem(name: "path", value: directory)])
     }
 }
+
+extension RESTClient {
+    /// `GET /api/auth/providers`: the interactive login providers. Public.
+    public func authProviders() async throws -> [AuthProviderInfo] {
+        let answer: AuthProvidersAnswer = try await get("/api/auth/providers", scoped: false)
+        return answer.providers
+    }
+
+    /// `POST /auth/logout`: ends the cookie session. Best effort; the answer is a redirect.
+    public func logout() async throws {
+        do {
+            _ = try await sendRaw("POST", "/auth/logout", scoped: false)
+        } catch RESTError.http(let status, _) where (300..<400).contains(status) {
+            // The server answers with a redirect to its login page.
+        }
+    }
+}
+
+/// One login provider from `GET /api/auth/providers`.
+public struct AuthProviderInfo: Sendable, Equatable, Codable {
+    /// Provider id, such as `basic`, `nous` or `self-hosted`.
+    public var name: String
+    /// Name to show.
+    public var displayName: String?
+    /// True for providers that sign in with a user name and password.
+    public var supportsPassword: Bool?
+
+    /// Creates a value.
+    public init(name: String, displayName: String? = nil, supportsPassword: Bool? = nil) {
+        self.name = name
+        self.displayName = displayName
+        self.supportsPassword = supportsPassword
+    }
+}
+
+private struct AuthProvidersAnswer: Decodable, Sendable {
+    var providers: [AuthProviderInfo]
+}

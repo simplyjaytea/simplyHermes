@@ -9,7 +9,7 @@ final class PostureDebugUITests: XCTestCase {
     @MainActor
     func testDebugViewPrintsPostureAndScreenLabels() {
         let app = XCUIApplication()
-        app.launchArguments += ["-HermesOnboarding", "skip", "-HermesScreen", "postureDebug"]
+        app.launchArguments += ["-HermesScreen", "postureDebug", "-HermesOnboarding", "skip"]
         app.launch()
 
         let posture = label(app, "posture")
@@ -30,7 +30,7 @@ final class PostureDebugUITests: XCTestCase {
     @MainActor
     func testForcedPostureShowsInDebugView() {
         let app = XCUIApplication()
-        app.launchArguments += ["-HermesOnboarding", "skip", "-HermesScreen", "postureDebug", "-HermesPosture", "tent"]
+        app.launchArguments += ["-HermesScreen", "postureDebug", "-HermesPosture", "tent", "-HermesOnboarding", "skip"]
         app.launch()
         let posture = label(app, "posture")
         XCTAssertTrue(posture.waitForExistence(timeout: 10))

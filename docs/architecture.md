@@ -31,6 +31,70 @@ password only when "Remember password" is on, session token, SSH key as `StoredS
 default access group for now; the shared group needs its team prefix read at runtime on a sideloaded build. Face ID
 (`deviceOwnerAuthentication`) gates reading an SSH connection's secrets; on by default for SSH, optional for gateways.
 
+## Gateway sign-in (WP-13)
+
+`SignInOptions.detect` reads `/api/status` (`auth_required`, `auth_flows`) and `/api/auth/providers`. The form offers
+only what the server supports: Browser for OAuth/OIDC providers or `native_pkce`, Password for `basic`, Token always.
+
+- Browser, native (RFC 8252 + PKCE): `ASWebAuthenticationSession` opens `/auth/native/authorize` with an ephemeral
+  session; `LoopbackRedirectReceiver` catches `http://127.0.0.1:<port>/cb`; the code is redeemed at
+  `/auth/native/token`. If the sheet or the listener cannot start, a `WKWebView` runs the same flow and stops at the
+  loopback redirect. Tokens are stored as `nativeTokens` JSON in the Keychain.
+- Browser, cookie fallback (no `native_pkce`): a non-persistent `WKWebView` signs in at `/auth/login` and its gateway
+  cookies are stored as `webCookies`.
+- `GatewayAuthSession` (one actor per connection) owns the REST client's auth: bearer tokens refreshed
+  `/auth/native/refresh` before expiry (one refresh at a time; a refused refresh deletes the tokens and asks the user
+  to sign in again), the 401 hook, silent password re-login (at most once a minute, only with "Remember password"),
+  and WebSocket tickets for the gateway client.
+- CI: `NativeAuthLiveTests` (basic provider) and `OIDCSignInLiveTests` (Dex, `up.sh --profile oidc`, port 9120) run
+  the whole flow on Linux against the testbed, with a scripted browser in place of the sheet.
+
+## Connection registry and lifecycle (WP-15)
+
+`SavedConnections` holds the registry: names unique ignoring case (at most 64 characters), dedupe by normalized URL
+(gateways) or `user@host:port` plus remote profile (SSH), a primary connection (the first one added, starred in the
+Servers list), and Open on launch (Primary or Last used, as in Hermes Desktop; "last used" is the last connection
+that connected).
+
+`ConnectionManager` connects on demand: `client(for:)` runs the steps below once and hands every caller the same
+`GatewayClient`. `ConnectionLifecycle` is the pure state machine it runs; `StandardConnectionDriver` (HermesSSH)
+does the work (Face ID, Keychain, SSH tunnel with the pinned host key, `GatewayAuthSession`). Results from an attempt
+that was disconnected are dropped; a tunnel that opens after its attempt ended is closed.
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+    idle --> unlocking: connect [Face ID on]
+    idle --> openingTunnel: connect [SSH]
+    idle --> checkingServer: connect [gateway]
+    unlocking --> idle: Face ID refused
+    unlocking --> openingTunnel: unlocked [SSH]
+    unlocking --> checkingServer: unlocked [gateway]
+    openingTunnel --> checkingServer: tunnel open
+    checkingServer --> connecting: HTTP check passed
+    checkingServer --> updateRequired: release_date or config version too old
+    connecting --> connected: gateway.ready + client.capabilities
+    connected --> reconnecting: socket dropped
+    reconnecting --> connected: reconnected (live or cold resync)
+    connected --> updateRequired: desktop_contract < 8 in a session result
+    connecting --> signInRequired: ticket refused after re-sign-in
+    reconnecting --> signInRequired: ticket refused after re-sign-in
+    unlocking --> failed: error
+    openingTunnel --> failed: error
+    checkingServer --> failed: error
+    checkingServer --> signInRequired: wrong or missing credentials
+    failed --> unlocking: connect (retry)
+    signInRequired --> checkingServer: connect after signing in
+    updateRequired --> checkingServer: connect after updating
+    connected --> idle: disconnect
+```
+
+Every phase goes to `idle` on disconnect, stopping the socket and closing the tunnel. Compatibility never reads
+`version`: `/api/status` gives `release_date` (minimum `2026.9.24`) and `latest_config_version` (minimum 50); the
+first `session.create` or `session.activate` gives `info.desktop_contract` (8; higher connects with an "update
+simplyHermes" note). The Test button runs the same HTTP check plus a WebSocket leg: open `/api/ws` with a fresh
+ticket (SSH: the tunnel token), wait for the handshake, call `gateway.capabilities`.
+
 ## Networking permissions
 
 LAN gateways need `NSLocalNetworkUsageDescription` (set); the app explains the prompt once before the first Test of a

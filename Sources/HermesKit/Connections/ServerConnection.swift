@@ -88,10 +88,13 @@ public struct GatewaySettings: Sendable, Hashable, Codable {
     }
 }
 
-/// How the app signs in to a gateway. Browser sign-in (PKCE, `WKWebView`) arrives with WP-13.
+/// How the app signs in to a gateway.
 public enum GatewaySignIn: Sendable, Hashable, Codable {
     /// The server needs no login.
     case none
+    /// Browser sign-in (RFC 8252 native PKCE, or the in-app web view fallback). Tokens are in the
+    /// ``CredentialStore`` as ``CredentialKind/nativeTokens``. `provider` nil lets the server pick or ask.
+    case browser(provider: String?)
     /// The dashboard's `basic` provider. The password is in the ``CredentialStore``.
     case password(username: String)
     /// A pasted session token, stored in the ``CredentialStore``.

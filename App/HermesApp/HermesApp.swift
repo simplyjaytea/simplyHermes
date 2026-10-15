@@ -42,9 +42,11 @@ struct HermesApp: App {
             let services = ConnectionServices(credentials: InMemoryCredentialStore(), unlocker: AlwaysUnlocked())
             return ConnectionsModel(store: nil, services: services)
         }
-        return ConnectionsModel(
+        let connections = ConnectionsModel(
             store: ConnectionStore(fileURL: ConnectionStore.defaultFileURL()),
             services: ConnectionServices(credentials: KeychainCredentialStore()))
+        connections.applyOpenOnLaunch()
+        return connections
     }
 }
 

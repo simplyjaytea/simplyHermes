@@ -48,6 +48,8 @@ public struct ServerStatus: Sendable, Equatable, Codable {
     public var authRequired: Bool?
     /// Login providers such as `basic`.
     public var authProviders: [String]?
+    /// Sign-in flows the server offers, such as `cookie` and `native_pkce`.
+    public var authFlows: [String]?
     /// `ok`, `degraded` or `down`.
     public var overall: String?
     /// Profile names.
