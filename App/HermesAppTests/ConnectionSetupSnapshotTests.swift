@@ -28,6 +28,7 @@ final class ConnectionSetupSnapshotTests: XCTestCase {
         ),
         ("ssh", { AnyView(ConnectionFormView(form: sshForm(), connections: .preview()) { _ in }) }),
         ("servers", { AnyView(NavigationStack { ServerListView(connections: .preview()) }) }),
+        ("profile-switcher", { AnyView(profileSwitcherScreen()) }),
         (
             "hostkey",
             {
@@ -50,6 +51,26 @@ final class ConnectionSetupSnapshotTests: XCTestCase {
                     try verifyRecordingMissing(make(), named: name, size: posture.size, style: style)
                 }
             }
+        }
+    }
+
+    private static func profileSwitcherScreen() -> some View {
+        let json = #"""
+            [{"name":"default","is_default":true},{"name":"ops","display_name":"Ops bot"},{"name":"research"}]
+            """#
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let profiles = (try? decoder.decode([HermesProfile].self, from: Data(json.utf8))) ?? []
+        let connections = ConnectionsModel.preview()
+        let model = ProfilesModel.preview(ProfileSelection.resolve(profiles: profiles, stored: "ops"))
+        return NavigationStack {
+            Color.clear
+                .navigationTitle("Chats")
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        ProfileSwitcher(profiles: model, connections: connections)
+                    }
+                }
         }
     }
 

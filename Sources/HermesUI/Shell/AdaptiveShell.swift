@@ -11,12 +11,14 @@
         @Environment(\.horizontalSizeClass) private var horizontalSizeClass
         @Environment(\.hermesPosture) private var forcedPosture
         @State private var postureMonitor = DevicePostureMonitor()
+        @State private var profiles: ProfilesModel?
         @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
         /// `connections` fills Settings > Servers and the server switcher (WP-22). Nil shows placeholders.
         public init(model: ShellModel, connections: ConnectionsModel? = nil, showsDebugLayoutMenu: Bool = false) {
             self.model = model
             self.connections = connections
+            _profiles = State(initialValue: connections.map { ProfilesModel(connections: $0) })
             self.showsDebugLayoutMenu = showsDebugLayoutMenu
         }
 
@@ -102,6 +104,7 @@
                         .navigationTitle("Chats")
                         .toolbar {
                             serverSwitcher
+                            profileSwitcher
                             newChatButton
                         }
                         .navigationDestination(item: $model.selectedSessionID) { id in
@@ -138,6 +141,7 @@
                 .navigationTitle("simplyHermes")
                 .toolbar {
                     serverSwitcher
+                    profileSwitcher
                     newChatButton
                 }
             } detail: {
@@ -222,6 +226,15 @@
             if let connections {
                 ToolbarItem(placement: .topBarLeading) {
                     ServerSwitcher(connections: connections) { model.selectedSection = .settings }
+                }
+            }
+        }
+
+        @ToolbarContentBuilder
+        private var profileSwitcher: some ToolbarContent {
+            if let connections, let profiles {
+                ToolbarItem(placement: .topBarLeading) {
+                    ProfileSwitcher(profiles: profiles, connections: connections)
                 }
             }
         }
