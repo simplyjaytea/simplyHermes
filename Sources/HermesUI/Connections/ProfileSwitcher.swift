@@ -1,0 +1,54 @@
+#if canImport(UIKit)
+    import HermesKit
+    import SwiftUI
+
+    /// The profile chip in the header: one tap opens the bots of this server, one more switches (WP-41).
+    /// Hidden while the server has a single profile, so it only shows up when there is something to choose.
+    public struct ProfileSwitcher: View {
+        private let profiles: ProfilesModel
+        private let connections: ConnectionsModel
+
+        public init(profiles: ProfilesModel, connections: ConnectionsModel) {
+            self.profiles = profiles
+            self.connections = connections
+        }
+
+        private var isConnected: Bool {
+            guard let id = connections.active?.id, case .connected = connections.phase(of: id) else { return false }
+            return true
+        }
+
+        public var body: some View {
+            Group {
+                if profiles.selection.rows.count > 1 {
+                    Menu {
+                        ForEach(profiles.selection.rows) { row in
+                            Button {
+                                profiles.select(row.name)
+                            } label: {
+                                if row.isCurrent {
+                                    Label(row.title, systemImage: "checkmark")
+                                } else {
+                                    Text(row.title)
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.crop.circle").font(HermesFont.caption)
+                            Text(profiles.selection.label)
+                                .font(HermesFont.subheadline.weight(.semibold))
+                                .lineLimit(1)
+                            Image(systemName: "chevron.down").font(HermesFont.caption)
+                        }
+                    }
+                    .accessibilityLabel("Profile: \(profiles.selection.label)")
+                    .accessibilityIdentifier("profileSwitcher")
+                }
+            }
+            .task(id: "\(connections.active?.id.uuidString ?? "none")-\(isConnected)") {
+                await profiles.refresh()
+            }
+        }
+    }
+#endif
