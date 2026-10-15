@@ -19,7 +19,7 @@ let package = Package(
     ],
     targets: [
         // Pure Swift. No UIKit, no Combine. Must build on Linux.
-        .target(name: "HermesKit"),
+        .target(name: "HermesKit", dependencies: [.product(name: "Crypto", package: "swift-crypto")]),
         // SSH session, exec, loopback forwarder. Must build on Linux.
         .target(
             name: "HermesSSH",

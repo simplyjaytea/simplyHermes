@@ -47,9 +47,15 @@ public protocol HTTPTransport: Sendable {
     func send(_ request: HTTPRequest) async throws -> HTTPResponse
 }
 
+/// A transport that can take cookies from elsewhere, such as the in-app sign-in web view.
+public protocol CookieImporting: Sendable {
+    /// Adds cookies to the transport's store.
+    func importCookies(_ cookies: [HTTPCookie])
+}
+
 /// Sends requests with `URLSession`. Keeps login cookies in its own cookie store and does not follow redirects, so a
 /// login redirect shows up as the `3xx` it is.
-public final class URLSessionHTTPTransport: HTTPTransport, @unchecked Sendable {
+public final class URLSessionHTTPTransport: HTTPTransport, CookieImporting, @unchecked Sendable {
     private let session: URLSession
     private let redirectBlocker = RedirectBlocker()
     private let cookies = CookieJar()
@@ -65,6 +71,15 @@ public final class URLSessionHTTPTransport: HTTPTransport, @unchecked Sendable {
         #endif
         configuration.httpCookieAcceptPolicy = .always
         session = URLSession(configuration: configuration, delegate: redirectBlocker, delegateQueue: nil)
+    }
+
+    /// Adds cookies, for example the session cookies of a web view sign-in.
+    public func importCookies(_ cookies: [HTTPCookie]) {
+        #if canImport(Darwin)
+            for cookie in cookies { session.configuration.httpCookieStorage?.setCookie(cookie) }
+        #else
+            self.cookies.store(cookies)
+        #endif
     }
 
     /// Sends the request.

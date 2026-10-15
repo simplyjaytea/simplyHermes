@@ -31,6 +31,24 @@ password only when "Remember password" is on, session token, SSH key as `StoredS
 default access group for now; the shared group needs its team prefix read at runtime on a sideloaded build. Face ID
 (`deviceOwnerAuthentication`) gates reading an SSH connection's secrets; on by default for SSH, optional for gateways.
 
+## Gateway sign-in (WP-13)
+
+`SignInOptions.detect` reads `/api/status` (`auth_required`, `auth_flows`) and `/api/auth/providers`. The form offers
+only what the server supports: Browser for OAuth/OIDC providers or `native_pkce`, Password for `basic`, Token always.
+
+- Browser, native (RFC 8252 + PKCE): `ASWebAuthenticationSession` opens `/auth/native/authorize` with an ephemeral
+  session; `LoopbackRedirectReceiver` catches `http://127.0.0.1:<port>/cb`; the code is redeemed at
+  `/auth/native/token`. If the sheet or the listener cannot start, a `WKWebView` runs the same flow and stops at the
+  loopback redirect. Tokens are stored as `nativeTokens` JSON in the Keychain.
+- Browser, cookie fallback (no `native_pkce`): a non-persistent `WKWebView` signs in at `/auth/login` and its gateway
+  cookies are stored as `webCookies`.
+- `GatewayAuthSession` (one actor per connection) owns the REST client's auth: bearer tokens refreshed
+  `/auth/native/refresh` before expiry (one refresh at a time; a refused refresh deletes the tokens and asks the user
+  to sign in again), the 401 hook, silent password re-login (at most once a minute, only with "Remember password"),
+  and WebSocket tickets for the gateway client.
+- CI: `NativeAuthLiveTests` (basic provider) and `OIDCSignInLiveTests` (Dex, `up.sh --profile oidc`, port 9120) run
+  the whole flow on Linux against the testbed, with a scripted browser in place of the sheet.
+
 ## Networking permissions
 
 LAN gateways need `NSLocalNetworkUsageDescription` (set); the app explains the prompt once before the first Test of a

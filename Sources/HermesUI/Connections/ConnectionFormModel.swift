@@ -15,9 +15,26 @@
 
         public enum SignInMethod: String, CaseIterable, Identifiable, Sendable {
             case none = "None"
+            case browser = "Browser"
             case password = "Password"
             case token = "Token"
             public var id: String { rawValue }
+
+            init(_ method: SignInOptions.Method) {
+                switch method {
+                case .browser: self = .browser
+                case .password: self = .password
+                case .sessionToken: self = .token
+                }
+            }
+        }
+
+        /// Browser sign-in progress (WP-13).
+        public enum BrowserState: Equatable, Sendable {
+            case idle
+            case signingIn
+            case signedIn(user: String?)
+            case failed(String)
         }
 
         public enum KeySource: String, CaseIterable, Identifiable, Sendable {
@@ -62,6 +79,12 @@
         public var token = ""
         public var remembersPassword = false
         public private(set) var probe: ProbeState = .idle
+        /// The provider for browser sign-in. Nil lets the server choose.
+        public var browserProvider: String?
+        public private(set) var browserState: BrowserState = .idle
+        private var browserResult: BrowserSignInResult?
+        /// The server the browser sign-in belongs to. Tokens for another address are not used.
+        private var browserServer: URL?
 
         // SSH
         public var host = ""
@@ -107,6 +130,10 @@
                     signInMethod = .password
                     username = user
                 case .sessionToken: signInMethod = .token
+                case .browser(let provider):
+                    signInMethod = .browser
+                    browserProvider = provider
+                    restoreBrowserSignIn(secrets, server: settings.endpoint.baseURL)
                 }
                 password = secrets.password ?? ""
                 token = secrets.sessionToken ?? ""
@@ -169,6 +196,7 @@
                 guard case .success? = address else { return "Enter a valid server address." }
                 switch signInMethod {
                 case .none: return nil
+                case .browser: return browserSignInResult == nil ? "Sign in with the browser." : nil
                 case .password: return username.isEmpty ? "Enter the user name." : nil
                 case .token: return token.isEmpty ? "Paste the session token." : nil
                 }
@@ -181,6 +209,42 @@
                 if keySource == .importKey && importText.isEmpty { return "Paste the private key." }
                 return nil
             }
+        }
+
+        /// The sign-in methods the picker offers: what the server supports, or all of them before it answers.
+        /// The current choice stays listed so an edited connection never loses it.
+        public var availableSignInMethods: [SignInMethod] {
+            var methods: [SignInMethod]
+            if case .found(let found) = probe {
+                methods = Self.methods(for: found)
+            } else {
+                methods = SignInMethod.allCases
+            }
+            if !methods.contains(signInMethod) { methods.append(signInMethod) }
+            return SignInMethod.allCases.filter(methods.contains)
+        }
+
+        /// The server's browser providers (OAuth, OIDC), for the provider picker.
+        public var browserProviders: [AuthProviderInfo] {
+            guard case .found(let found) = probe else { return [] }
+            return found.signIn?.browserProviders ?? []
+        }
+
+        /// The browser sign-in, when it belongs to the address in the form.
+        private var browserSignInResult: BrowserSignInResult? {
+            guard case .success(let parsed)? = address, parsed.endpoint.baseURL == browserServer else { return nil }
+            return browserResult
+        }
+
+        private static func methods(for found: ServerProbe) -> [SignInMethod] {
+            guard found.authRequired else { return [.none] }
+            if let options = found.signIn { return options.methods.map(SignInMethod.init) }
+            return found.authProviders.contains("basic") ? [.password, .token] : [.token]
+        }
+
+        private static func recommended(for found: ServerProbe) -> SignInMethod {
+            if let method = found.signIn?.recommended { return SignInMethod(method) }
+            return found.authProviders.contains("basic") ? .password : .token
         }
 
         public var isTesting: Bool {
@@ -214,8 +278,59 @@
             probe = .found(found)
             if !found.authRequired {
                 signInMethod = .none
-            } else if signInMethod == .none {
-                signInMethod = found.authProviders.contains("basic") ? .password : .token
+            } else if signInMethod == .none || !Self.methods(for: found).contains(signInMethod) {
+                signInMethod = Self.recommended(for: found)
+            }
+            if browserProvider == nil, let only = found.signIn?.browserProviders, only.count == 1 {
+                browserProvider = only[0].name
+            }
+        }
+
+        /// Opens the browser sign-in and keeps its tokens or cookies for Save.
+        public func signInWithBrowser(with services: ConnectionServices) async {
+            guard case .success(let parsed)? = address else {
+                browserState = .failed("Enter a valid server address.")
+                return
+            }
+            var options: SignInOptions?
+            if case .found(let found) = probe { options = found.signIn }
+            let before = browserState
+            browserState = .signingIn
+            do {
+                let result = try await services.browserSignIn.signIn(
+                    endpoint: parsed.endpoint, options: options, provider: browserProvider)
+                browserResult = result
+                browserServer = parsed.endpoint.baseURL
+                browserState = .signedIn(user: result.userID)
+                test = .idle
+            } catch NativeSignInError.cancelled {
+                browserState = before == .signingIn ? .idle : before
+            } catch {
+                browserState = .failed(Self.browserMessage(for: error))
+            }
+        }
+
+        private func restoreBrowserSignIn(_ secrets: ConnectionSecrets, server: URL) {
+            if let tokens = secrets.nativeTokens {
+                browserResult = .tokens(tokens)
+            } else if let cookies = secrets.webCookies {
+                browserResult = .cookies(cookies)
+            }
+            guard let browserResult else { return }
+            browserServer = server
+            browserState = .signedIn(user: browserResult.userID)
+        }
+
+        private static func browserMessage(for error: any Error) -> String {
+            switch error {
+            case NativeSignInError.codeRejected, NativeSignInError.stateMismatch, NativeSignInError.missingCode:
+                "The server didn't accept the sign-in. Try again."
+            case NativeSignInError.sessionExpired:
+                "The sign-in expired. Try again."
+            case NativeSignInError.server(let detail):
+                "The server refused the sign-in: \(detail)"
+            default:
+                "Couldn't sign in: \(error.localizedDescription)"
             }
         }
 
@@ -229,6 +344,7 @@
                 let signIn: GatewaySignIn =
                     switch signInMethod {
                     case .none: .none
+                    case .browser: .browser(provider: browserProvider)
                     case .password: .password(username: username)
                     case .token: .sessionToken
                     }
@@ -257,9 +373,17 @@
         public func makeSecrets() throws(ConnectionTestFailure) -> ConnectionSecrets {
             switch mode {
             case .gateway:
-                return ConnectionSecrets(
+                var secrets = ConnectionSecrets(
                     password: signInMethod == .password ? password : nil,
                     sessionToken: signInMethod == .token ? token : nil)
+                if signInMethod == .browser {
+                    switch browserSignInResult {
+                    case .tokens(let tokens)?: secrets.nativeTokens = tokens
+                    case .cookies(let cookies)?: secrets.webCookies = cookies
+                    case nil: break
+                    }
+                }
+                return secrets
             case .ssh:
                 switch keySource {
                 case .generate:
