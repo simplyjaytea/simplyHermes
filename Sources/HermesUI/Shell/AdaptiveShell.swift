@@ -6,6 +6,7 @@
     public struct AdaptiveShell: View {
         @Bindable private var model: ShellModel
         private let connections: ConnectionsModel?
+        private let sessionsList: SessionsListModel?
         private let showsDebugLayoutMenu: Bool
 
         @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -15,9 +16,14 @@
         @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
         /// `connections` fills Settings > Servers and the server switcher (WP-22). Nil shows placeholders.
-        public init(model: ShellModel, connections: ConnectionsModel? = nil, showsDebugLayoutMenu: Bool = false) {
+        /// `sessionsList` lists the active server's chats (WP-40). Nil keeps the sample chats.
+        public init(
+            model: ShellModel, connections: ConnectionsModel? = nil, sessionsList: SessionsListModel? = nil,
+            showsDebugLayoutMenu: Bool = false
+        ) {
             self.model = model
             self.connections = connections
+            self.sessionsList = sessionsList
             _profiles = State(initialValue: connections.map { ProfilesModel(connections: $0) })
             self.showsDebugLayoutMenu = showsDebugLayoutMenu
         }
@@ -35,7 +41,15 @@
                     .hermesPostureSource(postureMonitor)
                     .environment(\.hermesPosture, posture)
                     .task(id: forcedPosture) { applyForcedPosture() }
+                    .task(id: connections?.active?.id) { await attachSessions() }
             }
+        }
+
+        /// Lists the active server's chats in the shell (WP-40), again when the active server changes.
+        private func attachSessions() async {
+            guard let sessionsList else { return }
+            sessionsList.observeItems { model.syncSessions($0) }
+            await sessionsList.attach()
         }
 
         private func applyForcedPosture() {
@@ -93,29 +107,38 @@
             TabView(selection: $model.selectedSection) {
                 Tab(AppSection.chats.title, systemImage: AppSection.chats.systemImage, value: AppSection.chats) {
                     NavigationStack {
-                        List(model.sessions) { session in
-                            Button {
-                                model.open(session.id)
-                            } label: {
-                                SessionRow(session: session, isStreaming: model.isStreaming(session.id))
+                        chatList
+                            .navigationTitle("Chats")
+                            .toolbar {
+                                serverSwitcher
+                                profileSwitcher
+                                newChatButton
                             }
-                            .tint(HermesColor.primaryText)
-                        }
-                        .navigationTitle("Chats")
-                        .toolbar {
-                            serverSwitcher
-                            profileSwitcher
-                            newChatButton
-                        }
-                        .navigationDestination(item: $model.selectedSessionID) { id in
-                            chat(id, style: .standard)
-                        }
+                            .navigationDestination(item: $model.selectedSessionID) { id in
+                                chat(id, style: .standard)
+                            }
                     }
                 }
                 ForEach(AppSection.allCases.filter { $0 != .chats }) { section in
                     Tab(section.title, systemImage: section.systemImage, value: section) {
                         NavigationStack { sectionContent(section) }
                     }
+                }
+            }
+        }
+
+        @ViewBuilder
+        private var chatList: some View {
+            if let sessionsList, connections?.active != nil {
+                SessionsListView(model: sessionsList) { model.show($0) }
+            } else {
+                List(model.sessions) { session in
+                    Button {
+                        model.open(session.id)
+                    } label: {
+                        SessionRow(session: session, isStreaming: model.isStreaming(session.id))
+                    }
+                    .tint(HermesColor.primaryText)
                 }
             }
         }

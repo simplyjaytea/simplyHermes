@@ -114,6 +114,31 @@
             }
         }
 
+        /// Replaces the listed chats with the server's (WP-40). Chats started here stay. Their transcripts arrive with
+        /// WP-30, so a synced chat opens empty for now.
+        public func syncSessions(_ items: [SessionListItem]) {
+            let local = sessions.filter { $0.id.hasPrefix("new-") }
+            let synced = items.map {
+                ChatSessionSummary(id: $0.id, title: $0.title, subtitle: $0.time ?? "", serverName: $0.serverName)
+            }
+            sessions = local + synced
+            for session in sessions where transcripts[session.id] == nil { transcripts[session.id] = [] }
+            let ids = Set(sessions.map(\.id))
+            openSessionIDs.removeAll { !ids.contains($0) }
+            if let selected = selectedSessionID, !ids.contains(selected) { selectedSessionID = openSessionIDs.last }
+        }
+
+        /// Opens a listed chat, adding it first when the list does not hold it yet (a search result).
+        public func show(_ item: SessionListItem) {
+            if session(id: item.id) == nil {
+                sessions.append(
+                    ChatSessionSummary(
+                        id: item.id, title: item.title, subtitle: item.time ?? "", serverName: item.serverName))
+                transcripts[item.id] = []
+            }
+            open(item.id)
+        }
+
         /// Starts a new local chat. WP-40 replaces this with a server-side session.
         public func newChat() {
             let id = "new-\(sessions.count + 1)"

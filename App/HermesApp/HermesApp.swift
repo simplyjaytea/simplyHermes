@@ -6,13 +6,16 @@ import SwiftUI
 struct HermesApp: App {
     @State private var model: ShellModel
     @State private var connections: ConnectionsModel
+    @State private var sessionsList: SessionsListModel
     private let launch: LaunchOptions
     private let integration: AppIntegration
 
     init() {
         let launch = LaunchOptions(defaults: .standard)
         self.launch = launch
-        _connections = State(initialValue: Self.makeConnections(launch))
+        let connections = Self.makeConnections(launch)
+        _connections = State(initialValue: connections)
+        _sessionsList = State(initialValue: Self.makeSessionsList(connections, launch))
         let model = ShellModel()
         _model = State(initialValue: model)
         // Set up before any scene: a Live Activity or widget button can launch the app in the background.
@@ -21,7 +24,7 @@ struct HermesApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(model: model, connections: connections, launch: launch)
+            RootView(model: model, connections: connections, sessionsList: sessionsList, launch: launch)
                 .tint(HermesColor.accent)
                 .onOpenURL { url in
                     if let id = HermesURL.chatID(from: url), model.session(id: id) != nil {
@@ -33,6 +36,21 @@ struct HermesApp: App {
             ChatWindow(model: model, sessionID: sessionID)
                 .tint(HermesColor.accent)
         }
+    }
+
+    /// The chat list cache. UI tests keep it in memory so runs never share saved chats.
+    @MainActor
+    private static func makeSessionsList(_ connections: ConnectionsModel, _ launch: LaunchOptions) -> SessionsListModel
+    {
+        let url = launch.onboarding == nil ? Self.cacheFileURL() : nil
+        let cache = url.flatMap { try? HermesCache(url: $0) } ?? (try? HermesCache())
+        guard let cache else { preconditionFailure("The in-memory cache cannot fail to open") }
+        return SessionsListModel(connections: connections, cache: cache)
+    }
+
+    private static func cacheFileURL() -> URL? {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("simplyHermes", isDirectory: true).appendingPathComponent("cache.sqlite")
     }
 
     /// Saved servers. `-HermesOnboarding fresh` keeps them in memory with no Face ID, so UI tests start clean.
@@ -82,6 +100,7 @@ struct LaunchOptions {
 struct RootView: View {
     let model: ShellModel
     let connections: ConnectionsModel
+    let sessionsList: SessionsListModel
     let launch: LaunchOptions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -92,7 +111,8 @@ struct RootView: View {
                     .transition(.opacity)
             } else {
                 AdaptiveShell(
-                    model: model, connections: connections, showsDebugLayoutMenu: launch.showsDebugLayoutSwitcher)
+                    model: model, connections: connections, sessionsList: sessionsList,
+                    showsDebugLayoutMenu: launch.showsDebugLayoutSwitcher)
             }
         }
         .animation(HermesMotion.animation(HermesMotion.gentle, reduceMotion: reduceMotion), value: connections.isEmpty)
