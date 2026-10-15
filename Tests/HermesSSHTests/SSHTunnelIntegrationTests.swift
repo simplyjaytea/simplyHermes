@@ -1,4 +1,5 @@
 import Foundation
+import HermesKit
 import NIOCore
 import NIOHTTP1
 import NIOPosix
@@ -44,6 +45,39 @@ struct SSHTunnelIntegrationTests {
         #expect(await tunnel.currentEndpoint == nil)
         let afterStop = try? await SSHTestbed.get(endpoint.baseURL.appending(path: "api/status"), headers: [:])
         #expect(afterStop == nil)
+    }
+
+    /// WP-22: the connection form's Test button for SSH, with first-connect trust, then pinned.
+    @Test func connectionTestTrustsThenPins() async throws {
+        let keyText = try String(contentsOfFile: try #require(SSHTestbed.keyPath), encoding: .utf8)
+        let environment = SSHTestbed.environment
+        var settings = SSHSettings(
+            host: environment["HERMES_SSH_TEST_HOST"] ?? "127.0.0.1",
+            port: Int(environment["HERMES_SSH_TEST_PORT"] ?? "") ?? 2222,
+            username: environment["HERMES_SSH_TEST_USER"] ?? "tester", authentication: .importedKey)
+        let secrets = ConnectionSecrets(sshKey: try SSHKeyMaterial.importKey(keyText, passphrase: nil))
+        let connection = { ServerConnection(name: "Testbed", kind: .ssh(settings)) }
+
+        let report = try await SSHConnectionTester().test(
+            connection(), secrets: secrets, progress: { _ in }, confirmHostKey: { _ in true })
+        let hostKey = try #require(report.acceptedHostKey)
+        #expect(hostKey.fingerprint.hasPrefix("SHA256:"))
+        #expect(report.serverVersion?.isEmpty == false)
+
+        settings.pinnedHostKey = hostKey.openSSHKey
+        let pinned = try await SSHConnectionTester().test(
+            connection(), secrets: secrets, progress: { _ in },
+            confirmHostKey: { _ in
+                Issue.record("a pinned key must not ask")
+                return false
+            })
+        #expect(pinned.acceptedHostKey == hostKey)
+
+        settings.pinnedHostKey = nil
+        await #expect(throws: ConnectionTestFailure.hostKeyRejected) {
+            _ = try await SSHConnectionTester().test(
+                connection(), secrets: secrets, progress: { _ in }, confirmHostKey: { _ in false })
+        }
     }
 
     @Test func pinnedHostKeyMismatchFailsHard() async throws {

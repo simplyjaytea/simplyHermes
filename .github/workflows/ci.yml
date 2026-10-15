@@ -41,11 +41,11 @@ jobs:
           docker run --rm --network host -v "$PWD:/src" -w /src \
             -e HERMES_SSH_TEST_KEY=/src/testbed/data/ssh/id_ed25519 \
             swift:6.1 swift test --filter SSHTunnelIntegrationTests
-      - name: REST and gateway clients against the testbed (WP-11, WP-12)
+      - name: REST, gateway and connection test against the testbed (WP-11, WP-12, WP-22)
         run: |
           docker run --rm --network host -v "$PWD:/src" -w /src \
             -e HERMES_TESTBED_URL=http://127.0.0.1:9119 \
-            swift:6.1 swift test --filter "RESTLiveTests|GatewayLiveTests"
+            swift:6.1 swift test --filter "RESTLiveTests|GatewayLiveTests|GatewayConnectionTesterLiveTests"
       - name: Logs on failure
         if: failure()
         run: docker compose -f testbed/docker-compose.yml logs --tail=200
@@ -102,7 +102,33 @@ jobs:
           print(f"name={best[2]}")
           print(f"os={best[3][0]}.{best[3][1]}")
           PY
+      - name: Start testbed dashboard for the connection UI test (WP-22)
+        run: |
+          set -euo pipefail
+          brew install uv
+          ref=$(sed -n 's/^ARG HERMES_REF=//p' testbed/hermes/Dockerfile)
+          src="$RUNNER_TEMP/hermes"
+          git init -q "$src"
+          git -C "$src" remote add origin https://github.com/NousResearch/hermes-agent
+          git -C "$src" fetch -q --depth 1 origin "$ref"
+          git -C "$src" checkout -q FETCH_HEAD
+          (cd "$src" && (uv sync --frozen --no-dev || uv sync --frozen))
+          export HERMES_HOME="$RUNNER_TEMP/hermes-home"
+          FAKE_LLM_URL=http://127.0.0.1:8700/v1 sh testbed/hermes/seed-config.sh "$HERMES_HOME"
+          # Same login as testbed/docker-compose.yml; binding 0.0.0.0 turns the auth gate on.
+          HERMES_DASHBOARD_BASIC_AUTH_USERNAME=tester \
+          HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=testbed-password \
+          HERMES_DASHBOARD_BASIC_AUTH_SECRET=testbed-stable-secret-0123456789abcdef \
+            nohup "$src/.venv/bin/hermes" serve --host 0.0.0.0 --port 9119 > "$RUNNER_TEMP/hermes-serve.log" 2>&1 &
+          for _ in $(seq 1 90); do
+            curl -fsS http://127.0.0.1:9119/api/status > /dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:9119/api/health
       - name: Test
+        env:
+          # xcodebuild passes TEST_RUNNER_* variables to the UI test runner without the prefix.
+          TEST_RUNNER_HERMES_TESTBED_URL: http://127.0.0.1:9119
         run: |
           set -o pipefail
           echo "Simulator: ${{ steps.sim.outputs.name }} (iOS ${{ steps.sim.outputs.os }})"
@@ -139,7 +165,7 @@ jobs:
           # Live Activity (WP-63/64): run a long demo turn, then switch to Safari so the
           # Dynamic Island shows the activity. Best effort: older simulators have no island.
           xcrun simctl terminate "$udid" "$bundle" || true
-          xcrun simctl launch "$udid" "$bundle" -HermesDemo liveActivity || true
+          xcrun simctl launch "$udid" "$bundle" -HermesDemo liveActivity -HermesOnboarding skip || true
           sleep 6
           xcrun simctl io "$udid" screenshot build/shots/live-in-app.png || true
           xcrun simctl openurl "$udid" "https://example.com" || true
@@ -172,6 +198,9 @@ jobs:
         with:
           name: simplyHermes-unsigned-ipa
           path: build/ipa/simplyHermes-unsigned.ipa
+      - name: Testbed dashboard log
+        if: failure()
+        run: tail -n 200 "$RUNNER_TEMP/hermes-serve.log" || true
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
