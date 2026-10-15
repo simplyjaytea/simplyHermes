@@ -6,6 +6,8 @@ public enum RESTAuth: Sendable, Equatable {
     case cookie
     /// SSH mode: the per-process token, sent as `X-Hermes-Session-Token`.
     case sessionToken(String)
+    /// Native sign-in (RFC 8252): the access token from `/auth/native/token`, sent as `Authorization: Bearer`.
+    case bearer(String)
 }
 
 /// Errors from ``RESTClient``.
@@ -47,7 +49,7 @@ public typealias RESTReauthenticator = @Sendable () async throws -> Void
 public actor RESTClient {
     private let endpoint: HermesEndpoint
     private let transport: any HTTPTransport
-    private let auth: RESTAuth
+    private var auth: RESTAuth
     private let clock: any GatewayClock
     private let config: RESTClientConfig
     private var reauthenticator: RESTReauthenticator?
@@ -73,6 +75,9 @@ public actor RESTClient {
 
     /// Sets the profile used for scoped calls.
     public func setProfile(_ name: String?) { profile = name }
+
+    /// Replaces how calls authenticate, for example after a bearer token was rotated.
+    public func setAuth(_ auth: RESTAuth) { self.auth = auth }
 
     /// Sets or clears the re-authentication hook.
     public func setReauthenticator(_ hook: RESTReauthenticator?) { reauthenticator = hook }
@@ -162,7 +167,11 @@ public actor RESTClient {
         var headers = endpoint.headers
         headers["Accept"] = "application/json"
         if body != nil { headers["Content-Type"] = "application/json" }
-        if case .sessionToken(let token) = auth { headers["X-Hermes-Session-Token"] = token }
+        switch auth {
+        case .cookie: break
+        case .sessionToken(let token): headers["X-Hermes-Session-Token"] = token
+        case .bearer(let token): headers["Authorization"] = "Bearer \(token)"
+        }
         return HTTPRequest(method: method, url: url, headers: headers, body: body)
     }
 

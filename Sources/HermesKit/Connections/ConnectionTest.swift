@@ -10,15 +10,22 @@ public struct ConnectionSecrets: Sendable, Equatable {
     public var sshKey: StoredSSHKey?
     /// SSH password.
     public var sshPassword: String?
+    /// Tokens from browser sign-in.
+    public var nativeTokens: NativeTokens?
+    /// Session cookies from the web view sign-in, on servers without native sign-in.
+    public var webCookies: [StoredCookie]?
 
     /// Creates a value.
     public init(
-        password: String? = nil, sessionToken: String? = nil, sshKey: StoredSSHKey? = nil, sshPassword: String? = nil
+        password: String? = nil, sessionToken: String? = nil, sshKey: StoredSSHKey? = nil, sshPassword: String? = nil,
+        nativeTokens: NativeTokens? = nil, webCookies: [StoredCookie]? = nil
     ) {
         self.password = password
         self.sessionToken = sessionToken
         self.sshKey = sshKey
         self.sshPassword = sshPassword
+        self.nativeTokens = nativeTokens
+        self.webCookies = webCookies
     }
 }
 
@@ -109,7 +116,7 @@ public enum ConnectionTestFailure: Error, Sendable, Equatable {
         case .signInRequired(let providers):
             providers.contains("basic")
                 ? "This server needs a sign-in. Choose Password and enter the dashboard login."
-                : "This server needs browser sign-in, which arrives in a later update. Paste a session token for now."
+                : "This server needs a sign-in. Choose Browser and sign in."
         case .wrongCredentials:
             "The server refused the sign-in. Check the user name and password or token."
         case .rateLimited(let retryAfter):
@@ -135,11 +142,14 @@ public struct ServerProbe: Sendable, Equatable {
     public var authRequired: Bool
     /// Login providers such as `basic`.
     public var authProviders: [String]
+    /// The full sign-in options (providers and flows), when the server sent them.
+    public var signIn: SignInOptions?
 
     /// Creates a value.
-    public init(authRequired: Bool, authProviders: [String]) {
+    public init(authRequired: Bool, authProviders: [String], signIn: SignInOptions? = nil) {
         self.authRequired = authRequired
         self.authProviders = authProviders
+        self.signIn = signIn
     }
 }
 
@@ -163,6 +173,21 @@ public struct GatewayConnectionTester: ConnectionTesting {
         self.makeTransport = makeTransport
     }
 
+    /// How the REST client authenticates for `signIn`. Throws ``ConnectionTestFailure/missingSecret``.
+    static func auth(for signIn: GatewaySignIn, secrets: ConnectionSecrets) throws -> RESTAuth {
+        switch signIn {
+        case .sessionToken:
+            guard let token = secrets.sessionToken, !token.isEmpty else { throw ConnectionTestFailure.missingSecret }
+            return .sessionToken(token)
+        case .browser:
+            if let tokens = secrets.nativeTokens { return .bearer(tokens.accessToken) }
+            guard secrets.webCookies?.isEmpty == false else { throw ConnectionTestFailure.missingSecret }
+            return .cookie
+        case .none, .password:
+            return .cookie
+        }
+    }
+
     public func test(
         _ connection: ServerConnection, secrets: ConnectionSecrets,
         progress: @escaping @Sendable (ConnectionTestStep) -> Void,
@@ -171,14 +196,14 @@ public struct GatewayConnectionTester: ConnectionTesting {
         guard case .gateway(let settings) = connection.kind else {
             throw ConnectionTestFailure.server(status: 0, detail: "not a gateway connection")
         }
-        var auth = RESTAuth.cookie
-        if case .sessionToken = settings.signIn {
-            guard let token = secrets.sessionToken, !token.isEmpty else { throw ConnectionTestFailure.missingSecret }
-            auth = .sessionToken(token)
-        }
+        let auth = try Self.auth(for: settings.signIn, secrets: secrets)
         var config = RESTClientConfig()
         config.maxRateLimitRetries = 0
-        let client = RESTClient(endpoint: settings.endpoint, transport: makeTransport(), auth: auth, config: config)
+        let transport = makeTransport()
+        if let cookies = secrets.webCookies, let importer = transport as? any CookieImporting {
+            importer.importCookies(cookies.compactMap(\.cookie))
+        }
+        let client = RESTClient(endpoint: settings.endpoint, transport: transport, auth: auth, config: config)
 
         progress(.reachingServer)
         let health: ServerHealth
@@ -204,13 +229,16 @@ public struct GatewayConnectionTester: ConnectionTesting {
                         throw ConnectionTestFailure.missingSecret
                     }
                     try await client.passwordLogin(username: username, password: password)
-                case .sessionToken:
+                case .sessionToken, .browser:
                     break
                 }
                 let user = try await client.currentUser()
                 report.signedInAs = user.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? user.userId
                 progress(.checkingServer)
-                if case .password = settings.signIn { _ = try await client.webSocketTicket() }
+                switch settings.signIn {
+                case .password, .browser: _ = try await client.webSocketTicket()
+                case .none, .sessionToken: break
+                }
             } catch let failure as ConnectionTestFailure {
                 throw failure
             } catch {
@@ -229,10 +257,10 @@ public struct GatewayConnectionTester: ConnectionTesting {
         config.maxRateLimitRetries = 0
         let client = RESTClient(endpoint: endpoint, transport: makeTransport(), config: config)
         guard let health = try? await client.health(), health.ok else { return nil }
-        let status = try? await client.status()
+        let options = try? await SignInOptions.detect(using: client)
         return ServerProbe(
-            authRequired: health.authRequired ?? status?.authRequired ?? false,
-            authProviders: status?.authProviders ?? [])
+            authRequired: health.authRequired ?? options?.authRequired ?? false,
+            authProviders: options?.providers.map(\.name) ?? [], signIn: options)
     }
 
     /// Maps a REST error from reaching the server to a form message.

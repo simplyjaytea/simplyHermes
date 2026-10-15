@@ -14,6 +14,10 @@ public enum CredentialKind: String, Sendable, CaseIterable {
     case sshKey
     /// The SSH password, for password login.
     case sshPassword
+    /// Native sign-in tokens (access and rotating refresh token), as ``NativeTokens`` JSON.
+    case nativeTokens
+    /// Session cookies from the in-app web view sign-in, as ``StoredCookie`` JSON.
+    case webCookies
 }
 
 /// Errors from a ``CredentialStore``.

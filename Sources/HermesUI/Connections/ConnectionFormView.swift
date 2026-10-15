@@ -177,13 +177,15 @@
 
             Section {
                 Picker("Sign in", selection: $form.signInMethod) {
-                    ForEach(ConnectionFormModel.SignInMethod.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(form.availableSignInMethods) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .accessibilityIdentifier("connection.signIn")
                 switch form.signInMethod {
                 case .none:
                     EmptyView()
+                case .browser:
+                    BrowserSignInRows(form: form, connections: connections)
                 case .password:
                     TextField("User name", text: $form.username)
                         .textContentType(.username)
@@ -272,6 +274,52 @@
         }
     }
 
+    /// Browser sign-in: the provider when the server has several, the button, and the result.
+    struct BrowserSignInRows: View {
+        @Bindable var form: ConnectionFormModel
+        let connections: ConnectionsModel
+
+        var body: some View {
+            if form.browserProviders.count > 1 {
+                Picker("Provider", selection: $form.browserProvider) {
+                    ForEach(form.browserProviders, id: \.name) { provider in
+                        Text(provider.displayName ?? provider.name).tag(String?.some(provider.name))
+                    }
+                }
+                .accessibilityIdentifier("connection.browserProvider")
+            }
+            Button {
+                Task { await form.signInWithBrowser(with: connections.services) }
+            } label: {
+                HStack {
+                    Text(form.browserState.isSignedIn ? "Sign in again" : "Sign in with browser")
+                    Spacer()
+                    if form.browserState == .signingIn { ProgressView() }
+                }
+            }
+            .disabled(form.browserState == .signingIn)
+            .accessibilityIdentifier("connection.browserSignIn")
+            switch form.browserState {
+            case .idle, .signingIn:
+                EmptyView()
+            case .signedIn(let user):
+                Label(user.map { "Signed in as \($0)" } ?? "Signed in", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(HermesColor.statusConnected)
+                    .accessibilityIdentifier("connection.browserSignedIn")
+            case .failed(let message):
+                Label(message, systemImage: "xmark.octagon.fill")
+                    .foregroundStyle(HermesColor.destructive)
+            }
+        }
+    }
+
+    extension ConnectionFormModel.BrowserState {
+        var isSignedIn: Bool {
+            if case .signedIn = self { return true }
+            return false
+        }
+    }
+
     struct SignInFooter: View {
         let method: ConnectionFormModel.SignInMethod
         let remembersPassword: Bool
@@ -279,7 +327,9 @@
         var body: some View {
             switch method {
             case .none:
-                Text("Browser sign-in arrives in a later update. Use Password or a session token for now.")
+                Text("This server doesn't ask for a sign-in.")
+            case .browser:
+                Text("Opens the server's sign-in page. The app keeps the sign-in in the Keychain on this iPhone only.")
             case .password:
                 VStack(alignment: .leading, spacing: 6) {
                     Text(

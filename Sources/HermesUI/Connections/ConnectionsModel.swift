@@ -38,19 +38,23 @@
         public var unlocker: any DeviceUnlocking
         /// Reads a gateway's sign-in needs before the user signs in.
         public var probe: @Sendable (HermesEndpoint) async -> ServerProbe?
+        /// Browser sign-in (WP-13).
+        public var browserSignIn: any BrowserSigningIn
 
         public init(
             credentials: any CredentialStore,
             gatewayTester: any ConnectionTesting = GatewayConnectionTester(),
             sshTester: any ConnectionTesting = SSHConnectionTester(),
             unlocker: any DeviceUnlocking = SystemDeviceUnlocker(),
-            probe: (@Sendable (HermesEndpoint) async -> ServerProbe?)? = nil
+            probe: (@Sendable (HermesEndpoint) async -> ServerProbe?)? = nil,
+            browserSignIn: any BrowserSigningIn = SystemBrowserSignIn()
         ) {
             self.credentials = credentials
             self.gatewayTester = gatewayTester
             self.sshTester = sshTester
             self.unlocker = unlocker
             self.probe = probe ?? { await GatewayConnectionTester().probe($0) }
+            self.browserSignIn = browserSignIn
         }
     }
 
@@ -132,7 +136,11 @@
                 password: try? credentials.string(for: .gatewayPassword, connection: id),
                 sessionToken: try? credentials.string(for: .sessionToken, connection: id),
                 sshKey: try? credentials.sshKey(connection: id),
-                sshPassword: try? credentials.string(for: .sshPassword, connection: id))
+                sshPassword: try? credentials.string(for: .sshPassword, connection: id),
+                nativeTokens: (try? credentials.data(for: .nativeTokens, connection: id))
+                    .flatMap { try? JSONDecoder().decode(NativeTokens.self, from: $0) },
+                webCookies: (try? credentials.data(for: .webCookies, connection: id))
+                    .flatMap { try? JSONDecoder().decode([StoredCookie].self, from: $0) })
         }
 
         /// The tester for a connection's kind.
@@ -150,6 +158,13 @@
                     try credentials.remove(kind, connection: id)
                 }
             }
+            func putJSON(_ value: (some Encodable)?, _ kind: CredentialKind) throws {
+                if let value {
+                    try credentials.set(try JSONEncoder().encode(value), for: kind, connection: id)
+                } else {
+                    try credentials.remove(kind, connection: id)
+                }
+            }
             switch connection.kind {
             case .gateway(let settings):
                 var password: String?
@@ -158,6 +173,14 @@
                 if case .sessionToken = settings.signIn { token = secrets.sessionToken }
                 try put(password, .gatewayPassword)
                 try put(token, .sessionToken)
+                var tokens: NativeTokens?
+                var cookies: [StoredCookie]?
+                if case .browser = settings.signIn {
+                    tokens = secrets.nativeTokens
+                    cookies = tokens == nil ? secrets.webCookies : nil
+                }
+                try putJSON(tokens, .nativeTokens)
+                try putJSON(cookies, .webCookies)
                 try credentials.remove(.sshKey, connection: id)
                 try credentials.remove(.sshPassword, connection: id)
             case .ssh(let settings):
@@ -170,6 +193,8 @@
                 }
                 try credentials.remove(.gatewayPassword, connection: id)
                 try credentials.remove(.sessionToken, connection: id)
+                try credentials.remove(.nativeTokens, connection: id)
+                try credentials.remove(.webCookies, connection: id)
             }
         }
 
@@ -185,7 +210,8 @@
             for connection in connections ?? sampleConnections { saved.upsert(connection) }
             let services = ConnectionServices(
                 credentials: InMemoryCredentialStore(), gatewayTester: PreviewTester(), sshTester: PreviewTester(),
-                unlocker: AlwaysUnlocked(), probe: { _ in ServerProbe(authRequired: true, authProviders: ["basic"]) })
+                unlocker: AlwaysUnlocked(), probe: { _ in ServerProbe(authRequired: true, authProviders: ["basic"]) },
+                browserSignIn: PreviewBrowserSignIn())
             return ConnectionsModel(store: nil, services: services, initial: saved)
         }
 
@@ -199,6 +225,16 @@
             ServerConnection(
                 name: "Studio Mac", kind: .ssh(SSHSettings(host: "studio.tail1234.ts.net", username: "jt"))),
         ]
+    }
+
+    /// A browser sign-in that succeeds at once. For previews.
+    struct PreviewBrowserSignIn: BrowserSigningIn {
+        @MainActor
+        func signIn(
+            endpoint: HermesEndpoint, options: SignInOptions?, provider: String?
+        ) async throws -> BrowserSignInResult {
+            .tokens(NativeTokens(accessToken: "a", refreshToken: "r", expiresAt: 0, provider: provider, userID: "jt"))
+        }
     }
 
     /// A tester that passes after a short pause. For previews.
