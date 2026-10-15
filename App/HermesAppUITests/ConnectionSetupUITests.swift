@@ -47,9 +47,10 @@ final class ConnectionSetupUITests: XCTestCase {
         }
 
         element(app, "connection.save").tap()
-        // Saving the first server replaces the welcome screen with the app, open on the first chat.
-        XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 10))
-        XCTAssertFalse(element(app, "welcome.addGateway").exists)
+        // Saving the first server replaces the welcome screen with the app. The chat list then shows
+        // the server's own sessions, so the sample chat titles are not asserted here.
+        XCTAssertTrue(element(app, "welcome.addGateway").waitForNonExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 10))
     }
 
     @MainActor
