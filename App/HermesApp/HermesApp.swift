@@ -4,13 +4,26 @@ import SwiftUI
 
 @main
 struct HermesApp: App {
-    @State private var model = ShellModel()
+    @State private var model: ShellModel
     private let launch = LaunchOptions(defaults: .standard)
+    private let integration: AppIntegration
+
+    init() {
+        let model = ShellModel()
+        _model = State(initialValue: model)
+        // Set up before any scene: a Live Activity or widget button can launch the app in the background.
+        integration = AppIntegration(model: model)
+    }
 
     var body: some Scene {
         WindowGroup {
             RootView(model: model, launch: launch)
                 .tint(HermesColor.accent)
+                .onOpenURL { url in
+                    if let id = HermesURL.chatID(from: url), model.session(id: id) != nil {
+                        model.open(id)
+                    }
+                }
         }
         WindowGroup(id: ShellWindow.chat, for: String.self) { $sessionID in
             ChatWindow(model: model, sessionID: sessionID)
@@ -28,7 +41,8 @@ struct LaunchOptions {
     var posture: DevicePosture?
     /// Shows the layout switcher used by the fold UI test.
     var showsDebugLayoutSwitcher: Bool
-    /// "stream" starts a long demo reply in the first chat.
+    /// "stream" starts a long demo reply in the first chat; "liveActivity" starts one long enough
+    /// for CI to screenshot the Dynamic Island from another app.
     var demo: String?
 
     init(defaults: UserDefaults) {
@@ -52,6 +66,9 @@ struct RootView: View {
                 }
                 if launch.demo == "stream", let id = model.selectedSessionID {
                     model.startDemoStream(in: id, words: 400)
+                }
+                if launch.demo == "liveActivity", let id = model.selectedSessionID {
+                    model.startDemoStream(in: id, words: 1500)
                 }
             }
     }

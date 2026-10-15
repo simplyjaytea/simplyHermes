@@ -33,12 +33,17 @@
         let section: AppSection
 
         var body: some View {
-            ContentUnavailableView {
-                Label(section.title, systemImage: section.systemImage)
-            } description: {
-                Text("Coming in \(section.plannedIn).")
+            if section == .settings {
+                // Holds the "Keep bots live" switch until WP-53 builds Settings.
+                SettingsPreviewList()
+            } else {
+                ContentUnavailableView {
+                    Label(section.title, systemImage: section.systemImage)
+                } description: {
+                    Text("Coming in \(section.plannedIn).")
+                }
+                .navigationTitle(section.title)
             }
-            .navigationTitle(section.title)
         }
     }
 

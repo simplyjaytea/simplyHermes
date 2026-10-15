@@ -10,6 +10,8 @@
         public static let subheadline = Font.subheadline
         public static let footnote = Font.footnote
         public static let caption = Font.caption
+        /// Widget footers such as "Updated 5 min ago".
+        public static let caption2 = Font.caption2
         /// Commands, paths and tool output.
         public static let code = Font.system(.footnote, design: .monospaced)
         /// Secondary lines inside tool output, such as the command echo.

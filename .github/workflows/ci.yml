@@ -141,6 +141,15 @@ jobs:
           xcrun simctl launch "$udid" "$bundle" -HermesScreen postureDebug
           sleep 4
           xcrun simctl io "$udid" screenshot build/shots/posture-debug.png
+          # Live Activity (WP-63/64): run a long demo turn, then switch to Safari so the
+          # Dynamic Island shows the activity. Best effort: older simulators have no island.
+          xcrun simctl terminate "$udid" "$bundle" || true
+          xcrun simctl launch "$udid" "$bundle" -HermesDemo liveActivity || true
+          sleep 6
+          xcrun simctl io "$udid" screenshot build/shots/live-in-app.png || true
+          xcrun simctl openurl "$udid" "https://example.com" || true
+          sleep 5
+          xcrun simctl io "$udid" screenshot build/shots/live-island.png || true
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
