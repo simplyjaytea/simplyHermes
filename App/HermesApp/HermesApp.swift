@@ -40,12 +40,11 @@ struct HermesApp: App {
 
     /// The chat list cache. UI tests keep it in memory so runs never share saved chats.
     @MainActor
-    private static func makeSessionsList(_ connections: ConnectionsModel, _ launch: LaunchOptions) -> SessionsListModel
-    {
+    private static func makeSessionsList(_ saved: ConnectionsModel, _ launch: LaunchOptions) -> SessionsListModel {
         let url = launch.onboarding == nil ? Self.cacheFileURL() : nil
         let cache = url.flatMap { try? HermesCache(url: $0) } ?? (try? HermesCache())
         guard let cache else { preconditionFailure("The in-memory cache cannot fail to open") }
-        return SessionsListModel(connections: connections, cache: cache)
+        return SessionsListModel(connections: saved, cache: cache)
     }
 
     private static func cacheFileURL() -> URL? {

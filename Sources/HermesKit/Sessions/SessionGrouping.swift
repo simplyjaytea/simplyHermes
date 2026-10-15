@@ -62,8 +62,9 @@ public enum SessionGrouping {
             return date >= startOfWeek ? .lastWeek : .earlier
         }
         let ordered = sessions.enumerated().sorted { left, right in
-            let (a, b) = (activity(left.element) ?? -.infinity, activity(right.element) ?? -.infinity)
-            return a == b ? left.offset < right.offset : a > b
+            let newer = activity(left.element) ?? -.infinity
+            let older = activity(right.element) ?? -.infinity
+            return newer == older ? left.offset < right.offset : newer > older
         }.map(\.element)
         let grouped = Dictionary(grouping: ordered, by: group)
         return SessionGroup.allCases.compactMap { group in
