@@ -149,9 +149,7 @@ public struct SecretRequest: Sendable, Equatable, Codable {
 /// Result of the `sudo` and `secret` requests: the masked value the user typed.
 ///
 /// Printing, logging or dumping an answer never shows the value.
-public struct ValueAnswer: Sendable, Equatable, Codable, CustomStringConvertible, CustomDebugStringConvertible,
-    CustomReflectable
-{
+public struct ValueAnswer: Sendable, Equatable, Codable {
     /// The value.
     public var value: String
 
@@ -159,7 +157,9 @@ public struct ValueAnswer: Sendable, Equatable, Codable, CustomStringConvertible
     public init(value: String) {
         self.value = value
     }
+}
 
+extension ValueAnswer: CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable {
     /// A fixed text without the value.
     public var description: String { "ValueAnswer(<redacted>)" }
 
