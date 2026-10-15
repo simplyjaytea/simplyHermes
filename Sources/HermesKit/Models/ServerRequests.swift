@@ -147,6 +147,8 @@ public struct SecretRequest: Sendable, Equatable, Codable {
 }
 
 /// Result of the `sudo` and `secret` requests: the masked value the user typed.
+///
+/// Printing, logging or dumping an answer never shows the value.
 public struct ValueAnswer: Sendable, Equatable, Codable {
     /// The value.
     public var value: String
@@ -155,6 +157,17 @@ public struct ValueAnswer: Sendable, Equatable, Codable {
     public init(value: String) {
         self.value = value
     }
+}
+
+extension ValueAnswer: CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable {
+    /// A fixed text without the value.
+    public var description: String { "ValueAnswer(<redacted>)" }
+
+    /// A fixed text without the value.
+    public var debugDescription: String { description }
+
+    /// No children, so `dump` and `Mirror` show nothing.
+    public var customMirror: Mirror { Mirror(self, children: []) }
 }
 
 /// A server-to-client request, typed by its method.
