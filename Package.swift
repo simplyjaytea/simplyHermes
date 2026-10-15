@@ -16,10 +16,11 @@ let package = Package(
         .package(url: "https://github.com/Joannis/swift-nio-ssh.git", "0.3.4"..<"0.4.0"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.81.0"),
         .package(url: "https://github.com/apple/swift-crypto.git", from: "3.12.3"),
+        .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0"),
     ],
     targets: [
         // Pure Swift. No UIKit, no Combine. Must build on Linux.
-        .target(name: "HermesKit"),
+        .target(name: "HermesKit", dependencies: [.product(name: "GRDB", package: "GRDB.swift")]),
         // SSH session, exec, loopback forwarder. Must build on Linux.
         .target(
             name: "HermesSSH",
