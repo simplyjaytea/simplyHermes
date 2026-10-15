@@ -84,6 +84,7 @@ public actor ConnectionManager {
     private let clock: any GatewayClock
     private let onConnected: @Sendable (UUID) -> Void
     private var live: [UUID: Live] = [:]
+    private var profiles: [UUID: String] = [:]
     private var observers: [UUID: AsyncStream<ConnectionPhaseChange>.Continuation] = [:]
 
     /// Creates a manager. `onConnected` runs after each successful first connect (record "last used").
@@ -143,6 +144,22 @@ public actor ConnectionManager {
         }
     }
 
+    /// Sets the active profile of a connection. Its REST calls and every gateway method that takes `profile` carry it
+    /// (nil follows the server's active profile). It applies to the live clients now and to every later reconnect.
+    public func setProfile(_ name: String?, for id: UUID) {
+        profiles[id] = name
+        guard let entry = live[id] else { return }
+        let rest = entry.checked?.rest
+        let client = entry.client
+        Task {
+            await rest?.setProfile(name)
+            await client?.setProfile(name)
+        }
+    }
+
+    /// The active profile of a connection, if one was chosen.
+    public func profile(of id: UUID) -> String? { profiles[id] }
+
     /// The signed-in REST client of a connected (or reconnecting) connection.
     public func rest(for id: UUID) -> RESTClient? {
         live[id]?.checked?.rest
@@ -162,6 +179,7 @@ public actor ConnectionManager {
     public func remove(_ id: UUID) {
         apply(.disconnectRequested, to: id)
         live[id] = nil
+        profiles[id] = nil
     }
 
     // MARK: - State machine
@@ -251,9 +269,13 @@ public actor ConnectionManager {
             endpoint: checked.endpoint, transport: driver.webSocketTransport(for: entry.connection),
             credentials: checked.credentials, clock: clock, config: clientConfig)
         let generation = entry.generation
+        let profile = profiles[id]
         live[id]?.client = client
         live[id]?.listener = Task {
             let events = await client.events()
+            // Scope both clients before the socket opens, so nothing is sent unscoped once connected.
+            await client.setProfile(profile)
+            await checked.rest.setProfile(profile)
             await client.start()
             for await event in events {
                 guard case .state(let state) = event else { continue }

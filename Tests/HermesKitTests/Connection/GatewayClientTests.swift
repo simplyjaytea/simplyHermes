@@ -89,6 +89,28 @@ private func connected(_ rig: Rig, socket: FakeSocket) async throws {
         await rig.client.stop()
     }
 
+    @Test func activeProfileScopesCallsThatTakeIt() async throws {
+        let rig = await Rig()
+        let socket = FakeSocket()
+        socket.serve { frame in
+            guard let id = frame.id else { return [] }
+            return [Frames.result(id: id, "{}")]
+        }
+        try await connected(rig, socket: socket)
+        await rig.client.setProfile("ops")
+        _ = try await rig.client.send(method: "session.list", params: .object(["limit": .int(5)]))
+        _ = try await rig.client.send(method: "profiles.list")
+        _ = try await rig.client.send(method: "gateway.ping")
+        #expect(socket.requests("session.list").first?.params?["profile"] as? String == "ops")
+        #expect(socket.requests("session.list").first?.params?["limit"] as? Int == 5)
+        #expect(socket.requests("profiles.list").first?.params?["profile"] as? String == "ops")
+        #expect(socket.requests("gateway.ping").first?.params == nil)
+        await rig.client.setProfile(nil)
+        _ = try await rig.client.send(method: "session.list")
+        #expect(socket.requests("session.list").last?.params?["profile"] == nil)
+        await rig.client.stop()
+    }
+
     @Test func requestTimesOut() async throws {
         let rig = await Rig()
         let socket = FakeSocket()
