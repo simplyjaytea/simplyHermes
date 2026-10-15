@@ -135,4 +135,27 @@ import Testing
         #expect(status.files?.first?.path == "testbed-entrypoints/" && status.files?.first?.untracked == true)
         #expect(request.url.query == "path=/opt/hermes")
     }
+
+    @Test func profileExportAndImportSendServerPaths() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, #"{"ok":true,"path":"/tmp/ops.tar.gz"}"#)
+        http.enqueue(200, #"{"ok":true,"name":"ops2"}"#)
+        let client = makeClient(http, profile: "ops")
+        let exported = try await client.exportProfile(name: "ops team", to: "/tmp/ops.tar.gz")
+        let imported = try await client.importProfile(archive: "/tmp/ops.tar.gz", name: "ops2")
+        #expect(exported == .object(["ok": true, "path": "/tmp/ops.tar.gz"]))
+        #expect(imported == .object(["ok": true, "name": "ops2"]))
+        let export = try #require(http.requests.first)
+        #expect(export.method == "POST" && export.url.path == "/api/profiles/ops%20team/export")
+        #expect(export.url.query == nil)
+        let exportBody = try #require(
+            export.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })
+        #expect(exportBody["output"] as? String == "/tmp/ops.tar.gz")
+        #expect((exportBody["extra_files"] as? [String: String])?.isEmpty == true)
+        let importRequest = try #require(http.requests.last)
+        #expect(importRequest.url.path == "/api/profiles/import" && importRequest.url.query == nil)
+        let importBody = try #require(
+            importRequest.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })
+        #expect(importBody["archive"] as? String == "/tmp/ops.tar.gz" && importBody["name"] as? String == "ops2")
+    }
 }

@@ -57,6 +57,8 @@ import Testing
             "/api/health", "/api/host/identity", "/api/status", "/api/auth/me", "/api/profiles",
             "/api/profiles/active", "/api/auth/providers", "/auth/logout", "/api/auth/ws-ticket",
             "/auth/password-login",
+            // Profile export and import name the profile in the path or body and take no `profile` query.
+            "/api/profiles/", "/api/profiles/import",
         ]
         let sources = FixtureFiles.directory.deletingLastPathComponent().appendingPathComponent(
             "Sources/HermesKit/REST")
