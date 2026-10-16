@@ -21,6 +21,15 @@
         @State private var isUserScrolling = false
 
         var body: some View {
+            if let live = model.liveChat(for: sessionID) {
+                LiveChatScreen(chat: live, model: model, sessionID: sessionID, style: style)
+            } else {
+                placeholder
+            }
+        }
+
+        @ViewBuilder
+        private var placeholder: some View {
             switch style {
             case .standard:
                 VStack(spacing: 0) {
