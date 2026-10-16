@@ -56,6 +56,10 @@
         public private(set) var streamingSessionIDs: Set<String> = []
         @ObservationIgnored private var streamTasks: [String: Task<Void, Never>] = [:]
         public var isPalettePresented = false
+        /// Report a bug, opened from the command palette.
+        public var isBugReportPresented = false
+        /// Set by the palette's Report a bug command; the report opens when the palette finishes closing.
+        public var opensBugReportAfterPalette = false
         public var showsPreviewRail = true
         /// Forces a layout, for UI tests and the debug menu. `nil` follows the screen and posture.
         public var layoutOverride: DisplayLayout?

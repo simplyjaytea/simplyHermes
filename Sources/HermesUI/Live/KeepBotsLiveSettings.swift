@@ -59,6 +59,14 @@
         public var body: some View {
             Form {
                 BotsSettingsSection()
+                Section("Support") {
+                    NavigationLink {
+                        BugReportScreen(connections: nil)
+                    } label: {
+                        Label("Report a bug", systemImage: "ladybug")
+                    }
+                    .accessibilityIdentifier("settings.reportBug")
+                }
                 Section {
                     Text("More settings are coming in WP-53.")
                         .foregroundStyle(HermesColor.secondaryText)

@@ -12,6 +12,8 @@
     extension EnvironmentValues {
         /// The current device posture. WP-02 sets it from the system.
         @Entry public var hermesPosture: DevicePosture = .flat
+        /// The layout the shell picked, for diagnostics. Nil outside the shell.
+        @Entry public var hermesDisplayLayout: DisplayLayout?
     }
 
     /// The shell layout for the current screen and posture (plan Q3, Q4, Q5, tent glance view).

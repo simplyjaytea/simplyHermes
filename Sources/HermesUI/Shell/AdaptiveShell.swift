@@ -66,6 +66,19 @@
                         posture: posture
                     )
                 content(for: layout)
+                    .environment(\.hermesDisplayLayout, layout)
+                    .sheet(isPresented: $model.isBugReportPresented) {
+                        NavigationStack {
+                            BugReportScreen(connections: connections)
+                                .toolbar {
+                                    ToolbarItem(placement: .cancellationAction) {
+                                        Button("Close") { model.isBugReportPresented = false }
+                                    }
+                                }
+                        }
+                        .environment(\.hermesDisplayLayout, layout)
+                        .environment(\.hermesPosture, posture)
+                    }
                     .overlay(alignment: .leading) {
                         if showsDebugLayoutMenu {
                             VStack(alignment: .leading, spacing: 4) {
@@ -76,9 +89,15 @@
                     }
             }
             .background { KeyboardShortcuts(model: model) }
-            .sheet(isPresented: $model.isPalettePresented) {
+            .sheet(isPresented: $model.isPalettePresented, onDismiss: openPendingBugReport) {
                 CommandPalette(model: model)
             }
+        }
+
+        private func openPendingBugReport() {
+            guard model.opensBugReportAfterPalette else { return }
+            model.opensBugReportAfterPalette = false
+            model.isBugReportPresented = true
         }
 
         @ViewBuilder

@@ -372,6 +372,14 @@
                     }
                     .accessibilityIdentifier("settings.servers")
                 }
+                Section("Support") {
+                    NavigationLink {
+                        BugReportScreen(connections: connections)
+                    } label: {
+                        Label("Report a bug", systemImage: "ladybug")
+                    }
+                    .accessibilityIdentifier("settings.reportBug")
+                }
                 Section {
                     Text("More settings arrive in WP-53.")
                         .foregroundStyle(HermesColor.secondaryText)

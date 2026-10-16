@@ -110,6 +110,12 @@
                     )
                 }
             }
+            list.append(
+                Command(id: "bugReport", title: "Report a bug", systemImage: "ladybug", shortcut: nil) {
+                    // Opens once the palette sheet is gone; two sheets cannot show at once.
+                    model.opensBugReportAfterPalette = true
+                }
+            )
             for (index, section) in AppSection.allCases.enumerated() {
                 list.append(
                     Command(
