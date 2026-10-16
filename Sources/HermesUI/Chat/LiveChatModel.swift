@@ -30,9 +30,9 @@
         public var isRunning: Bool { state.turn != nil }
 
         /// The status strip readings for this chat: context fill, cache, speed and the connection.
-        public var strip: HermesKit.StatusStrip {
+        public var strip: ChatStatusStrip {
             let phase = connections.active.flatMap { connections.phases[$0.id] }
-            return HermesKit.StatusStrip(usage: state.usage, connection: Self.connection(for: phase))
+            return ChatStatusStrip(usage: state.usage, connection: Self.connection(for: phase))
         }
 
         /// Delegated helpers of this chat, running ones first.

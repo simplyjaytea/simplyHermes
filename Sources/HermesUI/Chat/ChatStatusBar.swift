@@ -5,7 +5,7 @@
     /// The strip above the composer (plan Q27): a context ring with the percent used, a connection dot, and the
     /// token breakdown in a popover.
     struct ChatStatusBar: View {
-        let strip: HermesKit.StatusStrip
+        let strip: ChatStatusStrip
         @State private var showsDetails = false
 
         var body: some View {
@@ -43,13 +43,13 @@
         }
 
         private var accessibilityText: String {
-            let readings = strip.readings(HermesKit.StatusStrip.defaultItems)
+            let readings = strip.readings(ChatStatusStrip.defaultItems)
             return readings.map { "\($0.item.rawValue) \($0.value)" }.joined(separator: ", ")
         }
 
         private var details: some View {
             VStack(alignment: .leading, spacing: 6) {
-                ForEach(strip.readings(HermesKit.StatusStrip.defaultItems + [.tokens, .cost])) { reading in
+                ForEach(strip.readings(ChatStatusStrip.defaultItems + [.tokens, .cost])) { reading in
                     HStack {
                         Text(reading.item.rawValue.capitalized)
                             .foregroundStyle(HermesColor.secondaryText)
@@ -58,7 +58,7 @@
                     }
                     .font(HermesFont.footnote)
                 }
-                if strip.readings(HermesKit.StatusStrip.defaultItems).isEmpty {
+                if strip.readings(ChatStatusStrip.defaultItems).isEmpty {
                     Text("No usage yet").font(HermesFont.footnote).foregroundStyle(HermesColor.secondaryText)
                 }
             }
