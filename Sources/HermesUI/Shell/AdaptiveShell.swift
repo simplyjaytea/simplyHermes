@@ -67,9 +67,9 @@
                     )
                 content(for: layout)
                     .environment(\.hermesDisplayLayout, layout)
-                    .sheet(isPresented: $model.isBugReportPresented) {
+                    .sheet(isPresented: $model.isBugReportPresented, onDismiss: clearBugReportScreenshot) {
                         NavigationStack {
-                            BugReportScreen(connections: connections)
+                            BugReportScreen(connections: connections, screenshot: model.bugReportScreenshot)
                                 .toolbar {
                                     ToolbarItem(placement: .cancellationAction) {
                                         Button("Close") { model.isBugReportPresented = false }
@@ -89,9 +89,18 @@
                     }
             }
             .background { KeyboardShortcuts(model: model) }
+            .onDeviceShake { screenshot in
+                guard !model.isBugReportPresented, !model.isPalettePresented else { return }
+                model.bugReportScreenshot = screenshot
+                model.isBugReportPresented = true
+            }
             .sheet(isPresented: $model.isPalettePresented, onDismiss: openPendingBugReport) {
                 CommandPalette(model: model)
             }
+        }
+
+        private func clearBugReportScreenshot() {
+            model.bugReportScreenshot = nil
         }
 
         private func openPendingBugReport() {

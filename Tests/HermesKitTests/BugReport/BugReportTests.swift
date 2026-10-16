@@ -151,12 +151,7 @@ import Testing
     }
 }
 
-@Suite struct GitHubTokenTests {
-    @Test func pastedTokensAreTrimmed() {
-        #expect(GitHubToken.cleaned("  github_pat_abc\n") == "github_pat_abc")
-        #expect(GitHubToken.cleaned(" \n ") == nil)
-    }
-
+@Suite struct GitHubTokenStoreTests {
     @Test func storeReportsWhetherATokenIsSaved() throws {
         let store = InMemoryGitHubTokenStore()
         #expect(!store.hasToken)
@@ -165,10 +160,70 @@ import Testing
         try store.removeToken()
         #expect(!store.hasToken)
     }
+}
 
-    @Test func createURLAsksForIssuesWrite() throws {
-        let components = try #require(URLComponents(url: GitHubToken.createURL, resolvingAgainstBaseURL: false))
-        #expect(components.path == "/settings/personal-access-tokens/new")
-        #expect(components.queryItems?.contains(URLQueryItem(name: "issues", value: "write")) == true)
+@Suite struct GitHubDeviceFlowTests {
+    private func flow(_ http: FakeHTTP, waits: WaitLog = WaitLog()) -> GitHubDeviceFlow {
+        GitHubDeviceFlow(transport: http, clientID: "Iv1.test") { seconds in waits.append(seconds) }
     }
+
+    private let code = GitHubDeviceCode(
+        deviceCode: "dc", userCode: "ABCD-1234", verificationURL: URL(string: "https://github.com/login/device")!,
+        expiresIn: 900, interval: 5)
+
+    @Test func startReturnsTheCodeToShow() async throws {
+        let http = FakeHTTP()
+        http.enqueue(
+            200,
+            #"{"device_code":"dc","user_code":"ABCD-1234","verification_uri":"https://github.com/login/device","#
+                + #""expires_in":899,"interval":5}"#
+        )
+        let started = try await flow(http).start()
+        #expect(
+            started
+                == GitHubDeviceCode(
+                    deviceCode: "dc", userCode: "ABCD-1234",
+                    verificationURL: URL(string: "https://github.com/login/device")!,
+                    expiresIn: 899, interval: 5))
+        let request = try #require(http.requests.first)
+        #expect(request.url.absoluteString == "https://github.com/login/device/code")
+        #expect(String(bytes: request.body ?? Data(), encoding: .utf8) == "client_id=Iv1.test")
+        #expect(request.headers["Accept"] == "application/json")
+    }
+
+    @Test func pollsUntilApprovedAndSlowsDownWhenAsked() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, #"{"error":"authorization_pending"}"#)
+        http.enqueue(200, #"{"error":"slow_down","interval":10}"#)
+        http.enqueue(200, #"{"access_token":"ghu_abc","token_type":"bearer"}"#)
+        let waits = WaitLog()
+        let token = try await flow(http, waits: waits).token(for: code)
+        #expect(token == "ghu_abc")
+        #expect(waits.values == [5, 5, 10])
+        let data = try #require(http.requests.last?.body)
+        let body = String(bytes: data, encoding: .utf8) ?? ""
+        #expect(body.contains("device_code=dc"))
+        #expect(body.contains("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code"))
+    }
+
+    @Test func deniedAndExpiredStopPolling() async {
+        let http = FakeHTTP()
+        http.enqueue(200, #"{"error":"access_denied"}"#)
+        await #expect(throws: GitHubSignInError.denied) { try await flow(http).token(for: code) }
+        http.enqueue(200, #"{"error":"expired_token"}"#)
+        await #expect(throws: GitHubSignInError.expired) { try await flow(http).token(for: code) }
+    }
+
+    @Test func unconfiguredBuildRefusesToStart() async {
+        let flow = GitHubDeviceFlow(transport: FakeHTTP(), clientID: "")
+        #expect(!flow.isConfigured)
+        await #expect(throws: GitHubSignInError.notConfigured) { try await flow.start() }
+    }
+}
+
+final class WaitLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var seen: [Int] = []
+    func append(_ value: Int) { lock.withLock { seen.append(value) } }
+    var values: [Int] { lock.withLock { seen } }
 }

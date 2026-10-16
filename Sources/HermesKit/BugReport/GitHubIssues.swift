@@ -68,9 +68,9 @@ public enum GitHubIssueError: Error, Sendable, Equatable {
     /// One sentence for the form.
     public var message: String {
         switch self {
-        case .badToken: "GitHub didn't accept the token. Check it in Settings, or make a new one."
+        case .badToken: "Your GitHub sign-in has expired. Sign in again under Settings > GitHub account."
         case .noAccess:
-            "The token can't create issues in simplyHermes. Give it Issues: Read and write on this repository."
+            "Your GitHub sign-in can't open issues in simplyHermes. Check that the simplyHermes GitHub App is installed on it."
         case .rateLimited: "GitHub is limiting requests right now. Try again in a few minutes."
         case .issuesDisabled: "Issues are turned off for this repository."
         case .rejected(let status, let message):

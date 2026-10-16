@@ -1,10 +1,12 @@
 #if canImport(UIKit)
     import HermesKit
     import SwiftUI
+    import UIKit
 
-    /// Settings > Report a bug, also opened from the command palette.
+    /// Settings > Report a bug, also opened from the command palette and by shaking the phone.
     public struct BugReportView: View {
         @Bindable private var model: BugReportModel
+        private let screenshot: UIImage?
         @Environment(\.openURL) private var openURL
         @FocusState private var focused: Field?
 
@@ -12,8 +14,10 @@
             case title, whatHappened, steps, expected
         }
 
-        public init(model: BugReportModel) {
+        /// `screenshot` is the screen the user shook the phone on, if they did.
+        public init(model: BugReportModel, screenshot: Data? = nil) {
             self.model = model
+            self.screenshot = screenshot.flatMap(UIImage.init(data:))
         }
 
         public var body: some View {
@@ -64,8 +68,8 @@
                     } else {
                         Text(
                             """
-                            Reports are public on GitHub. With no GitHub token saved, Send opens github.com to finish. \
-                            Add one in Settings > GitHub token to file reports from here.
+                            Reports are public on GitHub. Until you sign in to GitHub, Send opens github.com to \
+                            finish. Sign in under Settings > GitHub account to file reports from here.
                             """
                         )
                     }
@@ -77,6 +81,9 @@
                     TextField("What you expected", text: $model.draft.expected, axis: .vertical)
                         .lineLimit(1...4)
                         .focused($focused, equals: .expected)
+                }
+                if let screenshot {
+                    screenshotSection(screenshot)
                 }
                 Section {
                     Toggle("Attach diagnostics", isOn: $model.draft.includesDiagnostics)
@@ -119,6 +126,35 @@
             }
         }
 
+        private func screenshotSection(_ screenshot: UIImage) -> some View {
+            Section {
+                HStack(alignment: .top, spacing: 16) {
+                    Image(uiImage: screenshot)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxHeight: 180)
+                        .clipShape(RoundedRectangle(cornerRadius: HermesMetrics.innerRadius))
+                        .accessibilityLabel("Screenshot of the screen you shook")
+                    ShareLink(
+                        item: Image(uiImage: screenshot),
+                        preview: SharePreview("simplyHermes screenshot", image: Image(uiImage: screenshot))
+                    ) {
+                        Label("Save or share", systemImage: "square.and.arrow.up")
+                    }
+                    .accessibilityIdentifier("bugReport.screenshot.share")
+                }
+            } header: {
+                Text("Screenshot")
+            } footer: {
+                Text(
+                    """
+                    GitHub doesn't take pictures from apps, so the screenshot isn't sent. Save it, then add it to \
+                    the issue on github.com if it helps. Check it for anything private first.
+                    """
+                )
+            }
+        }
+
         private func done(title: String, systemImage: String, message: String, link: URL?) -> some View {
             ContentUnavailableView {
                 Label(title, systemImage: systemImage)
@@ -142,17 +178,22 @@
         @Environment(\.hermesDisplayLayout) private var layout
         @Environment(\.hermesPosture) private var posture
         private let tokens: any GitHubTokenStore
+        private let screenshot: Data?
         @State private var model: BugReportModel?
 
-        public init(connections: ConnectionsModel?, tokens: any GitHubTokenStore = KeychainGitHubTokenStore()) {
+        public init(
+            connections: ConnectionsModel?, screenshot: Data? = nil,
+            tokens: any GitHubTokenStore = KeychainGitHubTokenStore()
+        ) {
             self.connections = connections
+            self.screenshot = screenshot
             self.tokens = tokens
         }
 
         public var body: some View {
             Group {
                 if let model {
-                    BugReportView(model: model)
+                    BugReportView(model: model, screenshot: screenshot)
                         .task { model.attachLog(await DiagnosticsCollector.recentLogLines()) }
                 } else {
                     ProgressView()

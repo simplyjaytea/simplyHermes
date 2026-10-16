@@ -67,11 +67,11 @@
                     }
                     .accessibilityIdentifier("settings.reportBug")
                     NavigationLink {
-                        GitHubTokenView()
+                        GitHubAccountView()
                     } label: {
-                        Label("GitHub token", systemImage: "key")
+                        Label("GitHub account", systemImage: "person.badge.key")
                     }
-                    .accessibilityIdentifier("settings.githubToken")
+                    .accessibilityIdentifier("settings.githubAccount")
                 }
                 Section {
                     Text("More settings are coming in WP-53.")

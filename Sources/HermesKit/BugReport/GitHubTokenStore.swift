@@ -4,7 +4,7 @@ import Foundation
     import Security
 #endif
 
-/// Where the GitHub token for bug reports lives. The app uses ``KeychainGitHubTokenStore``.
+/// Where the GitHub sign-in token for bug reports lives. The app uses ``KeychainGitHubTokenStore``.
 public protocol GitHubTokenStore: Sendable {
     /// The saved token, or nil.
     func token() throws -> String?
@@ -32,29 +32,6 @@ public final class InMemoryGitHubTokenStore: GitHubTokenStore, @unchecked Sendab
     public func token() throws -> String? { lock.withLock { value } }
     public func setToken(_ token: String) throws { lock.withLock { value = token } }
     public func removeToken() throws { lock.withLock { value = nil } }
-}
-
-/// Helpers for the token the user pastes.
-public enum GitHubToken {
-    /// Opens GitHub's new fine-grained token page with the name, owner and Issues permission filled in where GitHub
-    /// supports it. The user still picks the simplyHermes repository and taps Generate.
-    public static let createURL: URL = {
-        var components = URLComponents(string: "https://github.com/settings/personal-access-tokens/new")!
-        components.queryItems = [
-            URLQueryItem(name: "name", value: "simplyHermes bug reports"),
-            URLQueryItem(name: "description", value: "Files bug reports from the simplyHermes app"),
-            URLQueryItem(name: "target_name", value: GitHubRepository.simplyHermes.owner),
-            URLQueryItem(name: "expires_in", value: "none"),
-            URLQueryItem(name: "issues", value: "write"),
-        ]
-        return components.url!
-    }()
-
-    /// Trims whitespace and newlines a paste can bring along. Nil when nothing is left.
-    public static func cleaned(_ text: String) -> String? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
 }
 
 #if canImport(Security)

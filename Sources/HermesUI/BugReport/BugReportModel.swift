@@ -5,7 +5,7 @@
 
     /// The Report a bug form: the draft, the diagnostics, and sending it to GitHub.
     ///
-    /// With a GitHub token the report is filed straight away through the API. Without one the model hands back a
+    /// Signed in to GitHub, the report is filed straight away through the API. Without one the model hands back a
     /// prefilled new-issue page for Safari, so reporting always works.
     @MainActor
     @Observable
@@ -31,7 +31,7 @@
         @ObservationIgnored private let repository: GitHubRepository
         @ObservationIgnored private let token: @MainActor () -> String?
 
-        /// Creates the model. `token` returns the saved GitHub token, or nil to send through the browser.
+        /// Creates the model. `token` returns the GitHub sign-in token, or nil to send through the browser.
         public init(
             diagnostics: BugReportDiagnostics?,
             redactor: DiagnosticsRedactor,
