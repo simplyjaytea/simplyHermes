@@ -81,3 +81,8 @@ recorded and the test passes, an existing one must match (perceptual precision 0
 JT's artwork resized to 1024 px (full bleed, no alpha). The dark icon swaps the blue gradient for a near-black
 one (#181D28 to #06080C) and keeps the bubble and portrait. The tinted icon is the mark in grayscale on a
 transparent background.
+
+Every iOS slot has its own PNG ("All Sizes"). Sizes up to 87 px (notifications, Settings, Spotlight) use a
+simplified mark: hair highlights and eye whites are filled and the eyes and lip mark are thickened, so the face
+still reads at a few pixels wide. JT chose this on 2026-10-16. Regenerate everything, including
+`Contents.json`, with `python3 tools/app-icon/make_app_icon.py ARTWORK.png` (needs numpy, scipy and Pillow).
