@@ -44,23 +44,27 @@ public struct ChatError: Sendable, Equatable {
     public static func classify(_ text: String, now: Date = Date()) -> ChatError {
         let lower = text.lowercased()
         func has(_ words: [String]) -> Bool { words.contains { lower.contains($0) } }
+        let rate = ["rate limit", "rate_limit", "429", "too many requests", "quota"]
+        let auth = ["401", "403", "unauthorized", "invalid api key", "invalid_api_key", "authentication", "forbidden"]
+        let busy = ["overloaded", "529", "503", "502", "500", "service unavailable", "bad gateway"]
+        let long = ["context length", "context_length", "maximum context", "too many tokens", "prompt is too long"]
+        let slow = ["timed out", "timeout"]
+        let down = ["connection", "network", "offline", "unreachable", "dns"]
+        let tool = ["tool call", "tool failed", "tool error"]
         let (layer, kind): (Layer, Kind)
-        if has(["rate limit", "rate_limit", "429", "too many requests", "quota"]) {
+        if has(rate) {
             (layer, kind) = (.provider, .rateLimit)
-        } else if has([
-            "401", "403", "unauthorized", "invalid api key", "invalid_api_key", "authentication", "forbidden",
-        ]) {
+        } else if has(auth) {
             (layer, kind) = (.provider, .authentication)
-        } else if has(["overloaded", "529", "503", "502", "500", "service unavailable", "bad gateway"]) {
+        } else if has(busy) {
             (layer, kind) = (.provider, .overloaded)
-        } else if has(["context length", "context_length", "maximum context", "too many tokens", "prompt is too long"])
-        {
+        } else if has(long) {
             (layer, kind) = (.provider, .contextTooLong)
-        } else if has(["timed out", "timeout"]) {
+        } else if has(slow) {
             (layer, kind) = (.network, .timeout)
-        } else if has(["connection", "network", "offline", "unreachable", "dns"]) {
+        } else if has(down) {
             (layer, kind) = (.network, .offline)
-        } else if has(["tool call", "tool failed", "tool error"]) {
+        } else if has(tool) {
             (layer, kind) = (.tool, .unknown)
         } else {
             (layer, kind) = (.unknown, .unknown)
