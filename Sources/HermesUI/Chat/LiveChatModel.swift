@@ -59,6 +59,9 @@
         @ObservationIgnored private let connections: ConnectionsModel
         @ObservationIgnored private let broker: ServerRequestBroker
         @ObservationIgnored private let storedSessionID: String
+        /// When an automatic retry will fire, if one is scheduled.
+        public private(set) var retryAt: Date?
+        @ObservationIgnored private var retryTask: Task<Void, Never>?
         @ObservationIgnored private var controller: ChatSessionController?
         @ObservationIgnored private var client: GatewayClient?
         @ObservationIgnored private var firstSeen: [String: Date] = [:]
@@ -109,6 +112,7 @@
         /// Stops following. The last transcript stays on screen.
         public func detach() {
             for task in tasks { task.cancel() }
+            retryTask?.cancel()
             tasks = []
             let controller = controller
             self.controller = nil
@@ -171,6 +175,30 @@
             case .signInRequired?, .updateRequired?, .failed?: .needsAttention
             case .idle?, nil: .offline
             }
+        }
+
+        /// Sends the last prompt again.
+        public func retry() {
+            guard let controller else { return }
+            Task { await controller.retryLast() }
+        }
+
+        /// Retries once at `date`, for a rate limit that lifts then. A second call replaces the first.
+        public func scheduleRetry(at date: Date) {
+            retryTask?.cancel()
+            retryAt = date
+            retryTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(max(0, date.timeIntervalSinceNow)))
+                guard !Task.isCancelled else { return }
+                self?.retryAt = nil
+                self?.retry()
+            }
+        }
+
+        public func cancelScheduledRetry() {
+            retryTask?.cancel()
+            retryTask = nil
+            retryAt = nil
         }
 
         public func stop() {
