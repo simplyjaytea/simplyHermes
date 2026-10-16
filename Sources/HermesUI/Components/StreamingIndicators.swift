@@ -61,10 +61,15 @@
 
         public var body: some View {
             HStack(alignment: .lastTextBaseline, spacing: 4) {
-                Text(rendersMarkdown ? InlineMarkdown.attributed(text) : AttributedString(text))
-                    .font(HermesFont.bubble)
-                    .foregroundStyle(HermesColor.primaryText)
-                    .textSelection(.enabled)
+                Group {
+                    if rendersMarkdown {
+                        MarkdownView(text: text)
+                    } else {
+                        Text(text).font(HermesFont.bubble)
+                    }
+                }
+                .foregroundStyle(HermesColor.primaryText)
+                .textSelection(.enabled)
                 if isStreaming {
                     StreamingCaret()
                 }
