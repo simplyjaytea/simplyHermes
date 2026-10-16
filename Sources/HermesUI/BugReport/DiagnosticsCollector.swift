@@ -9,7 +9,7 @@
     @MainActor
     public enum DiagnosticsCollector {
         /// The `Logger` subsystem every simplyHermes log line uses.
-        public static let logSubsystem = "com.simplyjaytea.simplyhermes"
+        public nonisolated static let logSubsystem = "com.simplyjaytea.simplyhermes"
 
         /// Everything except the log, which ``recentLogLines(limit:)`` reads off the main actor.
         public static func collect(
