@@ -21,6 +21,7 @@
                 if !chat.queue.isEmpty {
                     QueuedMessagesView(chat: chat)
                 }
+                ChatStatusBar(strip: chat.strip)
                 Composer(
                     text: model.draftBinding(for: sessionID), onSend: { send() },
                     onSteer: chat.isRunning ? { steer() } : nil
@@ -55,6 +56,9 @@
                     ForEach(chat.state.items) { item in
                         TranscriptRow(item: item)
                             .accessibilityIdentifier("message.\(item.id)")
+                    }
+                    if !chat.state.subagents.isEmpty {
+                        SubagentBlock(chat: chat)
                     }
                     ForEach(chat.approvals) { approval in
                         ApprovalBubble(

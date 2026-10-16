@@ -29,10 +29,23 @@
 
         public var isRunning: Bool { state.turn != nil }
 
+        /// The status strip readings for this chat: context fill, cache, speed and the connection.
+        public var strip: HermesKit.StatusStrip {
+            let phase = connections.active.flatMap { connections.phases[$0.id] }
+            return HermesKit.StatusStrip(usage: state.usage, connection: Self.connection(for: phase))
+        }
+
+        /// Delegated helpers of this chat, running ones first.
+        public func subagentRows(now: Date) -> [SubagentRow] {
+            SubagentPanel.rows(state.subagents, firstSeen: firstSeen, now: now)
+        }
+
         @ObservationIgnored private let connections: ConnectionsModel
         @ObservationIgnored private let broker: ServerRequestBroker
         @ObservationIgnored private let storedSessionID: String
         @ObservationIgnored private var controller: ChatSessionController?
+        @ObservationIgnored private var client: GatewayClient?
+        @ObservationIgnored private var firstSeen: [String: Date] = [:]
         @ObservationIgnored private var tasks: [Task<Void, Never>] = []
 
         init(connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String) {
@@ -53,6 +66,7 @@
             do {
                 let client = try await manager.client(for: connection)
                 await broker.install(on: client)
+                self.client = client
                 let controller = ChatSessionController(transport: client, storedSessionID: storedSessionID)
                 let states = await controller.states()
                 let pending = await broker.updates()
@@ -62,6 +76,7 @@
                 tasks = [
                     Task { [weak self] in
                         for await next in states {
+                            self?.noteSubagents(next.transcript.subagents)
                             self?.state = next.transcript
                             self?.queue = next.queue
                         }
@@ -113,6 +128,33 @@
         public func setQueuePaused(_ paused: Bool) {
             guard let controller else { return }
             Task { await controller.setQueuePaused(paused) }
+        }
+
+        /// Sends guidance to a running helper.
+        public func steerSubagent(_ id: String, text: String) {
+            guard let client, let live = state.liveSessionID else { return }
+            let params = SubagentSteerParams(sessionID: live, subagentID: id, text: text)
+            Task { _ = try? await client.steerSubagent(params) }
+        }
+
+        /// Stops a running helper.
+        public func stopSubagent(_ id: String) {
+            guard let client, let live = state.liveSessionID else { return }
+            let params = SubagentInterruptParams(sessionID: live, subagentID: id)
+            Task { _ = try? await client.interruptSubagent(params) }
+        }
+
+        private func noteSubagents(_ states: [SubagentState]) {
+            for item in states where firstSeen[item.id] == nil { firstSeen[item.id] = Date() }
+        }
+
+        private static func connection(for phase: ConnectionPhase?) -> StripConnection {
+            switch phase {
+            case .connected?: .online
+            case .reconnecting?, .connecting?, .openingTunnel?, .checkingServer?, .unlocking?: .reconnecting
+            case .signInRequired?, .updateRequired?, .failed?: .needsAttention
+            case .idle?, nil: .offline
+            }
         }
 
         public func stop() {
