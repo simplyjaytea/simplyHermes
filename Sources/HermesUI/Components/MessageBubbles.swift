@@ -26,14 +26,16 @@
 
         private let role: Role
         private let text: String
+        private let rendersMarkdown: Bool
 
-        public init(role: Role, text: String) {
+        public init(role: Role, text: String, rendersMarkdown: Bool = false) {
             self.role = role
             self.text = text
+            self.rendersMarkdown = rendersMarkdown
         }
 
         public var body: some View {
-            Text(text)
+            Text(rendersMarkdown ? InlineMarkdown.attributed(text) : AttributedString(text))
                 .font(HermesFont.bubble)
                 .foregroundStyle(role == .user ? HermesColor.onAccent : HermesColor.primaryText)
                 .textSelection(.enabled)
