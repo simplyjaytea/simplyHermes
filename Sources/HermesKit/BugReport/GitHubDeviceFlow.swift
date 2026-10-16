@@ -51,9 +51,9 @@ public enum GitHubSignInError: Error, Sendable, Equatable {
 /// The token can only do what the simplyHermes GitHub App allows (Issues: Read and write) on the repositories it is
 /// installed on, and only what the user could do anyway.
 public struct GitHubDeviceFlow: Sendable {
-    /// The simplyHermes GitHub App's client ID. Empty until the app is registered; sign-in then reports
-    /// ``GitHubSignInError/notConfigured`` and Report a bug sends through github.com instead.
-    public static let simplyHermesClientID = ""
+    /// The simplyHermes GitHub App's client ID (public; the app has Issues: Read and write on simplyHermes only).
+    /// An empty ID makes sign-in report ``GitHubSignInError/notConfigured``.
+    public static let simplyHermesClientID = "Iv23li7XQyzu8sU4lVwv"
 
     private static let deviceCodeURL = URL(string: "https://github.com/login/device/code")!
     private static let tokenURL = URL(string: "https://github.com/login/oauth/access_token")!
