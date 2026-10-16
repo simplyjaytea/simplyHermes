@@ -30,69 +30,97 @@ public enum SyntaxHighlighter {
 
     /// Splits `code` into tokens for `language` (the info string after the opening fence, any case).
     public static func tokens(for code: String, language: String?) -> [CodeToken] {
-        let rules = rules(for: language?.lowercased())
-        let chars = Array(code)
+        var scanner = Scanner(chars: Array(code), rules: rules(for: language?.lowercased()))
+        while scanner.index < scanner.chars.count { scanner.step() }
+        scanner.flushPlain()
+        return scanner.result
+    }
+
+    private struct Scanner {
+        let chars: [Character]
+        let rules: Rules
+        var index = 0
         var result: [CodeToken] = []
         var plain = ""
-        var index = 0
 
-        func flushPlain() {
+        init(chars: [Character], rules: Rules) {
+            self.chars = chars
+            self.rules = rules
+        }
+
+        mutating func flushPlain() {
             if !plain.isEmpty { result.append(CodeToken(plain, .plain)) }
             plain = ""
         }
-        func emit(_ text: String, _ kind: CodeToken.Kind) {
+
+        mutating func emit(to end: Int, _ kind: CodeToken.Kind) {
             flushPlain()
-            result.append(CodeToken(text, kind))
+            result.append(CodeToken(String(chars[index..<end]), kind))
+            index = end
         }
+
         func starts(_ marker: String, at position: Int) -> Bool {
             let marked = Array(marker)
             guard position + marked.count <= chars.count else { return false }
             return Array(chars[position..<position + marked.count]) == marked
         }
 
-        while index < chars.count {
+        mutating func step() {
             let char = chars[index]
-            if let line = rules.lineComment, starts(line, at: index) {
-                var end = index
-                while end < chars.count, chars[end] != "\n" { end += 1 }
-                emit(String(chars[index..<end]), .comment)
-                index = end
-            } else if let block = rules.blockComment, starts(block.open, at: index) {
-                var end = index + block.open.count
-                while end < chars.count, !starts(block.close, at: end) { end += 1 }
-                end = min(chars.count, end + block.close.count)
-                emit(String(chars[index..<end]), .comment)
-                index = end
-            } else if char == "\"" || char == "'" || char == "`" {
-                var end = index + 1
-                while end < chars.count, chars[end] != char, chars[end] != "\n" || char == "`" {
-                    end += chars[end] == "\\" ? 2 : 1
-                }
-                end = min(chars.count, end + 1)
-                emit(String(chars[index..<end]), .string)
-                index = end
+            if scanComment() { return }
+            if char == "\"" || char == "'" || char == "`" {
+                scanString(quote: char)
             } else if char.isNumber, index == 0 || !isWordCharacter(chars[index - 1]) {
-                var end = index
-                while end < chars.count, chars[end].isNumber || chars[end] == "." || chars[end] == "_" { end += 1 }
-                emit(String(chars[index..<end]), .number)
-                index = end
+                scanRun(.number) { $0.isNumber || $0 == "." || $0 == "_" }
             } else if isWordCharacter(char) {
-                var end = index
-                while end < chars.count, isWordCharacter(chars[end]) { end += 1 }
-                let word = String(chars[index..<end])
-                if rules.keywords.contains(word) { emit(word, .keyword) } else { plain += word }
-                index = end
+                scanWord()
             } else {
                 plain.append(char)
                 index += 1
             }
         }
-        flushPlain()
-        return result
-    }
 
-    private static func isWordCharacter(_ char: Character) -> Bool {
-        char.isLetter || char.isNumber || char == "_"
+        mutating func scanComment() -> Bool {
+            if let line = rules.lineComment, starts(line, at: index) {
+                var end = index
+                while end < chars.count, chars[end] != "\n" { end += 1 }
+                emit(to: end, .comment)
+                return true
+            }
+            if let block = rules.blockComment, starts(block.open, at: index) {
+                var end = index + block.open.count
+                while end < chars.count, !starts(block.close, at: end) { end += 1 }
+                emit(to: min(chars.count, end + block.close.count), .comment)
+                return true
+            }
+            return false
+        }
+
+        mutating func scanString(quote: Character) {
+            var end = index + 1
+            while end < chars.count, chars[end] != quote, chars[end] != "\n" || quote == "`" {
+                end += chars[end] == "\\" ? 2 : 1
+            }
+            emit(to: min(chars.count, end + 1), .string)
+        }
+
+        mutating func scanRun(_ kind: CodeToken.Kind, while belongs: (Character) -> Bool) {
+            var end = index
+            while end < chars.count, belongs(chars[end]) { end += 1 }
+            emit(to: end, kind)
+        }
+
+        mutating func scanWord() {
+            var end = index
+            while end < chars.count, isWordCharacter(chars[end]) { end += 1 }
+            let word = String(chars[index..<end])
+            if rules.keywords.contains(word) {
+                emit(to: end, .keyword)
+            } else {
+                plain += word
+                index = end
+            }
+        }
     }
 
     private static func rules(for language: String?) -> Rules {
@@ -136,4 +164,8 @@ public enum SyntaxHighlighter {
         "UPDATE", "SET", "DELETE", "CREATE", "TABLE", "DROP", "ALTER", "JOIN", "LEFT", "RIGHT", "INNER", "OUTER",
         "ON", "GROUP", "BY", "ORDER", "HAVING", "LIMIT", "AND", "OR", "NOT", "NULL", "AS", "DISTINCT", "UNION",
     ]
+}
+
+private func isWordCharacter(_ char: Character) -> Bool {
+    char.isLetter || char.isNumber || char == "_"
 }
