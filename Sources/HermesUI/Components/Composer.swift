@@ -73,6 +73,7 @@
             .buttonStyle(.plain)
             .disabled(!canSend)
             .accessibilityLabel(Text("Send"))
+            .popoverTip(onSteer == nil ? nil : SteerTip())
             // Long-press: steer the running reply instead of queueing (plan Q23).
             .contextMenu {
                 if let onSteer {

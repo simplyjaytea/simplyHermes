@@ -59,6 +59,8 @@
         public var body: some View {
             Form {
                 BotsSettingsSection()
+                SoundsSettingsSection()
+                TipsSettingsSection()
                 Section("Support") {
                     NavigationLink {
                         BugReportScreen(connections: nil)
