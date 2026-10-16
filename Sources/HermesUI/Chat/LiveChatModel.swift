@@ -65,6 +65,7 @@
         @ObservationIgnored private var controller: ChatSessionController?
         @ObservationIgnored private var client: GatewayClient?
         @ObservationIgnored private var firstSeen: [String: Date] = [:]
+        @ObservationIgnored private var wasRunning = false
         @ObservationIgnored private var tasks: [Task<Void, Never>] = []
 
         init(connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String) {
@@ -95,6 +96,7 @@
                 tasks = [
                     Task { [weak self] in
                         for await next in states {
+                            self?.noteTurnEnd(next.transcript.turn != nil)
                             self?.noteSubagents(next.transcript.subagents)
                             self?.state = next.transcript
                             self?.queue = next.queue
@@ -121,6 +123,7 @@
 
         public func send(_ text: String) {
             guard let controller else { return }
+            HermesSounds.play(.send)
             Task { await controller.send(text) }
         }
 
@@ -230,6 +233,12 @@
             Task { await broker.cancel(item.id) }
         }
 
+        /// Plays the done sound when a running turn stops.
+        private func noteTurnEnd(_ isRunning: Bool) {
+            if wasRunning, !isRunning { HermesSounds.play(.turnDone) }
+            wasRunning = isRunning
+        }
+
         private func setApprovals(_ list: [PendingServerRequest]) {
             let live = state.liveSessionID
             clarifies = list.compactMap { item in
@@ -246,12 +255,14 @@
                     return nil
                 }
             }
+            let before = approvals.count
             approvals = list.compactMap { item in
                 guard case .approval(_, let request) = item.request, request.sessionID == live else { return nil }
                 return PendingApproval(
                     id: item.id, command: request.command ?? request.description ?? "A command",
                     reason: request.command == nil ? nil : request.description)
             }
+            if approvals.count > before { HermesSounds.play(.approval) }
         }
 
         private static func describe(_ error: any Error) -> String {

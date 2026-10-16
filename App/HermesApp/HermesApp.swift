@@ -20,6 +20,8 @@ struct HermesApp: App {
         _model = State(initialValue: model)
         // Set up before any scene: a Live Activity or widget button can launch the app in the background.
         integration = AppIntegration(model: model)
+        // UI tests set -HermesOnboarding; a tip popover would cover the controls they tap.
+        HermesTips.configure(enabled: launch.onboarding == nil)
     }
 
     var body: some Scene {
