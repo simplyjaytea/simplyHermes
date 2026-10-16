@@ -141,18 +141,18 @@ public struct GitHubIssueClient: Sendable {
         default: return .rejected(status: response.status, message: message)
         }
     }
+}
 
-    private struct CreatedBody: Decodable {
-        let number: Int
-        let htmlURL: String
+private struct CreatedBody: Decodable {
+    let number: Int
+    let htmlURL: String
 
-        enum CodingKeys: String, CodingKey {
-            case number
-            case htmlURL = "html_url"
-        }
+    enum CodingKeys: String, CodingKey {
+        case number
+        case htmlURL = "html_url"
     }
+}
 
-    private struct ErrorBody: Decodable {
-        let message: String?
-    }
+private struct ErrorBody: Decodable {
+    let message: String?
 }

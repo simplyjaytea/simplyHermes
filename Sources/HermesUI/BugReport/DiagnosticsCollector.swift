@@ -11,7 +11,7 @@
         /// The `Logger` subsystem every simplyHermes log line uses.
         public static let logSubsystem = "com.simplyjaytea.simplyhermes"
 
-        /// Everything except the log, which ``recentLogLines(within:limit:)`` reads off the main actor.
+        /// Everything except the log, which ``recentLogLines(limit:)`` reads off the main actor.
         public static func collect(
             layout: DisplayLayout?, posture: DevicePosture?, connections: ConnectionsModel?, logLines: [String] = []
         ) -> BugReportDiagnostics {
@@ -57,14 +57,12 @@
             return values
         }
 
-        /// The app's own log lines from the last `within` seconds, oldest first, at most `limit`.
+        /// The app's own log lines from the last 30 minutes, oldest first, at most `limit`.
         /// Runs off the main actor: reading the log store can take a moment.
-        public nonisolated static func recentLogLines(within: TimeInterval = 30 * 60, limit: Int = 400) async
-            -> [String]
-        {
+        public nonisolated static func recentLogLines(limit: Int = 400) async -> [String] {
             await Task.detached(priority: .userInitiated) {
                 guard let store = try? OSLogStore(scope: .currentProcessIdentifier) else { return [] }
-                let start = store.position(date: Date().addingTimeInterval(-within))
+                let start = store.position(date: Date().addingTimeInterval(-30 * 60))
                 let predicate = NSPredicate(format: "subsystem == %@", logSubsystem)
                 guard let entries = try? store.getEntries(at: start, matching: predicate) else { return [] }
                 let formatter = ISO8601DateFormatter()
@@ -113,7 +111,7 @@
             var system = utsname()
             uname(&system)
             return withUnsafeBytes(of: &system.machine) { buffer in
-                String(decoding: buffer.prefix { $0 != 0 }, as: UTF8.self)
+                String(bytes: buffer.prefix { $0 != 0 }, encoding: .utf8) ?? "unknown"
             }
         }
     }
