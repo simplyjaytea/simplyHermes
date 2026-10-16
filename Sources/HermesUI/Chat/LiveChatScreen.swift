@@ -58,7 +58,7 @@
             ScrollView {
                 LazyVStack(spacing: HermesMetrics.bubbleSpacing) {
                     ForEach(chat.state.items) { item in
-                        TranscriptRow(item: item)
+                        TranscriptRow(item: item, isLast: item.id == chat.state.items.last?.id, chat: chat)
                             .overlay {
                                 if isFinding, item.id == currentMatch {
                                     RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
@@ -68,6 +68,9 @@
                             }
                             .id(item.id)
                             .accessibilityIdentifier("message.\(item.id)")
+                    }
+                    if let failure = chat.state.lastError, !chat.isRunning, !Self.lastRowShowsError(chat.state) {
+                        ErrorCard(error: ChatError.classify(failure), isLast: true, chat: chat)
                     }
                     if !chat.state.subagents.isEmpty {
                         SubagentBlock(chat: chat)
@@ -227,6 +230,12 @@
             hasher.combine(chat.approvals.count)
             if case .assistant(let entry)? = chat.state.items.last?.content { hasher.combine(entry.text.count) }
             return hasher.finalize()
+        }
+
+        /// True when the newest assistant row already carries the error, so the card is not shown twice.
+        private static func lastRowShowsError(_ state: TranscriptState) -> Bool {
+            if case .assistant(let entry)? = state.items.last?.content { return entry.error?.isEmpty == false }
+            return false
         }
 
         private static func isStreamingAssistant(_ item: TranscriptItem) -> Bool {

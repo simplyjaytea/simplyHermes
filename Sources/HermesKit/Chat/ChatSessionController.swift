@@ -119,6 +119,18 @@ public actor ChatSessionController {
         }
     }
 
+    /// Sends the last thing the user typed again, for Retry after a failed turn. Does nothing while a turn runs.
+    public func retryLast() async {
+        guard isIdle else { return }
+        let last = state.items.reversed().compactMap { item -> String? in
+            if case .user(let entry) = item.content, entry.displayKind == nil { return entry.text }
+            return nil
+        }.first
+        guard let last else { return }
+        await submit(last)
+        await drainIfIdle()
+    }
+
     /// Changes the text of a waiting message. Blank text removes it.
     public func editQueued(_ id: Int, to text: String) {
         queue.edit(id, to: text)

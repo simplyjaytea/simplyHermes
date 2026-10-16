@@ -144,4 +144,15 @@ private func envelope(_ type: String, _ payload: JSONValue, seq: Int) throws -> 
         #expect(await controller.steer("go left") == true)
         #expect(transport.steered == ["go left"])
     }
+
+    @Test func retryLastResendsTheLastTypedPrompt() async throws {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        await controller.send("first")
+        await controller.handle(try envelope("message.start", [:], seq: 1))
+        await controller.handle(try envelope("message.complete", ["status": "error", "error": "429"], seq: 2))
+        await controller.retryLast()
+        #expect(transport.submitted.map(\.text) == ["first", "first"])
+    }
 }

@@ -5,13 +5,15 @@
     /// One row of a server chat.
     struct TranscriptRow: View {
         let item: TranscriptItem
+        var isLast = false
+        @Bindable var chat: LiveChatModel
 
         var body: some View {
             switch item.content {
             case .user(let entry):
                 UserRow(entry: entry)
             case .assistant(let entry):
-                AssistantRow(entry: entry)
+                AssistantRow(entry: entry, isLast: isLast, chat: chat)
             case .tool(let entry):
                 ToolCallRow(entry: entry)
             case .other(let role, let text):
@@ -68,6 +70,8 @@
 
     private struct AssistantRow: View {
         let entry: AssistantEntry
+        let isLast: Bool
+        @Bindable var chat: LiveChatModel
         @State private var showsReasoning = false
 
         var body: some View {
@@ -94,11 +98,7 @@
                     }
                 }
                 if let error = entry.error, !error.isEmpty {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.destructive)
-                        .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
-                        .bubbleRow(.leading)
+                    ErrorCard(error: ChatError.classify(error), isLast: isLast, chat: chat)
                 } else if entry.status == .interrupted {
                     Text("Stopped")
                         .font(HermesFont.caption)
