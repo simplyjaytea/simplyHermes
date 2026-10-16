@@ -67,6 +67,19 @@
                         posture: posture
                     )
                 content(for: layout)
+                    .environment(\.hermesDisplayLayout, layout)
+                    .sheet(isPresented: $model.isBugReportPresented, onDismiss: clearBugReportScreenshot) {
+                        NavigationStack {
+                            BugReportScreen(connections: connections, screenshot: model.bugReportScreenshot)
+                                .toolbar {
+                                    ToolbarItem(placement: .cancellationAction) {
+                                        Button("Close") { model.isBugReportPresented = false }
+                                    }
+                                }
+                        }
+                        .environment(\.hermesDisplayLayout, layout)
+                        .environment(\.hermesPosture, posture)
+                    }
                     .overlay(alignment: .leading) {
                         if showsDebugLayoutMenu {
                             VStack(alignment: .leading, spacing: 4) {
@@ -77,9 +90,24 @@
                     }
             }
             .background { KeyboardShortcuts(model: model) }
-            .sheet(isPresented: $model.isPalettePresented) {
+            .onDeviceShake { screenshot in
+                guard !model.isBugReportPresented, !model.isPalettePresented else { return }
+                model.bugReportScreenshot = screenshot
+                model.isBugReportPresented = true
+            }
+            .sheet(isPresented: $model.isPalettePresented, onDismiss: openPendingBugReport) {
                 CommandPalette(model: model)
             }
+        }
+
+        private func clearBugReportScreenshot() {
+            model.bugReportScreenshot = nil
+        }
+
+        private func openPendingBugReport() {
+            guard model.opensBugReportAfterPalette else { return }
+            model.opensBugReportAfterPalette = false
+            model.isBugReportPresented = true
         }
 
         @ViewBuilder

@@ -60,6 +60,12 @@
         /// Ids of the chats the server listed. These open as live chats; the rest stay placeholders.
         public private(set) var serverSessionIDs: Set<String> = []
         public var isPalettePresented = false
+        /// Report a bug, opened from the command palette.
+        public var isBugReportPresented = false
+        /// Set by the palette's Report a bug command; the report opens when the palette finishes closing.
+        public var opensBugReportAfterPalette = false
+        /// PNG of the screen the user shook to open Report a bug. Nil when opened another way.
+        public var bugReportScreenshot: Data?
         public var showsPreviewRail = true
         /// Forces a layout, for UI tests and the debug menu. `nil` follows the screen and posture.
         public var layoutOverride: DisplayLayout?

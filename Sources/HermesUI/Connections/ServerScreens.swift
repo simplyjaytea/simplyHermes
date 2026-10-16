@@ -372,6 +372,20 @@
                     }
                     .accessibilityIdentifier("settings.servers")
                 }
+                Section("Support") {
+                    NavigationLink {
+                        BugReportScreen(connections: connections)
+                    } label: {
+                        Label("Report a bug", systemImage: "ladybug")
+                    }
+                    .accessibilityIdentifier("settings.reportBug")
+                    NavigationLink {
+                        GitHubAccountView()
+                    } label: {
+                        Label("GitHub account", systemImage: "person.badge.key")
+                    }
+                    .accessibilityIdentifier("settings.githubAccount")
+                }
                 Section {
                     Text("More settings arrive in WP-53.")
                         .foregroundStyle(HermesColor.secondaryText)
