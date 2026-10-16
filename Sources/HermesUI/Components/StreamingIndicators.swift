@@ -63,7 +63,7 @@
             HStack(alignment: .lastTextBaseline, spacing: 4) {
                 Group {
                     if rendersMarkdown {
-                        MarkdownView(text: text)
+                        MarkdownView(text: text, fadesNewText: isStreaming)
                     } else {
                         Text(text).font(HermesFont.bubble)
                     }

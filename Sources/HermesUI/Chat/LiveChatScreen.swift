@@ -48,7 +48,7 @@
         private var content: some View {
             switch chat.phase {
             case .loading where chat.state.items.isEmpty:
-                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                TranscriptSkeleton()
             case .failed(let message):
                 ContentUnavailableView {
                     Label("Could not open this chat", systemImage: "exclamationmark.triangle")
