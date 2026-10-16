@@ -6,11 +6,19 @@
     /// markdown is handled by ``InlineMarkdown``.
     struct MarkdownView: View {
         let text: String
+        /// Fades in new characters at the end of the last paragraph while the reply streams (plan Q47).
+        var fadesNewText = false
 
         var body: some View {
+            let blocks = MarkdownBlocks.parse(text)
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(Array(MarkdownBlocks.parse(text).enumerated()), id: \.offset) { _, block in
-                    view(for: block)
+                ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
+                    if fadesNewText, index == blocks.count - 1, case .paragraph(let value) = block {
+                        Text(InlineMarkdown.attributed(value)).font(HermesFont.bubble)
+                            .modifier(StreamingFade(text: value))
+                    } else {
+                        view(for: block)
+                    }
                 }
             }
         }
