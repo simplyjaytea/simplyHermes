@@ -1,0 +1,141 @@
+#if canImport(UIKit)
+    import Foundation
+    import HermesKit
+    import Observation
+
+    /// One server chat on screen (WP-30): the transcript, the approvals waiting in it, and the send and stop actions.
+    @MainActor
+    @Observable
+    public final class LiveChatModel {
+        public enum Phase: Equatable {
+            case loading
+            case ready
+            case failed(String)
+        }
+
+        public private(set) var state: TranscriptState
+        public private(set) var phase: Phase = .loading
+        /// Approvals of this chat that wait for the user.
+        public private(set) var approvals: [PendingApproval] = []
+
+        /// An approval request with the fields the inline card needs.
+        public struct PendingApproval: Identifiable, Equatable {
+            public let id: String
+            public let command: String
+            public let reason: String?
+        }
+
+        public var isRunning: Bool { state.turn != nil }
+
+        @ObservationIgnored private let connections: ConnectionsModel
+        @ObservationIgnored private let broker: ServerRequestBroker
+        @ObservationIgnored private let storedSessionID: String
+        @ObservationIgnored private var controller: ChatSessionController?
+        @ObservationIgnored private var tasks: [Task<Void, Never>] = []
+
+        init(connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String) {
+            self.connections = connections
+            self.broker = broker
+            self.storedSessionID = storedSessionID
+            state = TranscriptState(storedSessionID: storedSessionID)
+        }
+
+        /// Connects, resumes the session and starts following it. Safe to call again after a failure.
+        public func attach() async {
+            guard controller == nil else { return }
+            guard let connection = connections.active, let manager = connections.manager else {
+                phase = .failed("No server is selected.")
+                return
+            }
+            phase = .loading
+            do {
+                let client = try await manager.client(for: connection)
+                await broker.install(on: client)
+                let controller = ChatSessionController(transport: client, storedSessionID: storedSessionID)
+                let states = await controller.states()
+                let pending = await broker.updates()
+                try await controller.attach()
+                self.controller = controller
+                phase = .ready
+                tasks = [
+                    Task { [weak self] in
+                        for await next in states { self?.state = next }
+                    },
+                    Task { [weak self] in
+                        for await list in pending { self?.setApprovals(list) }
+                    },
+                ]
+            } catch {
+                phase = .failed(Self.describe(error))
+            }
+        }
+
+        /// Stops following. The last transcript stays on screen.
+        public func detach() {
+            for task in tasks { task.cancel() }
+            tasks = []
+            let controller = controller
+            self.controller = nil
+            Task { await controller?.detach() }
+        }
+
+        public func send(_ text: String) {
+            guard let controller else { return }
+            Task { await controller.send(text) }
+        }
+
+        public func stop() {
+            guard let controller else { return }
+            Task { await controller.stop() }
+        }
+
+        /// Answers an approval card.
+        public func answer(_ approval: PendingApproval, _ choice: ApprovalChoice) {
+            let broker = broker
+            Task { try? await broker.answer(approval.id, with: .approval(ApprovalAnswer(choice: choice))) }
+        }
+
+        private func setApprovals(_ list: [PendingServerRequest]) {
+            let live = state.liveSessionID
+            approvals = list.compactMap { item in
+                guard case .approval(_, let request) = item.request, request.sessionID == live else { return nil }
+                return PendingApproval(
+                    id: item.id, command: request.command ?? request.description ?? "A command",
+                    reason: request.command == nil ? nil : request.description)
+            }
+        }
+
+        private static func describe(_ error: any Error) -> String {
+            if let rpc = error as? RPCError { return rpc.message }
+            if error is ConnectionUnavailable { return "The server is not reachable." }
+            return "\(error)"
+        }
+    }
+
+    /// Hands out one ``LiveChatModel`` per server chat, so folding and switching tabs keep the same transcript.
+    @MainActor
+    public final class LiveChatStore {
+        private let connections: ConnectionsModel
+        private let broker = ServerRequestBroker()
+        private var chats: [String: LiveChatModel] = [:]
+        private var serverID: UUID?
+
+        public init(connections: ConnectionsModel) {
+            self.connections = connections
+        }
+
+        /// The chat for a stored session id. Switching servers drops every chat of the old one.
+        public func chat(for sessionID: String) -> LiveChatModel? {
+            guard let active = connections.active, connections.manager != nil else { return nil }
+            if serverID != active.id {
+                for chat in chats.values { chat.detach() }
+                chats = [:]
+                serverID = active.id
+            }
+            if let existing = chats[sessionID] { return existing }
+            let chat = LiveChatModel(connections: connections, broker: broker, storedSessionID: sessionID)
+            chats[sessionID] = chat
+            return chat
+        }
+    }
+#endif

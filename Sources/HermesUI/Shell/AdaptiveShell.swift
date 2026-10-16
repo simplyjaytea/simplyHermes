@@ -24,6 +24,7 @@
             self.model = model
             self.connections = connections
             self.sessionsList = sessionsList
+            model.liveChats = connections.map(LiveChatStore.init)
             _profiles = State(initialValue: connections.map { ProfilesModel(connections: $0) })
             self.showsDebugLayoutMenu = showsDebugLayoutMenu
         }

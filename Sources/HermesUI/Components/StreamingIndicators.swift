@@ -51,17 +51,20 @@
     public struct StreamingText: View {
         private let text: String
         private let isStreaming: Bool
+        private let rendersMarkdown: Bool
 
-        public init(text: String, isStreaming: Bool) {
+        public init(text: String, isStreaming: Bool, rendersMarkdown: Bool = false) {
             self.text = text
             self.isStreaming = isStreaming
+            self.rendersMarkdown = rendersMarkdown
         }
 
         public var body: some View {
             HStack(alignment: .lastTextBaseline, spacing: 4) {
-                Text(text)
+                Text(rendersMarkdown ? InlineMarkdown.attributed(text) : AttributedString(text))
                     .font(HermesFont.bubble)
                     .foregroundStyle(HermesColor.primaryText)
+                    .textSelection(.enabled)
                 if isStreaming {
                     StreamingCaret()
                 }

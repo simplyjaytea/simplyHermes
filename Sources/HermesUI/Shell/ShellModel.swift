@@ -55,6 +55,10 @@
         /// Chats with a turn streaming right now.
         public private(set) var streamingSessionIDs: Set<String> = []
         @ObservationIgnored private var streamTasks: [String: Task<Void, Never>] = [:]
+        /// Chats read from the connected server (WP-30). Nil when there is no server connection to read from.
+        @ObservationIgnored public var liveChats: LiveChatStore?
+        /// Ids of the chats the server listed. These open as live chats; the rest stay placeholders.
+        public private(set) var serverSessionIDs: Set<String> = []
         public var isPalettePresented = false
         public var showsPreviewRail = true
         /// Forces a layout, for UI tests and the debug menu. `nil` follows the screen and posture.
@@ -122,6 +126,7 @@
                 ChatSessionSummary(id: $0.id, title: $0.title, subtitle: $0.time ?? "", serverName: $0.serverName)
             }
             sessions = local + synced
+            serverSessionIDs = Set(items.map(\.id))
             for session in sessions where transcripts[session.id] == nil { transcripts[session.id] = [] }
             let ids = Set(sessions.map(\.id))
             openSessionIDs.removeAll { !ids.contains($0) }
@@ -136,6 +141,7 @@
                         id: item.id, title: item.title, subtitle: item.time ?? "", serverName: item.serverName))
                 transcripts[item.id] = []
             }
+            serverSessionIDs.insert(item.id)
             open(item.id)
         }
 
@@ -146,6 +152,12 @@
                 ChatSessionSummary(id: id, title: "New chat", subtitle: "Now", serverName: "home-server"), at: 0)
             transcripts[id] = []
             open(id)
+        }
+
+        /// The live chat for a listed server session, or nil for a placeholder chat.
+        func liveChat(for id: String) -> LiveChatModel? {
+            guard serverSessionIDs.contains(id) else { return nil }
+            return liveChats?.chat(for: id)
         }
 
         public func draftBinding(for id: String) -> Binding<String> {
