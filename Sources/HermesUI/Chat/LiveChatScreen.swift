@@ -26,6 +26,11 @@
                     QueuedMessagesView(chat: chat)
                 }
                 ChatStatusBar(strip: chat.strip)
+                if chat.isRunning, let tasks = TaskProgress(chat.state.todos?.todos ?? []) {
+                    TaskProgressPill(progress: tasks)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                ComposerPills(info: chat.state.info)
                 Composer(
                     text: model.draftBinding(for: sessionID), onSend: { send() },
                     onSteer: chat.isRunning ? { steer() } : nil
