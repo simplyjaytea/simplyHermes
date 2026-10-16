@@ -239,7 +239,7 @@
                     Image(systemName: "xmark")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(HermesColor.secondaryText)
-                        .frame(width: 28, height: HermesMetrics.minTapTarget)
+                        .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

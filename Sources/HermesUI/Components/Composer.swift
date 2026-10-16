@@ -63,9 +63,10 @@
             } label: {
                 Image(systemName: "arrow.up")
                     .font(.body.weight(.bold))
-                    .foregroundStyle(HermesColor.onAccent)
+                    // The idle button uses text-safe colors: white on system gray is below 4.5:1.
+                    .foregroundStyle(canSend ? HermesColor.onAccent : HermesColor.secondaryText)
                     .frame(width: 32, height: 32)
-                    .background(canSend ? HermesColor.accent : HermesColor.statusOffline, in: Circle())
+                    .background(canSend ? HermesColor.accent : HermesColor.fill, in: Circle())
                     .padding(6)
                     .contentShape(Rectangle())
             }

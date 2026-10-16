@@ -66,16 +66,18 @@
         private let name: String
         private let phase: LiveTurnState.Phase
         private let size: CGFloat
+        @ScaledMetric private var initialsSize: CGFloat
 
         public init(name: String, phase: LiveTurnState.Phase, size: CGFloat = 40) {
             self.name = name
             self.phase = phase
             self.size = size
+            _initialsSize = ScaledMetric(wrappedValue: size * 0.4, relativeTo: .body)
         }
 
         public var body: some View {
             Text(initials)
-                .font(.system(size: size * 0.4, weight: .semibold, design: .rounded))
+                .font(.system(size: initialsSize, weight: .semibold, design: .rounded))
                 .foregroundStyle(HermesColor.onAccent)
                 .frame(width: size, height: size)
                 .background(phase.isFinished ? HermesColor.statusOffline : HermesColor.accent, in: Circle())
