@@ -258,6 +258,7 @@
     /// Shown once before iOS asks for Local Network access, so the system prompt is no surprise (plan 2.4).
     public struct LocalNetworkExplainer: View {
         let onContinue: () -> Void
+        @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 44
 
         public init(onContinue: @escaping () -> Void) {
             self.onContinue = onContinue
@@ -266,7 +267,7 @@
         public var body: some View {
             VStack(spacing: 18) {
                 Image(systemName: "wifi.router")
-                    .font(.system(size: 44, weight: .semibold))
+                    .font(.system(size: iconSize, weight: .semibold))
                     .foregroundStyle(HermesColor.accent)
                     .padding(.top, 24)
                 Text("Allow local network")

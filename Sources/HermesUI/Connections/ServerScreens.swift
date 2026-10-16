@@ -6,6 +6,8 @@
 
     /// First launch with no saved server: pick a gateway URL, SSH or a QR code (WP-22).
     public struct WelcomeView: View {
+        @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 40
+        @ScaledMetric(relativeTo: .largeTitle) private var iconBox: CGFloat = 88
         private let connections: ConnectionsModel
         @State private var form: ConnectionFormModel?
         @State private var showsScanner = false
@@ -72,9 +74,9 @@
         private var header: some View {
             VStack(spacing: 14) {
                 Image(systemName: "bubble.left.and.text.bubble.right.fill")
-                    .font(.system(size: 40, weight: .semibold))
+                    .font(.system(size: iconSize, weight: .semibold))
                     .foregroundStyle(HermesColor.onAccent)
-                    .frame(width: 88, height: 88)
+                    .frame(width: iconBox, height: iconBox)
                     .background(HermesColor.accent.gradient, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .padding(.top, 32)
                 Text("Welcome to simplyHermes")
