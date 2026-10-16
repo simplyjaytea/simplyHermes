@@ -27,6 +27,22 @@
             public let reason: String?
         }
 
+        /// Clarify questions of this chat that wait for an answer.
+        public private(set) var clarifies: [PendingClarify] = []
+        /// A sudo password or secret value the server asks for. The sheet opens for the first one.
+        public private(set) var valueRequests: [PendingValue] = []
+
+        public struct PendingClarify: Identifiable, Equatable {
+            public let id: String
+            public let questions: [ClarifyQuestion]
+        }
+
+        public struct PendingValue: Identifiable, Equatable {
+            public let id: String
+            public let title: String
+            public let detail: String?
+        }
+
         public var isRunning: Bool { state.turn != nil }
 
         /// The status strip readings for this chat: context fill, cache, speed and the connection.
@@ -168,8 +184,40 @@
             Task { try? await broker.answer(approval.id, with: .approval(ApprovalAnswer(choice: choice))) }
         }
 
+        /// Answers a clarify card. `answers` maps each question id to the chosen or typed text.
+        public func answerClarify(_ item: PendingClarify, _ answers: [String: String]) {
+            let broker = broker
+            Task { try? await broker.answer(item.id, with: .clarify(ClarifyAnswer(answers: answers))) }
+        }
+
+        /// Answers a sudo or secret request. The value goes straight to the server and is never stored here.
+        public func answerValue(_ item: PendingValue, _ value: String) {
+            let broker = broker
+            Task { try? await broker.answer(item.id, with: .value(ValueAnswer(value: value))) }
+        }
+
+        /// Closes a sudo or secret request without answering. The server stops waiting at its own timeout.
+        public func dismissValue(_ item: PendingValue) {
+            let broker = broker
+            Task { await broker.cancel(item.id) }
+        }
+
         private func setApprovals(_ list: [PendingServerRequest]) {
             let live = state.liveSessionID
+            clarifies = list.compactMap { item in
+                guard case .clarify(_, let request) = item.request, request.sessionID == live else { return nil }
+                return PendingClarify(id: item.id, questions: request.questions)
+            }
+            valueRequests = list.compactMap { item in
+                switch item.request {
+                case .sudo(_, let request) where request.sessionID == live:
+                    return PendingValue(id: item.id, title: "Password needed", detail: request.command)
+                case .secret(_, let request) where request.sessionID == live:
+                    return PendingValue(id: item.id, title: request.envVar, detail: request.prompt)
+                default:
+                    return nil
+                }
+            }
             approvals = list.compactMap { item in
                 guard case .approval(_, let request) = item.request, request.sessionID == live else { return nil }
                 return PendingApproval(

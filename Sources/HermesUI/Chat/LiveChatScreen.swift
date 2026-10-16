@@ -33,6 +33,10 @@
                 .background(HermesColor.background)
             }
             .task(id: sessionID) { await chat.attach() }
+            .sheet(item: Binding(get: { chat.valueRequests.first }, set: { _ in })) { item in
+                SecureValueSheet(
+                    item: item, onSend: { chat.answerValue(item, $0) }, onCancel: { chat.dismissValue(item) })
+            }
         }
 
         @ViewBuilder
@@ -71,6 +75,9 @@
                     }
                     if !chat.state.subagents.isEmpty {
                         SubagentBlock(chat: chat)
+                    }
+                    ForEach(chat.clarifies) { item in
+                        ClarifyCard(item: item) { chat.answerClarify(item, $0) }
                     }
                     ForEach(chat.approvals) { approval in
                         ApprovalBubble(
