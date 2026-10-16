@@ -69,8 +69,10 @@ public struct LocalHelpers: Sendable {
 
     /// A clearer version of a draft prompt. Meaning stays; wording gets tighter.
     public func polish(_ draft: String) async -> String? {
-        let instructions =
-            "Rewrite the message to be clear and direct. Keep its meaning, language and any code or paths exactly. Reply with the rewritten message only."
+        let instructions = """
+            Rewrite the message to be clear and direct. Keep its meaning, language and any code or paths exactly. \
+            Reply with the rewritten message only.
+            """
         return await run(instructions, draft)
     }
 
