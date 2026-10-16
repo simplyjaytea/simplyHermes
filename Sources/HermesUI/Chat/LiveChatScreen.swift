@@ -12,6 +12,10 @@
         @State private var position = ScrollPosition(idType: String.self)
         @State private var isFollowing = true
         @State private var isUserScrolling = false
+        @State private var isFinding = false
+        @State private var query = ""
+        @State private var currentMatch: String?
+        @FocusState private var findFocused: Bool
 
         var body: some View {
             VStack(spacing: 0) {
@@ -55,6 +59,14 @@
                 LazyVStack(spacing: HermesMetrics.bubbleSpacing) {
                     ForEach(chat.state.items) { item in
                         TranscriptRow(item: item)
+                            .overlay {
+                                if isFinding, item.id == currentMatch {
+                                    RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
+                                        .strokeBorder(HermesColor.accent, lineWidth: 2)
+                                        .padding(.horizontal, 6)
+                                }
+                            }
+                            .id(item.id)
                             .accessibilityIdentifier("message.\(item.id)")
                     }
                     if !chat.state.subagents.isEmpty {
@@ -99,7 +111,99 @@
                 if isFollowing { position.scrollTo(edge: .bottom) }
             }
             .scrollDismissesKeyboard(.interactively)
-            .safeAreaInset(edge: .top) { header }
+            .safeAreaInset(edge: .top) {
+                VStack(spacing: 6) {
+                    header
+                    findBar
+                }
+            }
+            .overlay(alignment: .topTrailing) { findButton }
+        }
+
+        private var matches: [String] {
+            TranscriptSearch.matchingIDs(in: chat.state.items, query: query)
+        }
+
+        @ViewBuilder
+        private var findButton: some View {
+            if !isFinding, !chat.state.items.isEmpty {
+                Button {
+                    isFinding = true
+                    findFocused = true
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                        .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular, in: Circle())
+                .padding(.trailing, 12)
+                .padding(.top, 56)
+                .accessibilityLabel(Text("Find in chat"))
+                .accessibilityIdentifier("chat.find")
+            }
+        }
+
+        @ViewBuilder
+        private var findBar: some View {
+            if isFinding {
+                HStack(spacing: 8) {
+                    TextField("Find in chat", text: $query)
+                        .focused($findFocused)
+                        .submitLabel(.search)
+                        .onSubmit { move(forward: true) }
+                        .accessibilityIdentifier("find.field")
+                    if !query.isEmpty {
+                        Text(matches.isEmpty ? "No matches" : "\(index(of: currentMatch)) of \(matches.count)")
+                            .font(HermesFont.caption.monospacedDigit())
+                            .foregroundStyle(HermesColor.secondaryText)
+                    }
+                    Button {
+                        move(forward: false)
+                    } label: {
+                        Image(systemName: "chevron.up")
+                    }
+                    .disabled(matches.isEmpty)
+                    .accessibilityLabel(Text("Previous match"))
+                    Button {
+                        move(forward: true)
+                    } label: {
+                        Image(systemName: "chevron.down")
+                    }
+                    .disabled(matches.isEmpty)
+                    .accessibilityLabel(Text("Next match"))
+                    Button("Done") {
+                        isFinding = false
+                        query = ""
+                        currentMatch = nil
+                    }
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: HermesMetrics.minTapTarget)
+                .glassEffect(.regular, in: Capsule())
+                .padding(.horizontal, 12)
+                .onChange(of: query) {
+                    currentMatch = matches.last
+                    jump()
+                }
+            }
+        }
+
+        private func index(of id: String?) -> Int {
+            id.flatMap { matches.firstIndex(of: $0) }.map { $0 + 1 } ?? 0
+        }
+
+        private func move(forward: Bool) {
+            currentMatch =
+                forward
+                ? TranscriptSearch.next(after: currentMatch, in: matches)
+                : TranscriptSearch.previous(before: currentMatch, in: matches)
+            jump()
+        }
+
+        private func jump() {
+            guard let currentMatch else { return }
+            isFollowing = false
+            withAnimation(HermesMotion.snappy) { position.scrollTo(id: currentMatch, anchor: .center) }
         }
 
         @ViewBuilder
