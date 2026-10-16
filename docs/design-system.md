@@ -13,7 +13,7 @@ Code: `Sources/HermesUI/` (`Theme/`, `Components/`, `Gallery/`). Mockups: the "s
 | Chat style | **A · Bubbles**: your messages in accent bubbles, Hermes, tool output and approvals in grey bubbles; docked composer |
 | Accent | **System blue**, drawn as `#0068D9` (darker than `#007AFF` so white text reaches 4.5:1); same in light and dark |
 | Tent posture | **Glance view**: task title and elapsed time, the pending command in mono, large Stop / Deny / Approve |
-| App icon | **Winged bubble**: white bubble with a wing on a blue gradient; dark and tinted variants |
+| App icon | **Winged bubble portrait**: white winged speech bubble holding a navy manga-style portrait, on a blue gradient; dark and tinted variants |
 
 Ask JT before any new design choice.
 
@@ -77,5 +77,12 @@ recorded and the test passes, an existing one must match (perceptual precision 0
 
 ## App icon
 
-`App/HermesApp/Assets.xcassets/AppIcon.appiconset`: 1024 px light, dark and tinted PNGs, rendered from the
-winged-bubble SVG on the design canvas.
+`App/HermesApp/Assets.xcassets/AppIcon.appiconset`: 1024 px light, dark and tinted PNGs. The light icon is
+JT's artwork resized to 1024 px (full bleed, no alpha). The dark icon swaps the blue gradient for a near-black
+one (#181D28 to #06080C) and keeps the bubble and portrait. The tinted icon is the mark in grayscale on a
+transparent background.
+
+Every iOS slot has its own PNG ("All Sizes"). Sizes up to 87 px (notifications, Settings, Spotlight) use a
+simplified mark: hair highlights and eye whites are filled and the eyes and lip mark are thickened, so the face
+still reads at a few pixels wide. JT chose this on 2026-10-16. Regenerate everything, including
+`Contents.json`, with `python3 tools/app-icon/make_app_icon.py ARTWORK.png` (needs numpy, scipy and Pillow).
