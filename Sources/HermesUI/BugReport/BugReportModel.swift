@@ -44,10 +44,11 @@
             self.client = client
             self.repository = repository
             self.token = token
+            sendsInApp = !(token() ?? "").isEmpty
         }
 
-        /// True when sending files the issue in the app rather than opening the browser.
-        public var sendsInApp: Bool { !(token() ?? "").isEmpty }
+        /// True when sending files the issue in the app rather than opening the browser. Read once, when the form opens.
+        public let sendsInApp: Bool
 
         /// Adds log lines read after the form opened.
         public func attachLog(_ lines: [String]) {

@@ -150,3 +150,25 @@ import Testing
         #expect(url.absoluteString.contains("A%20%2B%20B"))
     }
 }
+
+@Suite struct GitHubTokenTests {
+    @Test func pastedTokensAreTrimmed() {
+        #expect(GitHubToken.cleaned("  github_pat_abc\n") == "github_pat_abc")
+        #expect(GitHubToken.cleaned(" \n ") == nil)
+    }
+
+    @Test func storeReportsWhetherATokenIsSaved() throws {
+        let store = InMemoryGitHubTokenStore()
+        #expect(!store.hasToken)
+        try store.setToken("t")
+        #expect(store.hasToken)
+        try store.removeToken()
+        #expect(!store.hasToken)
+    }
+
+    @Test func createURLAsksForIssuesWrite() throws {
+        let components = try #require(URLComponents(url: GitHubToken.createURL, resolvingAgainstBaseURL: false))
+        #expect(components.path == "/settings/personal-access-tokens/new")
+        #expect(components.queryItems?.contains(URLQueryItem(name: "issues", value: "write")) == true)
+    }
+}

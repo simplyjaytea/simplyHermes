@@ -379,6 +379,12 @@
                         Label("Report a bug", systemImage: "ladybug")
                     }
                     .accessibilityIdentifier("settings.reportBug")
+                    NavigationLink {
+                        GitHubTokenView()
+                    } label: {
+                        Label("GitHub token", systemImage: "key")
+                    }
+                    .accessibilityIdentifier("settings.githubToken")
                 }
                 Section {
                     Text("More settings arrive in WP-53.")

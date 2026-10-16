@@ -59,7 +59,16 @@
                         .focused($focused, equals: .whatHappened)
                         .accessibilityIdentifier("bugReport.whatHappened")
                 } footer: {
-                    Text("Reports are public on GitHub.")
+                    if model.sendsInApp {
+                        Text("Reports are public on GitHub.")
+                    } else {
+                        Text(
+                            """
+                            Reports are public on GitHub. With no GitHub token saved, Send opens github.com to finish. \
+                            Add one in Settings > GitHub token to file reports from here.
+                            """
+                        )
+                    }
                 }
                 Section("Optional") {
                     TextField("Steps to make it happen again", text: $model.draft.steps, axis: .vertical)
@@ -132,10 +141,12 @@
         private let connections: ConnectionsModel?
         @Environment(\.hermesDisplayLayout) private var layout
         @Environment(\.hermesPosture) private var posture
+        private let tokens: any GitHubTokenStore
         @State private var model: BugReportModel?
 
-        public init(connections: ConnectionsModel?) {
+        public init(connections: ConnectionsModel?, tokens: any GitHubTokenStore = KeychainGitHubTokenStore()) {
             self.connections = connections
+            self.tokens = tokens
         }
 
         public var body: some View {
@@ -158,7 +169,8 @@
                 diagnostics: diagnostics,
                 redactor: DiagnosticsRedactor(knownValues: DiagnosticsCollector.privateValues(connections)),
                 client: GitHubIssueClient(
-                    transport: URLSessionHTTPTransport(), userAgent: "simplyHermes/\(diagnostics.appVersion)"))
+                    transport: URLSessionHTTPTransport(), userAgent: "simplyHermes/\(diagnostics.appVersion)"),
+                token: { [tokens] in try? tokens.token() })
         }
     }
 
