@@ -7,6 +7,7 @@
         private let placeholder: String
         private let onAttach: () -> Void
         private let onSend: () -> Void
+        private let onSteer: (() -> Void)?
 
         @State private var sendCount = 0
 
@@ -14,12 +15,14 @@
             text: Binding<String>,
             placeholder: String = "Message Hermes",
             onAttach: @escaping () -> Void = {},
-            onSend: @escaping () -> Void
+            onSend: @escaping () -> Void,
+            onSteer: (() -> Void)? = nil
         ) {
             _text = text
             self.placeholder = placeholder
             self.onAttach = onAttach
             self.onSend = onSend
+            self.onSteer = onSteer
         }
 
         public var body: some View {
@@ -69,6 +72,13 @@
             .buttonStyle(.plain)
             .disabled(!canSend)
             .accessibilityLabel(Text("Send"))
+            // Long-press: steer the running reply instead of queueing (plan Q23).
+            .contextMenu {
+                if let onSteer {
+                    Button("Steer the reply now", systemImage: "arrow.turn.up.right") { onSteer() }
+                        .disabled(!canSend)
+                }
+            }
         }
 
         private var canSend: Bool {

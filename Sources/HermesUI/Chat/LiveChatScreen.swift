@@ -18,8 +18,14 @@
                 content
                     .frame(maxHeight: .infinity)
                 if style == .halfFold { Divider() }
-                Composer(text: model.draftBinding(for: sessionID)) { send() }
-                    .background(HermesColor.background)
+                if !chat.queue.isEmpty {
+                    QueuedMessagesView(chat: chat)
+                }
+                Composer(
+                    text: model.draftBinding(for: sessionID), onSend: { send() },
+                    onSteer: chat.isRunning ? { steer() } : nil
+                )
+                .background(HermesColor.background)
             }
             .task(id: sessionID) { await chat.attach() }
         }
@@ -118,6 +124,13 @@
         private static func isStreamingAssistant(_ item: TranscriptItem) -> Bool {
             if case .assistant(let entry) = item.content { return entry.isStreaming }
             return false
+        }
+
+        private func steer() {
+            let text = model.drafts[sessionID, default: ""]
+            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            model.drafts[sessionID] = ""
+            chat.steer(text)
         }
 
         private func send() {

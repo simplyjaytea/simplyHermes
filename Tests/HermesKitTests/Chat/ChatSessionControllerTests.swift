@@ -9,6 +9,7 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
     private var continuation: AsyncStream<GatewayClientEvent>.Continuation?
     private(set) var submitted: [PromptSubmitParams] = []
     private(set) var interrupts = 0
+    private(set) var steered: [String] = []
     var failSubmit: RPCError?
 
     init(history: [JSONValue] = []) throws {
@@ -33,6 +34,8 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
         return try JSONDecoder().decode(
             PromptSubmitResult.self, from: Data(#"{"status":"streaming","user_row_id":9}"#.utf8))
     }
+
+    func steerSession(_ params: SessionSteerParams) async throws { lock.withLock { steered.append(params.text) } }
 
     func interruptSession(_ params: SessionInterruptParams) async throws { lock.withLock { interrupts += 1 } }
 }
@@ -104,5 +107,41 @@ private func envelope(_ type: String, _ payload: JSONValue, seq: Int) throws -> 
         try await controller.attach()
         await controller.stop()
         #expect(transport.interrupts == 1)
+    }
+
+    @Test func messageWhileBusyWaitsThenSendsWhenTurnEnds() async throws {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        await controller.handle(try envelope("message.start", [:], seq: 1))
+        await controller.send("later")
+        #expect(transport.submitted.isEmpty)
+        #expect(await controller.pendingMessages.entries.map(\.text) == ["later"])
+        await controller.handle(try envelope("message.complete", ["text": "done", "status": "complete"], seq: 2))
+        #expect(transport.submitted.map(\.text) == ["later"])
+        #expect(await controller.pendingMessages.isEmpty)
+    }
+
+    @Test func pausedQueueHoldsUntilResumed() async throws {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        await controller.handle(try envelope("message.start", [:], seq: 1))
+        await controller.send("held")
+        await controller.setQueuePaused(true)
+        await controller.handle(try envelope("message.complete", ["text": "done", "status": "complete"], seq: 2))
+        #expect(transport.submitted.isEmpty)
+        await controller.setQueuePaused(false)
+        #expect(transport.submitted.map(\.text) == ["held"])
+    }
+
+    @Test func steerNeedsARunningTurn() async throws {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        #expect(await controller.steer("go left") == false)
+        await controller.handle(try envelope("message.start", [:], seq: 1))
+        #expect(await controller.steer("go left") == true)
+        #expect(transport.steered == ["go left"])
     }
 }

@@ -14,6 +14,8 @@
         }
 
         public private(set) var state: TranscriptState
+        /// Messages waiting for Hermes to be free.
+        public private(set) var queue = MessageQueue()
         public private(set) var phase: Phase = .loading
         /// Approvals of this chat that wait for the user.
         public private(set) var approvals: [PendingApproval] = []
@@ -59,7 +61,10 @@
                 phase = .ready
                 tasks = [
                     Task { [weak self] in
-                        for await next in states { self?.state = next }
+                        for await next in states {
+                            self?.state = next.transcript
+                            self?.queue = next.queue
+                        }
                     },
                     Task { [weak self] in
                         for await list in pending { self?.setApprovals(list) }
@@ -82,6 +87,32 @@
         public func send(_ text: String) {
             guard let controller else { return }
             Task { await controller.send(text) }
+        }
+
+        /// Sends the text into the running reply instead of queueing it. Falls back to sending normally.
+        public func steer(_ text: String) {
+            guard let controller else { return }
+            Task { if await !controller.steer(text) { await controller.send(text) } }
+        }
+
+        public func editQueued(_ id: Int, to text: String) {
+            guard let controller else { return }
+            Task { await controller.editQueued(id, to: text) }
+        }
+
+        public func removeQueued(_ id: Int) {
+            guard let controller else { return }
+            Task { await controller.removeQueued(id) }
+        }
+
+        public func moveQueued(_ id: Int, to position: Int) {
+            guard let controller else { return }
+            Task { await controller.moveQueued(id, to: position) }
+        }
+
+        public func setQueuePaused(_ paused: Bool) {
+            guard let controller else { return }
+            Task { await controller.setQueuePaused(paused) }
         }
 
         public func stop() {
