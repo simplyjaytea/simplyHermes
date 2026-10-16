@@ -133,6 +133,28 @@
                 }
             }
             .overlay(alignment: .topTrailing) { findButton }
+            .overlay(alignment: .bottomTrailing) { scrollToBottomButton }
+        }
+
+        /// Shows after the user scrolls up from the live end, and jumps back to it.
+        @ViewBuilder
+        private var scrollToBottomButton: some View {
+            if !isFollowing, !chat.state.items.isEmpty {
+                Button {
+                    isFollowing = true
+                    withAnimation(.snappy) { position.scrollTo(edge: .bottom) }
+                } label: {
+                    Image(systemName: "arrow.down")
+                        .font(.body.weight(.semibold))
+                        .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular, in: Circle())
+                .padding(12)
+                .accessibilityIdentifier("chat.scrollToBottom")
+                .accessibilityLabel(Text("Scroll to latest"))
+                .transition(.scale.combined(with: .opacity))
+            }
         }
 
         private var matches: [String] {

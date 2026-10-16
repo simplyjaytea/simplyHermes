@@ -78,7 +78,7 @@
                 }
                 .padding(.horizontal, 10)
                 ScrollView(.horizontal, showsIndicators: false) {
-                    Text(verbatim: code)
+                    Text(Self.highlighted(code, language: language))
                         .font(HermesFont.code)
                         .textSelection(.enabled)
                         .padding(.horizontal, 10)
@@ -90,6 +90,24 @@
                 HermesColor.fill,
                 in: RoundedRectangle(cornerRadius: 10, style: .continuous)
             )
+        }
+
+        /// The code with system colors for keywords, strings, comments and numbers. Closed blocks only change when
+        /// the text does, so streaming a long block re-scans it on each update; blocks are short in practice.
+        static func highlighted(_ code: String, language: String?) -> AttributedString {
+            var result = AttributedString()
+            for token in SyntaxHighlighter.tokens(for: code, language: language) {
+                var piece = AttributedString(token.text)
+                switch token.kind {
+                case .plain: break
+                case .keyword: piece.foregroundColor = .purple
+                case .string: piece.foregroundColor = .red
+                case .comment: piece.foregroundColor = .secondary
+                case .number: piece.foregroundColor = .teal
+                }
+                result.append(piece)
+            }
+            return result
         }
     }
 #endif
