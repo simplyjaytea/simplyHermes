@@ -437,3 +437,25 @@ public struct ApprovalRespondResult: Sendable, Equatable, Codable {
     /// How many approvals this answer resolved.
     public var resolved: Int
 }
+
+/// Params of `session.steer`: text that joins the next tool result without interrupting the turn.
+public struct SessionSteerParams: Sendable, Equatable, Codable {
+    /// The live session id.
+    public var sessionID: String
+    /// The text to inject.
+    public var text: String
+    /// Profile to scope the call to.
+    public var profile: String?
+
+    /// Creates params for a live session id.
+    public init(sessionID: String, text: String, profile: String? = nil) {
+        self.sessionID = sessionID
+        self.text = text
+        self.profile = profile
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case profile, text
+        case sessionID = "session_id"
+    }
+}

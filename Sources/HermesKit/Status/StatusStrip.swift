@@ -194,3 +194,6 @@ public struct StatusStrip: Sendable, Equatable {
         }
     }
 }
+
+/// The readings model under a name that does not clash with the `StatusStrip` view in HermesUI.
+public typealias ChatStatusStrip = StatusStrip
