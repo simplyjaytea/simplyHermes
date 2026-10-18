@@ -2,8 +2,8 @@ import Foundation
 import HermesKit
 import Testing
 
-/// Each test scripts the answers the server gives and checks the request the client built. No answer is decoded yet,
-/// so a call that succeeds is checked by its HTTP status.
+/// Each test scripts the answers the server gives and checks the request the client built. The reads are decoded from
+/// recorded answers. The writes are checked by their HTTP status.
 @Suite struct ToolsetEndpointTests {
     private func jsonObject(_ request: HTTPRequest) throws -> [String: Any] {
         try #require(request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })
@@ -71,6 +71,33 @@ import Testing
         #expect(request.method == "POST" && request.url.path == "/api/tools/toolsets/computer_use/post-setup")
         let body = try jsonObject(request)
         #expect(body.count == 1 && body["key"] as? String == "cua-driver")
+    }
+
+    @Test func toolsetListDecodesThePlatformFields() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, try recordedBody("GET_api_tools_toolsets"))
+        let toolsets = try await makeClient(http).toolsets()
+        let web = try #require(toolsets.first(where: { $0.name == "web" }))
+        #expect(!toolsets.isEmpty && web.platform != nil && web.platformLabel != nil)
+    }
+
+    @Test func configDecodesProvidersAndTheirKeys() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, try recordedBody("GET_api_tools_toolsets_web_config"))
+        let config = try await makeClient(http).toolsetConfig("web")
+        let providers = config.providers ?? []
+        let keys = providers.flatMap { $0.envVars ?? [] }
+        #expect(!providers.isEmpty && !keys.isEmpty && keys.allSatisfy { !$0.key.isEmpty })
+        let request = try #require(http.requests.first)
+        #expect(request.method == "GET" && request.url.path == "/api/tools/toolsets/web/config")
+    }
+
+    @Test func modelsDecodeTheRecordedAnswer() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, try recordedBody("GET_api_tools_toolsets_web_models"))
+        let catalog = try await makeClient(http).toolsetModels("web")
+        #expect(catalog.name == "web" && catalog.hasModels != nil)
+        #expect(http.requests.first?.url.path == "/api/tools/toolsets/web/models")
     }
 
     @Test func toolsetNameIsEncodedInThePath() async throws {

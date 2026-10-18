@@ -11,9 +11,21 @@ private func toolsetPath(_ parts: String...) -> String {
     return parts.map { $0.addingPercentEncoding(withAllowedCharacters: allowed) ?? $0 }.joined(separator: "/")
 }
 
-/// Toolset writes: switch, keys, provider, model and setup. The list itself is ``RESTClient/toolsets()``. No answer
-/// here is decoded: each call checks the HTTP status only (WP-53b).
+/// Toolset configuration. The config and model reads are decoded from recorded fixtures. The writes check the HTTP
+/// status only (WP-53b). The list itself is ``RESTClient/toolsets()``.
 extension RESTClient {
+    /// `GET /api/tools/toolsets/{name}/config`. Typed from `Fixtures/rest/GET_api_tools_toolsets_web_config.json`.
+    public func toolsetConfig(_ name: String) async throws -> ToolsetConfig {
+        try await get("/api/tools/toolsets/" + toolsetPath(name, "config"))
+    }
+
+    /// `GET /api/tools/toolsets/{name}/models`. Typed from `Fixtures/rest/GET_api_tools_toolsets_web_models.json`.
+    /// `provider` names a provider row; nil reads the active one.
+    public func toolsetModels(_ name: String, provider: String? = nil) async throws -> ToolsetModelCatalog {
+        let query = provider.map { [URLQueryItem(name: "provider", value: $0)] } ?? []
+        return try await get("/api/tools/toolsets/" + toolsetPath(name, "models"), query: query)
+    }
+
     /// `PUT /api/tools/toolsets/{name}`: switches a toolset on or off for its configuration platform.
     public func setToolsetEnabled(_ name: String, enabled: Bool) async throws {
         let _: HTTPResponse = try await send(

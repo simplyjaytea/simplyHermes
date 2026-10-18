@@ -2,8 +2,8 @@ import Foundation
 import HermesKit
 import Testing
 
-/// Each test scripts the answers the server gives and checks the request the client built. No answer is decoded yet,
-/// so a call that succeeds is checked by its HTTP status.
+/// Each test scripts the answers the server gives and checks the request the client built. The reads are decoded from
+/// recorded answers. The writes are checked by their HTTP status.
 @Suite struct MCPEndpointTests {
     private func jsonObject(_ request: HTTPRequest) throws -> [String: Any] {
         try #require(request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })
@@ -122,6 +122,32 @@ import Testing
         let body = try jsonObject(request)
         #expect(body["name"] as? String == "github" && body["enable"] as? Bool == true)
         #expect(body["env"] as? [String: String] == ["GITHUB_TOKEN": "t"])
+    }
+
+    @Test func serversDecodeTheRecordedServer() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, try recordedBody("GET_api_mcp_servers.seeded"))
+        let servers = try await makeClient(http).mcpServers()
+        let server = try #require(servers.first)
+        #expect(!server.name.isEmpty)
+        let request = try #require(http.requests.first)
+        #expect(request.method == "GET" && request.url.path == "/api/mcp/servers" && request.url.query == nil)
+    }
+
+    @Test func serversAcceptTheEmptyRecordedList() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, try recordedBody("GET_api_mcp_servers"))
+        let servers = try await makeClient(http).mcpServers()
+        #expect(servers.isEmpty)
+    }
+
+    @Test func catalogDecodesEveryRecordedEntry() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, try recordedBody("GET_api_mcp_catalog"))
+        let catalog = try await makeClient(http).mcpCatalog()
+        #expect(!catalog.entries.isEmpty && catalog.entries.allSatisfy { !$0.name.isEmpty })
+        let request = try #require(http.requests.first)
+        #expect(request.method == "GET" && request.url.path == "/api/mcp/catalog")
     }
 
     @Test func profileScopeIsAddedToMCPCalls() async throws {

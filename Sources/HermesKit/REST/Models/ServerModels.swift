@@ -164,7 +164,8 @@ public struct SkillInfo: Sendable, Equatable, Codable, Identifiable {
     public var id: String { name }
 }
 
-/// One toolset from `GET /api/tools/toolsets`.
+/// One toolset from `GET /api/tools/toolsets`. Typed from `Fixtures/rest/GET_api_tools_toolsets.json`. `platform` and
+/// `platform_label` are also in `toolsets.json`.
 public struct ToolsetInfo: Sendable, Equatable, Codable, Identifiable {
     /// Toolset name.
     public var name: String
@@ -180,6 +181,10 @@ public struct ToolsetInfo: Sendable, Equatable, Codable, Identifiable {
     public var configured: Bool?
     /// Tool names inside.
     public var tools: [String]?
+    /// Platform the switch applies to, such as `cli`.
+    public var platform: String?
+    /// Name of the platform to show, such as `CLI`.
+    public var platformLabel: String?
     /// Identity for lists.
     public var id: String { name }
 }

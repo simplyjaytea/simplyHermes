@@ -28,3 +28,16 @@ func restFixture(_ name: String) throws -> String {
     let url = FixtureFiles.directory.appendingPathComponent("rest").appendingPathComponent(name + ".json")
     return try String(contentsOf: url, encoding: .utf8)
 }
+
+/// The body of a recorded answer. The `GET_` and `POST_` fixtures wrap the body in the record of the request.
+func recordedBody(_ name: String) throws -> String {
+    let record = try JSONSerialization.jsonObject(with: Data(restFixture(name).utf8)) as? [String: Any]
+    guard let body = record?["body"] else { throw RecordedAnswerMissing(name: name) }
+    let json = try JSONSerialization.data(withJSONObject: body, options: [.fragmentsAllowed])
+    return String(decoding: json, as: UTF8.self)
+}
+
+/// A fixture without a `body` field.
+struct RecordedAnswerMissing: Error {
+    let name: String
+}

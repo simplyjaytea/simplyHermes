@@ -11,9 +11,20 @@ private func mcpPath(_ parts: String...) -> String {
     return parts.map { $0.addingPercentEncoding(withAllowedCharacters: allowed) ?? $0 }.joined(separator: "/")
 }
 
-/// MCP servers, their OAuth sign-in and the catalog. No answer is decoded yet: no recorded fixture shows their fields,
-/// so each call checks the HTTP status only (WP-53b).
+/// MCP servers and the catalog. The two reads are decoded from recorded fixtures. The writes check the HTTP status
+/// only (WP-53b).
 extension RESTClient {
+    /// `GET /api/mcp/servers`. Typed from `Fixtures/rest/GET_api_mcp_servers.seeded.json`.
+    public func mcpServers() async throws -> [MCPServerInfo] {
+        let list: MCPServerList = try await get("/api/mcp/servers")
+        return list.servers
+    }
+
+    /// `GET /api/mcp/catalog`. Typed from `Fixtures/rest/GET_api_mcp_catalog.json`.
+    public func mcpCatalog() async throws -> MCPCatalog {
+        try await get("/api/mcp/catalog")
+    }
+
     /// `POST /api/mcp/servers`: adds a server to config. Refuses a name that exists.
     public func addMCPServer(_ server: MCPServerCreate) async throws {
         let _: HTTPResponse = try await send("POST", "/api/mcp/servers", body: server)
