@@ -14,6 +14,8 @@ public protocol ChatTransport: PromptSession {
     func attachPDF(_ params: PdfAttachParams) async throws -> PdfAttachResult
     /// Calls `file.attach`: stages a file in the session workspace.
     func attachFile(_ params: FileAttachParams) async throws -> FileAttachResult
+    /// Calls `session.history`: the stored rows with their row ids.
+    func sessionHistory(_ params: SessionHistoryParams) async throws -> SessionHistoryResult
 }
 
 extension GatewayClient: ChatTransport {
@@ -46,6 +48,11 @@ extension GatewayClient: ChatTransport {
     public func attachFile(_ params: FileAttachParams) async throws -> FileAttachResult {
         try await call("file.attach", params: params)
     }
+
+    /// Calls `session.history`.
+    public func sessionHistory(_ params: SessionHistoryParams) async throws -> SessionHistoryResult {
+        try await call("session.history", params: params)
+    }
 }
 
 /// The server refused an attachment, so the message was not sent.
@@ -73,6 +80,8 @@ public actor ChatSessionController {
     private var isSubmitting = false
     /// True from an accepted prompt until its turn shows up in the events, so a queued message cannot overtake it.
     private var awaitingTurn = false
+    /// Events that came in while an edit waited for the server. Nil when no edit waits. They are applied after the cut.
+    private var heldEvents: [GatewayClientEvent]?
 
     private var isIdle: Bool { state.turn == nil && !isSubmitting && !awaitingTurn }
     private var eventTask: Task<Void, Never>?
@@ -164,6 +173,50 @@ public actor ChatSessionController {
         guard let last else { return }
         await submit(last)
         await drainIfIdle()
+    }
+
+    /// Replaces the user turn at `rowID`, and every row after it, with `text` (edit and regenerate, WP-34). The old
+    /// rows leave the transcript only when the server accepts the edit; until then nothing changes on screen. When the
+    /// outcome asks a question, put it to the user and call again with ``TurnEditConfirmation/consent``. A stale row
+    /// (`4018`) means this transcript is out of date, so the history is read again. Nil when no session is attached
+    /// or another edit still waits for the server.
+    public func edit(text: String, fromRowID rowID: Int, consent: TurnEditConsent = []) async -> TurnEditOutcome? {
+        guard heldEvents == nil, let live = state.liveSessionID else { return nil }
+        let editor = TurnEditor(session: transport, sessionID: live, profile: profile)
+        let impact = RewindImpact.of(state, fromRowID: rowID)
+        isSubmitting = true
+        // The server can start the new turn before its answer reaches us. Holding the events back keeps the new reply
+        // below the edited message, so the cut cannot take it away with the old rows.
+        heldEvents = []
+        let outcome = await editor.edit(text: text, fromRowID: rowID, impact: impact, consent: consent)
+        switch outcome {
+        case .done(let result):
+            submitCount += 1
+            let localID = "\(submitCount)"
+            state.apply(.userSubmitted(localID: localID, text: text, truncateBeforeRowID: rowID))
+            state.apply(.submitAcknowledged(localID: localID, result))
+            awaitingTurn = result.status != .queued && state.turn == nil
+            publish()
+        case .stale:
+            await reloadHistory()
+        case .needsConfirmation, .busy, .failed:
+            break
+        }
+        isSubmitting = false
+        let held = heldEvents ?? []
+        heldEvents = nil
+        for event in held { await handle(event) }
+        await drainIfIdle()
+        return outcome
+    }
+
+    /// Reads the stored history again and shows it. Does nothing while a turn runs, since its text is not stored yet.
+    private func reloadHistory() async {
+        guard let live = state.liveSessionID, state.turn == nil else { return }
+        let params = SessionHistoryParams(sessionID: live, profile: profile)
+        guard let history = try? await transport.sessionHistory(params) else { return }
+        state.apply(.history(history.messages))
+        publish()
     }
 
     /// Changes the text of a waiting message. Blank text removes it.
@@ -271,6 +324,11 @@ public actor ChatSessionController {
 
     /// Feeds one client event to the transcript. Public so tests and replays can drive it.
     public func handle(_ event: GatewayClientEvent) async {
+        // An edit that waits for the server keeps the events back until its cut is in.
+        if heldEvents != nil {
+            heldEvents?.append(event)
+            return
+        }
         guard let action = TranscriptAction(event) else { return }
         state.apply(action)
         if state.turn != nil { awaitingTurn = false }

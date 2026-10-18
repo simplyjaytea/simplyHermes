@@ -47,7 +47,8 @@
                         .contextMenu {
                             if let rowID = entry.rowID {
                                 Button("Edit", systemImage: "pencil") {
-                                    draft = entry.text
+                                    // An edit that did not go through comes back as the user typed it.
+                                    draft = chat.unsentEdits[rowID] ?? entry.text
                                     isEditing = true
                                 }
                                 .disabled(chat.isRunning)

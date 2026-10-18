@@ -33,6 +33,9 @@
         public private(set) var cutError: String?
         /// Text of a rewound turn for the composer to show again. The view takes it with ``takeRefill()``.
         public private(set) var refillText: String?
+        /// What the user typed for an edit the server has not taken, by the row it was for. The Edit sheet offers it
+        /// again, so a failed edit or a cancelled question does not lose the text.
+        public private(set) var unsentEdits: [Int: String] = [:]
 
         public struct PendingCut: Equatable {
             public let rowID: Int
@@ -150,6 +153,7 @@
 
         /// Replaces the user turn at `rowID` and everything after it with `text`, then sends it (WP-34).
         public func edit(rowID: Int, text: String) {
+            unsentEdits[rowID] = text
             runCut(fromRowID: rowID, text: text, consent: [])
         }
 
@@ -167,8 +171,7 @@
                 rewind(toRowID: cut.rowID, confirmed: true)
                 return
             }
-            let consent: TurnEditConsent = cut.confirmation == .emptiesTranscript ? .emptiesTranscript : .deepCut
-            runCut(fromRowID: cut.rowID, text: cut.text, consent: consent)
+            runCut(fromRowID: cut.rowID, text: cut.text, consent: cut.confirmation.consent)
         }
 
         /// Cuts the chat at the user turn `rowID` and everything after it, then puts that turn's text back in the
@@ -243,13 +246,12 @@
             return nil
         }
 
+        /// Runs the cut through the controller, so the transcript is cut and the reply lands under the edited message.
         private func runCut(fromRowID rowID: Int, text: String, consent: TurnEditConsent) {
-            guard let client, let live = state.liveSessionID else { return }
-            let editor = TurnEditor(session: client, sessionID: live)
-            let impact = RewindImpact.of(state, fromRowID: rowID)
+            guard let controller else { return }
             Task { [weak self] in
-                let outcome = await editor.edit(text: text, fromRowID: rowID, impact: impact, consent: consent)
-                self?.noteCut(outcome, rowID: rowID, text: text)
+                let outcome = await controller.edit(text: text, fromRowID: rowID, consent: consent)
+                if let outcome { self?.noteCut(outcome, rowID: rowID, text: text) }
             }
         }
 
@@ -257,10 +259,12 @@
             switch outcome {
             case .done:
                 cutError = nil
+                unsentEdits[rowID] = nil
             case .needsConfirmation(let confirmation):
                 pendingCut = PendingCut(rowID: rowID, text: text, confirmation: confirmation)
             case .stale:
-                cutError = "That message is no longer in this chat. Reload the chat and try again."
+                // The controller has read the history again by now.
+                cutError = "That message is no longer in this chat. Check the chat and try again."
             case .busy:
                 cutError = "Hermes is still replying. Try again when it finishes."
             case .failed(let error):
