@@ -13,16 +13,21 @@ public enum ServerControlActionOutcome: Sendable, Equatable {
 /// Reaches one saved server for the server-control screens (WP-54).
 ///
 /// ``rest()`` connects on demand and waits for the connection, for the first call of an action. The polls use
-/// ``liveRest()``, which never waits: a server that stays down must not hang a poll.
+/// ``liveRest()``, which never waits: a server that stays down must not hang a poll. It also paces its reconnects,
+/// because an SSH connect asks for Face ID.
 public struct ServerControlBackend: Sendable {
     /// The saved connection this backend reaches.
     public let connection: ServerConnection
     private let manager: ConnectionManager
+    /// Shared by every copy of this backend, so one action's polls share one pace.
+    private let pacer: ServerControlConnectPacer
 
     /// Creates a backend for `connection`.
     public init(manager: ConnectionManager, connection: ServerConnection) {
         self.manager = manager
         self.connection = connection
+        // Over SSH each reconnect may ask for Face ID, so one action gets a few attempts. A gateway connect is silent.
+        self.pacer = ServerControlConnectPacer(budget: connection.isSSH ? 4 : nil)
     }
 
     /// True for SSH connections, which restart through the connection manager.
@@ -35,10 +40,16 @@ public struct ServerControlBackend: Sendable {
         return rest
     }
 
-    /// The REST client when the connection is up now. Otherwise starts a connect and returns nil.
+    /// The REST client when the connection is up now, or nil. Never connects.
+    public func connectedRest() async -> RESTClient? {
+        await manager.rest(for: connection.id)
+    }
+
+    /// The REST client when the connection is up now. Otherwise starts a connect, at most once per
+    /// ``ServerControlConnectPacer`` pace, and returns nil.
     public func liveRest() async -> RESTClient? {
         if let rest = await manager.rest(for: connection.id) { return rest }
-        await manager.connect(connection)
+        if await pacer.mayConnect() { await manager.connect(connection) }
         return nil
     }
 
