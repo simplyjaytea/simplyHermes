@@ -138,6 +138,8 @@ public enum IntentOutcome: Equatable, Sendable {
     case unknownBot(String)
     /// No server is connected, so the request could not be carried out.
     case notConnected
+    /// A server is saved, but it did not make the new chat.
+    case couldNotStartChat
     /// The app was not reachable, so the request was not carried out.
     case needsApp
 
@@ -156,6 +158,7 @@ public enum IntentOutcome: Equatable, Sendable {
         case .severalToApprove(let count): "\(count) approvals are waiting. Open simplyHermes to choose which."
         case .unknownBot(let name): "I could not find a bot called \(name)."
         case .notConnected: "simplyHermes is not connected to a server. Open it to connect, then try again."
+        case .couldNotStartChat: "I could not start a new chat. Open simplyHermes to check the server, then try again."
         case .needsApp: "Open simplyHermes to continue."
         }
     }

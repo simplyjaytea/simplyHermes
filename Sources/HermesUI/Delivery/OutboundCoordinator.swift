@@ -10,31 +10,51 @@
     /// lands in the chat's composer as a draft, so nothing the user said is lost.
     ///
     /// The coordinator never connects a chat itself. Opening a chat shows its screen, and the screen connects.
+    ///
+    /// A message for a new chat goes to a chat made on the saved server (`session.create`), so Hermes answers it. The
+    /// message waits while the chat is made. When the server will not make one, the message is kept as a draft in a
+    /// new local chat. Without a saved server, a new chat is a local placeholder, as before.
     @MainActor
     public final class OutboundCoordinator {
         private let model: ShellModel
         private let lastUsedID: @MainActor () -> String?
+        private let chatStarter: ServerChatStarter?
         private let clock: @MainActor () -> Date
         private var waiting: [OutboundMessage] = []
         private var completions: [String: @MainActor () -> Void] = [:]
         private var boundChats: [String: String] = [:]
         private var opened: Set<String> = []
+        /// Messages whose server chat is being made, and messages whose chat could not be made.
+        private var starting: Set<String> = []
+        private var failedStarts: Set<String> = []
         private var loop: Task<Void, Never>?
 
         /// - Parameters:
         ///   - lastUsedID: the chat the user used last, if any.
+        ///   - chatStarter: makes chats on the saved server. Without one, a new chat is a local placeholder.
         ///   - clock: the current time; tests and previews can supply their own.
         public init(
-            model: ShellModel, lastUsedID: @escaping @MainActor () -> String?,
+            model: ShellModel, lastUsedID: @escaping @MainActor () -> String?, chatStarter: ServerChatStarter? = nil,
             clock: @escaping @MainActor () -> Date = { Date() }
         ) {
             self.model = model
             self.lastUsedID = lastUsedID
+            self.chatStarter = chatStarter
             self.clock = clock
         }
 
         /// How many messages have not been delivered yet.
         public var waitingCount: Int { waiting.count }
+
+        /// Makes a chat on the saved server and opens it. Returns the chat's id.
+        ///
+        /// - Parameter profile: the bot to make the chat under. Nil uses the profile chosen in the app.
+        @discardableResult
+        public func startServerChat(profile: String? = nil) async throws(NewChatFailure) -> String {
+            guard let chatStarter else { throw .notReachable }
+            let started = try await chatStarter.start(profile: profile)
+            return model.showStartedChat(started, serverName: chatStarter.serverName)
+        }
 
         /// Queues a message. `completion` runs once it has been sent or saved as a draft, never before.
         public func submit(_ message: OutboundMessage, completion: (@MainActor () -> Void)? = nil) {
@@ -82,18 +102,58 @@
             case .wait:
                 return false
             case .createChat:
-                // `newChat()` opens and selects the chat it makes.
-                model.newChat()
-                guard let created = model.selectedSessionID else { return true }
-                boundChats[message.id] = created
-                opened.insert(message.id)
-                chatID = created
+                switch NewChatPolicy.kind(hasServer: chatStarter?.hasServer ?? false) {
+                case .placeholder:
+                    // `newChat()` opens and selects the chat it makes.
+                    model.newChat()
+                    guard let created = model.selectedSessionID else { return true }
+                    boundChats[message.id] = created
+                    opened.insert(message.id)
+                    chatID = created
+                case .server:
+                    // The chat is made in the background. A later pass finds it, or finds that it could not be made.
+                    if failedStarts.remove(message.id) != nil { return keepInLocalChat(message) }
+                    startChat(for: message)
+                    return false
+                }
             case .chat(let id):
                 chatID = id
             }
             // Showing the chat starts its connection, so open it once and then wait.
             if opened.insert(message.id).inserted { model.open(chatID) }
             return place(message, in: chatID, now: now)
+        }
+
+        /// Makes the server chat for a message, once. The loop picks the chat up when it is there.
+        private func startChat(for message: OutboundMessage) {
+            guard starting.insert(message.id).inserted else { return }
+            Task { [weak self] in
+                guard let self else { return }
+                do {
+                    let id = try await self.startServerChat(profile: message.profile)
+                    self.bind(message.id, toStartedChat: id)
+                } catch {
+                    self.failedStarts.insert(message.id)
+                }
+                self.starting.remove(message.id)
+            }
+        }
+
+        private func bind(_ messageID: String, toStartedChat id: String) {
+            guard let index = waiting.firstIndex(where: { $0.id == messageID }) else { return }
+            boundChats[messageID] = id
+            // Showing the chat opened it. It gets its own time to connect: making it does not count against it.
+            opened.insert(messageID)
+            waiting[index].createdAt = clock()
+        }
+
+        /// The server would not make a chat. The message waits as a draft in a new local chat, so nothing is lost. It
+        /// is not sent, because a local chat can only be answered by the demo.
+        private func keepInLocalChat(_ message: OutboundMessage) -> Bool {
+            model.newChat()
+            guard let created = model.selectedSessionID else { return true }
+            keepAsDraft(message, in: created)
+            return true
         }
 
         private func place(_ message: OutboundMessage, in id: String, now: Date) -> Bool {

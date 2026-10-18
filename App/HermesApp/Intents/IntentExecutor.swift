@@ -34,7 +34,7 @@ final class IntentExecutor {
         case .askBot(let name, _):
             return await askBot(request, botName: name)
         case .newChat:
-            return newChat(request)
+            return await newChat(request)
         case .stopAll:
             return stopAll()
         case .approvePending:
@@ -70,19 +70,36 @@ final class IntentExecutor {
             return .notConnected
         }
         // Built after the wait, so the message does not start its delivery time early.
-        guard let message = IntentMapping.message(for: request, now: Date()) else { return .needsApp }
+        guard var message = IntentMapping.message(for: request, now: Date()) else { return .needsApp }
+        // The new chat works as this bot, even when the profile switch has not reached the connection yet.
+        message.profile = bot.name
         outbound.submit(message)
         return .askedBot(name: bot.title)
     }
 
-    private func newChat(_ request: IntentRequest) -> IntentOutcome {
-        guard let message = IntentMapping.message(for: request, now: Date()) else {
+    /// With a saved server, a new chat is a chat on that server, so Hermes answers in it. Without one it stays the
+    /// local placeholder, which cannot take a message.
+    private func newChat(_ request: IntentRequest) async -> IntentOutcome {
+        let message = IntentMapping.message(for: request, now: Date())
+        switch NewChatPolicy.plan(hasServer: hasServer, hasText: message != nil) {
+        case .needsServer:
+            return .notConnected
+        case .placeholderChat:
             model.newChat()
             return .openedNewChat
+        case .serverChat:
+            // The first message waits in the outbound queue, which makes the chat and keeps a draft if it cannot.
+            if let message {
+                outbound.submit(message)
+                return .queued(chatTitle: nil)
+            }
+            do {
+                try await outbound.startServerChat()
+            } catch {
+                return .couldNotStartChat
+            }
+            return .openedNewChat
         }
-        guard hasServer else { return .notConnected }
-        outbound.submit(message)
-        return .queued(chatTitle: nil)
     }
 
     private func stopAll() -> IntentOutcome {

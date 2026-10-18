@@ -17,16 +17,19 @@ public struct OutboundMessage: Equatable, Sendable, Identifiable {
     public var attachments: [ComposerAttachment]
     public var target: OutboundTarget
     public var createdAt: Date
+    /// The bot (Hermes profile) a new chat for this message works as. Nil follows the chosen profile.
+    public var profile: String?
 
     public init(
         id: String = UUID().uuidString, text: String, attachments: [ComposerAttachment] = [],
-        target: OutboundTarget, createdAt: Date
+        target: OutboundTarget, createdAt: Date, profile: String? = nil
     ) {
         self.id = id
         self.text = text
         self.attachments = attachments
         self.target = target
         self.createdAt = createdAt
+        self.profile = profile
     }
 }
 

@@ -27,7 +27,9 @@ final class EntryIntegration {
         let directory = ChatDirectoryObserver(
             model: model, quickEntry: quickEntry, sharedDirectory: sharedDirectory, localDirectory: localDirectory,
             spotlight: spotlight)
-        let outbound = OutboundCoordinator(model: model, lastUsedID: { directory.lastChat?.id })
+        let outbound = OutboundCoordinator(
+            model: model, lastUsedID: { directory.lastChat?.id },
+            chatStarter: ServerChatStarter(connections: connections))
         let roster = BotRosterService(connections: connections, directory: localDirectory) { saved in
             spotlight.update(bots: saved.bots.map { SpotlightBot(name: $0.name, title: $0.title) })
             HermesShortcuts.updateAppShortcutParameters()
@@ -134,8 +136,19 @@ final class EntryIntegration {
         Task { [weak self] in
             guard let self, let bot = self.roster.roster.bot(named: name) else { return }
             if await self.roster.select(bot) == .selected {
-                self.model.newChat()
+                await self.openNewChat(profile: bot.name)
             }
+        }
+    }
+
+    /// A new chat from outside the chat list: a chat on the server when one is saved, else the local placeholder.
+    private func openNewChat(profile: String?) async {
+        switch NewChatPolicy.kind(hasServer: hasServer) {
+        case .placeholder:
+            model.newChat()
+        case .server:
+            // A server that will not make the chat leaves the chat list as it was.
+            _ = try? await outbound.startServerChat(profile: profile)
         }
     }
 
