@@ -8,7 +8,7 @@
     public final class ServerLogsModel {
         /// The log lines, in the order the server sent them.
         public private(set) var lines: [String] = []
-        /// The system stats header, a few rows.
+        /// The system stats header: CPU, memory and disk percent, and uptime.
         public private(set) var stats: [ServerStatsRow] = []
         public private(set) var isLoading = false
         /// Set when the read failed. The last lines stay on screen.
@@ -33,7 +33,7 @@
             do {
                 let rest = try await backend.rest()
                 if let system = try? await rest.systemStats() {
-                    stats = Array(ServerStatsRows.rows(from: system).prefix(6))
+                    stats = ServerStatsRows.logsHeader(from: system)
                 }
                 let answer = try await rest.serverLogs(filter)
                 lines = ServerLogsRows.lines(from: answer)
@@ -56,9 +56,10 @@
             model.lines = lines
             model.errorText = errorText
             model.stats = [
-                ServerStatsRow(label: "Cpu percent", value: "12.50"),
-                ServerStatsRow(label: "Memory total mb", value: "4096"),
-                ServerStatsRow(label: "Uptime s", value: "3600"),
+                ServerStatsRow(label: "Cpu percent", value: "0.00"),
+                ServerStatsRow(label: "Memory percent", value: "12.40"),
+                ServerStatsRow(label: "Disk percent", value: "42.20"),
+                ServerStatsRow(label: "Uptime seconds", value: "135"),
             ]
             return model
         }

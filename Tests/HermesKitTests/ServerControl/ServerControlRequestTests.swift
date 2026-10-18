@@ -90,6 +90,21 @@ import Testing
         #expect(request.url.query == nil && request.body == nil)
     }
 
+    /// Writes the testbed did not record read only the HTTP status: a 200 with any body succeeds, and a refusal throws.
+    @Test func writesReadOnlyTheStatus() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, "not json, and never read")
+        try await makeClient(http).gatewayControl(.start)
+        http.enqueue(409, #"{"detail": "busy"}"#)
+        var refused = false
+        do {
+            try await makeClient(http).hermesUpdate()
+        } catch {
+            refused = true
+        }
+        #expect(refused)
+    }
+
     @Test func receiptIsAnUnscopedGet() async throws {
         let http = FakeHTTP()
         http.enqueue(200, "{}")

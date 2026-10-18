@@ -22,8 +22,11 @@
                     installedSection(check)
                     if check.updateAvailable == true {
                         updateSection(check)
+                    } else if let message = check.message {
+                        Section {
+                            ServerControlProblem(text: message)
+                        }
                     }
-                    commitsSection(check)
                 }
                 phaseSection
             }
@@ -81,25 +84,6 @@
         }
 
         @ViewBuilder
-        private func commitsSection(_ check: HermesUpdateCheck) -> some View {
-            if let commits = check.commits, !commits.isEmpty {
-                Section("Commits") {
-                    ForEach(Array(commits.enumerated()), id: \.offset) { _, commit in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(commit.summary ?? "Commit")
-                                .font(HermesFont.body)
-                                .lineLimit(2)
-                            Text(commitDetail(commit))
-                                .font(HermesFont.codeSmall)
-                                .foregroundStyle(HermesColor.secondaryText)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-            }
-        }
-
-        @ViewBuilder
         private var phaseSection: some View {
             switch model.phase {
             case .idle:
@@ -137,13 +121,8 @@
                 if let behind = check.behind, behind > 0 { return "\(behind) commits behind" }
                 return "Update available"
             }
-            if check.updateAvailable == false { return "Up to date" }
+            if check.isUpToDate { return "Up to date" }
             return "Unknown"
-        }
-
-        private func commitDetail(_ commit: HermesUpdateCommit) -> String {
-            let sha = commit.sha.map { String($0.prefix(7)) }
-            return [sha, commit.author].compactMap { $0 }.joined(separator: " · ")
         }
     }
 

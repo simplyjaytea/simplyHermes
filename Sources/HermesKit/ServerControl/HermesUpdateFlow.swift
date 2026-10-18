@@ -76,7 +76,7 @@ public struct HermesUpdateFlow: Sendable, Equatable {
     {
         let check = try await steps.check(true)
         guard check.updateAvailable == true else {
-            if check.updateAvailable == false { return .upToDate }
+            if check.isUpToDate { return .upToDate }
             return .checkUnclear(message: check.message)
         }
         guard check.canApply == true else {

@@ -1,24 +1,35 @@
 import Foundation
 
-/// `GET /api/hermes/update/check`. The field list is the endpoint's own description, so every field is read
-/// leniently: a field of an unexpected type is nil.
+/// `GET /api/hermes/update/check`. Each field is a key of Fixtures/rest/GET_api_hermes_update_check.json, read by its
+/// type. The recorder captured two shapes: the committed success answer, and an error answer with no `commits` key
+/// and a null `behind`. Its exact body is in Fixtures/rest/README.md. So every field is optional. Values vary between
+/// recorder runs, so the docs name types. Each field is read on its own: a field of an unexpected type is nil.
 public struct HermesUpdateCheck: Sendable, Equatable, Decodable {
-    /// `apt`, `git`, `docker`, `nix`, `nixos` or `unknown`.
+    /// `install_method`, a string in GET_api_hermes_update_check.json.
     public var installMethod: String?
-    /// The installed version.
+    /// `current_version`, a string in GET_api_hermes_update_check.json.
     public var currentVersion: String?
-    /// Commits behind: 0 is up to date, -1 an unknown count, nil a check that could not run.
+    /// `behind`, an integer in GET_api_hermes_update_check.json. Null in the error answer.
+    /// A missing count does not mean up to date (see ``isUpToDate``).
     public var behind: Int?
-    /// True when an update exists.
+    /// `update_available`, a boolean in GET_api_hermes_update_check.json. False in the error answer.
     public var updateAvailable: Bool?
-    /// True when the dashboard can apply the update in place (git installs only).
+    /// `can_apply`, a boolean in GET_api_hermes_update_check.json.
     public var canApply: Bool?
-    /// The command to run by hand when the dashboard cannot apply it.
+    /// `update_command`, a string in GET_api_hermes_update_check.json.
     public var updateCommand: String?
-    /// Guidance for installs the dashboard cannot update.
+    /// `message`. Null in the committed copy of GET_api_hermes_update_check.json. In the error answer it is the error
+    /// text (Fixtures/rest/README.md has that body).
     public var message: String?
-    /// The commits the install is behind, for git installs.
-    public var commits: [HermesUpdateCommit]?
+    /// `commits`, a list in GET_api_hermes_update_check.json. Absent in the error answer.
+    /// The keys of its entries are not recorded, so each entry is kept as JSON.
+    public var commits: [JSONValue]?
+
+    /// True when no update exists and the check gives a count behind. A false `update_available` with no count is
+    /// not up to date: the error answer has that shape.
+    public var isUpToDate: Bool {
+        updateAvailable == false && behind != nil
+    }
 
     private enum CodingKeys: String, CodingKey {
         case installMethod, currentVersion, behind, updateAvailable, canApply, updateCommand, message, commits
@@ -34,14 +45,14 @@ public struct HermesUpdateCheck: Sendable, Equatable, Decodable {
         canApply = try? values.decodeIfPresent(Bool.self, forKey: .canApply)
         updateCommand = try? values.decodeIfPresent(String.self, forKey: .updateCommand)
         message = try? values.decodeIfPresent(String.self, forKey: .message)
-        commits = try? values.decodeIfPresent([HermesUpdateCommit].self, forKey: .commits)
+        commits = try? values.decodeIfPresent([JSONValue].self, forKey: .commits)
     }
 
     /// Creates a value from its fields, for previews and tests.
     public init(
         installMethod: String? = nil, currentVersion: String? = nil, behind: Int? = nil,
         updateAvailable: Bool? = nil, canApply: Bool? = nil, updateCommand: String? = nil, message: String? = nil,
-        commits: [HermesUpdateCommit]? = nil
+        commits: [JSONValue]? = nil
     ) {
         self.installMethod = installMethod
         self.currentVersion = currentVersion
@@ -51,38 +62,5 @@ public struct HermesUpdateCheck: Sendable, Equatable, Decodable {
         self.updateCommand = updateCommand
         self.message = message
         self.commits = commits
-    }
-}
-
-/// One commit in ``HermesUpdateCheck/commits``: `{sha, summary, author, at}`.
-public struct HermesUpdateCommit: Sendable, Equatable, Decodable {
-    /// The commit id.
-    public var sha: String?
-    /// The first line of the commit message.
-    public var summary: String?
-    /// The author.
-    public var author: String?
-    /// When the commit was made, as the server writes it.
-    public var at: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case sha, summary, author, at
-    }
-
-    /// Reads each field on its own.
-    public init(from decoder: any Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        sha = try? values.decodeIfPresent(String.self, forKey: .sha)
-        summary = try? values.decodeIfPresent(String.self, forKey: .summary)
-        author = try? values.decodeIfPresent(String.self, forKey: .author)
-        at = try? values.decodeIfPresent(String.self, forKey: .at)
-    }
-
-    /// Creates a commit, for previews and tests.
-    public init(sha: String? = nil, summary: String? = nil, author: String? = nil, at: String? = nil) {
-        self.sha = sha
-        self.summary = summary
-        self.author = author
-        self.at = at
     }
 }

@@ -111,14 +111,11 @@
     }
 
     extension HermesUpdateCheck {
-        /// A git install three commits behind, for previews.
+        /// A git install with an update available, for previews.
         static var sampleAvailable: HermesUpdateCheck {
             HermesUpdateCheck(
-                installMethod: "git", currentVersion: "0.19.0", behind: 3, updateAvailable: true, canApply: true,
-                updateCommand: "hermes update",
-                commits: [
-                    HermesUpdateCommit(sha: "abc1234def", summary: "Fix the log tail on large files", author: "dev")
-                ])
+                installMethod: "git", currentVersion: "git.d97007c", behind: -1, updateAvailable: true, canApply: true,
+                updateCommand: "hermes update")
         }
     }
 #endif

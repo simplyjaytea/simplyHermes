@@ -14,11 +14,11 @@
     }
 
     extension ServerControlStatus {
-        /// Sample values for previews.
+        /// Sample values for previews, shaped like the recorder's status answer.
         static var sample: ServerControlStatus {
             ServerControlStatus(
-                releaseDate: "2026.9.24", latestConfigVersion: 50, overall: "ok", gatewayRunning: true,
-                gatewayState: "running", gatewayMode: "multiplex", gatewayBusy: false, gatewayDrainable: true,
+                releaseDate: "2026.9.24", latestConfigVersion: 50, overall: "degraded", gatewayRunning: false,
+                gatewayState: nil, gatewayMode: "none", gatewayBusy: false, gatewayDrainable: false,
                 canUpdateHermes: true)
         }
     }
@@ -117,8 +117,9 @@
             model.phase = phase
             model.errorText = errorText
             model.idleRows = [
-                ServerStatsRow(label: "Idle", value: "No"),
-                ServerStatsRow(label: "Active sessions", value: "0"),
+                ServerStatsRow(label: "Idle", value: "Yes"),
+                ServerStatsRow(label: "Ok", value: "Yes"),
+                ServerStatsRow(label: "Reason", value: "—"),
             ]
             return model
         }

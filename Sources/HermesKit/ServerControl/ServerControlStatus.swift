@@ -1,8 +1,8 @@
 import Foundation
 
 /// `GET /api/status` as the server-control screens read it: the compatibility fields (``ServerStatus``) and the
-/// gateway's own state. The gateway field names come from the recorded `/api/status` answer, because the OpenAPI
-/// leaves the body untyped.
+/// gateway's own state. Each field is a key of Fixtures/rest/GET_api_status.json, read by its type. Values vary
+/// between recorder runs, so the docs name types. The OpenAPI leaves the body untyped.
 public struct ServerControlStatus: Sendable, Equatable, Decodable {
     /// The release, config and gateway fields that ``ServerCompatibility`` and the status line read.
     public var server: ServerStatus
@@ -35,17 +35,17 @@ public struct ServerControlStatus: Sendable, Equatable, Decodable {
 /// The gateway fields of `GET /api/status`. Each one is optional and read leniently: a field of an unexpected type
 /// is nil, so it never fails the whole status.
 public struct ServerGatewayState: Sendable, Equatable, Decodable {
-    /// `gateway_state`, such as `running` or `stopped`. Nil when the server does not say.
+    /// `gateway_state`. Null in GET_api_status.json, so its text type is not confirmed. Nil when null.
     public var gatewayState: String?
-    /// `gateway_mode`, such as `none`.
+    /// `gateway_mode`, a string in GET_api_status.json.
     public var gatewayMode: String?
-    /// `gateway_busy`: the gateway is working on turns.
+    /// `gateway_busy`, a boolean in GET_api_status.json.
     public var gatewayBusy: Bool?
-    /// `gateway_drainable`: a drain can start now.
+    /// `gateway_drainable`, a boolean in GET_api_status.json.
     public var gatewayDrainable: Bool?
-    /// `gateway_exit_reason`: why the gateway last stopped.
+    /// `gateway_exit_reason`. Null in GET_api_status.json, so its text type is not confirmed.
     public var gatewayExitReason: String?
-    /// `can_update_hermes`: the server can update itself in place.
+    /// `can_update_hermes`, a boolean in GET_api_status.json.
     public var canUpdateHermes: Bool?
 
     private enum CodingKeys: String, CodingKey {

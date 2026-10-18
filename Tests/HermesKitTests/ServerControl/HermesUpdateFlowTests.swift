@@ -73,6 +73,15 @@ import Testing
         #expect(outcome == .finished(compatibility: .updateRequired(found: "release 2026.9.1"), receipt: newReceipt))
     }
 
+    @Test func anErrorAnswerIsUnclearAndShowsItsMessage() async throws {
+        let message = "Couldn't reach the update source — try again later."
+        let server = ServerControlUpdateServer(
+            check: HermesUpdateCheck(updateAvailable: false, message: message), polls: [.absent])
+        let outcome = try await HermesUpdateFlow().checkAndApply(server.steps, clock: ServerControlVirtualClock())
+        #expect(outcome == .checkUnclear(message: message))
+        #expect(server.started == 0)
+    }
+
     @Test func thePlanDefaultsArePollEveryThreeSecondsForFifteenMinutes() {
         let flow = HermesUpdateFlow()
         #expect(flow.pollInterval == 3 && flow.timeout == 900)

@@ -29,6 +29,16 @@ public enum ServerStatsRows {
         return flatten(fields, parent: nil, depth: depth)
     }
 
+    /// The Logs header figures: CPU, memory and disk percent, and uptime, in that order. Each is found by its label,
+    /// a flattened key of GET_api_system_stats.json: `cpu_percent`, `memory.percent`, `disk.percent`,
+    /// `uptime_seconds`. A label the answer lacks is left out, and no other figure is shown.
+    public static func logsHeader(from json: JSONValue) -> [ServerStatsRow] {
+        let all = rows(from: json)
+        return ["Cpu percent", "Memory percent", "Disk percent", "Uptime seconds"].compactMap { label in
+            all.first { $0.label == label }
+        }
+    }
+
     /// The value as the screens show it.
     public static func text(_ value: JSONValue) -> String {
         switch value {

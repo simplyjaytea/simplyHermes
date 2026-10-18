@@ -1,6 +1,7 @@
 import Foundation
 
-/// The level filter on the Logs screen. ``apiValue`` is the `level` query value (Python logging names).
+/// The level filter on the Logs screen. ``apiValue`` is the `level` query value. Logs carry names such as INFO
+/// and WARNING. The spec types `level` as a string and lists no values, so the accepted values are unverified.
 public enum ServerLogsLevel: String, Sendable, Equatable, CaseIterable, Identifiable {
     case all
     case error
@@ -42,10 +43,10 @@ public struct ServerLogsFilter: Sendable, Equatable {
     public var level: ServerLogsLevel
     /// Text to search for.
     public var search: String
-    /// How many lines to return.
+    /// How many lines to ask for.
     public var lines: Int
 
-    /// Creates a filter. The default reads the last 200 lines of the `agent` log.
+    /// Creates a filter. The default asks for 200 lines of the `agent` log.
     public init(file: String = "agent", level: ServerLogsLevel = .all, search: String = "", lines: Int = 200) {
         self.file = file
         self.level = level
@@ -66,31 +67,20 @@ public struct ServerLogsFilter: Sendable, Equatable {
     }
 }
 
-/// Reads log lines out of a `GET /api/logs` answer. The OpenAPI leaves the answer untyped, so this takes the
-/// first array of lines it finds and shows anything else as the JSON it is.
+/// Reads log lines out of a `GET /api/logs` answer. The recorder's `{file, lines}` answer has `lines` as a list of
+/// strings (Fixtures/rest/GET_api_logs.json), kept in the server's order. A line's trailing newline is dropped. Any
+/// other answer is shown as the JSON it is.
 public enum ServerLogsRows {
-    /// Keys that may hold the list of lines, in order of preference.
-    static let listKeys = ["lines", "entries", "logs", "records", "items"]
-
     /// The lines to show, in the order the server sent them.
     public static func lines(from json: JSONValue) -> [String] {
-        switch json {
-        case .array(let items):
+        if case .object(let fields) = json, case .array(let items)? = fields["lines"] {
             return items.map(line)
-        case .string(let text):
-            return text.split(whereSeparator: \.isNewline).map(String.init)
-        case .object(let fields):
-            for key in listKeys {
-                if case .array(let items)? = fields[key] { return items.map(line) }
-            }
-            return pretty(json).split(whereSeparator: \.isNewline).map(String.init)
-        default:
-            return [ServerStatsRows.text(json)]
         }
+        return pretty(json).split(whereSeparator: \.isNewline).map(String.init)
     }
 
     private static func line(_ item: JSONValue) -> String {
-        if case .string(let text) = item { return text }
+        if case .string(let text) = item { return text.trimmingCharacters(in: .newlines) }
         return compact(item)
     }
 

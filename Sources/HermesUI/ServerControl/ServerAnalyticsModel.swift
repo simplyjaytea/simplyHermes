@@ -19,7 +19,7 @@
     public final class ServerAnalyticsModel {
         /// The top-level figures.
         public private(set) var totals: [ServerStatsRow] = []
-        /// One group per model (or other object the server lists).
+        /// One group per model, from the per-model list of the answer.
         public private(set) var groups: [ServerAnalyticsGroup] = []
         public private(set) var isLoading = false
         /// Set when the read failed. The last figures stay on screen.
@@ -65,22 +65,22 @@
         static func preview(errorText: String? = nil) -> ServerAnalyticsModel {
             let model = ServerAnalyticsModel(connections: .preview())
             model.totals = [
-                ServerStatsRow(label: "Sessions", value: "42"),
-                ServerStatsRow(label: "Messages", value: "1,280"),
-                ServerStatsRow(label: "Tool calls", value: "311"),
+                ServerStatsRow(label: "Period days", value: "30"),
+                ServerStatsRow(label: "Totals total api calls", value: "188"),
+                ServerStatsRow(label: "Totals total sessions", value: "42"),
             ]
             model.groups = [
                 ServerAnalyticsGroup(
                     id: 0, title: "fake-model",
                     rows: [
                         ServerStatsRow(label: "Model", value: "fake-model"),
-                        ServerStatsRow(label: "Calls", value: "188"),
+                        ServerStatsRow(label: "Api calls", value: "188"),
                     ]),
                 ServerAnalyticsGroup(
                     id: 1, title: "small-model",
                     rows: [
                         ServerStatsRow(label: "Model", value: "small-model"),
-                        ServerStatsRow(label: "Calls", value: "123"),
+                        ServerStatsRow(label: "Api calls", value: "123"),
                     ]),
             ]
             model.errorText = errorText
