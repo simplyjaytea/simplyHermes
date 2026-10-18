@@ -151,6 +151,7 @@
             let approval = sessionID.flatMap { model.pendingApproval(in: $0) }
             let isStreaming = sessionID.map { model.isStreaming($0) } ?? false
             VStack(spacing: 16) {
+                if InlineTipStore.isPending(.tent) { InlineTipCard(kind: .tent) }
                 Text(session?.title ?? "No chat")
                     .font(HermesFont.glanceTitle)
                     .lineLimit(1)
