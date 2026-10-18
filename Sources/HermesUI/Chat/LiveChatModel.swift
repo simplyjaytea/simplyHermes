@@ -14,6 +14,8 @@
         }
 
         public private(set) var state: TranscriptState
+        /// The folder this chat moved to in this run. Nil until the user picks one, then `state.info.cwd` is stale.
+        public private(set) var workspaceCwd: String?
         /// Messages waiting for Hermes to be free.
         public private(set) var queue = MessageQueue()
         public private(set) var phase: Phase = .loading
@@ -146,6 +148,18 @@
         public func moveQueued(_ id: Int, to position: Int) {
             guard let controller else { return }
             Task { await controller.moveQueued(id, to: position) }
+        }
+
+        /// Moves this chat into another folder on the server. Returns false when the server refuses (WP-37).
+        public func moveWorkspace(to cwd: String) async -> Bool {
+            guard let client else { return false }
+            let params = SessionWorkspaceMoveParams(sessionKey: storedSessionID, cwd: cwd)
+            do {
+                workspaceCwd = try await client.moveSessionWorkspace(params).cwd
+                return true
+            } catch {
+                return false
+            }
         }
 
         public func setQueuePaused(_ paused: Bool) {

@@ -16,6 +16,7 @@
         @State private var query = ""
         @State private var currentMatch: String?
         @FocusState private var findFocused: Bool
+        @State private var showsWorkspaces = false
 
         var body: some View {
             VStack(spacing: 0) {
@@ -44,6 +45,13 @@
             .sheet(item: Binding(get: { chat.valueRequests.first }, set: { _ in })) { item in
                 SecureValueSheet(
                     item: item, onSend: { chat.answerValue(item, $0) }, onCancel: { chat.dismissValue(item) })
+            }
+            .sheet(isPresented: $showsWorkspaces) {
+                if let browser = model.workspaceBrowser {
+                    WorkspacePickerSheet(browser: browser, current: workspaceFolder) { folder in
+                        await chat.moveWorkspace(to: folder)
+                    }
+                }
             }
         }
 
@@ -246,17 +254,24 @@
             withAnimation(HermesMotion.snappy) { position.scrollTo(id: currentMatch, anchor: .center) }
         }
 
+        /// The folder this chat runs in: the one it moved to this run, else the one the server reported.
+        private var workspaceFolder: String? { chat.workspaceCwd ?? chat.state.info?.cwd }
+
         @ViewBuilder
         private var header: some View {
             if let session = model.session(id: sessionID) {
-                StatusStrip(
-                    connection: .connected,
-                    serverName: session.serverName,
-                    runningTurn: chat.isRunning ? "Hermes is replying" : nil,
-                    onStop: chat.isRunning ? { chat.stop() } : nil
-                )
-                .padding(.horizontal, 12)
-                .padding(.top, 4)
+                VStack(alignment: .leading, spacing: 6) {
+                    StatusStrip(
+                        connection: .connected,
+                        serverName: session.serverName,
+                        runningTurn: chat.isRunning ? "Hermes is replying" : nil,
+                        onStop: chat.isRunning ? { chat.stop() } : nil
+                    )
+                    .padding(.horizontal, 12)
+                    .padding(.top, 4)
+                    WorkspacePill(folder: workspaceFolder) { showsWorkspaces = true }
+                        .padding(.horizontal, 12)
+                }
             }
         }
 
