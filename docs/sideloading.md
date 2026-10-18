@@ -15,6 +15,18 @@ SideStore re-signs it with a free Apple ID and installs it on the iPhone.
 
 SideStore setup on a Linux machine is a one-time manual step for JT and is not done by CI.
 
+## Downloaded on-device models (WP-65c)
+
+The app asks for the entitlement `com.apple.developer.kernel.increased-memory-limit` so a downloaded model has room to
+load. Free-account signing may drop it, the same way it can drop App Groups. Check once on the first sideloaded build:
+
+1. Settings > On-device models: download the smallest model, then choose Use this model.
+2. Ask something in offline chat. If the Apple model answers instead, or the app closes during the first answer, iOS
+   refused the memory: the entitlement was dropped, or the phone has too little free memory. The app checks
+   `os_proc_available_memory()` before it loads a model and falls back to the Apple model, so the feature should degrade
+   and not crash. The model list shows a caution on models that may not fit.
+3. A download needs the model size (0.8 to 2.3 GB) plus 0.5 GB free on the phone. The files are not backed up, and Delete removes them.
+
 ## Widgets and Live Activity (WP-63/64)
 
 The app ships one extension, `simplyHermesWidgets` (Bots widget, Lock Screen widgets, Live Activity), so a SideStore install uses 2 App IDs. The planned Share extension will be the third and last.

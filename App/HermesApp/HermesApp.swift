@@ -28,6 +28,7 @@ struct HermesApp: App {
         WindowGroup {
             RootView(model: model, connections: connections, sessionsList: sessionsList, launch: launch)
                 .tint(HermesColor.accent)
+                .environment(\.onDeviceModels, OnDeviceModelServices.shared.model)
                 .onOpenURL { url in
                     if let id = HermesURL.chatID(from: url), model.session(id: id) != nil {
                         model.open(id)
@@ -37,6 +38,7 @@ struct HermesApp: App {
         WindowGroup(id: ShellWindow.chat, for: String.self) { $sessionID in
             ChatWindow(model: model, sessionID: sessionID)
                 .tint(HermesColor.accent)
+                .environment(\.onDeviceModels, OnDeviceModelServices.shared.model)
         }
     }
 
