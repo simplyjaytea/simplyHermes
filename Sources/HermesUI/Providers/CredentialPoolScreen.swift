@@ -2,10 +2,10 @@
     import HermesKit
     import SwiftUI
 
-    /// Settings > Models > Credentials pool: the pooled keys, removal with confirmation, and a form to add a key (WP-53a).
+    /// Settings > Models > Credentials pool: the pooled keys, removal with confirmation, and a form to add a key
+    /// (WP-53a).
     struct CredentialPoolScreen: View {
         @State private var model: CredentialPoolModel
-        @State private var pendingRemove: CredentialPoolRemoval?
 
         init(connections: ConnectionsModel) {
             _model = State(initialValue: CredentialPoolModel(connections: connections))
@@ -23,7 +23,7 @@
                             CredentialPoolRow(entry: entry)
                                 .swipeActions(edge: .trailing) {
                                     Button("Remove", role: .destructive) {
-                                        pendingRemove = CredentialPoolRemoval(provider: group.provider, entry: entry)
+                                        Task { await model.askToRemove(entry, provider: group.provider) }
                                     }
                                 }
                         }
@@ -71,28 +71,34 @@
             .task { await model.load() }
             .refreshable { await model.load() }
             .confirmationDialog(
-                "Remove this key from the pool?", isPresented: removeIsPresented, titleVisibility: .visible
+                "Remove this key?", isPresented: removeIsPresented, titleVisibility: .visible
             ) {
                 Button("Remove key", role: .destructive) {
-                    if let removal = pendingRemove {
-                        Task { await model.remove(removal.entry, provider: removal.provider) }
-                    }
-                    pendingRemove = nil
+                    // Read the pending removal here: the dialog clears it when it closes.
+                    guard let removal = model.pendingRemoval else { return }
+                    Task { await model.confirmRemoval(removal) }
                 }
             } message: {
-                Text("The server removes the key from the pool and from where it was stored. This can't be undone.")
+                if let removal = model.pendingRemoval {
+                    Text(verbatim: removalMessage(removal))
+                }
             }
         }
 
         private var removeIsPresented: Binding<Bool> {
-            Binding(get: { pendingRemove != nil }, set: { if !$0 { pendingRemove = nil } })
+            Binding(get: { model.pendingRemoval != nil }, set: { if !$0 { model.cancelRemoval() } })
         }
-    }
 
-    /// A removal waiting for the user's confirmation.
-    struct CredentialPoolRemoval {
-        let provider: String
-        let entry: CredentialPoolEntry
+        /// The confirmation text: the provider, label and index the pool lists now, then the warning.
+        private func removalMessage(_ removal: CredentialPoolRemoval) -> String {
+            [
+                "Provider: \(removal.provider)",
+                "Label: \(removal.shownLabel)",
+                "Index: \(removal.index)",
+                "",
+                "The server removes this key from the pool and from where it was stored. This can't be undone.",
+            ].joined(separator: "\n")
+        }
     }
 
     /// One pooled key: its label, where it came from, and how often it has served requests. The token is never shown.

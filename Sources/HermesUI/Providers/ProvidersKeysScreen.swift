@@ -54,7 +54,8 @@
                     Text("Custom endpoints")
                 } footer: {
                     Text(
-                        "An OpenAI-compatible server you run yourself. Validate it before you save. Swipe a row to use or delete it."
+                        "An OpenAI-compatible server you run yourself. Validate it before you save. "
+                            + "Swipe a row to use or delete it."
                     )
                 }
                 if let errorText = model.errorText {

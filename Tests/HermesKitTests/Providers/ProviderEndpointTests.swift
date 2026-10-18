@@ -2,8 +2,8 @@ import Foundation
 import HermesKit
 import Testing
 
-/// Request shape and decoding for the provider, OAuth, env and credential-pool calls. Recorded requests and answers come
-/// from Fixtures/rest, so the bodies are compared with what the testbed really sent.
+/// Request shape and decoding for the provider, OAuth, env and credential-pool calls. Recorded requests and answers
+/// come from Fixtures/rest, so the bodies are compared with what the testbed really sent.
 @Suite struct ProviderEndpointTests {
     /// The request body as JSON, so keys and types can be compared exactly.
     private func json(_ request: HTTPRequest) throws -> JSONValue {
@@ -189,5 +189,22 @@ import Testing
         } catch RESTError.http(let status, let detail) {
             #expect(status == 404 && detail != nil)
         }
+    }
+
+    @Test func credentialEntryIsLookedUpInTheListGiven() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, try recordedFixtureAnswer("GET_api_credentials_pool.seeded"))
+        let client = makeClient(http)
+        let listing = try await client.credentialPool()
+        let group = try #require(listing.providers.first)
+        let entry = try #require(group.entries.first)
+        #expect(listing.entry(id: entry.id, provider: group.provider) == entry)
+        #expect(listing.entry(id: entry.id, provider: "other-provider") == nil)
+        #expect(listing.entry(id: "not-pooled", provider: group.provider) == nil)
+        // The index comes from the listing given, so a later read that moved the entry is the one a removal uses.
+        var moved = listing
+        moved.providers[0].entries[0].index = entry.index + 1
+        let target = try #require(moved.entry(id: entry.id, provider: group.provider))
+        #expect(target.index == entry.index + 1)
     }
 }

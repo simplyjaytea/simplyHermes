@@ -14,7 +14,8 @@ public enum ProviderAPIModes {
 }
 
 /// One custom endpoint in `GET /api/providers/custom-endpoints` (`endpoints[]`).
-/// Fields are the ones Fixtures/rest/GET_api_providers_custom-endpoints.seeded.json shows. The API key preview is not typed.
+/// Fields are the ones Fixtures/rest/GET_api_providers_custom-endpoints.seeded.json shows. The API key preview is not
+/// typed.
 public struct ProviderCustomEndpoint: Sendable, Equatable, Codable, Identifiable {
     /// Endpoint id, such as the name it was saved under.
     public var id: String
@@ -174,6 +175,14 @@ public struct CredentialPoolEntry: Sendable, Equatable, Codable, Identifiable {
     public var priority: Int?
     /// Requests this key has served.
     public var requestCount: Int?
+}
+
+extension CredentialPoolList {
+    /// The entry with this id under this provider, as this listing has it. Nil when the listing no longer has it. A
+    /// removal takes the index from the listing it is given, so read the pool right before it.
+    public func entry(id: String, provider: String) -> CredentialPoolEntry? {
+        providers.first { $0.provider == provider }?.entries.first { $0.id == id }
+    }
 }
 
 /// Body of `POST /api/providers/oauth/{provider_id}/submit` (`OAuthSubmitBody`). Not recorded: the testbed never ran an
