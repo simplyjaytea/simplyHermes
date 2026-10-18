@@ -83,6 +83,8 @@ struct LaunchOptions {
     var demo: String?
     /// "skip" opens the shell even with no saved server; "fresh" starts with no servers, in memory.
     var onboarding: Onboarding?
+    /// Opens this section first, so a UI test can start on it without tapping the tab bar.
+    var section: AppSection?
 
     enum Onboarding: String {
         case skip
@@ -95,6 +97,7 @@ struct LaunchOptions {
         showsDebugLayoutSwitcher = defaults.bool(forKey: "HermesDebugLayoutSwitcher")
         demo = defaults.string(forKey: "HermesDemo")
         onboarding = defaults.string(forKey: "HermesOnboarding").flatMap(Onboarding.init(rawValue:))
+        section = defaults.string(forKey: "HermesSection").flatMap(AppSection.init(rawValue:))
     }
 }
 
@@ -121,6 +124,9 @@ struct RootView: View {
         .task {
             if let layout = launch.layout {
                 model.layoutOverride = layout
+            }
+            if let section = launch.section {
+                model.selectedSection = section
             }
             if launch.demo == "stream", let id = model.selectedSessionID {
                 model.startDemoStream(in: id, words: 400)
