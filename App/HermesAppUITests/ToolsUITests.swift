@@ -13,8 +13,12 @@ final class ToolsUITests: XCTestCase {
         app.launchArguments += ["-HermesLayout", "compact"]
         app.launch()
 
+        // Launch opens the newest chat, which pushes over the tab bar. Back out to reach the tabs.
+        XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 10))
+        back(app)
+
         let toolsTab = app.tabBars.buttons["Tools"]
-        XCTAssertTrue(toolsTab.waitForExistence(timeout: 10))
+        XCTAssertTrue(toolsTab.waitForExistence(timeout: 10), "The tab bar should show Tools")
         toolsTab.tap()
 
         openRow(app, "tools.skills", title: "Skills")
