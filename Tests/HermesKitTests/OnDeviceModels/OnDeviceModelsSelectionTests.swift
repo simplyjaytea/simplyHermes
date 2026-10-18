@@ -285,12 +285,14 @@ struct OnDeviceModelsSelectionTests {
         let free = FreeMemory(estimate)
         let gate = OnDeviceMemoryGate { free.bytes }
         // A memory warning unloads the models while the first answer is still running.
-        _ = try await gate.answer(with: alpha) {
+        let unloadedMidAnswer: () async throws -> String = {
             gate.noteUnloaded()
             return "one"
         }
+        let first = try await gate.answer(with: alpha, unloadedMidAnswer)
         free.bytes = estimate - alpha.weightBytes
 
+        #expect(first == "one")
         let refusal = OnDeviceModelError.notEnoughMemory(needed: estimate, available: estimate - alpha.weightBytes)
         await #expect(throws: refusal) {
             try await gate.answer(with: alpha) { "two" }
@@ -318,12 +320,14 @@ struct OnDeviceModelsSelectionTests {
         let gate = OnDeviceMemoryGate { estimate - 1 }
         let ran = TestFlag(false)
 
+        let work: () async throws -> String = {
+            ran.value = true
+            return "never"
+        }
+
         let refusal = OnDeviceModelError.notEnoughMemory(needed: estimate, available: estimate - 1)
         await #expect(throws: refusal) {
-            try await gate.answer(with: alpha) {
-                ran.value = true
-                return "never"
-            }
+            try await gate.answer(with: alpha, work)
         }
 
         #expect(!ran.value)
