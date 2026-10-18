@@ -68,6 +68,8 @@
         @ObservationIgnored private var streamTasks: [String: Task<Void, Never>] = [:]
         /// Chats read from the connected server (WP-30). Nil when there is no server connection to read from.
         @ObservationIgnored public var liveChats: LiveChatStore?
+        /// Browses the active server's files for the preview rail (WP-37). Nil when there is no server connection.
+        @ObservationIgnored public var workspaceBrowser: WorkspaceBrowserModel?
         /// Ids of the chats the server listed. These open as live chats; the rest stay placeholders.
         public private(set) var serverSessionIDs: Set<String> = []
         public var isPalettePresented = false
