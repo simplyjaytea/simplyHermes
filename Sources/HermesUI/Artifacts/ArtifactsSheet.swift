@@ -71,6 +71,8 @@
         let image: String
         let load: @MainActor (String) async -> Data?
         @State private var picture: UIImage?
+        /// The image as a PNG file, for the share sheet. Nil until the bytes load.
+        @State private var shareURL: URL?
         @State private var loaded = false
 
         var body: some View {
@@ -88,10 +90,32 @@
             .frame(height: 120)
             .clipShape(RoundedRectangle(cornerRadius: HermesMetrics.innerRadius, style: .continuous))
             .task(id: image) {
-                if let data = await load(image) { picture = UIImage(data: data) }
+                if let data = await load(image), let decoded = UIImage(data: data) {
+                    picture = decoded
+                    shareURL = Self.writePNG(decoded)
+                }
                 loaded = true
             }
+            .contextMenu {
+                if let shareURL {
+                    ShareLink(item: shareURL) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                }
+            }
             .accessibilityLabel(Text("Artifact"))
+        }
+
+        /// Writes the image to a temporary PNG so the share sheet can send the file itself.
+        private static func writePNG(_ picture: UIImage) -> URL? {
+            guard let png = picture.pngData() else { return nil }
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).png")
+            do {
+                try png.write(to: url)
+                return url
+            } catch {
+                return nil
+            }
         }
     }
 #endif
