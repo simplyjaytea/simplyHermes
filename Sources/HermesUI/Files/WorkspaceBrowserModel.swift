@@ -64,6 +64,15 @@
             quickLookURL = nil
         }
 
+        /// The bytes of an image the server named, by path or URL. Nil when there is no connection or the fetch fails.
+        public func mediaData(_ image: String) async -> Data? {
+            guard let rest = await restClient() else { return nil }
+            if image.hasPrefix("http://") || image.hasPrefix("https://") {
+                return try? await rest.proxiedMedia(url: image)
+            }
+            return try? await rest.mediaFile(path: image)
+        }
+
         private func restClient() async -> RESTClient? {
             guard let connection = connections.active, let manager = connections.manager,
                 let rest = await manager.rest(for: connection.id)
