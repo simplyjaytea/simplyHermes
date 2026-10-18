@@ -1,0 +1,14 @@
+{
+  "body": {
+    "results": []
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/sessions/search",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

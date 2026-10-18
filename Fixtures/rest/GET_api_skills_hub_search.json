@@ -1,0 +1,17 @@
+{
+  "body": {
+    "installed": {},
+    "results": [],
+    "source_counts": {},
+    "timed_out": []
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/skills/hub/search",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

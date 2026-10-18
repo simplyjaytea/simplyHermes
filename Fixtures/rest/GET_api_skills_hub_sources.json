@@ -1,0 +1,274 @@
+{
+  "body": {
+    "featured": [
+      {
+        "description": "Set up op CLI, sign in, and read or inject secrets.",
+        "identifier": "official/security/1password",
+        "name": "1password",
+        "repo": "NousResearch/hermes-agent",
+        "source": "official",
+        "tags": [
+          "security",
+          "secrets",
+          "1password",
+          "op",
+          "cli"
+        ],
+        "trust_level": "builtin"
+      },
+      {
+        "description": "Build integrated IS/BS/CF financial workbooks in Excel.",
+        "identifier": "official/finance/3-statement-model",
+        "name": "3-statement-model",
+        "repo": "NousResearch/hermes-agent",
+        "source": "official",
+        "tags": [
+          "finance",
+          "three-statement",
+          "income-statement",
+          "balance-sheet",
+          "cash-flow",
+          "excel",
+          "openpyxl",
+          "modeling"
+        ],
+        "trust_level": "builtin"
+      },
+      {
+        "description": "Run PyTorch training across GPUs with minimal changes.",
+        "identifier": "official/mlops/accelerate",
+        "name": "accelerate",
+        "repo": "NousResearch/hermes-agent",
+        "source": "official",
+        "tags": [
+          "Distributed Training",
+          "HuggingFace",
+          "Accelerate",
+          "DeepSpeed",
+          "FSDP",
+          "Mixed Precision",
+          "PyTorch",
+          "DDP",
+          "Unified API",
+          "Simple"
+        ],
+        "trust_level": "builtin"
+      },
+      {
+        "description": "Set up Actual Computer (actual.inc) inference in Hermes.",
+        "identifier": "official/devops/actual-setup",
+        "name": "actual-setup",
+        "repo": "NousResearch/hermes-agent",
+        "source": "official",
+        "tags": [
+          "actual",
+          "actual-inc",
+          "provider",
+          "local-inference",
+          "relay",
+          "gguf",
+          "setup"
+        ],
+        "trust_level": "builtin"
+      },
+      {
+        "description": "Roleplay a hostile user to find and triage UX pain points.",
+        "identifier": "official/dogfood/adversarial-ux-test",
+        "name": "adversarial-ux-test",
+        "repo": "NousResearch/hermes-agent",
+        "source": "official",
+        "tags": [
+          "qa",
+          "ux",
+          "testing",
+          "adversarial",
+          "dogfood",
+          "personas",
+          "user-testing"
+        ],
+        "trust_level": "builtin"
+      },
+      {
+        "description": "Neutral arbiter for merge conflicts between two agents.",
+        "identifier": "official/autonomous-ai-agents/agent-merge-conflict-arbiter",
+        "name": "agent-merge-conflict-arbiter",
+        "repo": "NousResearch/hermes-agent",
+        "source": "official",
+        "tags": [
+          "Multi-Agent",
+          "Git",
+          "Merge-Conflict",
+          "Kanban",
+          "Arbitration"
+        ],
+        "trust_level": "builtin"
+      },
+      {
+        "description": "Use when an agent needs AgentMail CLI email inboxes.",
+        "identifier": "official/email/agentmail",
+        "name": "agentmail",
+        "repo": "NousResearch/hermes-agent",
+        "source": "official",
+        "tags": [
+          "Email",
+          "CLI",
+          "AgentMail",
+          "Communication"
+        ],
+        "trust_level": "builtin"
+      },
+      {
+        "description": "Make a verified AI presenter video from script + image.",
+        "identifier": "official/creative/ai-presenter-video",
+        "name": "ai-presenter-video",
+        "repo": "NousResearch/hermes-agent",
+        "source": "official",
+        "tags": [
+          "video",
+          "presenter",
+          "avatar",
+          "lipsync",
+          "tts",
+          "captions",
+          "creative"
+        ],
+        "trust_level": "builtin"
+      },
+      {
+        "description": "Explain an idea as an interactive isometric machine figure.",
+        "identifier": "official/creative/anatomy",
+        "name": "anatomy",
+        "repo": "NousResearch/hermes-agent",
+        "source": "official",
+        "tags": [
+          "isometric",
+          "svg",
+          "webgl",
+          "3d",
+          "diagram",
+          "explainer",
+          "illustration",
+          "docs",
+          "html",
+          "react"
+        ],
+        "trust_level": "builtin"
+      },
+      {
+        "description": "Operate the Antigravity CLI (agy): plugins, auth, sandbox.",
+        "identifier": "official/autonomous-ai-agents/antigravity-cli",
+        "name": "antigravity-cli",
+        "repo": "NousResearch/hermes-agent",
+        "source": "official",
+        "tags": [
+          "Coding-Agent",
+          "Antigravity",
+          "CLI",
+          "Auth",
+          "Plugins",
+          "Sandbox"
+        ],
+        "trust_level": "builtin"
+      },
+      {
+        "description": "Validated interactive HTML diagrams, upstream-maintained.",
+        "identifier": "official/creative/archify",
+        "name": "archify",
+        "repo": "NousResearch/hermes-agent",
+        "source": "official",
+        "tags": [
+          "diagram",
+          "architecture",
+          "workflow",
+          "sequence",
+          "dataflow",
+          "state-machine",
+          "mermaid",
+          "html",
+          "svg"
+        ],
+        "trust_level": "builtin"
+      },
+      {
+        "description": "ASCII art: pyfiglet, cowsay, boxes, image-to-ascii.",
+        "identifier": "official/creative/ascii-art",
+        "name": "ascii-art",
+        "repo": "NousResearch/hermes-agent",
+        "source": "official",
+        "tags": [
+          "ASCII",
+          "Art",
+          "Banners",
+          "Creative",
+          "Unicode",
+          "Text-Art",
+          "pyfiglet",
+          "figlet",
+          "cowsay",
+          "boxes"
+        ],
+        "trust_level": "builtin"
+      }
+    ],
+    "index_available": true,
+    "installed": {},
+    "sources": [
+      {
+        "id": "official",
+        "label": "Official (Nous)",
+        "searchable": true
+      },
+      {
+        "available": true,
+        "id": "hermes-index",
+        "label": "Hermes Index",
+        "searchable": true
+      },
+      {
+        "id": "skills-sh",
+        "label": "skills.sh",
+        "searchable": false
+      },
+      {
+        "id": "well-known",
+        "label": "Well-Known",
+        "searchable": false
+      },
+      {
+        "id": "url",
+        "label": "Direct URL",
+        "searchable": true
+      },
+      {
+        "id": "github",
+        "label": "GitHub",
+        "rate_limited": false,
+        "searchable": false
+      },
+      {
+        "id": "clawhub",
+        "label": "ClawHub",
+        "searchable": false
+      },
+      {
+        "id": "lobehub",
+        "label": "LobeHub",
+        "searchable": false
+      },
+      {
+        "id": "browse-sh",
+        "label": "browse.sh",
+        "searchable": true
+      }
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/skills/hub/sources",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

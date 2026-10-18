@@ -1,0 +1,17 @@
+{
+  "body": {
+    "deleted": true,
+    "task_id": "t_3848a8c2"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "DELETE",
+    "path": "/api/plugins/kanban/tasks/t_3848a8c2",
+    "query": {
+      "board": "recorder"
+    }
+  },
+  "status": 200,
+  "step": "kanban.task-delete"
+}

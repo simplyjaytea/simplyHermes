@@ -1,0 +1,2104 @@
+{
+  "body": {
+    "diagnostics": [],
+    "entries": [
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "airtable",
+        "default_enabled": null,
+        "description": "Bases, tables, and records from your Airtable workspace.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "airtable",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nAirtable (or run `hermes mcp login airtable`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://support.airtable.com/articles/9897799762-using-the-airtable-mcp-server",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "airtable.com"
+          ],
+          "keywords": [
+            "airtable"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.airtable.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Algolia search: indices, analytics, and settings (read-only).",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "algolia",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nAlgolia (or run `hermes mcp login algolia`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://www.algolia.com/doc/guides/model-context-protocol/productivity-mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "algolia.com"
+          ],
+          "keywords": [
+            "algolia"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.algolia.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "none",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "AllTrails: find hikes and trails with reviews and ratings.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "alltrails",
+        "needs_install": false,
+        "post_install": "No account or credentials needed — tools are available as soon as the\nsession restarts.\n\nHeads-up: only 5 tools, but their schemas are unusually verbose (~24K\ntokens total). If you only browse trails occasionally, consider leaving\nthis server disabled and enabling it on demand, or prune tools with:\n  hermes mcp configure alltrails\n",
+        "required_env": [],
+        "source": "https://www.alltrails.com/mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "alltrails.com"
+          ],
+          "keywords": [
+            "hiking",
+            "trail",
+            "alltrails"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://www.alltrails.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Amplitude analytics: charts, dashboards, experiments, flags.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "amplitude",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nAmplitude (or run `hermes mcp login amplitude`). Approve access,\nthen restart the session so tools load.\n\nEU-resident orgs: change mcp_servers.amplitude.url to\nhttps://mcp.eu.amplitude.com/mcp in config.yaml.\n",
+        "required_env": [],
+        "source": "https://amplitude.com/docs/amplitude-ai/amplitude-mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "amplitude.com"
+          ],
+          "keywords": [
+            "amplitude"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.amplitude.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "asana",
+        "default_enabled": null,
+        "description": "Tasks, projects, and goals from your Asana workspace.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "asana",
+        "needs_install": false,
+        "post_install": "Asana V2 has no Dynamic Client Registration: you need your own Asana\nMCP app. In the developer console (https://app.asana.com/0/my-apps)\ncreate an app of type \"MCP app\", then:\n  - OAuth → Redirect URL: http://localhost:27890/callback (exactly).\n  - Manage distribution → allow the workspace(s) you will use.\nIts Client ID / Client secret are the ASANA_CLIENT_ID / ASANA_CLIENT_SECRET\nvalues prompted above. The secret is stored in the profile's .env; the\nnon-secret client id is inlined into config.yaml.\n\nThen run `hermes mcp login asana` (or click Authorize in the dashboard /\nDesktop: the callback still arrives at http://localhost:27890/callback, so\nthe browser must run on the same machine as Hermes), approve access, and\nrestart (or `/reload-mcp`) the Hermes session or gateway that should\nexpose the Asana tools.\n",
+        "required_env": [
+          {
+            "name": "ASANA_CLIENT_ID",
+            "prompt": "Asana MCP app Client ID (developer console → your MCP app → OAuth)",
+            "required": true
+          },
+          {
+            "name": "ASANA_CLIENT_SECRET",
+            "prompt": "Asana MCP app Client secret",
+            "required": true
+          }
+        ],
+        "source": "https://developers.asana.com/docs/integrating-with-asanas-mcp-server",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "asana.com"
+          ],
+          "keywords": [
+            "asana"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.asana.com/v2/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "jira",
+        "default_enabled": null,
+        "description": "Jira issues and Confluence pages via Atlassian's hosted remote MCP.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "atlassian",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nAtlassian (or run `hermes mcp login atlassian`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://support.atlassian.com/rovo/docs/getting-started-with-the-atlassian-remote-mcp-server/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "atlassian.net",
+            "atlassian.com",
+            "jira.com"
+          ],
+          "keywords": [
+            "jira",
+            "confluence",
+            "atlassian",
+            "bitbucket"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.atlassian.com/v1/mcp/authv2"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "attio",
+        "default_enabled": null,
+        "description": "CRM records, lists, and notes in Attio.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "attio",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nAttio (or run `hermes mcp login attio`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://attio.com/help/apps/other-apps/using-the-attio-mcp-server",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "attio.com"
+          ],
+          "keywords": [
+            "attio",
+            "crm"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.attio.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "none",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Authoritative AWS docs, API references, and best practices.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "aws-knowledge",
+        "needs_install": false,
+        "post_install": "No account or credentials needed — tools are available as soon as the\nsession restarts.\n",
+        "required_env": [],
+        "source": "https://awslabs.github.io/mcp/servers/aws-knowledge-mcp-server/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "aws.amazon.com",
+            "docs.aws.amazon.com"
+          ],
+          "keywords": [
+            "aws docs",
+            "aws knowledge"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://knowledge-mcp.global.api.aws"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "better_stack_mcp",
+        "default_enabled": null,
+        "description": "Better Stack: logs, uptime monitors, incidents, and status pages.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "betterstack",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nBetter Stack (or run `hermes mcp login betterstack`). Approve access,\nthen restart the session so tools load.\n\nHeads-up: this server exposes a LARGE tool surface (~106 tools as of\nAug 2026). Hermes applies a curated exclude list automatically at install\n(docs search, instruction pseudo-tools, the raw-SQL query hatch, cloud\ncredential minting, and team-membership tools); everything else stays\nenabled. Review or change the selection any time with:\n  hermes mcp configure betterstack\n",
+        "required_env": [],
+        "source": "https://betterstack.com/docs/getting-started/integrations/mcp/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "betterstack.com"
+          ],
+          "keywords": [
+            "better stack",
+            "betterstack",
+            "uptime monitor"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.betterstack.com"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "CI/CD pipelines, builds, and test results from Buildkite.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "buildkite",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nBuildkite (or run `hermes mcp login buildkite`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://buildkite.com/docs/apis/mcp-server",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "buildkite.com"
+          ],
+          "keywords": [
+            "buildkite",
+            "ci"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.buildkite.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "calendly",
+        "default_enabled": null,
+        "description": "Scheduling links, events, and invitees from Calendly.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "calendly",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nCalendly (or run `hermes mcp login calendly`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://developer.calendly.com/calendly-mcp-server",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "calendly.com"
+          ],
+          "keywords": [
+            "calendly",
+            "scheduling"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.calendly.com"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "canva_mcp",
+        "default_enabled": null,
+        "description": "Create, search, and manage Canva designs.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "canva",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nCanva (or run `hermes mcp login canva`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://www.canva.dev/docs/mcp/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "canva.com"
+          ],
+          "keywords": [
+            "canva",
+            "design"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.canva.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "CircleCI: diagnose build failures, read logs, rerun workflows.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "circleci",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nCircleCI (or run `hermes mcp login circleci`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://circleci.com/docs/guides/toolkit/circleci-mcp-overview/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "circleci.com"
+          ],
+          "keywords": [
+            "circleci"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.circleci.com/v1/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Tasks, docs, and workspaces in ClickUp.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "clickup",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nClickUp (or run `hermes mcp login clickup`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://developer.clickup.com/docs/connect-an-ai-assistant-to-clickups-mcp-server",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "clickup.com"
+          ],
+          "keywords": [
+            "clickup",
+            "task"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.clickup.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Sales CRM: leads, opportunities, calls, and emails.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "close",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nClose (or run `hermes mcp login close`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://help.close.com/docs/mcp-server",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "close.com"
+          ],
+          "keywords": [
+            "close crm"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.close.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "cloudflare_mcp",
+        "default_enabled": null,
+        "description": "Full Cloudflare API access via the official remote MCP.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "cloudflare",
+        "needs_install": false,
+        "post_install": "On first connection, Hermes opens a browser to authorize with Cloudflare.\nYou pick the account and the permissions to grant — scope the token to\nwhat you want the agent to touch. After auth, restart your Hermes session\nso the Cloudflare tools are loaded.\n\nThis entry exposes each Cloudflare API endpoint as an individual tool.\nA curated exclude list ships in the manifest (enterprise-contract,\norg-fleet, and read-only-analytics product families are disabled —\n~1,400 tools), leaving ~1,900 tools for the products people actually\ndrive from an agent: DNS, Workers, R2, KV, D1, Queues, Pages, WAF,\nrulesets, tunnels, Access, Stream, Images, AI, Vectorize. Hermes's\ntool_search defers them all, so your context is not flooded — the agent\ndiscovers the right endpoint on demand with full schemas.\n\nRun a Zero Trust org or want Radar/Magic/API-Shield surfaces back?\nDelete their patterns from mcp_servers.cloudflare.tools.exclude in\n~/.hermes/config.yaml.\n\nHeadless / CI alternative: instead of OAuth, create a Cloudflare API token\nat https://dash.cloudflare.com/profile/api-tokens and configure the server\nwith a bearer header in ~/.hermes/config.yaml:\n\n  mcp_servers:\n    cloudflare:\n      url: \"https://mcp.cloudflare.com/mcp?codemode=false\"\n      headers:\n        Authorization: \"Bearer ${CLOUDFLARE_API_TOKEN}\"\n\nPrefer the provider-side Code Mode surface instead (2 search/execute\nmeta-tools, ~1k-token schema, sandboxed JS composition)? Drop the\n`?codemode=false` from the url. Not recommended together with Hermes\ntool_search — you'd be stacking two tool-discovery layers.\n\nCloudflare also runs product-specific MCP servers (same OAuth flow, add\nmanually via `hermes mcp add <name> --url <url>` if you want a narrower\nsurface): docs search (https://docs.mcp.cloudflare.com/mcp, no auth),\nWorkers observability (https://observability.mcp.cloudflare.com/mcp),\nBrowser Rendering (https://browser.mcp.cloudflare.com/mcp), Radar\n(https://radar.mcp.cloudflare.com/mcp), GraphQL analytics\n(https://graphql.mcp.cloudflare.com/mcp), audit logs\n(https://auditlogs.mcp.cloudflare.com/mcp), and more — full list at the\nsource URL above.\n\nRe-run the tool checklist any time with:\n  hermes mcp configure cloudflare\n",
+        "required_env": [],
+        "source": "https://developers.cloudflare.com/agents/model-context-protocol/cloudflare/servers-for-cloudflare/",
+        "suggest": null,
+        "transport": "http",
+        "url": "https://mcp.cloudflare.com/mcp?codemode=false"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Upload, search, and transform media assets in Cloudinary.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "cloudinary",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nCloudinary (or run `hermes mcp login cloudinary`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://cloudinary.com/documentation/cloudinary_llm_mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "cloudinary.com"
+          ],
+          "keywords": [
+            "cloudinary",
+            "media assets"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://asset-management.mcp.cloudinary.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": [
+          "search_templates",
+          "get_template",
+          "get_template_schema",
+          "search_models",
+          "search_nodes",
+          "get_node",
+          "get_prompting_guide",
+          "run_template",
+          "submit_workflow",
+          "partner_generate",
+          "upload_file",
+          "apply_slots",
+          "get_job_status",
+          "wait_for_job",
+          "get_output",
+          "use_previous_output",
+          "cancel_job",
+          "get_queue",
+          "get_billing_status",
+          "get_workflow_canvas_url"
+        ],
+        "description": "Generate images, video, audio, and 3D on Comfy Cloud.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "comfy-cloud",
+        "needs_install": false,
+        "post_install": "On first connection, Hermes will open a browser to authenticate with your\nComfy account. After auth, restart your Hermes session so the Comfy Cloud\ntools are loaded.\n\nDiscovery tools (search_templates / search_models / search_nodes) work with\nany Comfy account. Generation tools run on Comfy Cloud and consume credits,\nso they need a subscription or credit balance — see\nhttps://www.comfy.org/cloud for plans.\n\nA curated 20-tool subset is enabled by default (discovery, generation, job\nlifecycle, billing). Batch jobs, saved/shared workflow management, and App\nMode tools are available but unchecked — enable them any time with:\n  hermes mcp configure comfy-cloud\n",
+        "required_env": [],
+        "source": "https://docs.comfy.org/agent-tools/cloud",
+        "suggest": null,
+        "transport": "http",
+        "url": "https://cloud.comfy.org/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "none",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Up-to-date, version-specific library docs and code examples.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "context7",
+        "needs_install": false,
+        "post_install": "No account or credentials needed — tools are available as soon as the\nsession restarts.\n\nWorks anonymously with rate limits; for higher limits create an API key\nat context7.com/dashboard and add it as a Bearer header via\nmcp_servers.context7.headers in config.yaml.\n",
+        "required_env": [],
+        "source": "https://context7.com/docs/resources/all-clients",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "context7.com"
+          ],
+          "keywords": [
+            "context7",
+            "library docs"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.context7.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Craft: structured docs, tasks, and personal knowledge base.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "craft",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nCraft (or run `hermes mcp login craft`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://support.craft.do/hc/en-us/articles/29455875123101",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "craft.do"
+          ],
+          "keywords": [
+            "craft docs"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.craft.do/my/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "datadog_mcp",
+        "default_enabled": null,
+        "description": "Logs, monitors, dashboards, and incidents from Datadog.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "datadog",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nDatadog (or run `hermes mcp login datadog`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://docs.datadoghq.com/bits_ai/mcp_server/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "datadoghq.com",
+            "datadoghq.eu"
+          ],
+          "keywords": [
+            "datadog",
+            "apm"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "none",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Ask questions about any public GitHub repo (Devin's DeepWiki).",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "deepwiki",
+        "needs_install": false,
+        "post_install": "No account or credentials needed — tools are available as soon as the\nsession restarts.\n",
+        "required_env": [],
+        "source": "https://docs.devin.ai/work-with-devin/deepwiki-mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "deepwiki.com"
+          ],
+          "keywords": [
+            "deepwiki",
+            "repo wiki"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.deepwiki.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "dropbox",
+        "default_enabled": null,
+        "description": "Search, read, and manage files in Dropbox.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "dropbox",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nDropbox (or run `hermes mcp login dropbox`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://help.dropbox.com/integrations/connect-dropbox-mcp-server",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "dropbox.com"
+          ],
+          "keywords": [
+            "dropbox"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.dropbox.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "figma",
+        "default_enabled": null,
+        "description": "Official Figma remote MCP — design context, Code Connect, and write-to-canvas via https://mcp.figma.com/mcp (OAuth).",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "figma",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with Figma\n(or run `hermes mcp login figma`). Approve access, then restart the\nsession so tools load.\n\nFigma walks OAuth DCR by exact client_name. Hermes registers as\n\"Claude Code\" automatically so registration is not 403'd — you do not\nneed to paste a client_id.\n\nPrompt with a frame/file link:\n  implement this design: https://www.figma.com/design/<fileKey>/...\n\nDesktop alternative (no OAuth, local only): enable Dev Mode MCP in the\nFigma desktop app (Shift+D → Inspect → Enable desktop MCP server) and\npoint url at http://127.0.0.1:3845/mcp instead.\n",
+        "required_env": [],
+        "source": "https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "figma.com"
+          ],
+          "keywords": [
+            "figma",
+            "mockup",
+            "wireframe"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.figma.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Meeting transcripts, summaries, and action items.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "fireflies",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nFireflies (or run `hermes mcp login fireflies`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://docs.fireflies.ai/getting-started/mcp-configuration",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "fireflies.ai"
+          ],
+          "keywords": [
+            "fireflies",
+            "meeting notes",
+            "transcript"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://api.fireflies.ai/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Gamma: generate and edit AI presentations, docs, and sites.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "gamma",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nGamma (or run `hermes mcp login gamma`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://developers.gamma.app/docs/gamma-mcp-server",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "gamma.app"
+          ],
+          "keywords": [
+            "gamma",
+            "presentation"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.gamma.app/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "GitLab: issues, merge requests, pipelines, and repo context.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "gitlab",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nGitLab (or run `hermes mcp login gitlab`). Approve access,\nthen restart the session so tools load.\n\nCovers gitlab.com. Self-managed GitLab (18.6+): point\nmcp_servers.gitlab.url at https://<your-host>/api/v4/mcp.\n",
+        "required_env": [],
+        "source": "https://docs.gitlab.com/user/model_context_protocol/mcp_server/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "gitlab.com"
+          ],
+          "keywords": [
+            "gitlab",
+            "merge request"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://gitlab.com/api/v4/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Ping, traceroute, DNS, and HTTP tests from global probes.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "globalping",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nGlobalping (or run `hermes mcp login globalping`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://github.com/jsdelivr/globalping-mcp-server",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "globalping.io"
+          ],
+          "keywords": [
+            "globalping",
+            "traceroute",
+            "ping"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.globalping.dev/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Query metrics, logs, dashboards, alerts, and incidents from Grafana Cloud.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "grafana",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with Grafana Cloud\n(or run `hermes mcp login grafana`). During authorization you'll enter your\nGrafana Cloud stack URL (https://<your-stack>.grafana.net) and choose read\nor read+write access, then approve. Restart the session so tools load.\n\nRequires a hosted Grafana Cloud stack and the \"Assistant Cloud MCP User\"\nrole (Editor or higher has it by default). Self-hosted Grafana isn't\nsupported by this endpoint — use the OSS mcp-grafana server instead.\n\nBilling note: Grafana counts each user connecting via MCP as an active\nGrafana Assistant user — see grafana.com Assistant pricing.\n",
+        "required_env": [],
+        "source": "https://grafana.com/docs/grafana-cloud/ai-tools/mcp-servers/cloud-mcp/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "grafana.net",
+            "grafana.com"
+          ],
+          "keywords": [
+            "grafana",
+            "promql",
+            "logql",
+            "observability",
+            "dashboard"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.grafana.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Models, datasets, Spaces, and papers from the Hugging Face Hub.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "hugging_face",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nHugging Face (or run `hermes mcp login hugging_face`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://huggingface.co/docs/hub/agents-mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "huggingface.co",
+            "hf.co"
+          ],
+          "keywords": [
+            "hugging face",
+            "huggingface"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://huggingface.co/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Search jobs and listings on Indeed.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "indeed",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nIndeed (or run `hermes mcp login indeed`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://docs.indeed.com/indeed-mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "indeed.com"
+          ],
+          "keywords": [
+            "indeed",
+            "job search"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.indeed.com/claude/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "intercom_mcp",
+        "default_enabled": null,
+        "description": "Conversations, tickets, and customer data from Intercom.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "intercom",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nIntercom (or run `hermes mcp login intercom`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://developers.intercom.com/docs/guides/mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "intercom.com",
+            "intercom.io"
+          ],
+          "keywords": [
+            "intercom"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.intercom.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "none",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": [
+          "search-flight"
+        ],
+        "description": "Kiwi.com flight search: itineraries with direct booking links.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "kiwi",
+        "needs_install": false,
+        "post_install": "No account or credentials needed — tools are available as soon as the\nsession restarts.\n\nSearch only — booking and payment happen on kiwi.com via the returned\nlinks, never in-conversation.\n",
+        "required_env": [],
+        "source": "https://www.kiwi.com/stories/kiwi-mcp-connector/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "kiwi.com"
+          ],
+          "keywords": [
+            "flight search",
+            "kiwi.com"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.kiwi.com"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Klaviyo marketing: campaigns, flows, segments, and reporting.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "klaviyo",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nKlaviyo (or run `hermes mcp login klaviyo`). Approve access,\nthen restart the session so tools load.\n\nRequires an Owner/Admin/Manager Klaviyo role.\n\nHermes pins the trimmed ~40-tool core surface plus Klaviyo's\nprompt-injection mitigation via URL params. For the full 262-tool\nsurface, remove the query params from mcp_servers.klaviyo.url in\nconfig.yaml.\n",
+        "required_env": [],
+        "source": "https://developers.klaviyo.com/en/docs/klaviyo_mcp_server",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "klaviyo.com"
+          ],
+          "keywords": [
+            "klaviyo"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.klaviyo.com/mcp?core-tools-only=true&disable-tools-with-user-generated-content=true"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "linear",
+        "default_enabled": null,
+        "description": "Find, create, and update Linear issues, projects, and comments.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "linear",
+        "needs_install": false,
+        "post_install": "On first connection, Hermes will open a browser to authenticate with Linear.\nAfter auth, restart your Hermes session so the Linear tools are loaded.\n\nYou can re-run the tool checklist any time with:\n  hermes mcp configure linear\n",
+        "required_env": [],
+        "source": "https://linear.app/docs/mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "linear.app"
+          ],
+          "keywords": [
+            "linear"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.linear.app/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "none",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Official Microsoft, Azure, and .NET docs and code samples.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "microsoft-learn",
+        "needs_install": false,
+        "post_install": "No account or credentials needed — tools are available as soon as the\nsession restarts.\n",
+        "required_env": [],
+        "source": "https://learn.microsoft.com/en-us/training/support/mcp-get-started",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "learn.microsoft.com"
+          ],
+          "keywords": [
+            "microsoft docs",
+            "azure docs",
+            "msdn"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://learn.microsoft.com/api/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Read and edit Miro boards, diagrams, and frames.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "miro",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nMiro (or run `hermes mcp login miro`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://developers.miro.com/docs/connecting-to-miro-mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "miro.com"
+          ],
+          "keywords": [
+            "miro",
+            "whiteboard"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.miro.com/"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Mixpanel analytics: events, funnels, retention, dashboards.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "mixpanel",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nMixpanel (or run `hermes mcp login mixpanel`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://docs.mixpanel.com/docs/mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "mixpanel.com"
+          ],
+          "keywords": [
+            "mixpanel"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.mixpanel.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Boards, items, docs, and workflows in monday.com.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "monday",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nmonday.com (or run `hermes mcp login monday`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://developer.monday.com/apps/docs/mondaycom-mcp-integration",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "monday.com"
+          ],
+          "keywords": [
+            "monday.com",
+            "monday board"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.monday.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": [
+          "list_columns",
+          "list_databases",
+          "list_macros",
+          "list_shares",
+          "list_tables",
+          "list_views",
+          "query",
+          "query_rw",
+          "search_catalog"
+        ],
+        "description": "MotherDuck: query DuckDB cloud warehouses with SQL.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "motherduck",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nMotherDuck (or run `hermes mcp login motherduck`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://motherduck.com/docs/key-tasks/ai-and-motherduck/mcp-setup/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "motherduck.com"
+          ],
+          "keywords": [
+            "motherduck",
+            "duckdb"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://api.motherduck.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Connect to your n8n instance's official MCP server with browser OAuth.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "n8n-official",
+        "needs_install": false,
+        "post_install": "In n8n Settings > Instance-level MCP, enable MCP access (owner or admin).\nOpen Connect and copy the full Server URL ending in /mcp-server/http.\nUse that URL, not your editor URL. The Hermes backend must be able to reach it.\nOn older n8n versions, the same endpoint is shown in the MCP settings page.\n\nRun `hermes mcp login n8n-official`, or use Authorize in the desktop app\nor dashboard, and approve access in n8n. No n8n API key is required.\nIf your instance restricts OAuth callback URLs, allow the callback used by Hermes.\n\nn8n controls access through your account permissions and MCP settings.\nSearch can show previews of workflows you can view; enable Available in MCP\nfor workflows you want to inspect fully, execute, or modify. Tool availability\ndepends on your n8n version and permissions. Some tools change or run workflows.\nUse `hermes mcp configure n8n-official` to review the discovered tools.\n\nExisting n8n bridge connections are unchanged. This is a separate connection,\nnot an automatic migration. Start a new session or use /reload-mcp after setup.\n",
+        "required_env": [
+          {
+            "name": "N8N_MCP_SERVER_URL",
+            "prompt": "MCP Server URL (n8n Settings > Instance-level MCP > Connect; ends in /mcp-server/http)",
+            "required": true
+          }
+        ],
+        "source": "https://docs.n8n.io/connect/connect-to-n8n-mcp-server/",
+        "suggest": null,
+        "transport": "http",
+        "url": "${N8N_MCP_SERVER_URL}"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "neon_mcp",
+        "default_enabled": null,
+        "description": "Neon serverless Postgres: projects, branches, and SQL.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "neon",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nNeon (or run `hermes mcp login neon`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://neon.com/docs/ai/neon-mcp-server",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "neon.tech",
+            "neon.com"
+          ],
+          "keywords": [
+            "neon",
+            "postgres"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.neon.tech/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Sites, deploys, and env vars via Netlify's hosted MCP.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "netlify",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nNetlify (or run `hermes mcp login netlify`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://docs.netlify.com/build/build-with-ai/agent-setup-guides/agent-setup-overview/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "netlify.com"
+          ],
+          "keywords": [
+            "netlify"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://netlify-mcp.netlify.app/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "notion",
+        "default_enabled": null,
+        "description": "Pages and databases from your Notion workspace.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "notion",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nNotion (or run `hermes mcp login notion`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://developers.notion.com/docs/mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "notion.so",
+            "notion.site"
+          ],
+          "keywords": [
+            "notion"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.notion.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Payments, invoices, and subscriptions via PayPal's hosted MCP.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "paypal",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nPaypal (or run `hermes mcp login paypal`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://developer.paypal.com/tools/mcp-server/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "developer.paypal.com"
+          ],
+          "keywords": [
+            "paypal"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.paypal.com/sse"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Plaid dashboard: integrations, Items, and usage debugging.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "plaid",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nPlaid (or run `hermes mcp login plaid`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://plaid.com/docs/resources/mcp/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "plaid.com"
+          ],
+          "keywords": [
+            "plaid"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://api.dashboard.plaid.com/mcp/"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Postman workspaces, collections, environments, and APIs.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "postman",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nPostman (or run `hermes mcp login postman`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://learning.postman.com/docs/reference/postman-api/postman-mcp-server/postman-mcp-remote-server/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "postman.com"
+          ],
+          "keywords": [
+            "postman",
+            "api collection"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.postman.com/minimal"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "prisma",
+        "default_enabled": null,
+        "description": "Create and manage Prisma Postgres databases.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "prisma-postgres",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nPrisma Postgres (or run `hermes mcp login prisma-postgres`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://www.prisma.io/docs/postgres/integrations/mcp-server",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "prisma.io"
+          ],
+          "keywords": [
+            "prisma"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.prisma.io/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "railway",
+        "default_enabled": null,
+        "description": "Railway: projects, services, deployments, and environments.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "railway",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nRailway (or run `hermes mcp login railway`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://docs.railway.com/guides/mcp-server",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "railway.com",
+            "railway.app"
+          ],
+          "keywords": [
+            "railway",
+            "railway deploy"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.railway.com"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Robinhood agentic trading: portfolio, balances, and orders.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "robinhood",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nRobinhood (or run `hermes mcp login robinhood`). Approve access,\nthen restart the session so tools load.\n\nCAUTION: this server can place REAL trades (equities, options, crypto)\nin a dedicated Robinhood agentic account. Hermes's normal tool-approval\nflow applies, but review orders carefully before approving.\n",
+        "required_env": [],
+        "source": "https://robinhood.com/us/en/support/articles/agentic-trading-overview/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "robinhood.com"
+          ],
+          "keywords": [
+            "robinhood",
+            "stock trade"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://agent.robinhood.com/mcp/trading"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Scan code for security vulnerabilities with Semgrep.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "semgrep",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nSemgrep (or run `hermes mcp login semgrep`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://semgrep.dev/docs/mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "semgrep.dev"
+          ],
+          "keywords": [
+            "semgrep",
+            "static analysis"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.semgrep.ai/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "sentry_mcp",
+        "default_enabled": null,
+        "description": "Issues, stack traces, and error context from Sentry.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "sentry",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nSentry (or run `hermes mcp login sentry`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://docs.sentry.io/product/sentry-mcp/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "sentry.io"
+          ],
+          "keywords": [
+            "sentry",
+            "stack trace",
+            "crash report"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.sentry.dev/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Catalog, orders, and payments via Square's hosted MCP.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "square",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nSquare (or run `hermes mcp login square`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://developer.squareup.com/docs/mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "squareup.com"
+          ],
+          "keywords": [
+            "squareup"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.squareup.com/sse"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Strava: activities, fitness trends, training load (read-only).",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "strava",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nStrava (or run `hermes mcp login strava`). Approve access,\nthen restart the session so tools load.\n\nRequires a Strava subscription.\n",
+        "required_env": [],
+        "source": "https://support.strava.com/en-us/articles/15401531-strava-mcp-connector",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "strava.com"
+          ],
+          "keywords": [
+            "strava",
+            "running",
+            "cycling"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.strava.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "stripe_mcp",
+        "default_enabled": null,
+        "description": "Payments, customers, and invoices via Stripe's hosted MCP.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "stripe",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nStripe (or run `hermes mcp login stripe`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://docs.stripe.com/mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "dashboard.stripe.com"
+          ],
+          "keywords": [
+            "stripe"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.stripe.com"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "supabase",
+        "default_enabled": null,
+        "description": "Database, auth, and storage from your Supabase projects.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "supabase",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nSupabase (or run `hermes mcp login supabase`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://supabase.com/docs/guides/ai-tools/mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "supabase.com",
+            "supabase.co"
+          ],
+          "keywords": [
+            "supabase"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.supabase.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "todoist",
+        "default_enabled": null,
+        "description": "Manage Todoist tasks and projects.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "todoist",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nTodoist (or run `hermes mcp login todoist`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://www.todoist.com/help/articles/todoist-mcp-server",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "todoist.com"
+          ],
+          "keywords": [
+            "todoist",
+            "todo"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://ai.todoist.net/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "none",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "trivago hotel search: compare prices by city and dates.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "trivago",
+        "needs_install": false,
+        "post_install": "No account or credentials needed — tools are available as soon as the\nsession restarts.\n\nSearch only — booking happens on the linked booking sites, never\nin-conversation.\n",
+        "required_env": [],
+        "source": "https://mcp.trivago.com/mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "trivago.com"
+          ],
+          "keywords": [
+            "hotel search",
+            "trivago"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.trivago.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Stocks, forex, and crypto market data from Twelve Data.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "twelve-data",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nTwelve Data (or run `hermes mcp login twelve-data`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://twelvedata.com/docs",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "twelvedata.com"
+          ],
+          "keywords": [
+            "twelve data",
+            "stock price"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.twelvedata.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "none",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Twilio developer docs search (public beta, read-only).",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "twilio-docs",
+        "needs_install": false,
+        "post_install": "No account or credentials needed — tools are available as soon as the\nsession restarts.\n",
+        "required_env": [],
+        "source": "https://www.twilio.com/docs/ai/mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "twilio.com"
+          ],
+          "keywords": [
+            "twilio docs"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.twilio.com/docs"
+      },
+      {
+        "args": [],
+        "auth_type": "none",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Drive the Unreal Engine 5.8 editor over its local MCP server.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "unreal-engine",
+        "needs_install": false,
+        "post_install": "This entry connects to Epic's official Unreal MCP plugin, which runs INSIDE\nthe Unreal Editor. Before Hermes can connect:\n\n  1. Open your project in Unreal Editor 5.8+.\n  2. Edit > Plugins, search \"Unreal MCP\", enable it, restart the editor\n     (the Toolset Registry dependency enables automatically).\n  3. Edit > Editor Preferences > General > Model Context Protocol, turn on\n     \"Auto Start Server\" (or run `ModelContextProtocol.StartServer` in the\n     editor console). It binds to http://127.0.0.1:8000/mcp by default.\n\nStart Hermes AFTER the editor's server is running so the tools are probed.\nIf you changed the port or URL path in Editor Preferences, update the url in\nmcp_servers.unreal-engine to match.\n\nStatus: Epic ships this as EXPERIMENTAL. The server runs Tool calls serially\non the engine game thread — avoid issuing overlapping calls.\n\nRe-run the tool checklist any time with:\n  hermes mcp configure unreal-engine\n",
+        "required_env": [],
+        "source": "https://dev.epicgames.com/documentation/unreal-engine/unreal-mcp-in-unreal-editor",
+        "suggest": null,
+        "transport": "http",
+        "url": "http://127.0.0.1:8000/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": "vercel_mcp",
+        "default_enabled": null,
+        "description": "Deployments, logs, and projects via Vercel's hosted MCP.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "vercel",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nVercel (or run `hermes mcp login vercel`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://vercel.com/docs/mcp",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "vercel.com"
+          ],
+          "keywords": [
+            "vercel"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.vercel.com"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Sites, CMS collections, and pages via Webflow's hosted MCP.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "webflow",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nWebflow (or run `hermes mcp login webflow`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://developers.webflow.com/mcp/reference/getting-started",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "webflow.com"
+          ],
+          "keywords": [
+            "webflow"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://mcp.webflow.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "none",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "Wolfram|Alpha computation, math, and curated knowledge.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "wolfram",
+        "needs_install": false,
+        "post_install": "No account or credentials needed — tools are available as soon as the\nsession restarts.\n",
+        "required_env": [],
+        "source": "https://www.wolfram.com/agent-tools/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "wolfram.com",
+            "wolframalpha.com"
+          ],
+          "keywords": [
+            "wolfram",
+            "wolfram alpha",
+            "computation"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://agenttools.wolfram.com/mcp"
+      },
+      {
+        "args": [],
+        "auth_type": "oauth",
+        "bootstrap": [],
+        "command": null,
+        "connector_slug": null,
+        "default_enabled": null,
+        "description": "WordPress.com: posts, pages, drafts, stats, and comments.",
+        "enabled": false,
+        "install_ref": null,
+        "install_url": null,
+        "installed": false,
+        "name": "wordpress-com",
+        "needs_install": false,
+        "post_install": "On first connection Hermes opens a browser to authorize with\nWordPress.com (or run `hermes mcp login wordpress-com`). Approve access,\nthen restart the session so tools load.\n",
+        "required_env": [],
+        "source": "https://developer.wordpress.com/docs/mcp/",
+        "suggest": {
+          "applications": [],
+          "examples": [],
+          "hosts": [
+            "wordpress.com"
+          ],
+          "keywords": [
+            "wordpress"
+          ],
+          "requires_app": false
+        },
+        "transport": "http",
+        "url": "https://public-api.wordpress.com/wpcom/v2/mcp/v1"
+      }
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/mcp/catalog",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}
