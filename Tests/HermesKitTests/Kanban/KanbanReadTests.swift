@@ -7,7 +7,7 @@ import Testing
 func kanbanRecordedBody(_ name: String) throws -> String {
     let envelope = try #require(try JSONSerialization.jsonObject(with: Data(restFixture(name).utf8)) as? [String: Any])
     let body = try JSONSerialization.data(withJSONObject: try #require(envelope["body"]), options: [.fragmentsAllowed])
-    return String(decoding: body, as: UTF8.self)
+    return try #require(String(bytes: body, encoding: .utf8))
 }
 
 /// A JSON text read as an object. Tests compare each decoded value with the value in the same file, so no sample value
