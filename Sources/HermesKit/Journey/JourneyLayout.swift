@@ -160,9 +160,10 @@ public struct JourneyViewport: Sendable, Equatable {
     public private(set) var center: CGPoint
 
     /// Creates a viewport. Out-of-range or not-a-number values are pulled back in range.
-    public init(zoom: Double = 1, center: CGPoint = .zero) {
+    /// A nil centre is the origin, the middle of the graph.
+    public init(zoom: Double = 1, center: CGPoint? = nil) {
         self.zoom = Self.clampZoom(zoom)
-        self.center = Self.clampCenter(center)
+        self.center = Self.clampCenter(center ?? CGPoint(x: 0, y: 0))
     }
 
     /// Pulls a zoom into ``zoomRange``. Not-a-number gives 1.
