@@ -14,18 +14,21 @@ final class AutomationsUITests: XCTestCase {
         // Launch opens the newest chat, which pushes over the tab bar. Back out to reach the tabs.
         XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 10))
         back(app, from: "Backup cron fix", to: "Chats")
-        let tab = app.tabBars.buttons["Automations"]
-        XCTAssertTrue(tab.waitForExistence(timeout: 10), "The tab bar should show Automations")
+        let tab = tabButton(app, "Automations")
+        XCTAssertTrue(tab.waitForExistence(timeout: 10), "The tab should show Automations")
         tab.tap()
         XCTAssertTrue(app.navigationBars["Automations"].waitForExistence(timeout: 10))
     }
 
-    /// Pops `current` back to `previous`. The runner does not reliably expose the back button, so the
-    /// leading edge of the bar, where the button sits, is tapped. The back swipe is the fallback.
-    /// A pushed screen leaves the previous bar in the hierarchy, so the pop is confirmed by `current` going away.
+    /// Pops `current` back to `previous`. The back button is found by its identifier, wherever the layout puts it.
+    /// The back swipe is the fallback. A pushed screen leaves the previous bar in the hierarchy, so the pop is
+    /// confirmed by `current` going away.
     @MainActor
     private func back(_ app: XCUIApplication, from current: String, to previous: String) {
-        app.navigationBars[current].coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.25)).tap()
+        let backButton = app.buttons["BackButton"]
+        if backButton.waitForExistence(timeout: 3) {
+            backButton.tap()
+        }
         if !app.navigationBars[current].waitForNonExistence(timeout: 3) {
             add(XCTAttachment(string: app.debugDescription))
             let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
@@ -36,5 +39,12 @@ final class AutomationsUITests: XCTestCase {
             app.navigationBars[current].waitForNonExistence(timeout: 5),
             "Expected to back out of \(current) to \(previous)"
         )
+    }
+
+    /// A tab found by its label. The tabs are exposed as buttons in a toolbar here, not as tab bar buttons.
+    /// Hidden copies of the same buttons exist, so only a hittable one counts.
+    @MainActor
+    private func tabButton(_ app: XCUIApplication, _ title: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label == %@ AND hittable == YES", title)).firstMatch
     }
 }
