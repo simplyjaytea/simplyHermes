@@ -2,36 +2,11 @@ import Foundation
 import HermesKit
 import Testing
 
-/// Each test scripts the answers the server gives and checks the request the client built and the decoded values.
+/// Each test scripts the answers the server gives and checks the request the client built. No answer is decoded yet,
+/// so a call that succeeds is checked by its HTTP status.
 @Suite struct MCPEndpointTests {
-    private static let serversJSON = #"""
-        {"servers":[
-          {"name":"github","transport":"stdio","url":null,"command":"npx","args":["-y","@x/github"],
-           "env":{"GITHUB_TOKEN":"ghp_masked"},"auth":null,"enabled":true,"tools":null,"source":"config","plugin":null},
-          {"name":"docs","transport":"http","url":"https://docs.example/mcp","command":null,"args":[],
-           "env":{},"auth":"oauth","enabled":false,"tools":["search"],"source":"plugin","plugin":"docs-plugin",
-           "future_field":{"ignored":true}}
-        ]}
-        """#
-
     private func jsonObject(_ request: HTTPRequest) throws -> [String: Any] {
         try #require(request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })
-    }
-
-    @Test func listDecodesServersAndNamesOnlyTheEnv() async throws {
-        let http = FakeHTTP()
-        http.enqueue(200, Self.serversJSON)
-        let servers = try await makeClient(http).mcpServers()
-        #expect(servers.map(\.name) == ["github", "docs"])
-        let github = try #require(servers.first)
-        #expect(github.enabled && github.isEditable && github.transport == "stdio")
-        #expect(github.envNames == ["GITHUB_TOKEN"] && github.args == ["-y", "@x/github"])
-        let docs = try #require(servers.last)
-        #expect(!docs.enabled && !docs.isEditable && docs.auth == "oauth")
-        #expect(docs.supportsOAuth && !github.supportsOAuth)
-        #expect(docs.url == "https://docs.example/mcp" && docs.plugin == "docs-plugin")
-        let request = try #require(http.requests.first)
-        #expect(request.method == "GET" && request.url.path == "/api/mcp/servers" && request.url.query == nil)
     }
 
     @Test func addSendsSnakeCaseBodyAndKeepsVariableNames() async throws {
@@ -94,39 +69,40 @@ import Testing
         #expect(body.count == 1 && body["enabled"] as? Bool == false)
     }
 
-    @Test func testDecodesSuccessAndFailure() async throws {
+    @Test func testSendsOnePostAndChecksOnlyTheStatus() async throws {
         let http = FakeHTTP()
-        http.enqueue(
-            200,
-            #"{"ok":true,"tools":[{"name":"search","description":"Search docs","schema_chars":120}],"prompts":0,"resources":2}"#
-        )
         http.enqueue(200, #"{"ok":false,"error":"OAuth authentication required — no token found.","tools":[]}"#)
-        let client = makeClient(http)
-        let good = try await client.testMCPServer("docs")
-        #expect(good.ok && good.resources == 2 && good.prompts == 0)
-        #expect(good.tools?.first?.name == "search" && good.tools?.first?.schemaChars == 120)
-        let bad = try await client.testMCPServer("docs")
-        #expect(!bad.ok && bad.tools?.isEmpty == true)
-        #expect(bad.error == "OAuth authentication required — no token found.")
-        #expect(http.requests.allSatisfy { $0.method == "POST" && $0.url.path == "/api/mcp/servers/docs/test" })
+        try await makeClient(http).testMCPServer("docs")
+        #expect(http.requests.count == 1)
+        let request = try #require(http.requests.first)
+        #expect(request.method == "POST" && request.url.path == "/api/mcp/servers/docs/test")
     }
 
-    @Test func oauthStartPollAndCancel() async throws {
+    @Test func refusedStatusThrowsWithTheServerDetail() async throws {
+        let http = FakeHTTP()
+        http.enqueue(409, #"{"detail":"A server with this name exists."}"#)
+        await #expect(throws: RESTError.http(status: 409, detail: "A server with this name exists.")) {
+            try await makeClient(http).addMCPServer(MCPServerCreate(name: "fs", command: "uvx"))
+        }
+    }
+
+    @Test func undecodedAnswerDoesNotFailACall() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, "not json at all")
+        try await makeClient(http).startMCPServerAuth("docs")
+        #expect(http.requests.first?.method == "POST")
+    }
+
+    @Test func oauthStartPollAndCancelCheckOnlyTheStatus() async throws {
         let http = FakeHTTP()
         http.enqueue(
             200,
-            #"{"flow_id":"f1","server_name":"docs","status":"authorization_required","authorization_url":"https://auth.example/authorize?state=s","error":null,"tools":null}"#
-        )
-        http.enqueue(
-            200,
-            #"{"flow_id":"f1","server_name":"docs","status":"approved","authorization_url":null,"error":null,"tools":[{"name":"search","description":"Search"}]}"#
-        )
+            #"{"flow_id":"f1","status":"authorization_required","authorization_url":"https://auth.example/authorize"}"#)
+        http.enqueue(200, #"{"flow_id":"f1","status":"approved"}"#)
         http.enqueue(200, #"{"ok":true,"status":"expired"}"#)
         let client = makeClient(http)
-        let started = try await client.startMCPServerAuth("docs")
-        #expect(started.flowId == "f1" && !started.isFinished && started.authorizationUrl != nil)
-        let polled = try await client.mcpOAuthFlow(id: started.flowId)
-        #expect(polled.isFinished && polled.isApproved && polled.tools?.first?.name == "search")
+        try await client.startMCPServerAuth("docs")
+        try await client.checkMCPOAuthFlow(id: "f1")
         try await client.cancelMCPOAuthFlow(id: "f1")
         let requests = http.requests
         #expect(requests.map(\.method) == ["POST", "GET", "DELETE"])
@@ -136,40 +112,11 @@ import Testing
             ])
     }
 
-    @Test func failedOAuthFlowFinishesWithItsError() async throws {
-        let http = FakeHTTP()
-        http.enqueue(200, #"{"flow_id":"f2","status":"error","error":"Cancelled by user"}"#)
-        let flow = try await makeClient(http).mcpOAuthFlow(id: "f2")
-        #expect(flow.isFinished && !flow.isApproved && flow.error == "Cancelled by user")
-    }
-
-    @Test func catalogDecodesEntriesAndDiagnostics() async throws {
-        let http = FakeHTTP()
-        http.enqueue(
-            200,
-            #"""
-            {"entries":[{"name":"github","description":"GitHub tools","connector_slug":null,"source":"nous",
-              "transport":"stdio","auth_type":"env","required_env":[{"name":"GITHUB_TOKEN","prompt":"Token","required":true}],
-              "command":"npx","args":["-y","@modelcontextprotocol/server-github"],"url":null,"install_url":null,
-              "install_ref":null,"bootstrap":[],"default_enabled":null,"post_install":"","suggest":null,
-              "needs_install":false,"installed":false,"enabled":false}],
-             "diagnostics":[{"name":"broken","kind":"parse","message":"bad yaml"}]}
-            """#)
-        let catalog = try await makeClient(http).mcpCatalog()
-        let entry = try #require(catalog.entries.first)
-        #expect(entry.id == "github" && entry.installed == false && entry.transport == "stdio")
-        #expect(entry.requiredEnv?.first?.name == "GITHUB_TOKEN" && entry.requiredEnv?.first?.required == true)
-        #expect(catalog.diagnostics?.first?.message == "bad yaml")
-        let request = try #require(http.requests.first)
-        #expect(request.method == "GET" && request.url.path == "/api/mcp/catalog")
-    }
-
-    @Test func installSendsOnlyDeclaredEnvAndReportsBackgroundWork() async throws {
+    @Test func installSendsOnlyDeclaredEnvAndChecksOnlyTheStatus() async throws {
         let http = FakeHTTP()
         http.enqueue(200, #"{"ok":true,"name":"github","background":true,"action":"mcp-install-github-1a2b"}"#)
-        let result = try await makeClient(http).installMCPCatalogEntry(
+        try await makeClient(http).installMCPCatalogEntry(
             MCPCatalogInstall(name: "github", env: ["GITHUB_TOKEN": "t"]))
-        #expect(result.ok == true && result.background == true && result.action == "mcp-install-github-1a2b")
         let request = try #require(http.requests.first)
         #expect(request.method == "POST" && request.url.path == "/api/mcp/catalog/install")
         let body = try jsonObject(request)
@@ -179,8 +126,8 @@ import Testing
 
     @Test func profileScopeIsAddedToMCPCalls() async throws {
         let http = FakeHTTP()
-        http.enqueue(200, #"{"servers":[]}"#)
-        _ = try await makeClient(http, profile: "ops").mcpServers()
+        http.enqueue(200)
+        try await makeClient(http, profile: "ops").removeMCPServer(named: "docs")
         #expect(http.requests.first?.url.query == "profile=ops")
     }
 }

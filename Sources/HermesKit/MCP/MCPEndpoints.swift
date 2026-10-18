@@ -11,14 +11,9 @@ private func mcpPath(_ parts: String...) -> String {
     return parts.map { $0.addingPercentEncoding(withAllowedCharacters: allowed) ?? $0 }.joined(separator: "/")
 }
 
-/// MCP servers, their OAuth sign-in and the catalog. The answers that the screens ignore are not decoded.
+/// MCP servers, their OAuth sign-in and the catalog. No answer is decoded yet: no recorded fixture shows their fields,
+/// so each call checks the HTTP status only (WP-53b).
 extension RESTClient {
-    /// `GET /api/mcp/servers`.
-    public func mcpServers() async throws -> [MCPServerInfo] {
-        let list: MCPServerList = try await get("/api/mcp/servers")
-        return list.servers
-    }
-
     /// `POST /api/mcp/servers`: adds a server to config. Refuses a name that exists.
     public func addMCPServer(_ server: MCPServerCreate) async throws {
         let _: HTTPResponse = try await send("POST", "/api/mcp/servers", body: server)
@@ -26,8 +21,8 @@ extension RESTClient {
 
     /// `PUT /api/mcp/servers`: replaces every entry of the `mcp_servers` map with `servers`.
     ///
-    /// Send the complete map, built from the full config. ``mcpServers()`` masks env values, so never build the map
-    /// from it, or the masked values would be written back.
+    /// Send the complete map, built from the full config. The server masks env values in its answers, so never build
+    /// the map from an answer, or the masked values would be written back.
     public func replaceMCPServers(_ servers: [String: JSONValue]) async throws {
         let _: HTTPResponse = try await send("PUT", "/api/mcp/servers", body: MCPServersReplace(servers: servers))
     }
@@ -43,20 +38,20 @@ extension RESTClient {
             "PUT", "/api/mcp/servers/" + mcpPath(name, "enabled"), body: MCPEnabledBody(enabled: enabled))
     }
 
-    /// `POST /api/mcp/servers/{name}/test`: connects, lists the tools and disconnects.
-    public func testMCPServer(_ name: String) async throws -> MCPServerTestResult {
-        try await send("POST", "/api/mcp/servers/" + mcpPath(name, "test"))
+    /// `POST /api/mcp/servers/{name}/test`: connects, lists the tools and disconnects. Only the HTTP status is checked.
+    public func testMCPServer(_ name: String) async throws {
+        let _: HTTPResponse = try await send("POST", "/api/mcp/servers/" + mcpPath(name, "test"))
     }
 
-    /// `POST /api/mcp/servers/{name}/auth`: starts an OAuth sign-in. Open ``MCPOAuthFlow/authorizationUrl`` in a
-    /// browser, then poll ``mcpOAuthFlow(id:)`` until ``MCPOAuthFlow/isFinished``.
-    public func startMCPServerAuth(_ name: String) async throws -> MCPOAuthFlow {
-        try await send("POST", "/api/mcp/servers/" + mcpPath(name, "auth"))
+    /// `POST /api/mcp/servers/{name}/auth`: starts an OAuth sign-in. Only the HTTP status is checked: the flow id and
+    /// the sign-in page are not decoded.
+    public func startMCPServerAuth(_ name: String) async throws {
+        let _: HTTPResponse = try await send("POST", "/api/mcp/servers/" + mcpPath(name, "auth"))
     }
 
-    /// `GET /api/mcp/oauth/flows/{flow_id}`. A flow that expired answers 404.
-    public func mcpOAuthFlow(id: String) async throws -> MCPOAuthFlow {
-        try await get("/api/mcp/oauth/flows/" + mcpPath(id))
+    /// `GET /api/mcp/oauth/flows/{flow_id}`. Only the HTTP status is checked. A flow that expired answers 404.
+    public func checkMCPOAuthFlow(id: String) async throws {
+        let _: HTTPResponse = try await send("GET", "/api/mcp/oauth/flows/" + mcpPath(id))
     }
 
     /// `DELETE /api/mcp/oauth/flows/{flow_id}`: abandons a sign-in. Safe to call after the flow finished.
@@ -64,13 +59,9 @@ extension RESTClient {
         let _: HTTPResponse = try await send("DELETE", "/api/mcp/oauth/flows/" + mcpPath(id))
     }
 
-    /// `GET /api/mcp/catalog`.
-    public func mcpCatalog() async throws -> MCPCatalog {
-        try await get("/api/mcp/catalog")
-    }
-
-    /// `POST /api/mcp/catalog/install`. Only the variables the entry declares are accepted.
-    public func installMCPCatalogEntry(_ install: MCPCatalogInstall) async throws -> MCPCatalogInstallResult {
-        try await send("POST", "/api/mcp/catalog/install", body: install)
+    /// `POST /api/mcp/catalog/install`. Only the variables the entry declares are accepted. Only the HTTP status is
+    /// checked: the answer can say that a build runs in the background, and it is not decoded.
+    public func installMCPCatalogEntry(_ install: MCPCatalogInstall) async throws {
+        let _: HTTPResponse = try await send("POST", "/api/mcp/catalog/install", body: install)
     }
 }

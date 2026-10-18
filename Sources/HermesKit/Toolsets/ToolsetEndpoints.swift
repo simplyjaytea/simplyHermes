@@ -11,28 +11,20 @@ private func toolsetPath(_ parts: String...) -> String {
     return parts.map { $0.addingPercentEncoding(withAllowedCharacters: allowed) ?? $0 }.joined(separator: "/")
 }
 
-/// Toolset configuration: switch, provider, keys, models and setup. The list itself is ``RESTClient/toolsets()``.
+/// Toolset writes: switch, keys, provider, model and setup. The list itself is ``RESTClient/toolsets()``. No answer
+/// here is decoded: each call checks the HTTP status only (WP-53b).
 extension RESTClient {
     /// `PUT /api/tools/toolsets/{name}`: switches a toolset on or off for its configuration platform.
-    public func setToolsetEnabled(_ name: String, enabled: Bool) async throws -> ToolsetToggleResult {
-        try await send("PUT", "/api/tools/toolsets/" + toolsetPath(name), body: ToolsetToggleBody(enabled: enabled))
-    }
-
-    /// `GET /api/tools/toolsets/{name}/config`: the provider rows and which keys are set.
-    public func toolsetConfig(_ name: String) async throws -> ToolsetConfig {
-        try await get("/api/tools/toolsets/" + toolsetPath(name, "config"))
+    public func setToolsetEnabled(_ name: String, enabled: Bool) async throws {
+        let _: HTTPResponse = try await send(
+            "PUT", "/api/tools/toolsets/" + toolsetPath(name), body: ToolsetToggleBody(enabled: enabled))
     }
 
     /// `PUT /api/tools/toolsets/{name}/env`: stores API keys in `.env`. Keys can only be ones a provider of this
     /// toolset reads. Blank values are left unchanged, so send only the keys the user filled in.
-    public func saveToolsetEnv(_ name: String, env: [String: String]) async throws -> ToolsetEnvResult {
-        try await send("PUT", "/api/tools/toolsets/" + toolsetPath(name, "env"), body: ToolsetEnvUpdate(env: env))
-    }
-
-    /// `GET /api/tools/toolsets/{name}/models`. `provider` names a provider row; nil means the active one.
-    public func toolsetModels(_ name: String, provider: String? = nil) async throws -> ToolsetModelCatalog {
-        let query = provider.map { [URLQueryItem(name: "provider", value: $0)] } ?? []
-        return try await get("/api/tools/toolsets/" + toolsetPath(name, "models"), query: query)
+    public func saveToolsetEnv(_ name: String, env: [String: String]) async throws {
+        let _: HTTPResponse = try await send(
+            "PUT", "/api/tools/toolsets/" + toolsetPath(name, "env"), body: ToolsetEnvUpdate(env: env))
     }
 
     /// `PUT /api/tools/toolsets/{name}/model`: chooses the model of a media backend.
@@ -44,10 +36,8 @@ extension RESTClient {
 
     /// `PUT /api/tools/toolsets/{name}/provider`: chooses the provider. `capability` (`search` or `extract`)
     /// applies to the web toolset only.
-    public func selectToolsetProvider(
-        _ name: String, provider: String, capability: String? = nil
-    ) async throws -> ToolsetProviderResult {
-        try await send(
+    public func selectToolsetProvider(_ name: String, provider: String, capability: String? = nil) async throws {
+        let _: HTTPResponse = try await send(
             "PUT", "/api/tools/toolsets/" + toolsetPath(name, "provider"),
             body: ToolsetProviderSelect(provider: provider, capability: capability))
     }
