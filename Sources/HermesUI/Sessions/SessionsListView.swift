@@ -7,10 +7,17 @@
     public struct SessionsListView: View {
         @Bindable private var model: SessionsListModel
         private let onOpen: (SessionListItem) -> Void
+        /// Whether a chat waits on an approval, by session id. Marks its row with a dot.
+        private let needsApproval: (String) -> Bool
         @State private var pendingDelete: SessionListItem?
 
-        public init(model: SessionsListModel, onOpen: @escaping (SessionListItem) -> Void) {
+        public init(
+            model: SessionsListModel,
+            needsApproval: @escaping (String) -> Bool = { _ in false },
+            onOpen: @escaping (SessionListItem) -> Void
+        ) {
             self.model = model
+            self.needsApproval = needsApproval
             self.onOpen = onOpen
         }
 
@@ -94,6 +101,9 @@
                             .font(HermesFont.footnote)
                             .foregroundStyle(HermesColor.secondaryText)
                             .lineLimit(1)
+                    }
+                    if needsApproval(item.id) {
+                        ApprovalDot()
                     }
                     Spacer(minLength: 8)
                     if item.isPinned {

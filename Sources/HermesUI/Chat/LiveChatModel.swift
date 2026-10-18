@@ -297,5 +297,11 @@
             chats[sessionID] = chat
             return chat
         }
+
+        /// The chat for a stored session id if the store already holds one. Unlike ``chat(for:)``, it never creates one.
+        public func existingChat(for sessionID: String) -> LiveChatModel? {
+            guard connections.active?.id == serverID else { return nil }
+            return chats[sessionID]
+        }
     }
 #endif
