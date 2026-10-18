@@ -5,13 +5,15 @@ import Foundation
 /// of the screen shows up in it. Nothing here is real user data.
 public enum JourneySample {
     /// The sample graph: 26 nodes, 14 links.
-    public static let graph: JourneyGraph = {
-        let nodes = skills.map(\.node) + memories.map(\.node)
+    public static let graph: JourneyGraph = makeGraph()
+
+    private static func makeGraph() -> JourneyGraph {
+        let nodes: [JourneyNode] = skills.map(\.node) + memories.map(\.node)
         var counts: [String: Int] = [:]
         for node in nodes { counts[node.category, default: 0] += 1 }
-        let clusters = counts.map { JourneyCluster(category: $0.key, count: $0.value) }
+        let clusters: [JourneyCluster] = counts.map { JourneyCluster(category: $0.key, count: $0.value) }
             .sorted { $0.count == $1.count ? $0.category < $1.category : $0.count > $1.count }
-        let cards = memories.map {
+        let cards: [JourneyMemoryCard] = memories.map {
             JourneyMemoryCard(source: $0.source, title: $0.title, body: $0.body, fingerprint: $0.fingerprint)
         }
         let stats: [String: JSONValue] = [
@@ -19,7 +21,7 @@ public enum JourneySample {
             "agent_created": .int(nodes.filter(\.isLearned).count),
         ]
         return JourneyGraph(nodes: nodes, edges: edges, clusters: clusters, memory: cards, stats: stats)
-    }()
+    }
 
     /// The text a node opens with, in the shape the server sends: a whole `SKILL.md`, or the raw memory chunk.
     public static func content(for id: String) -> String? {
