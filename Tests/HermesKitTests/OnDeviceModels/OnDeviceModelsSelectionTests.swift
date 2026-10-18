@@ -303,9 +303,8 @@ struct OnDeviceModelsSelectionTests {
         let estimate = alpha.estimatedMemoryBytes
         let free = FreeMemory(estimate)
         let gate = OnDeviceMemoryGate { free.bytes }
-        let broken: () async throws -> String = { throw TestFailure() }
         await #expect(throws: TestFailure()) {
-            try await gate.answer(with: alpha, broken)
+            try await gate.answer(with: alpha) { () throws -> String in throw TestFailure() }
         }
         free.bytes = estimate - 1
 
@@ -320,14 +319,12 @@ struct OnDeviceModelsSelectionTests {
         let gate = OnDeviceMemoryGate { estimate - 1 }
         let ran = TestFlag(false)
 
-        let work: () async throws -> String = {
-            ran.value = true
-            return "never"
-        }
-
         let refusal = OnDeviceModelError.notEnoughMemory(needed: estimate, available: estimate - 1)
         await #expect(throws: refusal) {
-            try await gate.answer(with: alpha, work)
+            try await gate.answer(with: alpha) { () -> String in
+                ran.value = true
+                return "never"
+            }
         }
 
         #expect(!ran.value)
