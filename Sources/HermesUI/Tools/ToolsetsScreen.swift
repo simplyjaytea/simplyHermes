@@ -221,6 +221,7 @@
     struct ToolsetDetailScreen: View {
         @State private var model: ToolsetDetailModel
         @State private var keyValues: [String: String] = [:]
+        @State private var confirmsPostSetup = false
 
         init(connections: ConnectionsModel?, toolset: ToolsetInfo) {
             _model = State(initialValue: ToolsetDetailModel(connections: connections, toolset: toolset))
@@ -257,6 +258,19 @@
             .navigationBarTitleDisplayMode(.inline)
             .task { await model.load() }
             .refreshable { await model.load() }
+            .confirmationDialog(
+                "Install what \(model.activeProvider?.name ?? "the provider") needs?",
+                isPresented: $confirmsPostSetup,
+                titleVisibility: .visible
+            ) {
+                if let key = model.activeProvider?.postSetup {
+                    Button("Install") {
+                        Task { await model.runPostSetup(key) }
+                    }
+                }
+            } message: {
+                Text("The server runs the install in the background. Its progress shows at the top of this screen.")
+            }
         }
 
         private func providerSection(_ config: SkillToolsetConfig) -> some View {
@@ -271,9 +285,9 @@
                 ForEach(config.providers ?? []) { row in
                     providerRow(row)
                 }
-                if let provider = model.activeProvider, let key = provider.postSetup {
+                if let provider = model.activeProvider, provider.postSetup != nil {
                     Button("Install what \(provider.name) needs") {
-                        Task { await model.runPostSetup(key) }
+                        confirmsPostSetup = true
                     }
                     .disabled(model.actions.activity != nil)
                     .accessibilityIdentifier("toolset.postSetup")

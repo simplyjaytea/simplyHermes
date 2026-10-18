@@ -123,6 +123,7 @@
     struct SkillHubSheet: View {
         @State private var model: SkillHubModel
         @State private var query = ""
+        @State private var confirmsUpdate = false
         @Environment(\.dismiss) private var dismiss
 
         init(connections: ConnectionsModel?) {
@@ -158,7 +159,7 @@
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        Task { await model.updateInstalled() }
+                        confirmsUpdate = true
                     } label: {
                         Label("Update installed", systemImage: "arrow.triangle.2.circlepath")
                     }
@@ -168,6 +169,15 @@
             }
             .task { await model.load() }
             .refreshable { await model.load() }
+            .confirmationDialog(
+                "Update installed hub skills?", isPresented: $confirmsUpdate, titleVisibility: .visible
+            ) {
+                Button("Update") {
+                    Task { await model.updateInstalled() }
+                }
+            } message: {
+                Text("The server updates every hub skill installed for this profile. The app has no way to undo an update.")
+            }
         }
 
         private var officialSection: some View {
@@ -241,7 +251,7 @@
         }
     }
 
-    /// One hub skill: what it says, its files, the scan, and Install. A scan that asks for a review confirms first.
+    /// One hub skill: what it says, its files, the scan, and Install. Install asks first and names the source and trust level.
     struct SkillHubDetailScreen: View {
         let model: SkillHubModel
         let skill: HubSkill
@@ -295,12 +305,29 @@
             .confirmationDialog(
                 "Install \(skill.name)?", isPresented: $confirmsInstall, titleVisibility: .visible
             ) {
-                Button("Install anyway", role: .destructive) {
-                    Task { _ = await model.install(skill.id, title: skill.name) }
+                if model.scan?.policy == "ask" {
+                    Button("Install anyway", role: .destructive) {
+                        Task { _ = await model.install(skill.id, title: skill.name) }
+                    }
+                } else {
+                    Button("Install") {
+                        Task { _ = await model.install(skill.id, title: skill.name) }
+                    }
                 }
             } message: {
-                Text("The scan asks for a review first. Verdict: \(model.scan?.verdict ?? "unknown").")
+                Text(installMessage)
             }
+        }
+
+        /// What the install does: where the skill comes from, its trust level, the scan verdict and what it adds.
+        private var installMessage: String {
+            var lines = ["From \(skill.source ?? "an unknown source"), trust \(skill.trustLevel ?? "unknown")."]
+            lines.append("Scan verdict: \(model.scan?.verdict ?? "unknown").")
+            if model.scan?.policy == "ask" {
+                lines.append("The scan asks for a review first.")
+            }
+            lines.append("It adds the skill and its files to this profile.")
+            return lines.joined(separator: "\n")
         }
 
         private func scanSection(_ scan: SkillHubScan) -> some View {
@@ -333,11 +360,7 @@
                         .foregroundStyle(HermesColor.statusConnected)
                 } else {
                     Button {
-                        if model.scan?.policy == "ask" {
-                            confirmsInstall = true
-                        } else {
-                            Task { _ = await model.install(skill.id, title: skill.name) }
-                        }
+                        confirmsInstall = true
                     } label: {
                         Text(model.scan?.policy == "block" ? "Blocked by the scan" : "Install")
                     }

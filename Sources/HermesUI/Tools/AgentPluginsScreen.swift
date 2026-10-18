@@ -171,10 +171,108 @@
         }
     }
 
+    /// A plugin change that waits for the user's yes. The dialog names the plugin and says what the change does.
+    private enum PluginChange {
+        case update(name: String, pin: String?)
+        case remove(name: String)
+        case install(AgentPluginCatalogEntry)
+    }
+
+    /// Asks before a plugin change runs. The title names the plugin, and the message says what the change does.
+    @MainActor
+    private struct PluginChangeDialog: ViewModifier {
+        let model: AgentPluginsModel
+        @Binding var change: PluginChange?
+
+        func body(content: Content) -> some View {
+            content.confirmationDialog(title, isPresented: isShowing, titleVisibility: .visible) {
+                button
+            } message: {
+                Text(message)
+            }
+        }
+
+        private var isShowing: Binding<Bool> {
+            Binding(
+                get: { change != nil },
+                set: { showing in
+                    if !showing {
+                        change = nil
+                    }
+                })
+        }
+
+        @ViewBuilder
+        private var button: some View {
+            switch change {
+            case .update(let name, _)?:
+                Button("Update") {
+                    Task { await model.update(name) }
+                }
+            case .remove(let name)?:
+                Button("Remove", role: .destructive) {
+                    Task { await model.remove(name) }
+                }
+            case .install(let entry)?:
+                Button("Install") {
+                    Task {
+                        _ = await model.install(
+                            AgentPluginInstallRequest(catalogName: entry.name, force: false, enable: true))
+                    }
+                }
+            case nil:
+                EmptyView()
+            }
+        }
+
+        private var title: String {
+            switch change {
+            case .update(let name, _)?: "Update \(name)?"
+            case .remove(let name)?: "Remove \(name)?"
+            case .install(let entry)?: "Install \(entry.title ?? entry.name)?"
+            case nil: ""
+            }
+        }
+
+        private var message: String {
+            switch change {
+            case .update(_, let pin?)?:
+                "The server moves the plugin to its new pin, \(pin). The app has no way to undo an update."
+            case .update?:
+                "The server pulls the latest code for this plugin. The app has no way to undo an update."
+            case .remove?:
+                "The server deletes the plugin's files."
+            case .install(let entry)?:
+                catalogInstallMessage(entry)
+            case nil:
+                ""
+            }
+        }
+
+        /// What a catalog install does: where the plugin comes from, its review tier, what it declares and the switch.
+        private func catalogInstallMessage(_ entry: AgentPluginCatalogEntry) -> String {
+            var lines = ["From \(entry.repo ?? "the catalog"), pinned to \(entry.shaShort ?? "a reviewed commit")."]
+            lines.append("Review tier: \(entry.tier ?? "unknown").")
+            func declares(_ label: String, _ names: [String]?) {
+                guard let names, !names.isEmpty else { return }
+                lines.append("\(label): \(names.joined(separator: ", ")).")
+            }
+            let capabilities = entry.capabilities
+            declares("Tools", capabilities?.providesTools)
+            declares("Hooks", capabilities?.providesHooks)
+            declares("Middleware", capabilities?.providesMiddleware)
+            declares("Environment", capabilities?.requiresEnv)
+            lines.append("The server installs it and switches it on.")
+            return lines.joined(separator: "\n")
+        }
+    }
+
     /// The agent plugins: installed ones with their switch and actions, then the catalog with installs and updates.
     struct AgentPluginsScreen: View {
         @State private var model: AgentPluginsModel
         @State private var showsGitInstall = false
+        /// The change that waits for the user's yes, while its dialog is up.
+        @State private var confirming: PluginChange?
         private let connections: ConnectionsModel?
 
         /// `connections` is nil when the shell has none. The screen then says that no server is connected.
@@ -259,6 +357,7 @@
             } message: {
                 Text((model.pendingUpdate?.lines ?? []).joined(separator: "\n"))
             }
+            .modifier(PluginChangeDialog(model: model, change: $confirming))
             .onAppear { Task { await model.load() } }
             .refreshable { await model.load() }
         }
@@ -311,18 +410,18 @@
                 }
             }
             .disabled(model.busy == plugin.name)
-            .swipeActions(edge: .leading) {
+            .swipeActions(edge: .leading, allowsFullSwipe: false) {
                 if plugin.canUpdateGit == true {
                     Button("Update") {
-                        Task { await model.update(plugin.name) }
+                        confirming = .update(name: plugin.name, pin: nil)
                     }
                     .tint(HermesColor.accent)
                 }
             }
-            .swipeActions(edge: .trailing) {
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 if plugin.canRemove == true {
                     Button("Remove", role: .destructive) {
-                        Task { await model.remove(plugin.name) }
+                        confirming = .remove(name: plugin.name)
                     }
                 }
             }
@@ -360,16 +459,13 @@
         private func catalogAction(_ entry: AgentPluginCatalogEntry) -> some View {
             if entry.updateAvailable == true {
                 Button("Update") {
-                    Task { await model.update(entry.name) }
+                    confirming = .update(name: entry.name, pin: entry.shaShort)
                 }
                 .buttonStyle(.bordered)
                 .disabled(model.busy != nil)
             } else if entry.installed != true {
                 Button("Install") {
-                    Task {
-                        _ = await model.install(
-                            AgentPluginInstallRequest(catalogName: entry.name, force: false, enable: true))
-                    }
+                    confirming = .install(entry)
                 }
                 .buttonStyle(.bordered)
                 .disabled(model.busy != nil)
@@ -399,6 +495,7 @@
         @State private var url = ""
         @State private var pin = ""
         @State private var enable = true
+        @State private var confirmsInstall = false
         @Environment(\.dismiss) private var dismiss
 
         init(model: AgentPluginsModel) {
@@ -446,17 +543,24 @@
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Install") {
-                        Task {
-                            let request = AgentPluginInstallRequest(
-                                identifier: trimmedURL, ref: pin.isEmpty ? nil : pin, enable: enable)
-                            if await model.install(request) {
-                                dismiss()
-                            }
-                        }
+                        confirmsInstall = true
                     }
                     .disabled(!canInstall)
                     .accessibilityIdentifier("plugins.install.confirm")
                 }
+            }
+            .confirmationDialog("Install from git?", isPresented: $confirmsInstall, titleVisibility: .visible) {
+                Button("Install") {
+                    Task {
+                        let request = AgentPluginInstallRequest(
+                            identifier: trimmedURL, ref: pin.isEmpty ? nil : pin, enable: enable)
+                        if await model.install(request) {
+                            dismiss()
+                        }
+                    }
+                }
+            } message: {
+                Text(installMessage)
             }
         }
 
@@ -470,6 +574,15 @@
 
         private var canInstall: Bool {
             !trimmedURL.isEmpty && pinIsValid && model.busy == nil
+        }
+
+        /// What a git install does: the server downloads the URL, installs the pinned commit or the default branch, and
+        /// leaves the plugin on or off as the toggle says.
+        private var installMessage: String {
+            let source = "The server downloads \(trimmedURL) and installs the plugin from it."
+            let version = pin.isEmpty ? "It installs the default branch." : "It installs the commit \(pin)."
+            let switched = enable ? "It is switched on after install." : "It stays off after install."
+            return [source, version, switched, "The catalog review does not cover a git URL."].joined(separator: " ")
         }
     }
 
