@@ -70,6 +70,8 @@
         @ObservationIgnored public var liveChats: LiveChatStore?
         /// Ids of the chats the server listed. These open as live chats; the rest stay placeholders.
         public private(set) var serverSessionIDs: Set<String> = []
+        /// Bot Chats opened from the Bots screen (WP-42). They are hidden, so the sessions list never lists them.
+        public private(set) var botChatIDs: Set<String> = []
         public var isPalettePresented = false
         /// Report a bug, opened from the command palette.
         public var isBugReportPresented = false
@@ -138,12 +140,12 @@
         /// Replaces the listed chats with the server's (WP-40). Chats started here stay. Their transcripts arrive with
         /// WP-30, so a synced chat opens empty for now.
         public func syncSessions(_ items: [SessionListItem]) {
-            let local = sessions.filter { $0.id.hasPrefix("new-") }
+            let local = sessions.filter { $0.id.hasPrefix("new-") || botChatIDs.contains($0.id) }
             let synced = items.map {
                 ChatSessionSummary(id: $0.id, title: $0.title, subtitle: $0.time ?? "", serverName: $0.serverName)
             }
             sessions = local + synced
-            serverSessionIDs = Set(items.map(\.id))
+            serverSessionIDs = Set(items.map(\.id)).union(botChatIDs)
             for session in sessions where transcripts[session.id] == nil { transcripts[session.id] = [] }
             let ids = Set(sessions.map(\.id))
             openSessionIDs.removeAll { !ids.contains($0) }
@@ -160,6 +162,12 @@
             }
             serverSessionIDs.insert(item.id)
             open(item.id)
+        }
+
+        /// Opens a bot's Bot Chat from the Bots screen (WP-42). The chat is hidden, so it is kept across list syncs.
+        public func openBotChat(_ item: SessionListItem) {
+            botChatIDs.insert(item.id)
+            show(item)
         }
 
         /// Starts a new local chat. WP-40 replaces this with a server-side session.

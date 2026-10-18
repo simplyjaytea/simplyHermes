@@ -15,6 +15,7 @@
         @Environment(\.hermesReduceMotion) private var reduceMotionOverride
         @State private var postureMonitor = DevicePostureMonitor()
         @State private var profiles: ProfilesModel?
+        @State private var bots: BotsModel?
         @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
         /// `connections` fills Settings > Servers and the server switcher (WP-22). Nil shows placeholders.
@@ -27,7 +28,10 @@
             self.connections = connections
             self.sessionsList = sessionsList
             model.liveChats = connections.map(LiveChatStore.init)
-            _profiles = State(initialValue: connections.map { ProfilesModel(connections: $0) })
+            let profileList = connections.map { ProfilesModel(connections: $0) }
+            _profiles = State(initialValue: profileList)
+            _bots = State(
+                initialValue: connections.map { BotsModel(connections: $0, profiles: profileList, shell: model) })
             self.showsDebugLayoutMenu = showsDebugLayoutMenu
         }
 
@@ -49,6 +53,7 @@
                     .environment(\.hermesPosture, posture)
                     .task(id: forcedPosture) { applyForcedPosture() }
                     .task(id: connections?.active?.id) { await attachSessions() }
+                    .task(id: connections?.active?.id) { await bots?.reload() }
             }
         }
 
@@ -300,6 +305,8 @@
         private func sectionContent(_ section: AppSection) -> some View {
             if section == .settings, let connections {
                 SettingsHome(connections: connections)
+            } else if section == .bots, let bots {
+                BotsHomeView(model: bots)
             } else {
                 SectionPlaceholder(section: section)
             }
