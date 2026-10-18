@@ -374,6 +374,26 @@
                     }
                     .accessibilityIdentifier("settings.servers")
                 }
+                Section("Messaging") {
+                    NavigationLink {
+                        MessagingChannelsView(connections: connections)
+                    } label: {
+                        Label("Channels", systemImage: "bubble.left.and.bubble.right")
+                    }
+                    .accessibilityIdentifier("settings.messaging.channels")
+                    NavigationLink {
+                        PairingRequestsView(connections: connections)
+                    } label: {
+                        Label("Pairing requests", systemImage: "person.crop.circle.badge.checkmark")
+                    }
+                    .accessibilityIdentifier("settings.messaging.pairing")
+                    NavigationLink {
+                        WebhookListView(connections: connections)
+                    } label: {
+                        Label("Webhooks", systemImage: "arrow.triangle.branch")
+                    }
+                    .accessibilityIdentifier("settings.messaging.webhooks")
+                }
                 Section("Support") {
                     NavigationLink {
                         BugReportScreen(connections: connections)
