@@ -12,10 +12,10 @@ Stdlib only. Options: --base (default http://127.0.0.1:9119), --spec (default do
   3. Seed flows, the only POST/PUT/PATCH/DELETE calls. Each flow names its objects "recorder*", cleans up in a
      finally block, and uses only the writes in SEED_WRITES.
 
-Output is deterministic (sorted keys, 2-space indent, no timestamps): one JSON file per recorded request, named by
-method and path, plus index.json. Each file is {"step", "request", "status", "contentType", "body"}. Strings under a
-secret key name (REDACT_KEYS) become "<redacted>"; numbers, booleans and null keep their type (see redact()). Exit 1
-only when the login fails.
+Serialization is deterministic (sorted keys, 2-space indent). Server answers vary per run, see Fixtures/rest/README.md.
+Output: one JSON file per recorded request, named by method and path, plus index.json. Each file is
+{"step", "request", "status", "contentType", "body"}. Strings under a secret key name (REDACT_KEYS) become "<redacted>";
+numbers, booleans and null keep their type (see redact()). Exit 1 only when the login fails.
 """
 import argparse
 import http.client
