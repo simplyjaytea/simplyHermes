@@ -2,20 +2,26 @@
     import HermesKit
     import SwiftUI
 
-    /// Settings > Tools & MCP > MCP servers. Adding a server and installing from the catalog are the changes this screen
-    /// sends for now. The servers already in config are read after an add but not shown here yet. Their switches, tests,
-    /// removals and sign-ins are not on this screen (WP-53b).
+    /// Settings > Tools & MCP > MCP servers: the servers in config, with Test and Remove, then Add and the catalog
+    /// (WP-53b).
+    ///
+    /// Each change is sent once and only its HTTP status is checked, then the list is read again. A test's result is not
+    /// shown here yet. The switches and sign-ins are not on this screen.
     public struct MCPServersView: View {
+        private let connections: ConnectionsModel
         @State private var model: MCPServersModel
         @State private var catalog: MCPCatalogModel
         @State private var showsAdd = false
+        @State private var pendingRemove: MCPServerInfo?
 
         public init(connections: ConnectionsModel) {
+            self.connections = connections
             _model = State(initialValue: MCPServersModel(connections: connections))
             _catalog = State(initialValue: MCPCatalogModel(connections: connections))
         }
 
-        init(model: MCPServersModel, catalog: MCPCatalogModel) {
+        init(connections: ConnectionsModel, model: MCPServersModel, catalog: MCPCatalogModel) {
+            self.connections = connections
             _model = State(initialValue: model)
             _catalog = State(initialValue: catalog)
         }
@@ -28,6 +34,13 @@
                             .foregroundStyle(HermesColor.secondaryText)
                     }
                 }
+                if let errorText = model.errorText {
+                    Section {
+                        Label(errorText, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(HermesColor.destructive)
+                    }
+                }
+                serversSection
                 Section {
                     Button {
                         showsAdd = true
@@ -35,14 +48,54 @@
                         Label("Add server", systemImage: "plus")
                     }
                     .accessibilityIdentifier("mcp.add")
-                } footer: {
-                    Text("Servers already in config are not listed here yet.")
                 }
                 catalogSection
             }
             .navigationTitle("MCP servers")
+            .refreshable { await model.refresh() }
+            .task(id: connections.active?.id) { await model.refresh() }
             .sheet(isPresented: $showsAdd) {
                 MCPServerFormView(model: model) { showsAdd = false }
+            }
+            .confirmationDialog(
+                "Remove \(pendingRemove?.name ?? "server")?", isPresented: removeBinding, titleVisibility: .visible,
+                presenting: pendingRemove
+            ) { server in
+                Button("Remove server", role: .destructive) { Task { await model.remove(server) } }
+            } message: { _ in
+                Text("The server leaves the config on the Hermes server. You can add it again later.")
+            }
+        }
+
+        private var serversSection: some View {
+            Section {
+                if model.servers.isEmpty {
+                    emptyRow
+                }
+                ForEach(model.servers) { server in
+                    MCPServerRow(
+                        server: server,
+                        onTest: { Task { await model.test(server) } },
+                        onRemove: { pendingRemove = server })
+                }
+            } header: {
+                Text("In config")
+            } footer: {
+                Text(
+                    "Test checks a server. Remove deletes it from the config. "
+                        + "This screen doesn't show a test's result yet.")
+            }
+        }
+
+        @ViewBuilder private var emptyRow: some View {
+            if connections.active == nil {
+                Text("Add a server under Servers first.")
+                    .foregroundStyle(HermesColor.secondaryText)
+            } else if model.isLoading {
+                ProgressView()
+            } else if model.errorText == nil {
+                Text("No servers in config yet.")
+                    .foregroundStyle(HermesColor.secondaryText)
             }
         }
 
@@ -58,21 +111,77 @@
                 Text("The approved catalog lists servers you can install. Some need a value, such as an access token.")
             }
         }
+
+        private var removeBinding: Binding<Bool> {
+            Binding(get: { pendingRemove != nil }, set: { if !$0 { pendingRemove = nil } })
+        }
+    }
+
+    /// One server in config: its name, whether it is on, its transport, its program and where it is defined. A menu
+    /// runs Test or Remove. Only the five fields the fixture shows are read here.
+    private struct MCPServerRow: View {
+        let server: MCPServerInfo
+        let onTest: () -> Void
+        let onRemove: () -> Void
+
+        var body: some View {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(server.name).font(HermesFont.body.weight(.semibold))
+                    Text(summary)
+                        .font(HermesFont.footnote)
+                        .foregroundStyle(HermesColor.secondaryText)
+                    if let command = server.command, !command.isEmpty {
+                        Text(command)
+                            .font(HermesFont.codeSmall)
+                            .foregroundStyle(HermesColor.secondaryText)
+                            .lineLimit(1)
+                    }
+                    if let source = server.source, !source.isEmpty {
+                        Text("From \(source)")
+                            .font(HermesFont.caption)
+                            .foregroundStyle(HermesColor.secondaryText)
+                    }
+                }
+                Spacer(minLength: 8)
+                menu
+            }
+            .accessibilityIdentifier("mcp.server.\(server.name)")
+        }
+
+        /// Whether the server is on, then its transport when the server reports one.
+        private var summary: String {
+            let state = server.enabled ? "On" : "Off"
+            guard let transport = server.transport, !transport.isEmpty else { return state }
+            return "\(state), \(transport)"
+        }
+
+        private var menu: some View {
+            Menu {
+                Button("Test connection", systemImage: "bolt.horizontal.circle", action: onTest)
+                    .accessibilityIdentifier("mcp.test.\(server.name)")
+                Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+                    .accessibilityIdentifier("mcp.remove.\(server.name)")
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .accessibilityIdentifier("mcp.menu.\(server.name)")
+        }
     }
 
     #Preview("MCP servers, outer", traits: .fixedLayout(width: 466, height: 678)) {
-        NavigationStack { MCPServersView(model: .preview(), catalog: .preview()) }
+        NavigationStack { MCPServersView(connections: .preview(), model: .preview(), catalog: .preview()) }
     }
 
     #Preview("MCP servers, inner portrait", traits: .fixedLayout(width: 626, height: 890)) {
-        NavigationStack { MCPServersView(model: .preview(), catalog: .preview()) }
+        NavigationStack { MCPServersView(connections: .preview(), model: .preview(), catalog: .preview()) }
     }
 
     #Preview("MCP servers, inner landscape", traits: .fixedLayout(width: 890, height: 626)) {
-        NavigationStack { MCPServersView(model: .preview(), catalog: .preview()) }
+        NavigationStack { MCPServersView(connections: .preview(), model: .preview(), catalog: .preview()) }
     }
 
     #Preview("MCP servers, half-fold", traits: .fixedLayout(width: 890, height: 313)) {
-        NavigationStack { MCPServersView(model: .preview(), catalog: .preview()) }
+        NavigationStack { MCPServersView(connections: .preview(), model: .preview(), catalog: .preview()) }
     }
 #endif

@@ -57,6 +57,15 @@
                 """#) ?? []
         }
 
+        static var mcpServers: [MCPServerInfo] {
+            decode(
+                [MCPServerInfo].self,
+                #"""
+                [{"name":"github","transport":"stdio","command":"npx","enabled":true,"source":"config"},
+                 {"name":"docs","transport":"http","enabled":false,"source":"config"}]
+                """#) ?? []
+        }
+
         static var catalog: MCPCatalog? {
             decode(
                 MCPCatalog.self,
