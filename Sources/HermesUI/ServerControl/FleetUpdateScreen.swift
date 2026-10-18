@@ -4,11 +4,12 @@
 
     /// Settings > Server > Update all servers: the check of every saved server, one at a time. A server with an update
     /// asks first, by name, with Update, Skip and Stop. Each server gets a line in the result list (WP-54).
+    /// ConnectionsModel keeps the run, so reopening this screen shows a run that is still going.
     public struct FleetUpdateScreen: View {
         @State private var model: FleetUpdateModel
 
         public init(connections: ConnectionsModel) {
-            _model = State(initialValue: FleetUpdateModel(connections: connections))
+            _model = State(initialValue: connections.fleetUpdate)
         }
 
         init(model: FleetUpdateModel) {

@@ -103,6 +103,16 @@
         /// False while a fleet update connects the saved servers, so those connects leave the last used server alone.
         @ObservationIgnored var recordsLastUsed = true
         @ObservationIgnored private var phaseWatcher: Task<Void, Never>?
+        @ObservationIgnored private var fleetRun: FleetUpdateModel?
+
+        /// The fleet update model, made on first use. The run lives here, not in the screen, so a reopened screen
+        /// re-attaches to a run that goes on, and "Update all servers" cannot start a second run.
+        public var fleetUpdate: FleetUpdateModel {
+            if let fleetRun { return fleetRun }
+            let model = FleetUpdateModel(connections: self)
+            fleetRun = model
+            return model
+        }
 
         /// Loads saved connections from `store`. Nil keeps them in memory only (previews, UI tests).
         public init(store: ConnectionStore?, services: ConnectionServices, initial: SavedConnections? = nil) {
