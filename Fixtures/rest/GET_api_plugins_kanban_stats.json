@@ -1,0 +1,17 @@
+{
+  "body": {
+    "by_assignee": {},
+    "by_status": {},
+    "now": 1792299079,
+    "oldest_ready_age_seconds": null
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/plugins/kanban/stats",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

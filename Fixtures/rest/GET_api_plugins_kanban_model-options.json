@@ -1,0 +1,22 @@
+{
+  "body": {
+    "providers": [
+      {
+        "label": "custom",
+        "models": [
+          "fake-model"
+        ],
+        "slug": "custom"
+      }
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/plugins/kanban/model-options",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

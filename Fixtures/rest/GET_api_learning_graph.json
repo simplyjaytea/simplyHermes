@@ -1,0 +1,31 @@
+{
+  "body": {
+    "clusters": [],
+    "edges": [],
+    "memory": [],
+    "nodes": [],
+    "stats": {
+      "agent_created": 0,
+      "categories": 0,
+      "edges_per_node": 0.0,
+      "isolated_pct": 100.0,
+      "learned_skills": 0,
+      "linked_nodes": 0,
+      "memory_nodes": 0,
+      "memory_skill_edges": 0,
+      "nodes": 0,
+      "related_edges": 0,
+      "top_categories": [],
+      "used": 0
+    }
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/learning/graph",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}
