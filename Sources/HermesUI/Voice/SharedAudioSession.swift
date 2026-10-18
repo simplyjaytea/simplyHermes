@@ -10,7 +10,7 @@
         public enum Claim: Int, Sendable {
             /// "Keep bots live" holds the session with silent audio that mixes with other apps.
             case keepAlive = 0
-            /// A reply is read aloud. It plays over other apps' audio instead of stopping it.
+            /// A reply is read aloud. It stops other apps' audio while it plays.
             case speech = 1
             /// The microphone is recording for dictation or a voice conversation.
             case microphone = 2
@@ -55,7 +55,7 @@
                 try session.setCategory(
                     .playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP])
             case .speech:
-                try session.setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers])
+                try session.setCategory(.playback, mode: .spokenAudio)
             case .keepAlive:
                 try session.setCategory(.playback, options: [.mixWithOthers])
             }
