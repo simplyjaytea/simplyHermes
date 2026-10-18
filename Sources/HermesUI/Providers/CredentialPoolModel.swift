@@ -112,9 +112,8 @@
             do {
                 let listing = try await rest.credentialPool()
                 groups = listing.providers
-                if let current = listing.entry(id: pending.id, provider: pending.provider),
-                    current.index == pending.index
-                {
+                let entry = listing.entry(id: pending.id, provider: pending.provider)
+                if let current = entry, current.index == pending.index {
                     try await rest.removeCredential(provider: pending.provider, index: current.index)
                 } else {
                     failure = "The pool changed since you asked. Nothing was removed. Ask again to see the list."

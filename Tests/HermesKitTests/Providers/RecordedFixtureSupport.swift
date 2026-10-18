@@ -9,7 +9,7 @@ import Testing
 func recordedFixtureAnswer(_ name: String) throws -> String {
     let envelope = try JSONDecoder().decode(JSONValue.self, from: Data(try restFixture(name).utf8))
     let body = try #require(envelope["body"])
-    return String(decoding: try JSONEncoder().encode(body), as: UTF8.self)
+    return try #require(String(bytes: try JSONEncoder().encode(body), encoding: .utf8))
 }
 
 /// The recorded request of a Fixtures/rest file: method, path, query and body, as the testbed sent it.

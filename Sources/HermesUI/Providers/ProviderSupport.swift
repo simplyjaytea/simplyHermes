@@ -32,7 +32,7 @@
         static func text(_ value: JSONValue, limit: Int? = nil) -> String {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let json = (try? encoder.encode(value)).map { String(decoding: $0, as: UTF8.self) } ?? ""
+            let json = (try? encoder.encode(value)).flatMap { String(bytes: $0, encoding: .utf8) } ?? ""
             guard let limit, json.count > limit else { return json }
             return String(json.prefix(limit)) + "…"
         }
