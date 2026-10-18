@@ -7,6 +7,9 @@ public enum HermesCloud {
     public static let provider = "nous"
     /// What lists call a saved Hermes Cloud connection.
     public static let displayName = "Hermes Cloud"
+    /// Whether the app offers Hermes Cloud sign-in: the Welcome option and the Add server menu. Off until a live
+    /// check passes. Saved Hermes Cloud connections are listed and connect either way.
+    public static let isOfferedInApp = false
 }
 
 /// An organization a Hermes Cloud login belongs to.

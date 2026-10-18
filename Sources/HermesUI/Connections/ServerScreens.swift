@@ -43,21 +43,25 @@
                         }
                         .buttonStyle(HermesButtonStyle(.tinted))
                         .accessibilityIdentifier("welcome.scan")
-                        Button {
-                            showsCloud = true
-                        } label: {
-                            Label("Hermes Cloud", systemImage: "cloud")
+                        if HermesCloud.isOfferedInApp {
+                            Button {
+                                showsCloud = true
+                            } label: {
+                                Label("Hermes Cloud", systemImage: "cloud")
+                            }
+                            .buttonStyle(HermesButtonStyle(.secondary))
+                            .accessibilityIdentifier("welcome.cloud")
                         }
-                        .buttonStyle(HermesButtonStyle(.secondary))
-                        .accessibilityIdentifier("welcome.cloud")
                     }
                     .frame(maxWidth: 420)
                     HermesCard {
                         Text("Which one?").font(HermesFont.headline)
                         Text(
                             "Gateway URL: Hermes runs hermes serve on your network, over Tailscale or behind a proxy.\n"
-                                + "SSH: the app logs in to a computer and starts Hermes itself.\n"
-                                + "Hermes Cloud: sign in and pick one of your hosted agents. No address to type."
+                                + "SSH: the app logs in to a computer and starts Hermes itself."
+                                + (HermesCloud.isOfferedInApp
+                                    ? "\nHermes Cloud: sign in and pick one of your hosted agents. No address to type."
+                                    : "")
                         )
                         .font(HermesFont.footnote)
                         .foregroundStyle(HermesColor.secondaryText)
@@ -230,7 +234,9 @@
                 Button("Gateway URL", systemImage: "globe") { onPick(ConnectionFormModel(mode: .gateway)) }
                 Button("SSH server", systemImage: "terminal") { onPick(ConnectionFormModel(mode: .ssh)) }
                 Button("Scan QR code", systemImage: "qrcode.viewfinder", action: onScan)
-                Button("Hermes Cloud", systemImage: "cloud", action: onCloud)
+                if HermesCloud.isOfferedInApp {
+                    Button("Hermes Cloud", systemImage: "cloud", action: onCloud)
+                }
             } label: {
                 Label("Add server", systemImage: "plus")
             }
