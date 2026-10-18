@@ -1,0 +1,14 @@
+{
+  "body": {
+    "font": "theme"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/dashboard/font",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

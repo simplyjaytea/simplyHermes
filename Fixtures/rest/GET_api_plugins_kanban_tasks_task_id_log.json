@@ -1,0 +1,21 @@
+{
+  "body": {
+    "content": "",
+    "exists": false,
+    "path": "/data/hermes/kanban/boards/recorder/logs/t_3848a8c2.log",
+    "size_bytes": 0,
+    "task_id": "t_3848a8c2",
+    "truncated": false
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/plugins/kanban/tasks/t_3848a8c2/log",
+    "query": {
+      "board": "recorder"
+    }
+  },
+  "status": 200,
+  "step": "kanban.log.seeded"
+}

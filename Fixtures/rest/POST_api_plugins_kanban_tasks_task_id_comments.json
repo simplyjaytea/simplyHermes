@@ -1,0 +1,19 @@
+{
+  "body": {
+    "ok": true
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": {
+      "author": "recorder",
+      "body": "recorder comment"
+    },
+    "method": "POST",
+    "path": "/api/plugins/kanban/tasks/t_3848a8c2/comments",
+    "query": {
+      "board": "recorder"
+    }
+  },
+  "status": 200,
+  "step": "kanban.comment"
+}

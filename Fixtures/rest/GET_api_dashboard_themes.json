@@ -1,0 +1,56 @@
+{
+  "body": {
+    "active": "default",
+    "themes": [
+      {
+        "description": "Classic dark teal — the canonical Hermes look",
+        "label": "Hermes Teal",
+        "name": "default"
+      },
+      {
+        "description": "Hermes Teal with bigger fonts and roomier spacing",
+        "label": "Hermes Teal (Large)",
+        "name": "default-large"
+      },
+      {
+        "description": "Light mode — vivid Nous-blue accents on cream canvas",
+        "label": "Nous Blue",
+        "name": "nous-blue"
+      },
+      {
+        "description": "Deep blue-violet with cool accents",
+        "label": "Midnight",
+        "name": "midnight"
+      },
+      {
+        "description": "Warm crimson and bronze — forge vibes",
+        "label": "Ember",
+        "name": "ember"
+      },
+      {
+        "description": "Clean grayscale — minimal and focused",
+        "label": "Mono",
+        "name": "mono"
+      },
+      {
+        "description": "Neon green on black — matrix terminal",
+        "label": "Cyberpunk",
+        "name": "cyberpunk"
+      },
+      {
+        "description": "Soft pink and warm ivory — easy on the eyes",
+        "label": "Rosé",
+        "name": "rose"
+      }
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/dashboard/themes",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}
