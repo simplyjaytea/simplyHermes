@@ -374,6 +374,26 @@
                     }
                     .accessibilityIdentifier("settings.servers")
                 }
+                Section("Tools & MCP") {
+                    NavigationLink {
+                        MCPServersView(connections: connections)
+                    } label: {
+                        Label("MCP servers", systemImage: "puzzlepiece.extension")
+                    }
+                    .accessibilityIdentifier("settings.mcpServers")
+                    NavigationLink {
+                        ToolsetsView(connections: connections)
+                    } label: {
+                        Label("Toolsets", systemImage: "wrench.and.screwdriver")
+                    }
+                    .accessibilityIdentifier("settings.toolsets")
+                    NavigationLink {
+                        CapabilityStatusView(connections: connections)
+                    } label: {
+                        Label("Capabilities", systemImage: "desktopcomputer")
+                    }
+                    .accessibilityIdentifier("settings.capabilities")
+                }
                 Section("Support") {
                     NavigationLink {
                         BugReportScreen(connections: connections)
