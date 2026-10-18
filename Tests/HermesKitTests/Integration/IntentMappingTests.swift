@@ -182,7 +182,7 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
     }
 }
 
-@Suite struct BotRosterTests {
+@Suite struct IntegrationBotRosterTests {
     private func profiles() throws -> [HermesProfile] {
         let json = """
             [{"name":"default","is_default":true},
@@ -196,14 +196,14 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
     }
 
     @Test func theDefaultProfileIsNotABot() throws {
-        let roster = BotRoster(profiles: try profiles(), updatedAt: now)
+        let roster = IntegrationBotRoster(profiles: try profiles(), updatedAt: now)
         #expect(roster.bots.map(\.name) == ["ops", "research", "zoë"])
         #expect(
             roster.bots.map(\.title) == ["Ops bot", "research", "Zoë"], "an empty display name falls back to the name")
     }
 
     @Test func spokenNamesMatchLoosely() throws {
-        let roster = BotRoster(profiles: try profiles(), updatedAt: now)
+        let roster = IntegrationBotRoster(profiles: try profiles(), updatedAt: now)
         #expect(roster.bot(named: "ops")?.name == "ops")
         #expect(roster.bot(named: "  OPS BOT ")?.name == "ops")
         #expect(roster.bot(named: "zoe")?.name == "zoë", "accents do not matter")
@@ -215,12 +215,13 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
     @Test func theRosterRoundTripsThroughItsFile() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let store = BotRoster.store(directory: directory)
+        let store = IntegrationBotRoster.store(directory: directory)
         #expect(store.load() == nil)
-        let roster = BotRoster(profiles: try profiles(), updatedAt: now)
+        let roster = IntegrationBotRoster(profiles: try profiles(), updatedAt: now)
         try store.save(roster)
         #expect(store.load() == roster)
-        #expect(roster.hasSameContent(as: BotRoster(bots: roster.bots, updatedAt: now.addingTimeInterval(9))))
-        #expect(!roster.hasSameContent(as: BotRoster(bots: [], updatedAt: now)))
+        #expect(
+            roster.hasSameContent(as: IntegrationBotRoster(bots: roster.bots, updatedAt: now.addingTimeInterval(9))))
+        #expect(!roster.hasSameContent(as: IntegrationBotRoster(bots: [], updatedAt: now)))
     }
 }

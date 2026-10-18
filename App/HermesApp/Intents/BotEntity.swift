@@ -13,7 +13,7 @@ struct BotEntity: AppEntity {
         DisplayRepresentation(title: "\(title)")
     }
 
-    init(_ bot: BotRoster.Bot) {
+    init(_ bot: IntegrationBotRoster.Bot) {
         id = bot.name
         title = bot.title
     }

@@ -21,7 +21,8 @@ enum IntentDirectory {
         RecentChatsSnapshot.store(directory: directory).load()?.chats ?? []
     }
 
-    static func roster() -> BotRoster {
-        BotRoster.store(directory: directory).load() ?? BotRoster(bots: [], updatedAt: .distantPast)
+    static func roster() -> IntegrationBotRoster {
+        IntegrationBotRoster.store(directory: directory).load()
+            ?? IntegrationBotRoster(bots: [], updatedAt: .distantPast)
     }
 }

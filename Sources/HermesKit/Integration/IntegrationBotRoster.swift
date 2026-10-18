@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Siri, Shortcuts and Spotlight need the bot names while the app may not be connected yet, so the app saves them
 /// whenever it reads the profile list. The default profile is the plain Hermes chat, not a bot.
-public struct BotRoster: Codable, Equatable, Sendable {
+public struct IntegrationBotRoster: Codable, Equatable, Sendable {
     public static let fileName = "bot-roster.json"
 
     public struct Bot: Codable, Equatable, Sendable, Identifiable {
@@ -45,11 +45,11 @@ public struct BotRoster: Codable, Equatable, Sendable {
     }
 
     /// Same bots, ignoring `updatedAt`; used to skip writes that change nothing.
-    public func hasSameContent(as other: BotRoster) -> Bool {
+    public func hasSameContent(as other: IntegrationBotRoster) -> Bool {
         bots == other.bots
     }
 
-    public static func store(directory: URL) -> JSONFileStore<BotRoster> {
+    public static func store(directory: URL) -> JSONFileStore<IntegrationBotRoster> {
         JSONFileStore(directory: directory, fileName: fileName)
     }
 

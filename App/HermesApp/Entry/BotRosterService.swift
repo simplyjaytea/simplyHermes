@@ -17,18 +17,18 @@ final class BotRosterService {
         case notConnected
     }
 
-    private(set) var roster: BotRoster
+    private(set) var roster: IntegrationBotRoster
     private let connections: ConnectionsModel
     private let profiles: ProfilesModel
-    private let store: JSONFileStore<BotRoster>
-    private let onChange: @MainActor (BotRoster) -> Void
+    private let store: JSONFileStore<IntegrationBotRoster>
+    private let onChange: @MainActor (IntegrationBotRoster) -> Void
 
     /// - Parameter onChange: called with the saved roster at start and again whenever the bots change.
-    init(connections: ConnectionsModel, directory: URL, onChange: @escaping @MainActor (BotRoster) -> Void) {
+    init(connections: ConnectionsModel, directory: URL, onChange: @escaping @MainActor (IntegrationBotRoster) -> Void) {
         self.connections = connections
         profiles = ProfilesModel(connections: connections)
-        store = BotRoster.store(directory: directory)
-        roster = store.load() ?? BotRoster(bots: [], updatedAt: .distantPast)
+        store = IntegrationBotRoster.store(directory: directory)
+        roster = store.load() ?? IntegrationBotRoster(bots: [], updatedAt: .distantPast)
         self.onChange = onChange
     }
 
@@ -54,7 +54,7 @@ final class BotRosterService {
         await profiles.refresh()
         let found = profiles.selection.profiles
         guard !found.isEmpty else { return }
-        let next = BotRoster(profiles: found, updatedAt: Date())
+        let next = IntegrationBotRoster(profiles: found, updatedAt: Date())
         guard !next.hasSameContent(as: roster) else { return }
         roster = next
         try? store.save(next)
@@ -63,7 +63,7 @@ final class BotRosterService {
 
     /// Works as `bot` from now on. Waits a little for the server, because a request from Siri can arrive while the app
     /// is still connecting.
-    func select(_ bot: BotRoster.Bot) async -> Selection {
+    func select(_ bot: IntegrationBotRoster.Bot) async -> Selection {
         for attempt in 0..<24 {
             guard connections.active != nil else { return .notConnected }
             let loaded = profiles.selection.profiles
