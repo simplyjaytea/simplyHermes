@@ -37,10 +37,10 @@
             return "\(id.uuidString)-\(isConnected)"
         }
 
-        /// Loads the workspace list and opens its default folder. Does nothing once the list is in for this server.
+        /// Loads the workspace list and opens its default folder. Does nothing once a folder is open for this server.
         public func load() async {
             followActiveServer()
-            guard workspaces == nil, let rest = await restClient() else { return }
+            guard workspaces == nil || folder == nil, let rest = await restClient() else { return }
             requestID += 1
             let request = requestID
             do {
@@ -51,6 +51,22 @@
             } catch {
                 guard request == requestID else { return }
                 notice = String(localized: "Could not load the workspaces.")
+            }
+        }
+
+        /// Reads the workspace list again, so folders that came or went on the server show in the picker (WP-37).
+        /// Returns why it failed, or nil. It leaves the folder and notice of the file browser alone.
+        public func refreshWorkspaces() async -> String? {
+            followActiveServer()
+            guard let rest = await activeRESTClient() else {
+                return String(localized: "Connect to a server to pick a folder.")
+            }
+            do {
+                let list = try await rest.workspaces()
+                if isShowingActiveServer { workspaces = list }
+                return nil
+            } catch {
+                return String(localized: "Could not load the folders.")
             }
         }
 
@@ -76,13 +92,16 @@
         }
 
         private func restClient() async -> RESTClient? {
-            guard let connection = connections.active, let manager = connections.manager,
-                let rest = await manager.rest(for: connection.id)
-            else {
+            guard let rest = await activeRESTClient() else {
                 notice = String(localized: "Connect to a server to browse its files.")
                 return nil
             }
             return rest
+        }
+
+        private func activeRESTClient() async -> RESTClient? {
+            guard let connection = connections.active, let manager = connections.manager else { return nil }
+            return await manager.rest(for: connection.id)
         }
 
         /// True while the folders on screen came from the active server.

@@ -31,7 +31,7 @@
                     TaskProgressPill(progress: tasks)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                ComposerPills(info: chat.state.info)
+                ComposerPills(info: chat.state.info, workspace: chat.workspaceCwd) { showsWorkspaces = true }
                 Composer(
                     text: model.draftBinding(for: sessionID),
                     attachments: model.attachmentsBinding(for: sessionID),
@@ -260,18 +260,14 @@
         @ViewBuilder
         private var header: some View {
             if let session = model.session(id: sessionID) {
-                VStack(alignment: .leading, spacing: 6) {
-                    StatusStrip(
-                        connection: .connected,
-                        serverName: session.serverName,
-                        runningTurn: chat.isRunning ? "Hermes is replying" : nil,
-                        onStop: chat.isRunning ? { chat.stop() } : nil
-                    )
-                    .padding(.horizontal, 12)
-                    .padding(.top, 4)
-                    WorkspacePill(folder: workspaceFolder) { showsWorkspaces = true }
-                        .padding(.horizontal, 12)
-                }
+                StatusStrip(
+                    connection: .connected,
+                    serverName: session.serverName,
+                    runningTurn: chat.isRunning ? "Hermes is replying" : nil,
+                    onStop: chat.isRunning ? { chat.stop() } : nil
+                )
+                .padding(.horizontal, 12)
+                .padding(.top, 4)
             }
         }
 
