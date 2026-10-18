@@ -5,6 +5,7 @@
     struct SessionRow: View {
         let session: ChatSessionSummary
         let isStreaming: Bool
+        let needsApproval: Bool
 
         var body: some View {
             VStack(alignment: .leading, spacing: 2) {
@@ -12,6 +13,9 @@
                     Text(session.title)
                         .font(HermesFont.body.weight(.semibold))
                         .lineLimit(1)
+                    if needsApproval {
+                        ApprovalDot()
+                    }
                     if isStreaming {
                         TypingIndicator()
                             .scaleEffect(0.6)
@@ -220,7 +224,9 @@
                     model.open(session.id)
                 } label: {
                     HStack(spacing: 6) {
-                        if model.isStreaming(session.id) {
+                        if model.needsApproval(session.id) {
+                            ApprovalDot()
+                        } else if model.isStreaming(session.id) {
                             Circle()
                                 .fill(HermesColor.accent)
                                 .frame(width: 6, height: 6)

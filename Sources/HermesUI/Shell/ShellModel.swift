@@ -17,6 +17,14 @@
         }
     }
 
+    /// An approval a chat waits on, as the alert banner (Q49) and the row badges show it.
+    public struct ApprovalAlert: Identifiable, Hashable, Sendable {
+        public let id: String
+        public let sessionID: String
+        public let sessionTitle: String
+        public let command: String
+    }
+
     /// A transcript line for the shell's placeholder chat. WP-30 replaces it with the real transcript.
     public struct ShellMessage: Identifiable, Hashable, Sendable {
         public enum Kind: Hashable, Sendable {
@@ -213,6 +221,39 @@
         /// The approval the chat is waiting on, if any.
         public func pendingApproval(in id: String) -> ShellMessage? {
             transcripts[id]?.last { $0.kind == .approval }
+        }
+
+        /// Whether a chat waits on an approval. Drives the badge on its sidebar row and tab.
+        public func needsApproval(_ id: String) -> Bool {
+            firstApproval(in: id) != nil
+        }
+
+        /// Approvals waiting in chats the user is not looking at, in sidebar order. Drives the alert banner (Q49).
+        public var approvalAlerts: [ApprovalAlert] {
+            let watching = selectedSection == .chats ? selectedSessionID : nil
+            return sessions.compactMap { $0.id == watching ? nil : firstApproval(in: $0.id) }
+        }
+
+        /// Answers an approval from an alert. A live chat answers on the server, a placeholder chat locally.
+        public func answer(_ alert: ApprovalAlert, approved: Bool) {
+            if let chat = liveChats?.existingChat(for: alert.sessionID),
+                let approval = chat.approvals.first(where: { $0.id == alert.id })
+            {
+                chat.answer(approval, approved ? .once : .deny)
+            } else {
+                resolveApproval(in: alert.sessionID, approved: approved)
+            }
+        }
+
+        /// The first approval a chat waits on: a live chat's, else a placeholder transcript's.
+        private func firstApproval(in id: String) -> ApprovalAlert? {
+            guard let summary = session(id: id) else { return nil }
+            if let approval = liveChats?.existingChat(for: id)?.approvals.first {
+                return ApprovalAlert(
+                    id: approval.id, sessionID: id, sessionTitle: summary.title, command: approval.command)
+            }
+            guard let approval = pendingApproval(in: id) else { return nil }
+            return ApprovalAlert(id: approval.id, sessionID: id, sessionTitle: summary.title, command: approval.text)
         }
 
         /// Answers the pending approval. WP-31 sends the answer to the server.

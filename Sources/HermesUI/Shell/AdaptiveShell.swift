@@ -11,6 +11,8 @@
 
         @Environment(\.horizontalSizeClass) private var horizontalSizeClass
         @Environment(\.hermesPosture) private var forcedPosture
+        @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+        @Environment(\.hermesReduceMotion) private var reduceMotionOverride
         @State private var postureMonitor = DevicePostureMonitor()
         @State private var profiles: ProfilesModel?
         @State private var columnVisibility: NavigationSplitViewVisibility = .all
@@ -31,6 +33,10 @@
 
         /// A posture forced from outside (launch argument or preview) wins; otherwise the hinge decides (WP-02).
         private var posture: DevicePosture { postureMonitor.posture }
+
+        private var reduceMotion: Bool {
+            HermesMotion.resolveReduceMotion(system: systemReduceMotion, override: reduceMotionOverride)
+        }
 
         public var body: some View {
             if UserDefaults.standard.string(forKey: "HermesScreen") == "postureDebug" {
@@ -88,6 +94,21 @@
                             }
                         }
                     }
+                    .overlay(alignment: .top) {
+                        // The tent posture already shows the approval on its glance screen.
+                        if layout != .tent, let alert = model.approvalAlerts.first {
+                            ApprovalAlertBanner(
+                                alert: alert,
+                                onApprove: { model.answer(alert, approved: true) },
+                                onOpen: { model.open(alert.sessionID) }
+                            )
+                            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                        }
+                    }
+                    .animation(
+                        HermesMotion.animation(HermesMotion.snappy, reduceMotion: reduceMotion),
+                        value: model.approvalAlerts.first?.id
+                    )
             }
             .background { KeyboardShortcuts(model: model) }
             .onDeviceShake { screenshot in
@@ -159,13 +180,17 @@
         @ViewBuilder
         private var chatList: some View {
             if let sessionsList, connections?.active != nil {
-                SessionsListView(model: sessionsList) { model.show($0) }
+                SessionsListView(model: sessionsList, needsApproval: model.needsApproval) { model.show($0) }
             } else {
                 List(model.sessions) { session in
                     Button {
                         model.open(session.id)
                     } label: {
-                        SessionRow(session: session, isStreaming: model.isStreaming(session.id))
+                        SessionRow(
+                            session: session,
+                            isStreaming: model.isStreaming(session.id),
+                            needsApproval: model.needsApproval(session.id)
+                        )
                     }
                     .tint(HermesColor.primaryText)
                 }
@@ -182,8 +207,12 @@
                     }
                     Section("Chats") {
                         ForEach(model.sessions) { session in
-                            SessionRow(session: session, isStreaming: model.isStreaming(session.id))
-                                .tag(SidebarItem.session(session.id))
+                            SessionRow(
+                                session: session,
+                                isStreaming: model.isStreaming(session.id),
+                                needsApproval: model.needsApproval(session.id)
+                            )
+                            .tag(SidebarItem.session(session.id))
                         }
                     }
                     Section {
