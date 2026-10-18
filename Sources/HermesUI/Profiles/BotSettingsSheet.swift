@@ -57,15 +57,10 @@
                     guard case .success(let urls) = result, let url = urls.first else { return }
                     Task { await model.importArchive(from: url) }
                 }
-                .sheet(item: $shareFile, onDismiss: finishShare) { file in
+                .sheet(item: $shareFile) { file in
                     ActivitySheet(items: [file.url])
                 }
             }
-        }
-
-        /// Removes the export once its share sheet closes. The file is only needed while the sheet is open.
-        private func finishShare() {
-            Task { await model.discardExport() }
         }
 
         private var transferCard: some View {

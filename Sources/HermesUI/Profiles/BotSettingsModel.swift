@@ -16,7 +16,7 @@
 
         @ObservationIgnored private let profiles: ProfilesModel
         @ObservationIgnored private let connections: ConnectionsModel
-        /// The folder holding the last export, removed by ``discardExport()``.
+        /// The folder holding the last export. The next export removes it.
         @ObservationIgnored private var exportFolder: URL?
 
         /// Creates the model for the profiles and servers the app already holds.
@@ -31,7 +31,8 @@
         }
 
         /// Exports the target bot into a new folder in the temporary directory and returns the file for the share sheet.
-        /// Nil when the export failed, and ``problem`` says why. The file stays until ``discardExport()``.
+        /// Nil when the export failed, and ``problem`` says why. The file stays in place until the next export
+        /// removes it.
         public func exportTarget() async -> URL? {
             guard let name = target, let connection = connections.active, let manager = connections.manager else {
                 return nil
@@ -53,8 +54,9 @@
             }
         }
 
-        /// Removes the file of the last export. The sheet calls it when the share sheet closes, and the next export calls
-        /// it first, so an archive of a bot never outlives its share.
+        /// Removes the folder of the last export. Only the next export calls it, before it writes its own file.
+        /// Closing the share sheet does not: AirDrop and Files can still read the file after it closes. Leftovers
+        /// are left to the system's temporary-directory cleanup.
         public func discardExport() async {
             guard let folder = exportFolder else { return }
             exportFolder = nil
