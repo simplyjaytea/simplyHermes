@@ -10,7 +10,10 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
     private(set) var submitted: [PromptSubmitParams] = []
     private(set) var interrupts = 0
     private(set) var steered: [String] = []
+    private(set) var uploads: [String] = []
     var failSubmit: RPCError?
+    var refuseImages = false
+    var fileReference = "@file:notes.txt"
 
     init(history: [JSONValue] = []) throws {
         let object: JSONValue = [
@@ -38,6 +41,21 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
     func steerSession(_ params: SessionSteerParams) async throws { lock.withLock { steered.append(params.text) } }
 
     func interruptSession(_ params: SessionInterruptParams) async throws { lock.withLock { interrupts += 1 } }
+
+    func attachImage(_ params: ImageAttachBytesParams) async throws -> AttachedImageResult {
+        lock.withLock { uploads.append("image:\(params.filename ?? "")") }
+        return AttachedImageResult(attached: !refuseImages, message: refuseImages ? "too large" : nil)
+    }
+
+    func attachPDF(_ params: PdfAttachParams) async throws -> PdfAttachResult {
+        lock.withLock { uploads.append("pdf:\(params.filename ?? "")") }
+        return PdfAttachResult(attached: true, pagesAttached: 2)
+    }
+
+    func attachFile(_ params: FileAttachParams) async throws -> FileAttachResult {
+        lock.withLock { uploads.append("file:\(params.name)") }
+        return FileAttachResult(attached: true, name: params.name, refText: fileReference)
+    }
 }
 
 private func envelope(_ type: String, _ payload: JSONValue, seq: Int) throws -> GatewayClientEvent {
@@ -154,5 +172,54 @@ private func envelope(_ type: String, _ payload: JSONValue, seq: Int) throws -> 
         await controller.handle(try envelope("message.complete", ["status": "error", "error": "429"], seq: 2))
         await controller.retryLast()
         #expect(transport.submitted.map(\.text) == ["first", "first"])
+    }
+
+    @Test func attachmentsUploadBeforeThePromptCarryingFileReferences() async throws {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        let photo = ComposerAttachment(kind: .image, name: "IMG_1.jpg", data: Data([1, 2]))
+        let notes = ComposerAttachment(kind: .file, name: "notes.txt", data: Data("hi".utf8))
+        await controller.send("look at these", attachments: [photo, notes])
+        #expect(transport.uploads == ["image:IMG_1.jpg", "file:notes.txt"])
+        #expect(transport.submitted.map(\.text) == ["look at these\n@file:notes.txt"])
+    }
+
+    @Test func attachmentsWithoutTextSendTheirNames() async throws {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        let photo = ComposerAttachment(kind: .image, name: "IMG_1.jpg", data: Data([1]))
+        await controller.send("", attachments: [photo])
+        #expect(transport.submitted.map(\.text) == ["IMG_1.jpg"])
+    }
+
+    @Test func refusedAttachmentFailsTheRowWithoutSubmitting() async throws {
+        let transport = try FakeChatTransport()
+        transport.refuseImages = true
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        let photo = ComposerAttachment(kind: .image, name: "IMG_1.jpg", data: Data([1]))
+        await controller.send("look", attachments: [photo])
+        #expect(transport.submitted.isEmpty)
+        guard case .user(let entry) = (await controller.current).items.last?.content else {
+            Issue.record("no user row")
+            return
+        }
+        #expect(entry.delivery == .failed("IMG_1.jpg: too large"))
+    }
+
+    @Test func queuedMessageKeepsItsFilesUntilItSends() async throws {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        await controller.handle(try envelope("message.start", [:], seq: 1))
+        let photo = ComposerAttachment(kind: .image, name: "IMG_1.jpg", data: Data([1]))
+        await controller.send("later", attachments: [photo])
+        #expect(transport.uploads.isEmpty)
+        #expect(await controller.pendingMessages.entries.first?.attachments.map(\.name) == ["IMG_1.jpg"])
+        await controller.handle(try envelope("message.complete", ["text": "done", "status": "complete"], seq: 2))
+        #expect(transport.uploads == ["image:IMG_1.jpg"])
+        #expect(transport.submitted.map(\.text) == ["later"])
     }
 }

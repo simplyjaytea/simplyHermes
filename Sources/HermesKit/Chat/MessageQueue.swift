@@ -5,6 +5,8 @@ public struct MessageQueue: Sendable, Equatable {
     public struct Entry: Sendable, Equatable, Identifiable {
         public let id: Int
         public var text: String
+        /// Files attached before the message was queued. They upload when the message is sent.
+        public var attachments: [ComposerAttachment] = []
     }
 
     /// The waiting messages, next to send first.
@@ -19,22 +21,22 @@ public struct MessageQueue: Sendable, Equatable {
     /// True when nothing waits.
     public var isEmpty: Bool { entries.isEmpty }
 
-    /// Adds a message at the end. Blank text is ignored. Returns the new entry id.
+    /// Adds a message at the end. A message with neither text nor files is ignored. Returns the new entry id.
     @discardableResult
-    public mutating func enqueue(_ text: String) -> Int? {
+    public mutating func enqueue(_ text: String, attachments: [ComposerAttachment] = []) -> Int? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
+        guard !trimmed.isEmpty || !attachments.isEmpty else { return nil }
         let id = nextID
         nextID += 1
-        entries.append(Entry(id: id, text: trimmed))
+        entries.append(Entry(id: id, text: trimmed, attachments: attachments))
         return id
     }
 
-    /// Replaces the text of an entry. Blank text removes it.
+    /// Replaces the text of an entry. Blank text removes it, unless it still carries files.
     public mutating func edit(_ id: Int, to text: String) {
         guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
+        if trimmed.isEmpty, entries[index].attachments.isEmpty {
             entries.remove(at: index)
         } else {
             entries[index].text = trimmed

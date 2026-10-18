@@ -32,8 +32,11 @@
                 }
                 ComposerPills(info: chat.state.info)
                 Composer(
-                    text: model.draftBinding(for: sessionID), onSend: { send() },
-                    onSteer: chat.isRunning ? { steer() } : nil
+                    text: model.draftBinding(for: sessionID),
+                    attachments: model.attachmentsBinding(for: sessionID),
+                    onSend: { send() },
+                    // Files cannot be steered into the running reply, so they wait for the queue.
+                    onSteer: chat.isRunning && model.attachments[sessionID, default: []].isEmpty ? { steer() } : nil
                 )
                 .background(HermesColor.background)
             }
@@ -286,10 +289,12 @@
 
         private func send() {
             let text = model.drafts[sessionID, default: ""]
-            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            let files = model.attachments[sessionID, default: []]
+            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !files.isEmpty else { return }
             model.drafts[sessionID] = ""
+            model.attachments[sessionID] = []
             isFollowing = true
-            chat.send(text)
+            chat.send(text, attachments: files)
         }
     }
 #endif

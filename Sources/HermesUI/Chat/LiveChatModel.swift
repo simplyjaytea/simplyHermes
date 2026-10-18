@@ -121,10 +121,10 @@
             Task { await controller?.detach() }
         }
 
-        public func send(_ text: String) {
+        public func send(_ text: String, attachments: [ComposerAttachment] = []) {
             guard let controller else { return }
             HermesSounds.play(.send)
-            Task { await controller.send(text) }
+            Task { await controller.send(text, attachments: attachments) }
         }
 
         /// Sends the text into the running reply instead of queueing it. Falls back to sending normally.
