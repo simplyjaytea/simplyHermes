@@ -42,6 +42,8 @@
         @Environment(\.dismiss) private var dismiss
         @State private var commentText = ""
         @State private var pendingAction: KanbanTaskAction?
+        @State private var isMarkingDone = false
+        @State private var summaryText = ""
 
         init(card: KanbanCard, model: KanbanTaskModel, columns: [String], assignees: [String]) {
             self.card = card
@@ -94,6 +96,13 @@
                     Button(action.buttonTitle, role: .destructive) { perform(action) }
                 } message: { action in
                     Text(action.message)
+                }
+                .alert("Mark this task done?", isPresented: $isMarkingDone) {
+                    TextField("Summary", text: $summaryText)
+                    Button("Mark done", action: markDone)
+                    Button("Cancel", role: .cancel) { summaryText = "" }
+                } message: {
+                    Text("The server needs a summary before a task can be done.")
                 }
             }
         }
@@ -190,7 +199,17 @@
         }
 
         private func move(to column: String) {
-            Task { _ = await model.move(to: column) }
+            if column == "done" {
+                isMarkingDone = true
+            } else {
+                Task { _ = await model.move(to: column) }
+            }
+        }
+
+        private func markDone() {
+            let summary = summaryText.trimmingCharacters(in: .whitespacesAndNewlines)
+            summaryText = ""
+            Task { _ = await model.move(to: "done", summary: summary.isEmpty ? nil : summary) }
         }
 
         private func reassign(to profile: String) {

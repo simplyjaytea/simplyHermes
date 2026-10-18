@@ -193,7 +193,7 @@ func kanbanRecordedRequestKeys(_ name: String) throws -> [String] {
         _ = try await client.kanbanActiveWorkers(board: "work")
         _ = try await client.kanbanDiagnostics(board: "work", severity: "error")
         _ = try await client.kanbanTaskLog(id: "t 1", tail: 200, board: "work")
-        _ = try await client.kanbanRun(id: "r_9", board: "work")
+        _ = try await client.kanbanRun(id: 9, board: "work")
         _ = try await client.kanbanDiagnostics()
         _ = try await client.kanbanTaskLog(id: "t_2")
         let requests = http.requests
@@ -202,7 +202,7 @@ func kanbanRecordedRequestKeys(_ name: String) throws -> [String] {
             requests.map(\.url.path) == [
                 "/api/plugins/kanban/config", "/api/plugins/kanban/assignees", "/api/plugins/kanban/profiles",
                 "/api/plugins/kanban/workers/active", "/api/plugins/kanban/diagnostics",
-                "/api/plugins/kanban/tasks/t%201/log", "/api/plugins/kanban/runs/r_9",
+                "/api/plugins/kanban/tasks/t%201/log", "/api/plugins/kanban/runs/9",
                 "/api/plugins/kanban/diagnostics",
                 "/api/plugins/kanban/tasks/t_2/log",
             ])

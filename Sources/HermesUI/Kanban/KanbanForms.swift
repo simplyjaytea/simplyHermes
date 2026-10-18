@@ -13,6 +13,7 @@
         @State private var assignee = ""
         @State private var priorityText = "0"
         @State private var problem: String?
+        @State private var isCreating = false
 
         init(model: KanbanModel) {
             self.model = model
@@ -53,7 +54,7 @@
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Create", action: create)
-                            .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            .disabled(isCreating || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             .accessibilityIdentifier("kanban.newTask.create")
                     }
                 }
@@ -70,9 +71,11 @@
                 body: details.isEmpty ? nil : details,
                 assignee: assignee.isEmpty ? nil : assignee,
                 priority: priority)
+            isCreating = true
             Task {
                 if let failure = await model.createTask(draft) {
                     problem = failure
+                    isCreating = false
                 } else {
                     dismiss()
                 }

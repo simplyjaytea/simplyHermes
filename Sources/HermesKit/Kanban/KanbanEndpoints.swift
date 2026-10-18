@@ -73,8 +73,8 @@ extension RESTClient {
 
     /// `GET /api/plugins/kanban/runs/{id}`: one run, under `run`. Not recorded: the testbed never dispatches, so no run
     /// id exists.
-    public func kanbanRun(id: String, board: String? = nil) async throws -> JSONValue {
-        try await get("/api/plugins/kanban/runs/" + kanbanSegment(id), query: kanbanQuery(["board": board]))
+    public func kanbanRun(id: Int, board: String? = nil) async throws -> JSONValue {
+        try await get("/api/plugins/kanban/runs/" + String(id), query: kanbanQuery(["board": board]))
     }
 
     // MARK: Boards

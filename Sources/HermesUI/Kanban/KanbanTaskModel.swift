@@ -48,14 +48,18 @@
             guard !trimmed.isEmpty else { return false }
             let id = taskID
             let slug = board
-            return await run { try await $0.addKanbanComment(id: id, text: trimmed, board: slug) }
+            let done = await run { try await $0.addKanbanComment(id: id, text: trimmed, board: slug) }
+            if done { notice = "Comment added." }
+            return done
         }
 
-        /// Moves the task to another column. A move is a status change, and the server can refuse it.
-        func move(to status: String) async -> Bool {
-            let change = KanbanBulkChange(ids: [taskID], status: status)
+        /// Moves the task to another column. A move is a status change, and the server can refuse it. One task goes
+        /// through its PATCH, so a refusal carries the server's reason. Moving to `done` needs a `summary`.
+        func move(to status: String, summary: String? = nil) async -> Bool {
+            let update = KanbanTaskUpdate(status: status, summary: summary)
+            let id = taskID
             let slug = board
-            guard await run({ try await $0.bulkUpdateKanbanTasks(change, board: slug) }) else { return false }
+            guard await run({ try await $0.updateKanbanTask(id: id, update, board: slug) }) else { return false }
             // The answer is not read, so the reloaded status is the check.
             if detail?.task.status != status {
                 errorText = "The server did not move this task. Pull to refresh and try again."
