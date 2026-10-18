@@ -14,9 +14,11 @@ final class AutomationsUITests: XCTestCase {
         // Launch opens the newest chat, which pushes over the tab bar. Back out to reach the tabs.
         XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 10))
         back(app, from: "Backup cron fix", to: "Chats")
-        // The tabs are buttons in a toolbar on this layout, not tab bar buttons. Hidden copies follow the visible one.
-        let tab = app.buttons.matching(NSPredicate(format: "label == 'Automations'")).firstMatch
-        XCTAssertTrue(tab.waitForExistence(timeout: 10), "The tab should show Automations")
+        // The tabs are buttons in a toolbar on this layout, not tab bar buttons.
+        guard let tab = visibleTab(app, "Automations") else {
+            XCTFail("The tab should show Automations")
+            return
+        }
         tab.tap()
         XCTAssertTrue(app.navigationBars["Automations"].waitForExistence(timeout: 10))
     }
@@ -40,5 +42,20 @@ final class AutomationsUITests: XCTestCase {
             app.navigationBars[current].waitForNonExistence(timeout: 5),
             "Expected to back out of \(current) to \(previous)"
         )
+    }
+
+    /// The on-screen tab with this label. Hidden copies stay in the hierarchy and can come first, so take the
+    /// one that is hittable. Polls, because the tab bar settles after a pop.
+    @MainActor
+    private func visibleTab(_ app: XCUIApplication, _ title: String) -> XCUIElement? {
+        let copies = app.buttons.matching(NSPredicate(format: "label == %@", title))
+        let deadline = Date().addingTimeInterval(10)
+        repeat {
+            if let tab = copies.allElementsBoundByIndex.first(where: \.isHittable) {
+                return tab
+            }
+            Thread.sleep(forTimeInterval: 0.2)
+        } while Date() < deadline
+        return nil
     }
 }
