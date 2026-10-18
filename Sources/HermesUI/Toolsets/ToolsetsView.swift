@@ -3,7 +3,7 @@
     import SwiftUI
 
     /// Settings > Tools & MCP > Toolsets: switch each toolset on or off (WP-53b). A toolset's settings (keys, providers
-    /// and models) are not shown until a recorded fixture shows their answers.
+    /// and models) are not on this screen yet. Their reads are decoded from recorded fixtures.
     public struct ToolsetsView: View {
         private let connections: ConnectionsModel
         @State private var model: ToolsetsModel

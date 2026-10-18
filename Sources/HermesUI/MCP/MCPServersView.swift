@@ -3,8 +3,8 @@
     import SwiftUI
 
     /// Settings > Tools & MCP > MCP servers. Adding a server is the one change this screen sends for now. The servers
-    /// already in config, and their switches, tests, removals, catalog and sign-ins, are not shown until a recorded
-    /// fixture shows the answers they need (WP-53b).
+    /// already in config are read after an add but not shown here yet. Their switches, tests, removals, catalog and
+    /// sign-ins are not on this screen (WP-53b).
     public struct MCPServersView: View {
         @State private var model: MCPServersModel
         @State private var showsAdd = false
