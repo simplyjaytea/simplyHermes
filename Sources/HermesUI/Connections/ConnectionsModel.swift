@@ -177,6 +177,14 @@
             Task { await manager.disconnect(id) }
         }
 
+        /// Creates an empty chat on the active server and returns it as a chat row. Nil when no server is saved.
+        public func startChat() async throws -> SessionListItem? {
+            guard let connection = active, let manager else { return nil }
+            let client = try await manager.client(for: connection)
+            let id = try await client.createEmptySession()
+            return SessionListItem(id: id, title: "New chat", time: "Now", isPinned: false, serverName: connection.name)
+        }
+
         private func markConnected(_ id: UUID) {
             saved.markConnected(id)
             persist()

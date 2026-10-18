@@ -27,6 +27,9 @@
             self.connections = connections
             self.sessionsList = sessionsList
             model.liveChats = connections.map(LiveChatStore.init)
+            if let connections {
+                model.startServerChat = { try await connections.startChat() }
+            }
             _profiles = State(initialValue: connections.map { ProfilesModel(connections: $0) })
             self.showsDebugLayoutMenu = showsDebugLayoutMenu
         }

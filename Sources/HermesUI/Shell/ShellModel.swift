@@ -138,12 +138,14 @@
         /// Replaces the listed chats with the server's (WP-40). Chats started here stay. Their transcripts arrive with
         /// WP-30, so a synced chat opens empty for now.
         public func syncSessions(_ items: [SessionListItem]) {
-            let local = sessions.filter { $0.id.hasPrefix("new-") }
+            let listed = Set(items.map(\.id))
+            startedServerIDs.subtract(listed)
+            let local = sessions.filter { $0.id.hasPrefix("new-") || startedServerIDs.contains($0.id) }
             let synced = items.map {
                 ChatSessionSummary(id: $0.id, title: $0.title, subtitle: $0.time ?? "", serverName: $0.serverName)
             }
             sessions = local + synced
-            serverSessionIDs = Set(items.map(\.id))
+            serverSessionIDs = listed.union(startedServerIDs)
             for session in sessions where transcripts[session.id] == nil { transcripts[session.id] = [] }
             let ids = Set(sessions.map(\.id))
             openSessionIDs.removeAll { !ids.contains($0) }
@@ -162,8 +164,33 @@
             open(item.id)
         }
 
-        /// Starts a new local chat. WP-40 replaces this with a server-side session.
-        public func newChat() {
+        /// Creates the server chat New chat opens. Nil when no server is saved, so New chat stays a placeholder.
+        @ObservationIgnored public var startServerChat: (@MainActor () async throws -> SessionListItem?)?
+        /// Server chats started in this run. A list sync keeps each until the server lists it, since an empty chat may not be listed.
+        @ObservationIgnored private var startedServerIDs: Set<String> = []
+
+        /// Starts a chat: a real server chat when a server is saved, else a placeholder. The task is nil for a placeholder.
+        @discardableResult
+        public func newChat() -> Task<Void, Never>? {
+            guard let startServerChat else {
+                addPlaceholderChat()
+                return nil
+            }
+            return Task {
+                do {
+                    if let item = try await startServerChat() {
+                        self.startedServerIDs.insert(item.id)
+                        self.show(item)
+                    } else {
+                        self.addPlaceholderChat()
+                    }
+                } catch {
+                    // Nothing opens on failure. A placeholder would answer with the demo reply instead of the server.
+                }
+            }
+        }
+
+        private func addPlaceholderChat() {
             let id = "new-\(sessions.count + 1)"
             sessions.insert(
                 ChatSessionSummary(id: id, title: "New chat", subtitle: "Now", serverName: "home-server"), at: 0)
