@@ -45,7 +45,7 @@ public struct OfflineChat: Sendable, Equatable, Identifiable {
         case dismissed
     }
 
-    /// Titles used when the first prompt has no text to cut a title from.
+    /// The title of a chat whose first prompt has no text to cut a title from.
     public static let fallbackTitle = "Offline chat"
 
     /// Unique id.

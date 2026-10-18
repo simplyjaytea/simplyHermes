@@ -45,6 +45,9 @@
 
         public var isRunning: Bool { state.turn != nil }
 
+        /// The on-device side of this chat: where messages go while the server is out of reach (WP-65b).
+        public let offline: OfflineChatModel
+
         /// The status strip readings for this chat: context fill, cache, speed and the connection.
         public var strip: ChatStatusStrip {
             let phase = connections.active.flatMap { connections.phases[$0.id] }
@@ -73,10 +76,13 @@
             self.broker = broker
             self.storedSessionID = storedSessionID
             state = TranscriptState(storedSessionID: storedSessionID)
+            offline = OfflineChatModel(
+                services: OfflineChatServices.shared, connections: connections, storedSessionID: storedSessionID)
         }
 
         /// Connects, resumes the session and starts following it. Safe to call again after a failure.
         public func attach() async {
+            offline.start()
             guard controller == nil else { return }
             guard let connection = connections.active, let manager = connections.manager else {
                 phase = .failed("No server is selected.")
@@ -115,6 +121,7 @@
         public func detach() {
             for task in tasks { task.cancel() }
             retryTask?.cancel()
+            offline.stop()
             tasks = []
             let controller = controller
             self.controller = nil
@@ -122,9 +129,20 @@
         }
 
         public func send(_ text: String, attachments: [ComposerAttachment] = []) {
+            // Plan Q44: while the server is out of reach, text goes to the on-device model. Files need Hermes.
+            if attachments.isEmpty, offline.send(text) { return }
             guard let controller else { return }
             HermesSounds.play(.send)
             Task { await controller.send(text, attachments: attachments) }
+        }
+
+        /// "Send to Hermes" (plan Q44): sends a prompt written offline to this chat once the server is back. Opens the
+        /// chat first when it never opened. Returns false when it could not, so the offer stays.
+        public func sendToHermes(_ text: String) async -> Bool {
+            if controller == nil { await attach() }
+            guard controller != nil else { return false }
+            send(text)
+            return true
         }
 
         /// Sends the text into the running reply instead of queueing it. Falls back to sending normally.

@@ -46,6 +46,8 @@ struct HermesApp: App {
         let url = launch.onboarding == nil ? Self.cacheFileURL() : nil
         let cache = url.flatMap { try? HermesCache(url: $0) } ?? (try? HermesCache())
         guard let cache else { preconditionFailure("The in-memory cache cannot fail to open") }
+        // WP-65b: offline chats are kept in the same cache file as the chat list.
+        OfflineChatServices.install(cache: cache)
         return SessionsListModel(connections: saved, cache: cache)
     }
 
