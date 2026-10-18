@@ -148,7 +148,9 @@ struct ShareItemLoader: Sendable {
         if values?.isDirectory == true {
             return .refused("\(name) is a folder, and folders cannot be shared.")
         }
-        if let refusal = budget.withLock({ $0.admit(byteCount: values?.fileSize ?? 0) }) {
+        // Read the size here: URLResourceValues is not Sendable, so the lock's closure cannot capture it.
+        let byteCount = values?.fileSize ?? 0
+        if let refusal = budget.withLock({ $0.admit(byteCount: byteCount) }) {
             return refuse(refusal, fileName: name)
         }
         do {
