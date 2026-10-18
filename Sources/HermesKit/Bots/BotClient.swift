@@ -98,8 +98,9 @@ public struct BotClient: Sendable {
 
     /// Replaces one `ui_meta` namespace: reads it, applies `change`, and writes it back with a compare-and-swap on the
     /// revision it read. A conflict reads again, up to ``maxAttempts`` times.
+    /// `change` is `@Sendable`: it may run off the caller's actor.
     public func updateNamespace(
-        profile: String, namespace: String, _ change: (inout BotMetaObject) -> Void
+        profile: String, namespace: String, _ change: @Sendable (inout BotMetaObject) -> Void
     ) async throws {
         for _ in 0..<Self.maxAttempts {
             let list = try await gateway.call(
