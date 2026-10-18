@@ -34,7 +34,7 @@ func recordedBody(_ name: String) throws -> String {
     let record = try JSONSerialization.jsonObject(with: Data(restFixture(name).utf8)) as? [String: Any]
     guard let body = record?["body"] else { throw RecordedAnswerMissing(name: name) }
     let json = try JSONSerialization.data(withJSONObject: body, options: [.fragmentsAllowed])
-    return String(decoding: json, as: UTF8.self)
+    return String(bytes: json, encoding: .utf8) ?? "?"
 }
 
 /// A fixture without a `body` field.
