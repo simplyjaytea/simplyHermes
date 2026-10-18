@@ -65,23 +65,25 @@
 
         private var transferCard: some View {
             HermesCard {
-                Text("Export and import")
+                Text(BotExport.isOfferedInApp ? "Export and import" : "Import")
                     .font(HermesFont.headline)
                     .accessibilityAddTraits(.isHeader)
-                Text("Export saves this bot as an archive you can keep or share. Import creates a bot from one.")
+                Text(transferNotice)
                     .font(HermesFont.footnote)
                     .foregroundStyle(HermesColor.secondaryText)
-                Button {
-                    Task {
-                        if let url = await model.exportTarget() { shareFile = ShareFile(url: url) }
+                if BotExport.isOfferedInApp {
+                    Button {
+                        Task {
+                            if let url = await model.exportTarget() { shareFile = ShareFile(url: url) }
+                        }
+                    } label: {
+                        Label("Export this bot", systemImage: "square.and.arrow.up")
+                            .frame(maxWidth: .infinity)
                     }
-                } label: {
-                    Label("Export this bot", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
+                    .buttonStyle(HermesButtonStyle(.primary))
+                    .disabled(model.target == nil || model.isWorking)
+                    .accessibilityIdentifier("botSettings.export")
                 }
-                .buttonStyle(HermesButtonStyle(.primary))
-                .disabled(model.target == nil || model.isWorking)
-                .accessibilityIdentifier("botSettings.export")
                 Button {
                     showsImporter = true
                 } label: {
@@ -93,6 +95,14 @@
                 .accessibilityHint("Creates a new bot from an exported archive")
                 .accessibilityIdentifier("botSettings.import")
             }
+        }
+
+        /// What the transfer card says. It names export only while the app offers it.
+        private var transferNotice: String {
+            if BotExport.isOfferedInApp {
+                return "Export saves this bot as an archive you can keep or share. Import creates a bot from one."
+            }
+            return "Import creates a bot from an archive file."
         }
     }
 

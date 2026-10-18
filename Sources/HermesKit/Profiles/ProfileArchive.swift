@@ -42,6 +42,13 @@ public enum ProfileTransferError: Error, Sendable, Equatable {
     }
 }
 
+/// Whether the app offers bot export (WP-41). Off while the server keeps the archive on its own disk and answers with
+/// its path, which the phone cannot fetch. Import from a file stays on. Turn it on once the server returns bytes.
+public enum BotExport {
+    /// True when the Bot settings sheet shows Export.
+    public static let isOfferedInApp = false
+}
+
 /// A profile archive as the phone keeps it, ready for the share sheet (WP-41).
 ///
 /// UNTESTED LIVE. The contract does not describe the export's answer, so ``from(answer:)`` takes the shapes the server

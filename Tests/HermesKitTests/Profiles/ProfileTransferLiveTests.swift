@@ -44,11 +44,12 @@ private func describeValue(_ value: Any) -> String {
 }
 
 /// Runs against the WP-03 testbed when `HERMES_TESTBED_URL` is set (for example `http://127.0.0.1:9119`). CI's testbed
-/// job runs it. It exports the testbed's `default` profile and imports the archive under a new name. Without the variable
-/// the test passes without doing anything. UNTESTED LIVE until this passes in CI: the export and import answers have no
-/// contract schema.
+/// job runs it. The testbed keeps an exported bot on its own disk and answers with that path. The probe checks the
+/// answer is a path, not archive bytes. It has no import check: import needs bytes the phone cannot get yet.
+/// If the server starts answering with bytes, the probe fails on purpose, so the bytes check can return.
+/// Without the variable the test passes without doing anything.
 @Suite struct ProfileTransferLiveTests {
-    @Test func exportDefaultProfileThenImportUnderANewName() async throws {
+    @Test func exportDefaultProfileAnswersWithAServerPath() async throws {
         guard let base = ProcessInfo.processInfo.environment["HERMES_TESTBED_URL"],
             let endpoint = HermesEndpoint(string: base)
         else { return }
@@ -59,18 +60,15 @@ private func describeValue(_ value: Any) -> String {
             "POST", "/api/profiles/default/export", body: ExportBody(), scoped: false)
         #expect(answer.status == 200)
         #expect(answer.headers["content-type"]?.lowercased().contains("text/html") != true, "a login page is no export")
-        let archive: ProfileArchive
         do {
-            archive = try ProfileArchive.from(answer: answer)
+            _ = try ProfileArchive.from(answer: answer)
+            Issue.record(
+                "The export answer carries archive bytes now, so the server changed. Answer: \(shape(of: answer))")
+        } catch ProfileTransferError.serverPath(let path) {
+            #expect(path.hasPrefix("/"), "the server names the archive by an absolute path on its disk")
         } catch {
-            Issue.record("The export answer held no archive (\(error)). Answer: \(shape(of: answer))")
-            throw error
+            Issue.record(
+                "The export answer is neither bytes nor a server path (\(error)). Answer: \(shape(of: answer))")
         }
-        #expect(!archive.data.isEmpty)
-
-        let name = "wp41-probe-" + String(UUID().uuidString.lowercased().prefix(8))
-        let imported = try await client.importProfileArchive(archive.data, name: name)
-        #expect(imported.name == nil || imported.name == name, "an import that names a bot names this one")
-        #expect(try await client.profiles().contains { $0.name == name }, "the server lists the new bot")
     }
 }
