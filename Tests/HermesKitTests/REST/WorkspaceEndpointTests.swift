@@ -78,4 +78,13 @@ import Testing
         #expect(image.language == nil)
         #expect(image.mimeType == "image/png")
     }
+
+    @Test func downloadsTheBytesOfAFile() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, "PNG")
+        let data = try await makeClient(http).downloadFile("/opt/hermes/a.png")
+
+        #expect(data == Data("PNG".utf8))
+        #expect(http.requests.first?.url.query == "path=/opt/hermes/a.png")
+    }
 }

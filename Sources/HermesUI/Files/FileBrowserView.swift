@@ -37,6 +37,9 @@
                 .listStyle(.plain)
             }
             .task { await browser.load() }
+            .quickLookPreview(
+                Binding(get: { browser.quickLookURL }, set: { if $0 == nil { browser.closeQuickLook() } })
+            )
             .sheet(isPresented: Binding(get: { browser.preview != nil }, set: { if !$0 { browser.closePreview() } })) {
                 if let file = browser.preview {
                     FilePreviewSheet(file: file) {
@@ -65,7 +68,7 @@
         }
     }
 
-    /// A text file from the server, with Add to chat. Binary files show their type until QuickLook lands (WP-37).
+    /// A text file from the server, with Add to chat. Binary files open in QuickLook instead (WP-37).
     private struct FilePreviewSheet: View {
         let file: FsText
         let onAddToChat: () -> Void
@@ -74,15 +77,12 @@
         var body: some View {
             NavigationStack {
                 ScrollView {
-                    Text(
-                        file.text
-                            ?? "This file is binary (\(file.mimeType ?? "unknown type")). Preview is not available yet."
-                    )
-                    .font(HermesFont.code)
-                    .foregroundStyle(file.text == nil ? HermesColor.secondaryText : HermesColor.primaryText)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
+                    Text(file.text ?? "This file has no text to show.")
+                        .font(HermesFont.code)
+                        .foregroundStyle(file.text == nil ? HermesColor.secondaryText : HermesColor.primaryText)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
                 }
                 .navigationTitle(URL(fileURLWithPath: file.path).lastPathComponent)
                 .navigationBarTitleDisplayMode(.inline)

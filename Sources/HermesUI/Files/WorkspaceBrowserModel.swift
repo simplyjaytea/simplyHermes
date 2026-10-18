@@ -18,6 +18,8 @@
         public private(set) var notice: String?
         /// The text file opened from the list, until its sheet closes.
         public private(set) var preview: FsText?
+        /// A binary file copied to the temporary folder, shown in QuickLook until it closes (WP-37).
+        public private(set) var quickLookURL: URL?
         @ObservationIgnored private let connections: ConnectionsModel
 
         public init(connections: ConnectionsModel) {
@@ -57,6 +59,11 @@
             preview = nil
         }
 
+        /// Closes the QuickLook preview.
+        public func closeQuickLook() {
+            quickLookURL = nil
+        }
+
         private func restClient() async -> RESTClient? {
             guard let connection = connections.active, let manager = connections.manager,
                 let rest = await manager.rest(for: connection.id)
@@ -81,10 +88,26 @@
 
         private func read(_ path: String, using rest: RESTClient) async {
             do {
-                preview = try await rest.readText(path)
+                let file = try await rest.readText(path)
+                if file.binary {
+                    quickLookURL = try await Self.localCopy(of: path, using: rest)
+                } else {
+                    preview = file
+                }
             } catch {
                 notice = "Could not open this file."
             }
+        }
+
+        /// Copies a server file into the temporary folder under its own name, so QuickLook can tell its type.
+        private static func localCopy(of path: String, using rest: RESTClient) async throws -> URL {
+            let data = try await rest.downloadFile(path)
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent(
+                UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let url = folder.appendingPathComponent(URL(fileURLWithPath: path).lastPathComponent)
+            try data.write(to: url)
+            return url
         }
 
         private static func foldersFirst(_ lhs: FsEntry, _ rhs: FsEntry) -> Bool {
