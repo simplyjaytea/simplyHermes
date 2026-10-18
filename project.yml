@@ -52,6 +52,7 @@ targets:
         NSLocalNetworkUsageDescription: simplyHermes connects to a Hermes server on your local network.
         NSCameraUsageDescription: simplyHermes scans server QR codes to add a connection.
         NSFaceIDUsageDescription: simplyHermes asks for Face ID before it uses your saved server keys.
+        NSMicrophoneUsageDescription: simplyHermes listens to your voice for dictation and voice conversations.
         # Plan Q14: plain HTTP is allowed for local, private and Tailscale hosts (100.x and *.ts.net, which
         # NSAllowsLocalNetworking does not cover). The app refuses http:// to public hosts itself (ConnectionAddress).
         NSAppTransportSecurity:

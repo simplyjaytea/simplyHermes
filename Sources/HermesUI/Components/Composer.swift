@@ -12,6 +12,7 @@
         private let attachments: Binding<[ComposerAttachment]>?
         private let onSend: () -> Void
         private let onSteer: (() -> Void)?
+        private let voice: VoiceInputModel?
 
         @State private var sendCount = 0
         @State private var isPhotosPresented = false
@@ -25,13 +26,15 @@
             placeholder: String = "Message Hermes",
             attachments: Binding<[ComposerAttachment]>? = nil,
             onSend: @escaping () -> Void,
-            onSteer: (() -> Void)? = nil
+            onSteer: (() -> Void)? = nil,
+            voice: VoiceInputModel? = nil
         ) {
             _text = text
             self.placeholder = placeholder
             self.attachments = attachments
             self.onSend = onSend
             self.onSteer = onSteer
+            self.voice = voice
         }
 
         public var body: some View {
@@ -46,12 +49,22 @@
                             .padding(.horizontal, 8)
                     }
                     HStack(alignment: .bottom, spacing: 4) {
-                        TextField(placeholder, text: $text, axis: .vertical)
-                            .accessibilityIdentifier("composer.field")
-                            .font(HermesFont.body)
-                            .lineLimit(1...6)
-                            .padding(.vertical, 11)
-                            .padding(.leading, 14)
+                        // Voice turns the field into a waveform bar while the microphone is open (plan Q41).
+                        if let voice, voice.isActive {
+                            VoiceWaveBar(voice: voice)
+                                .padding(.vertical, 6)
+                                .padding(.leading, 14)
+                        } else {
+                            TextField(placeholder, text: $text, axis: .vertical)
+                                .accessibilityIdentifier("composer.field")
+                                .font(HermesFont.body)
+                                .lineLimit(1...6)
+                                .padding(.vertical, 11)
+                                .padding(.leading, 14)
+                            if let voice {
+                                VoiceMicButton(voice: voice)
+                            }
+                        }
                         sendButton
                     }
                 }

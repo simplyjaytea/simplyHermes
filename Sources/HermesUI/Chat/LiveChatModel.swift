@@ -45,6 +45,26 @@
 
         public var isRunning: Bool { state.turn != nil }
 
+        /// The newest assistant reply once it has finished streaming, with its item id. Voice speaks it (WP-60).
+        public var newestFinishedReply: (id: String, text: String)? {
+            for item in state.items.reversed() {
+                guard case .assistant(let entry) = item.content else { continue }
+                return entry.isStreaming ? nil : (item.id, entry.text)
+            }
+            return nil
+        }
+
+        /// Voice input for this chat. Nil when no server is connected. Dictated text goes to `insertText`.
+        public func makeVoice(insertText: @escaping (String) -> Void) -> VoiceInputModel? {
+            guard let connection = connections.active, let manager = connections.manager else { return nil }
+            let id = connection.id
+            return VoiceInputModel(
+                server: { await manager.rest(for: id) },
+                insertText: insertText,
+                sendMessage: { [weak self] text in self?.send(text) }
+            )
+        }
+
         /// The status strip readings for this chat: context fill, cache, speed and the connection.
         public var strip: ChatStatusStrip {
             let phase = connections.active.flatMap { connections.phases[$0.id] }

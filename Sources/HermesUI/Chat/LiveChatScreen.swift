@@ -15,6 +15,8 @@
         @State private var isFinding = false
         @State private var query = ""
         @State private var currentMatch: String?
+        @State private var voice: VoiceInputModel?
+        @State private var announcedReplyID: String?
         @FocusState private var findFocused: Bool
 
         var body: some View {
@@ -36,11 +38,26 @@
                     attachments: model.attachmentsBinding(for: sessionID),
                     onSend: { send() },
                     // Files cannot be steered into the running reply, so they wait for the queue.
-                    onSteer: chat.isRunning && model.attachments[sessionID, default: []].isEmpty ? { steer() } : nil
+                    onSteer: chat.isRunning && model.attachments[sessionID, default: []].isEmpty ? { steer() } : nil,
+                    voice: voice
                 )
                 .background(HermesColor.background)
             }
             .task(id: sessionID) { await chat.attach() }
+            .task(id: sessionID) {
+                // Voice (WP-60) dictates into this chat's draft and sends spoken messages through it.
+                let draft = model.draftBinding(for: sessionID)
+                voice = chat.makeVoice { spoken in
+                    draft.wrappedValue = DictationText.appending(spoken, to: draft.wrappedValue)
+                }
+            }
+            .onChange(of: chat.isRunning) { _, running in
+                // A finished reply is spoken once: the id stops a reply from being read twice.
+                guard !running, let reply = chat.newestFinishedReply, reply.id != announcedReplyID else { return }
+                announcedReplyID = reply.id
+                voice?.replyFinished(reply.text)
+            }
+            .onDisappear { voice?.cancel() }
             .sheet(item: Binding(get: { chat.valueRequests.first }, set: { _ in })) { item in
                 SecureValueSheet(
                     item: item, onSend: { chat.answerValue(item, $0) }, onCancel: { chat.dismissValue(item) })
