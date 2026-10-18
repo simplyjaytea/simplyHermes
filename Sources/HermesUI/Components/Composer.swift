@@ -67,6 +67,9 @@
                         }
                         sendButton
                     }
+                    if let voice, !voice.isActive, let problem = voice.problem {
+                        VoiceProblemLine(problem: problem)
+                    }
                 }
                 .overlay(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)

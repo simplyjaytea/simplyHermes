@@ -55,7 +55,7 @@
                 }
                 .frame(maxWidth: .infinity)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel(Text(voice.statusText))
+                .accessibilityLabel(Text(voice.problem ?? voice.statusText))
                 .accessibilityIdentifier("composer.voiceStatus")
 
                 Button {
@@ -73,6 +73,21 @@
                 .accessibilityLabel(Text(voice.mode == .conversation ? "End voice conversation" : "Insert dictation"))
             }
             .padding(.vertical, 2)
+        }
+    }
+
+    /// A voice problem under the composer while voice is off, so a failed dictation is not silent. The next start
+    /// clears it.
+    struct VoiceProblemLine: View {
+        let problem: String
+
+        var body: some View {
+            Text(problem)
+                .font(.caption)
+                .foregroundStyle(HermesColor.destructive)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 6)
         }
     }
 

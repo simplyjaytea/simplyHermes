@@ -11,9 +11,7 @@
 
         /// Starts capturing and returns the blocks until ``stop()``.
         func start() throws -> AsyncStream<[Int16]> {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP])
-            try session.setActive(true)
+            try SharedAudioSession.shared.claim(.microphone)
 
             let input = engine.inputNode
             let format = input.outputFormat(forBus: 0)
@@ -39,7 +37,7 @@
             engine.stop()
             continuation?.finish()
             continuation = nil
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            SharedAudioSession.shared.release(.microphone)
         }
 
         /// The tap runs on the audio thread, so it only converts and yields. It must not touch main-actor state.

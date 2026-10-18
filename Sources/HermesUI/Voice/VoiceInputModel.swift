@@ -151,11 +151,13 @@
         /// Hermes finished a reply. A conversation speaks it. Otherwise it is read aloud when that setting is on.
         public func replyFinished(_ text: String) {
             switch mode {
-            case .conversation where phase == .waitingForReply:
+            case .conversation:
+                // The turn machine speaks the reply in every phase where a reply fits, so one that comes after the
+                // watchdog still gets spoken. It ignores the reply in the other phases.
                 apply(.reply(text))
             case .idle where VoicePreferences.readAloud:
                 speak(text)
-            case .conversation, .idle, .dictating:
+            case .idle, .dictating:
                 break
             }
         }
@@ -203,6 +205,7 @@
             playbackWatch?.cancel()
             watchdog?.cancel()
             speech.stop()
+            SharedAudioSession.shared.release(.speech)
             detector.reset()
             conversation = VoiceConversation()
             phase = .idle
@@ -285,6 +288,7 @@
                 speakTask?.cancel()
                 playbackWatch?.cancel()
                 speech.stop()
+                SharedAudioSession.shared.release(.speech)
             case .showError(let message):
                 problem = message
             }
@@ -337,10 +341,7 @@
             speakTask = Task {
                 let audio = await self.speechAudio(for: text)
                 guard !Task.isCancelled else { return }
-                if self.mode == .idle {
-                    try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
-                    try? AVAudioSession.sharedInstance().setActive(true)
-                }
+                try? SharedAudioSession.shared.claim(.speech)
                 if let audio, (try? self.speech.play(audio)) != nil {
                     self.watchPlayback()
                 } else {
@@ -363,7 +364,9 @@
                 while !Task.isCancelled, self.speech.isSpeaking {
                     try? await Task.sleep(for: .milliseconds(150))
                 }
-                guard !Task.isCancelled, self.phase == .speaking else { return }
+                guard !Task.isCancelled else { return }
+                SharedAudioSession.shared.release(.speech)
+                guard self.phase == .speaking else { return }
                 self.apply(.playbackFinished)
             }
         }

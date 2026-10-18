@@ -18,6 +18,7 @@
         @State private var voice: VoiceInputModel?
         @State private var announcedReplyID: String?
         @FocusState private var findFocused: Bool
+        @Environment(\.scenePhase) private var scenePhase
 
         var body: some View {
             VStack(spacing: 0) {
@@ -45,7 +46,9 @@
             }
             .task(id: sessionID) { await chat.attach() }
             .task(id: sessionID) {
-                // Voice (WP-60) dictates into this chat's draft and sends spoken messages through it.
+                // Voice (WP-60) dictates into this chat's draft and sends spoken messages through it. A chat change
+                // stops the previous chat's voice first, so its microphone and conversation do not keep running.
+                voice?.cancel()
                 let draft = model.draftBinding(for: sessionID)
                 voice = chat.makeVoice { spoken in
                     draft.wrappedValue = DictationText.appending(spoken, to: draft.wrappedValue)
@@ -58,6 +61,10 @@
                 voice?.replyFinished(reply.text)
             }
             .onDisappear { voice?.cancel() }
+            // Locking the phone or leaving the app ends voice. Inactive is not used: the microphone prompt sets it too.
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background { voice?.cancel() }
+            }
             .sheet(item: Binding(get: { chat.valueRequests.first }, set: { _ in })) { item in
                 SecureValueSheet(
                     item: item, onSend: { chat.answerValue(item, $0) }, onCancel: { chat.dismissValue(item) })
