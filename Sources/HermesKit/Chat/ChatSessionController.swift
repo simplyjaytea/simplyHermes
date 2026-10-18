@@ -16,6 +16,8 @@ public protocol ChatTransport: PromptSession {
     func attachFile(_ params: FileAttachParams) async throws -> FileAttachResult
     /// Calls `session.history`: the stored rows with their row ids.
     func sessionHistory(_ params: SessionHistoryParams) async throws -> SessionHistoryResult
+    /// Calls `session.undo`: drops the last user turn and everything after it from an idle session.
+    func undoSession(_ params: SessionUndoParams) async throws -> SessionUndoResult
 }
 
 extension GatewayClient: ChatTransport {
@@ -203,11 +205,16 @@ public actor ChatSessionController {
             break
         }
         isSubmitting = false
+        await releaseHeldEvents()
+        await drainIfIdle()
+        return outcome
+    }
+
+    /// Applies the events that were kept back while a cut waited for the server, in the order they came.
+    private func releaseHeldEvents() async {
         let held = heldEvents ?? []
         heldEvents = nil
         for event in held { await handle(event) }
-        await drainIfIdle()
-        return outcome
     }
 
     /// Reads the stored history again and shows it. Does nothing while a turn runs, since its text is not stored yet.
@@ -215,8 +222,92 @@ public actor ChatSessionController {
         guard let live = state.liveSessionID, state.turn == nil else { return }
         let params = SessionHistoryParams(sessionID: live, profile: profile)
         guard let history = try? await transport.sessionHistory(params) else { return }
+        show(history)
+    }
+
+    /// Shows the server's history as the transcript.
+    private func show(_ history: SessionHistoryResult) {
         state.apply(.history(history.messages))
         publish()
+    }
+
+    /// Cuts the chat at the user turn `rowID` and everything after it, without sending anything (Rewind, WP-34).
+    ///
+    /// The server has no cut-only call. `session.undo` drops the last user turn and takes no row id, so a count made
+    /// from the screen can remove turns nobody chose. This reads the history first and refuses when the user turns
+    /// the server holds from `rowID` on are not the ones on screen. It then undoes one turn at a time and reads the
+    /// history again after each call, so it stops as soon as `rowID` is gone and never reaches an older turn. The
+    /// transcript ends as the server's history. A cut that erases the chat or drops several turns asks first: call
+    /// again with ``TurnEditConfirmation/consent``. Nil when no session is attached or another cut still waits for
+    /// the server.
+    public func rewind(toRowID rowID: Int, consent: TurnEditConsent = []) async -> RewindOutcome? {
+        guard heldEvents == nil, let live = state.liveSessionID else { return nil }
+        guard isIdle else { return .busy }
+        let impact = RewindImpact.of(state, fromRowID: rowID)
+        if let question = TurnEditor.confirmation(for: impact, consent: consent) {
+            return .needsConfirmation(question)
+        }
+        isSubmitting = true
+        // Events wait, as in an edit, so none lands between the last undo and the history that replaces the rows.
+        heldEvents = []
+        let outcome = await undoTurns(from: rowID, live: live)
+        isSubmitting = false
+        await releaseHeldEvents()
+        await drainIfIdle()
+        return outcome
+    }
+
+    /// The work of ``rewind(toRowID:consent:)`` once nothing more needs asking.
+    private func undoTurns(from rowID: Int, live: String) async -> RewindOutcome {
+        let params = SessionHistoryParams(sessionID: live, profile: profile)
+        var history: SessionHistoryResult
+        do {
+            history = try await transport.sessionHistory(params)
+        } catch {
+            return .failed(Self.rpcError(error))
+        }
+        let server = TranscriptState.items(from: history.messages)
+        guard RewindImpact.agree(server, state.items, from: rowID),
+            let text = Self.userText(in: server, rowID: rowID)
+        else {
+            show(history)
+            return .changed
+        }
+        var remaining = Self.turnsLeft(in: history, from: rowID)
+        do {
+            while remaining > 0 {
+                _ = try await transport.undoSession(SessionUndoParams(sessionID: live, profile: profile))
+                history = try await transport.sessionHistory(params)
+                let left = Self.turnsLeft(in: history, from: rowID)
+                // Every call takes at least one of the turns we named. When it does not, stop asking.
+                guard left < remaining else { break }
+                remaining = left
+            }
+        } catch {
+            // Turns dropped before the failure stay dropped, so show what the server has now.
+            if let now = try? await transport.sessionHistory(params) { history = now }
+            show(history)
+            return .failed(Self.rpcError(error))
+        }
+        show(history)
+        return remaining == 0 ? .done(text: text) : .changed
+    }
+
+    /// How many user turns from `rowID` on the history still holds. Zero once `rowID` is gone.
+    private static func turnsLeft(in history: SessionHistoryResult, from rowID: Int) -> Int {
+        RewindImpact.userRowIDs(in: TranscriptState.items(from: history.messages), from: rowID)?.count ?? 0
+    }
+
+    /// The text of the user row `rowID`.
+    private static func userText(in items: [TranscriptItem], rowID: Int) -> String? {
+        for item in items {
+            if case .user(let entry) = item.content, entry.rowID == rowID { return entry.text }
+        }
+        return nil
+    }
+
+    private static func rpcError(_ error: any Error) -> RPCError {
+        (error as? RPCError) ?? RPCError(code: HermesErrorCode.internalError, message: "\(error)")
     }
 
     /// Changes the text of a waiting message. Blank text removes it.

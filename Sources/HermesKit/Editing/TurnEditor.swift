@@ -111,6 +111,19 @@ public struct TurnEditor: Sendable {
         self.profile = profile
     }
 
+    /// The question to put to the user before a cut goes ahead, from the local rows alone. Nil when none is due, or
+    /// when `impact` is nil, since then only the server's answers can ask.
+    public static func confirmation(for impact: RewindImpact?, consent: TurnEditConsent) -> TurnEditConfirmation? {
+        guard let impact else { return nil }
+        if impact.emptiesTranscript, !consent.contains(.emptiesTranscript) {
+            return .emptiesTranscript
+        }
+        if impact.archivedUserTurns > 1, !consent.contains(.deepCut) {
+            return .deepCut(archivedMessages: impact.archivedItems, archivedUserTurns: impact.archivedUserTurns)
+        }
+        return nil
+    }
+
     /// Replaces the user turn at `rowID` (and everything after it) with `text`.
     ///
     /// `impact` is ``RewindImpact/of(_:fromRowID:)`` for the current transcript; it lets the deep and empty cuts
@@ -118,14 +131,8 @@ public struct TurnEditor: Sendable {
     public func edit(
         text: String, fromRowID rowID: Int, impact: RewindImpact? = nil, consent: TurnEditConsent = []
     ) async -> TurnEditOutcome {
-        if let impact {
-            if impact.emptiesTranscript, !consent.contains(.emptiesTranscript) {
-                return .needsConfirmation(.emptiesTranscript)
-            }
-            if impact.archivedUserTurns > 1, !consent.contains(.deepCut) {
-                return .needsConfirmation(
-                    .deepCut(archivedMessages: impact.archivedItems, archivedUserTurns: impact.archivedUserTurns))
-            }
+        if let question = Self.confirmation(for: impact, consent: consent) {
+            return .needsConfirmation(question)
         }
 
         var interrupted = false

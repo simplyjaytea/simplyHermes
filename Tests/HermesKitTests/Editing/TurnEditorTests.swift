@@ -208,3 +208,49 @@ private func state(_ items: [TranscriptItem]) -> TranscriptState {
         #expect(json["profile"] == nil)
     }
 }
+
+@Suite struct RewindTests {
+    @Test func localRowsAskForWhatIsStillMissing() {
+        let items = [user("a", row: 1), assistant("b", row: 2), user("c", row: 3), assistant("d", row: 4)]
+        let everything = RewindImpact.of(state(items), fromRowID: 1)
+        #expect(TurnEditor.confirmation(for: everything, consent: []) == .emptiesTranscript)
+        #expect(
+            TurnEditor.confirmation(for: everything, consent: .emptiesTranscript)
+                == .deepCut(archivedMessages: 4, archivedUserTurns: 2))
+        #expect(TurnEditor.confirmation(for: everything, consent: [.emptiesTranscript, .deepCut]) == nil)
+        let lastTurn = RewindImpact.of(state(items), fromRowID: 3)
+        #expect(TurnEditor.confirmation(for: lastTurn, consent: []) == nil)
+        #expect(TurnEditor.confirmation(for: nil, consent: []) == nil, "without local rows only the server can ask")
+    }
+
+    @Test func userRowsFromATurnOnLeaveOutMessagesTheServerNeverStored() {
+        let lost = TranscriptItem(id: "local-1", content: .user(UserEntry(text: "lost", delivery: .failed("boom"))))
+        let items = [user("a", row: 1), assistant("b", row: 2), user("c", row: 3), assistant("d", row: 4), lost]
+        #expect(RewindImpact.userRowIDs(in: items, from: 1) == [1, 3])
+        #expect(RewindImpact.userRowIDs(in: items, from: 3) == [3])
+        #expect(RewindImpact.userRowIDs(in: items, from: 2) == nil, "a reply is not a turn to cut at")
+        #expect(RewindImpact.userRowIDs(in: items, from: 99) == nil)
+    }
+
+    @Test func serverAndScreenAgreeOnlyOnTheSameTurnsFromTheRowOn() {
+        let screen = [user("a", row: 1), assistant("b", row: 2), user("c", row: 3), assistant("d", row: 4)]
+        let longer = screen + [user("e", row: 5), assistant("f", row: 6)]
+        let edited = [user("a", row: 1), assistant("b", row: 2), user("c2", row: 7), assistant("d2", row: 8)]
+        let older = [user("z", row: 9), assistant("y", row: 10), user("c", row: 3), assistant("d", row: 4)]
+        #expect(RewindImpact.agree(screen, screen, from: 3))
+        #expect(RewindImpact.agree(older, screen, from: 3), "a cut at row 3 never reaches the turns before it")
+        #expect(!RewindImpact.agree(longer, screen, from: 3), "the server holds a turn the screen lacks")
+        #expect(!RewindImpact.agree(screen, longer, from: 3), "the screen shows a turn the server lacks")
+        #expect(!RewindImpact.agree(edited, screen, from: 3), "the server no longer holds the row")
+        #expect(!RewindImpact.agree(edited, edited, from: 3), "neither side holds the row")
+    }
+
+    @Test func undoParamsEncodeWireKeysAndTheResultDecodes() throws {
+        let scoped = try JSONValue(encoding: SessionUndoParams(sessionID: "live1", profile: "ops"))
+        #expect(scoped["session_id"] == .string("live1") && scoped["profile"] == .string("ops"))
+        let plain = try JSONValue(encoding: SessionUndoParams(sessionID: "live1"))
+        #expect(plain["profile"] == nil)
+        let result = try JSONDecoder().decode(SessionUndoResult.self, from: Data(#"{"removed":3}"#.utf8))
+        #expect(result.removed == 3)
+    }
+}

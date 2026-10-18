@@ -168,39 +168,20 @@
             guard let cut = pendingCut else { return }
             pendingCut = nil
             if cut.isRewind {
-                rewind(toRowID: cut.rowID, confirmed: true)
+                rewind(toRowID: cut.rowID, consent: cut.confirmation.consent)
                 return
             }
             runCut(fromRowID: cut.rowID, text: cut.text, consent: cut.confirmation.consent)
         }
 
         /// Cuts the chat at the user turn `rowID` and everything after it, then puts that turn's text back in the
-        /// composer (WP-34). The server has no cut-only call, so this drops the last user turn with session.undo
-        /// once per turn from `rowID` on. A cut that archives several turns asks first, unless `confirmed`.
-        public func rewind(toRowID rowID: Int, confirmed: Bool = false) {
-            guard let client, let live = state.liveSessionID else { return }
-            guard let start = state.items.firstIndex(where: { Self.isUserTurn($0, rowID: rowID) }),
-                case .user(let target) = state.items[start].content
-            else { return }
-            let tail = state.items[start...]
-            let turns = tail.filter { Self.isUserTurn($0, rowID: nil) }.count
-            if turns > 1, !confirmed {
-                pendingCut = PendingCut(
-                    rowID: rowID, text: target.text,
-                    confirmation: .deepCut(archivedMessages: tail.count, archivedUserTurns: turns), isRewind: true)
-                return
-            }
-            let text = target.text
+        /// composer (WP-34). The controller checks the server's history before it drops anything, and the chat shows
+        /// the server's history afterwards. A cut that erases the chat or drops several turns asks first.
+        public func rewind(toRowID rowID: Int, consent: TurnEditConsent = []) {
+            guard let controller else { return }
             Task { [weak self] in
-                do {
-                    for _ in 0..<turns {
-                        _ = try await client.undoSession(SessionUndoParams(sessionID: live))
-                    }
-                    self?.cutError = nil
-                    self?.refillText = text
-                } catch {
-                    self?.cutError = Self.describe(error)
-                }
+                let outcome = await controller.rewind(toRowID: rowID, consent: consent)
+                if let outcome { self?.noteRewind(outcome, rowID: rowID) }
             }
         }
 
@@ -208,13 +189,6 @@
         public func takeRefill() -> String? {
             defer { refillText = nil }
             return refillText
-        }
-
-        /// True for a user turn the server stored. With `rowID`, only the turn with that id.
-        private static func isUserTurn(_ item: TranscriptItem, rowID: Int?) -> Bool {
-            guard case .user(let entry) = item.content, entry.displayKind == nil else { return false }
-            guard let rowID else { return true }
-            return entry.rowID == rowID
         }
 
         public func dismissPendingCut() {
@@ -270,6 +244,31 @@
             case .failed(let error):
                 cutError = Self.describe(error)
             }
+        }
+
+        private func noteRewind(_ outcome: RewindOutcome, rowID: Int) {
+            switch outcome {
+            case .done(let text):
+                cutError = nil
+                refillText = text
+            case .needsConfirmation(let confirmation):
+                let text = turnText(rowID: rowID) ?? ""
+                pendingCut = PendingCut(rowID: rowID, text: text, confirmation: confirmation, isRewind: true)
+            case .changed:
+                cutError = "Hermes holds a different version of this chat, so it was reloaded. Check it and try again."
+            case .busy:
+                cutError = "Hermes is still replying. Try again when it finishes."
+            case .failed(let error):
+                cutError = Self.describe(error)
+            }
+        }
+
+        /// The text of the user turn with this row id, as the transcript shows it.
+        private func turnText(rowID: Int) -> String? {
+            for item in state.items {
+                if case .user(let entry) = item.content, entry.rowID == rowID { return entry.text }
+            }
+            return nil
         }
 
         public func editQueued(_ id: Int, to text: String) {

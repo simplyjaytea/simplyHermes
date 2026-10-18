@@ -43,14 +43,19 @@
             .task(id: sessionID) { await chat.attach() }
             // A cut that erases or archives more than one turn waits here for the user's yes (WP-34).
             .confirmationDialog(
-                "Cut the chat here?",
+                chat.pendingCut?.isRewind == true ? "Rewind the chat here?" : "Cut the chat here?",
                 isPresented: Binding(get: { chat.pendingCut != nil }, set: { if !$0 { chat.dismissPendingCut() } }),
                 titleVisibility: .visible
             ) {
-                Button("Cut and send", role: .destructive) { chat.confirmPendingCut() }
+                // Rewind sends nothing, so its button does not say so.
+                if chat.pendingCut?.isRewind == true {
+                    Button("Rewind", role: .destructive) { chat.confirmPendingCut() }
+                } else {
+                    Button("Cut and send", role: .destructive) { chat.confirmPendingCut() }
+                }
                 Button("Cancel", role: .cancel) { chat.dismissPendingCut() }
             } message: {
-                Text(Self.cutMessage(chat.pendingCut?.confirmation))
+                Text(Self.cutMessage(chat.pendingCut))
             }
             .alert(
                 "Hermes couldn't do that",
@@ -58,9 +63,12 @@
                 actions: { Button("OK", role: .cancel) {} },
                 message: { Text(chat.cutError ?? "") }
             )
-            // A rewound turn goes back into the composer (WP-34, Rewind).
+            // A rewound turn goes back into the composer, in front of any text already typed there (WP-34, Rewind).
             .onChange(of: chat.refillText) { _, _ in
-                if let text = chat.takeRefill() { model.drafts[sessionID] = text }
+                guard let text = chat.takeRefill() else { return }
+                let typed = model.drafts[sessionID, default: ""]
+                let hasTyped = !typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                model.drafts[sessionID] = hasTyped ? text + "\n\n" + typed : text
             }
             .sheet(item: Binding(get: { chat.valueRequests.first }, set: { _ in })) { item in
                 SecureValueSheet(
@@ -301,15 +309,19 @@
             return false
         }
 
-        /// Says what a cut would archive, from the server's counts when it sent them (WP-34).
-        private static func cutMessage(_ confirmation: TurnEditConfirmation?) -> String {
-            switch confirmation {
+        /// Says what a cut would archive, from the server's counts when it sent them (WP-34). Rewind says "removes":
+        /// the server may archive or delete what `session.undo` drops, and that is not known.
+        private static func cutMessage(_ cut: LiveChatModel.PendingCut?) -> String {
+            let isRewind = cut?.isRewind == true
+            switch cut?.confirmation {
             case .deepCut(let messages, let turns)?:
-                "This moves \(messages ?? 0) items and \(turns ?? 0) of your turns to the archive."
+                let counts = "\(messages ?? 0) items and \(turns ?? 0) of your turns"
+                return isRewind ? "This removes \(counts) from the chat." : "This moves \(counts) to the archive."
             case .emptiesTranscript?:
-                "This moves every message in this chat to the archive."
+                if isRewind { return "This removes every message in this chat." }
+                return "This moves every message in this chat to the archive."
             case nil:
-                ""
+                return ""
             }
         }
 

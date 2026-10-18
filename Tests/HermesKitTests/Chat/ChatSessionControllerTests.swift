@@ -14,8 +14,15 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
     var failSubmit: RPCError?
     /// Runs inside `prompt.submit`, before it answers. Tests use it to deliver events ahead of the answer.
     var duringSubmit: (@Sendable () async throws -> Void)?
-    /// What `session.history` answers with.
-    var storedHistory: [JSONValue] = []
+    /// What `session.history` answers with. `session.undo` takes rows out of it, as the server does.
+    var storedHistory: [JSONValue]
+    private(set) var undoCalls = 0
+    /// Makes the n-th `session.undo` call (counting from 1) fail.
+    var failUndoOnCall: Int?
+    /// Makes `session.undo` answer without taking anything, as a server that ignored it would.
+    var undoTakesNothing = false
+    /// Runs inside `session.undo`, before it answers. Tests use it to deliver events during a rewind.
+    var duringUndo: (@Sendable () async throws -> Void)?
     var refuseImages = false
     var fileReference = "@file:notes.txt"
 
@@ -25,6 +32,7 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
             "info": ["model": "m"], "stored_session_id": "20261015_000000_aaaaaa",
         ]
         attachResult = try object.decode(SessionAttachResult.self)
+        storedHistory = history
     }
 
     func resumeSession(_ params: SessionResumeParams) async throws -> SessionAttachResult { attachResult }
@@ -63,8 +71,25 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
     }
 
     func sessionHistory(_ params: SessionHistoryParams) async throws -> SessionHistoryResult {
-        let object: JSONValue = ["count": .int(storedHistory.count), "messages": .array(storedHistory)]
+        let rows = lock.withLock { storedHistory }
+        let object: JSONValue = ["count": .int(rows.count), "messages": .array(rows)]
         return try object.decode(SessionHistoryResult.self)
+    }
+
+    /// Drops the last user row and every row after it, as the server does.
+    func undoSession(_ params: SessionUndoParams) async throws -> SessionUndoResult {
+        try await duringUndo?()
+        let step = lock.withLock { () -> Result<Int, RPCError> in
+            undoCalls += 1
+            if undoCalls == failUndoOnCall { return .failure(RPCError(code: 5000, message: "no undo", data: nil)) }
+            guard !undoTakesNothing,
+                let last = storedHistory.lastIndex(where: { $0["role"]?.stringValue == "user" })
+            else { return .success(0) }
+            let removed = storedHistory.count - last
+            storedHistory.removeSubrange(last...)
+            return .success(removed)
+        }
+        return SessionUndoResult(removed: try step.get())
     }
 }
 
@@ -79,11 +104,24 @@ private let twoTurns: [JSONValue] = [
     ["role": "user", "text": "second", "row_id": 3], ["role": "assistant", "text": "two", "row_id": 4],
 ]
 
+/// Three user turns, each with a reply: row ids 1 to 6.
+private let threeTurns: [JSONValue] = twoTurns + [
+    ["role": "user", "text": "third", "row_id": 5], ["role": "assistant", "text": "three", "row_id": 6],
+]
+
 /// Runs an edit and unwraps the outcome. Nil would mean the controller did nothing, which these tests do not expect.
 private func edited(
     _ controller: ChatSessionController, text: String = "new", fromRowID rowID: Int, consent: TurnEditConsent = []
 ) async throws -> TurnEditOutcome {
     let outcome = await controller.edit(text: text, fromRowID: rowID, consent: consent)
+    return try #require(outcome)
+}
+
+/// Runs a rewind and unwraps the outcome. Nil would mean the controller did nothing, which these tests do not expect.
+private func rewound(
+    _ controller: ChatSessionController, toRowID rowID: Int, consent: TurnEditConsent = []
+) async throws -> RewindOutcome {
+    let outcome = await controller.rewind(toRowID: rowID, consent: consent)
     return try #require(outcome)
 }
 
@@ -345,5 +383,154 @@ private func lines(_ state: TranscriptState) -> [String] {
         let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
         #expect(await controller.edit(text: "new", fromRowID: 3) == nil)
         #expect(transport.submitted.isEmpty)
+    }
+}
+
+@Suite struct ChatSessionRewindTests {
+    @Test func rewindAsksFirstThenCutsOneTurnAtATime() async throws {
+        let transport = try FakeChatTransport(history: threeTurns)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        let first = try await rewound(controller, toRowID: 3)
+        guard case .needsConfirmation(let question) = first else {
+            Issue.record("expected a question, got \(first)")
+            return
+        }
+        #expect(question == .deepCut(archivedMessages: 4, archivedUserTurns: 2))
+        #expect(transport.undoCalls == 0)
+        let second = try await rewound(controller, toRowID: 3, consent: question.consent)
+        #expect(second == .done(text: "second"))
+        #expect(transport.undoCalls == 2)
+        let state = await controller.current
+        #expect(lines(state) == ["user: first", "assistant: one"])
+    }
+
+    @Test func rewindOfTheLastTurnNeedsNoQuestion() async throws {
+        let transport = try FakeChatTransport(history: twoTurns)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        #expect(try await rewound(controller, toRowID: 3) == .done(text: "second"))
+        #expect(transport.undoCalls == 1)
+        let state = await controller.current
+        #expect(lines(state) == ["user: first", "assistant: one"])
+    }
+
+    @Test func rewindOfTheFirstMessageAsksBeforeErasingTheChat() async throws {
+        let transport = try FakeChatTransport(history: twoTurns)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        let first = try await rewound(controller, toRowID: 1)
+        guard case .needsConfirmation(let question) = first else {
+            Issue.record("expected a question, got \(first)")
+            return
+        }
+        #expect(question == .emptiesTranscript)
+        #expect(transport.undoCalls == 0)
+        // One yes covers the deep cut too, so the question does not come back.
+        let second = try await rewound(controller, toRowID: 1, consent: question.consent)
+        #expect(second == .done(text: "first"))
+        #expect(transport.undoCalls == 2)
+        let state = await controller.current
+        #expect(lines(state).isEmpty)
+    }
+
+    @Test func tappingARewoundMessageAgainCutsNothingMore() async throws {
+        let transport = try FakeChatTransport(history: threeTurns)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        #expect(try await rewound(controller, toRowID: 3, consent: .deepCut) == .done(text: "second"))
+        #expect(transport.undoCalls == 2)
+        // The row is gone from the screen and from the server. A late second tap must not reach the turn before it.
+        #expect(try await rewound(controller, toRowID: 3, consent: .deepCut) == .changed)
+        #expect(transport.undoCalls == 2)
+        let state = await controller.current
+        #expect(lines(state) == ["user: first", "assistant: one"])
+    }
+
+    @Test func aMessageTheServerNeverStoredIsNotCounted() async throws {
+        let transport = try FakeChatTransport(history: twoTurns)
+        transport.failSubmit = RPCError(code: 5000, message: "boom", data: nil)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        await controller.send("lost")
+        transport.failSubmit = nil
+        // The failed message is on screen below the second turn, but only the second turn is stored.
+        let before = await controller.current
+        #expect(lines(before) == ["user: first", "assistant: one", "user: second", "assistant: two", "user: lost"])
+        #expect(try await rewound(controller, toRowID: 3, consent: .deepCut) == .done(text: "second"))
+        #expect(transport.undoCalls == 1)
+        let state = await controller.current
+        #expect(lines(state) == ["user: first", "assistant: one"])
+    }
+
+    @Test func rewindRefusesWhenTheServerHoldsOtherTurnsThanTheScreen() async throws {
+        let transport = try FakeChatTransport(history: twoTurns)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        // Another client added a third turn after this screen was loaded.
+        transport.storedHistory = threeTurns
+        #expect(try await rewound(controller, toRowID: 3) == .changed)
+        #expect(transport.undoCalls == 0)
+        let state = await controller.current
+        #expect(lines(state).count == 6)
+    }
+
+    @Test func aFailedUndoLeavesTheScreenShowingWhatTheServerKept() async throws {
+        let transport = try FakeChatTransport(history: threeTurns)
+        transport.failUndoOnCall = 2
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        let outcome = try await rewound(controller, toRowID: 3, consent: .deepCut)
+        guard case .failed(let error) = outcome else {
+            Issue.record("expected failed, got \(outcome)")
+            return
+        }
+        #expect(error.message == "no undo")
+        #expect(transport.undoCalls == 2)
+        // The first undo went through, so the third turn is gone and the screen says so.
+        let state = await controller.current
+        #expect(lines(state) == ["user: first", "assistant: one", "user: second", "assistant: two"])
+    }
+
+    @Test func rewindStopsWhenUndoTakesNothing() async throws {
+        let transport = try FakeChatTransport(history: twoTurns)
+        transport.undoTakesNothing = true
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        #expect(try await rewound(controller, toRowID: 3) == .changed)
+        #expect(transport.undoCalls == 1)
+        let state = await controller.current
+        #expect(lines(state).count == 4)
+    }
+
+    @Test func rewindWaitsForARunningTurn() async throws {
+        let transport = try FakeChatTransport(history: twoTurns)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        await controller.handle(try envelope("message.start", [:], seq: 1))
+        #expect(try await rewound(controller, toRowID: 3) == .busy)
+        #expect(transport.undoCalls == 0)
+    }
+
+    @Test func eventsDuringARewindWaitUntilTheHistoryIsShown() async throws {
+        let transport = try FakeChatTransport(history: twoTurns)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        // A new turn starts on the server while the undo is on its way.
+        transport.duringUndo = {
+            await controller.handle(try envelope("message.start", [:], seq: 1))
+            await controller.handle(try envelope("message.delta", ["text": "Hi"], seq: 2))
+        }
+        #expect(try await rewound(controller, toRowID: 3) == .done(text: "second"))
+        let state = await controller.current
+        #expect(lines(state) == ["user: first", "assistant: one", "assistant: Hi"])
+        #expect(state.turn != nil)
+    }
+
+    @Test func rewindNeedsAnAttachedSession() async throws {
+        let transport = try FakeChatTransport(history: twoTurns)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        #expect(await controller.rewind(toRowID: 3) == nil)
+        #expect(transport.undoCalls == 0)
     }
 }
