@@ -1,0 +1,24 @@
+{
+  "body": {
+    "detail": [
+      {
+        "input": null,
+        "loc": [
+          "query",
+          "name"
+        ],
+        "msg": "Field required",
+        "type": "missing"
+      }
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/skills/content",
+    "query": {}
+  },
+  "status": 422,
+  "step": "enumerate"
+}

@@ -1,0 +1,17 @@
+{
+  "body": {
+    "default_tenant": "",
+    "include_archived_by_default": false,
+    "lane_by_profile": true,
+    "render_markdown": true
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/plugins/kanban/config",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}
