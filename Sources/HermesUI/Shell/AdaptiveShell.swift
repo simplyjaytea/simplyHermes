@@ -43,6 +43,11 @@
                 NavigationStack { PostureDebugView(monitor: postureMonitor) }
                     .hermesPostureSource(postureMonitor)
                     .task(id: forcedPosture) { applyForcedPosture() }
+            } else if UserDefaults.standard.string(forKey: "HermesScreen") == "memory" {
+                MemoryJourneyRoute(connections: connections, layoutOverride: model.layoutOverride)
+                    .hermesPostureSource(postureMonitor)
+                    .environment(\.hermesPosture, posture)
+                    .task(id: forcedPosture) { applyForcedPosture() }
             } else {
                 shell
                     .hermesPostureSource(postureMonitor)
