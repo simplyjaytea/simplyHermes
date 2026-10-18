@@ -2,8 +2,8 @@
     import HermesKit
     import SwiftUI
 
-    /// The profile chip in the header: one tap opens the bots of this server, one more switches (WP-41).
-    /// Hidden while the server has a single profile, so it only shows up when there is something to choose.
+    /// The profile chip in the header: one tap opens the bots of this server, and the menu's Bot settings item opens the
+    /// settings of the bot (WP-41). Shown while connected, so Bot settings is reachable even with one profile.
     public struct ProfileSwitcher: View {
         private let profiles: ProfilesModel
         private let connections: ConnectionsModel
@@ -21,7 +21,7 @@
 
         public var body: some View {
             Group {
-                if profiles.selection.rows.count > 1 {
+                if isConnected {
                     Menu {
                         ForEach(profiles.selection.rows) { row in
                             Button {

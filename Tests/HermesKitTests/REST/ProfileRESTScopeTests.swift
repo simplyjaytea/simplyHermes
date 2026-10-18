@@ -48,11 +48,24 @@ private func concretePath(_ template: String) -> String {
     return result
 }
 
+/// The operations the guard lets skip the active profile, with the reason. Each one also needs a real call in
+/// Sources/HermesKit/REST that passes `scoped: false`, so a reason cannot outlive its code.
+private let documentedExemptions: [String: String] = [
+    "/api/status":
+        "the public probe. The connection check and sign-in read it before a profile is chosen. The spec's ?profile= "
+        + "is the dashboard switcher's config-only scope, which the phone does not use.",
+    "/api/profiles/sessions":
+        "the list across every profile. The spec's profile query defaults to all, so the active profile would narrow it.",
+]
+
 /// The REST half of the profile guard. `ProfileScopeTests` guards the RPC list the same way.
+///
+/// The spec-driven tests check the contract. The call-site tests check the code the app ships.
 @Suite struct ProfileRESTScopeTests {
+    /// CI gate: an operation that starts taking a profile fails here until the guard has been reviewed for it.
     @Test func theSpecListsTheProfileOperations() throws {
         let operations = try profileOperations()
-        #expect(operations.count >= 100, "the walk below must not pass because it read nothing")
+        #expect(operations.count == 223, "the guard was reviewed for 223 operations; a new one needs a look")
         #expect(operations.contains { $0.method == "GET" && $0.path == "/api/sessions" })
         #expect(operations.contains { $0.method == "PUT" && $0.path == "/api/config" })
     }
@@ -69,33 +82,56 @@ private func concretePath(_ template: String) -> String {
         }
     }
 
-    /// CI gate: a call that skips the active profile on an operation that takes one must be written down here with a
-    /// reason. The calls are read from Sources/HermesKit/REST the way `ProfileScopeTests` reads them.
+    /// CI gate: the app's own calls, made through the real methods on a client scoped to `ops`. The status probe and the
+    /// cross-profile list are the documented exceptions and send no profile. Sessions carries it. The roster is
+    /// `profiles()`, which the spec does not scope.
+    @Test func realCallsCarryTheProfileExceptTheDocumentedOnes() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, try restFixture("status"))
+        http.enqueue(200, try restFixture("sessions"))
+        http.enqueue(200, try restFixture("profiles"))
+        http.enqueue(200, "{}")
+        let client = makeClient(http, profile: "ops")
+        _ = try await client.status()
+        _ = try await client.sessions()
+        _ = try await client.profiles()
+        _ = try await client.sessionsAcrossProfiles()
+        let requests = http.requests
+        try #require(requests.count == 4)
+        #expect(requests[0].url.query == nil, "the status probe takes no profile")
+        #expect(requests[1].url.query?.contains("profile=ops") == true, "sessions carries the active profile")
+        #expect(requests[2].url.query == nil, "the roster is not a profile operation")
+        #expect(requests[3].url.query == nil, "sessions across every profile must not be narrowed")
+    }
+
+    /// CI gate: a call that skips the active profile on an operation that takes one must be documented here with a
+    /// reason, and each documented reason must have such a call. The calls are read from Sources/HermesKit/REST the way
+    /// `ProfileScopeTests` reads them.
     @Test func unscopedCallsOnProfileOperationsAreDocumented() throws {
-        let documented: [String: String] = [
-            "/api/status":
-                "the connection check and sign-in read it before a profile is chosen. The spec says its ?profile= "
-                + "is the dashboard switcher's config-only scope."
-        ]
         // Templated operations are matched by the static part before the first `{`, which is what a call concatenates.
         let takesProfile = Set(try profileOperations().map { String($0.path.split(separator: "{").first ?? "") })
         let sources = FixtureFiles.directory.deletingLastPathComponent()
             .appendingPathComponent("Sources/HermesKit/REST")
         var unscopedCalls = 0
         var problems: [String] = []
+        var exempted: Set<String> = []
         for file in try FileManager.default.contentsOfDirectory(atPath: sources.path) where file.hasSuffix(".swift") {
             let text = try String(contentsOf: sources.appendingPathComponent(file), encoding: .utf8)
             let chunks = text.components(separatedBy: "\n\n").flatMap { $0.components(separatedBy: "\n    }") }
             for chunk in chunks where chunk.contains("scoped: false") {
                 unscopedCalls += 1
                 for literal in chunk.split(separator: "\"").map(String.init) where literal.hasPrefix("/") {
-                    if takesProfile.contains(literal), documented[literal] == nil {
+                    guard takesProfile.contains(literal) else { continue }
+                    if documentedExemptions[literal] == nil {
                         problems.append("\(file): \(literal)")
+                    } else {
+                        exempted.insert(literal)
                     }
                 }
             }
         }
         #expect(unscopedCalls >= 10, "the scan must see the unscoped calls, or it proves nothing")
         #expect(problems.isEmpty, "unscoped calls on profile operations without a reason: \(problems)")
+        #expect(exempted == Set(documentedExemptions.keys), "each documented exemption needs a real unscoped call")
     }
 }

@@ -13,9 +13,10 @@ private func sentBody(_ request: HTTPRequest?) throws -> [String: Any] {
     try #require(request?.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })
 }
 
-// Export's answer is not in the contract. These fixtures are the shapes the phone accepts, written from the documented
-// request bodies: the same `archive` base64 field that ProfileImport takes, plus a raw file and a server path.
-@Suite struct ProfileTransferTests {
+/// Shape tests (WP-41). They show how the phone sends and reads the documented fields of export and import, and what it
+/// refuses. They do not show that the server accepts them: `ProfileTransferLiveTests` is the probe against the testbed.
+/// Export's answer is not in the contract, so its fixtures are the shapes the phone accepts.
+@Suite struct ProfileTransferShapeTests {
     @Test func exportNamesTheProfileInThePathAndSendsTheDocumentedBody() async throws {
         let http = FakeHTTP()
         http.enqueue(200, #"{"archive":"\#(gzipBytes.base64EncodedString())"}"#)
@@ -77,6 +78,15 @@ private func sentBody(_ request: HTTPRequest?) throws -> [String: Any] {
         }
     }
 
+    @Test func anHTMLPageInPlaceOfAnExportIsRefused() async throws {
+        let http = FakeHTTP()
+        http.enqueue(
+            200, "<!doctype html><title>Sign in</title>", headers: ["content-type": "text/html; charset=utf-8"])
+        await #expect(throws: RESTError.unexpectedContent(contentType: "text/html; charset=utf-8")) {
+            try await makeClient(http).exportProfileArchive(name: "ops")
+        }
+    }
+
     @Test func theShareFileTakesItsNameFromTheProfileAndItsFormat() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "profile-transfer-tests-" + UUID().uuidString, isDirectory: true)
@@ -103,18 +113,30 @@ private func sentBody(_ request: HTTPRequest?) throws -> [String: Any] {
 
     @Test func importWithoutARenameLeavesTheNameOutOfTheBody() async throws {
         let http = FakeHTTP()
-        http.enqueue(200, "{}")
+        http.enqueue(200, #"{"ok":true}"#)
         _ = try await makeClient(http).importProfileArchive(gzipBytes)
         let body = try sentBody(http.requests.first)
         #expect(body["name"] == nil && body["archive"] as? String == gzipBytes.base64EncodedString())
     }
 
-    @Test func importAnswersAreReadTolerantly() {
-        #expect(ProfileImportResult.from(answer: answer(Data(#"{"ok":true,"name":"ops2"}"#.utf8))).name == "ops2")
-        #expect(ProfileImportResult.from(answer: answer(Data("{}".utf8))).name == nil)
-        #expect(ProfileImportResult.from(answer: answer(Data("created".utf8))).name == nil)
-        #expect(ProfileImportResult.from(answer: answer(Data())).name == nil)
-        #expect(ProfileImportResult.from(answer: answer(Data(#"{"name":""}"#.utf8))).name == nil)
+    @Test func anImportCountsAsDoneOnlyWhenTheAnswerConfirmsIt() throws {
+        #expect(try ProfileImportResult.from(answer: answer(Data(#"{"ok":true,"name":"ops2"}"#.utf8))).name == "ops2")
+        #expect(try ProfileImportResult.from(answer: answer(Data(#"{"ok":true}"#.utf8))).name == nil)
+        #expect(try ProfileImportResult.from(answer: answer(Data(#"{"name":"ops2"}"#.utf8))).name == "ops2")
+        for unconfirmed in ["{}", #"{"ok":false,"name":"ops2"}"#, #"{"name":""}"#, "created", ""] {
+            let body = Data(unconfirmed.utf8)
+            #expect(throws: ProfileTransferError.unconfirmedImport) {
+                try ProfileImportResult.from(answer: answer(body))
+            }
+        }
+    }
+
+    @Test func anHTMLPageInPlaceOfAnImportIsRefused() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, "<!doctype html><title>Sign in</title>", headers: ["content-type": "text/html"])
+        await #expect(throws: RESTError.unexpectedContent(contentType: "text/html")) {
+            try await makeClient(http).importProfileArchive(gzipBytes)
+        }
     }
 
     @Test func aRefusedImportShowsTheServersDetail() async throws {

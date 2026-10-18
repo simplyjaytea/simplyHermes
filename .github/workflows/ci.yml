@@ -48,7 +48,7 @@ jobs:
           docker run --rm --network host -v "$PWD:/src" -w /src \
             -e HERMES_TESTBED_URL=http://127.0.0.1:9119 \
             -e HERMES_TESTBED_OIDC_URL=http://127.0.0.1:9120 \
-            swift:6.1 bash -c 'apt-get update -qq && apt-get install -y -qq libsqlite3-dev && swift test --filter "RESTLiveTests|GatewayLiveTests|GatewayConnectionTesterLiveTests|NativeAuthLiveTests|OIDCSignInLiveTests|ConnectionManagerLiveTests"'
+            swift:6.1 bash -c 'apt-get update -qq && apt-get install -y -qq libsqlite3-dev && swift test --filter "RESTLiveTests|GatewayLiveTests|GatewayConnectionTesterLiveTests|NativeAuthLiveTests|OIDCSignInLiveTests|ConnectionManagerLiveTests|ProfileTransferLiveTests"'
       - name: Logs on failure
         if: failure()
         run: docker compose -f testbed/docker-compose.yml logs --tail=200

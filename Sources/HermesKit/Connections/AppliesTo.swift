@@ -3,8 +3,9 @@ import Foundation
 /// The profile a settings page applies its edits to (WP-41).
 ///
 /// The default follows the server's active profile. Picking another profile edits that profile while the active one
-/// stays put. A choice does not outlive the active profile it was made under: ``afterActiveChange(from:to:)`` resets
-/// it. Pure rules, so the selector in HermesUI and every settings page share one definition.
+/// stays put. A choice does not outlive the server or the active profile it was made under: ``AppliesToState`` resets
+/// it. Pure rules, so the selector in HermesUI and every settings page share one definition. Settings writes that use
+/// the choice wait for WP-53.
 public enum AppliesTo: Sendable, Equatable {
     /// Follows the server's active profile. The default.
     case activeProfile
@@ -14,11 +15,6 @@ public enum AppliesTo: Sendable, Equatable {
     /// The selector is shown only when the server has at least two profiles.
     public static func isShown(for profiles: [HermesProfile]) -> Bool {
         profiles.count >= 2
-    }
-
-    /// The choice for picking `name`. Picking the active profile is the same as following it.
-    public static func picking(_ name: String, active: String?) -> AppliesTo {
-        name == active ? .activeProfile : .profile(name)
     }
 
     /// The choice as it applies now. A name the server no longer has, or the active profile itself, means
@@ -36,14 +32,6 @@ public enum AppliesTo: Sendable, Equatable {
         case .activeProfile: active
         case .profile(let name): name
         }
-    }
-
-    /// The choice after the active profile may have changed. A different `Active` value resets it to follow.
-    ///
-    /// `Active` identifies the active profile. Pass the server with the profile name when switching servers should
-    /// reset the choice too.
-    public func afterActiveChange<Active: Equatable>(from previous: Active, to current: Active) -> AppliesTo {
-        previous == current ? self : .activeProfile
     }
 
     /// The text of the selector's chip: "Active profile", or the title of the picked profile.
@@ -73,6 +61,43 @@ public enum AppliesTo: Sendable, Equatable {
                     isSelected: current == choice))
         }
         return rows
+    }
+}
+
+/// The "Applies to" choice and the server and active profile it was made under (WP-41).
+///
+/// A change of either server or active profile resets the choice to following, so an edit never lands on a profile the
+/// user picked under another server or another default. The first observation only records the key.
+public struct AppliesToState: Sendable, Equatable {
+    /// The choice as the user made it. ``choice(in:)`` gives the one that applies now.
+    public private(set) var stored: AppliesTo = .activeProfile
+    /// The server and active profile the choice was made under. Nil until the first observation.
+    private var key: Key?
+
+    /// Creates the state with the default choice, which follows the active profile.
+    public init() {}
+
+    /// Records the server and the active profile now in effect. A change of either resets the choice to following.
+    public mutating func observe(server: UUID?, active: String?) {
+        let current = Key(server: server, active: active)
+        if let key, key != current { stored = .activeProfile }
+        key = current
+    }
+
+    /// Picks `choice` against the profiles now listed. Picking the active profile means following it.
+    public mutating func pick(_ choice: AppliesTo, in profiles: [HermesProfile]) {
+        stored = choice.normalized(in: profiles, active: key?.active)
+    }
+
+    /// The choice that applies now. A name the server no longer lists, or the active profile itself, reads as following.
+    public func choice(in profiles: [HermesProfile]) -> AppliesTo {
+        stored.normalized(in: profiles, active: key?.active)
+    }
+
+    /// The server and the active profile a choice was made under.
+    private struct Key: Equatable, Sendable {
+        var server: UUID?
+        var active: String?
     }
 }
 

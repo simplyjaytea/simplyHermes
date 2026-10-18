@@ -8,6 +8,8 @@ public enum ProfileTransferError: Error, Sendable, Equatable {
     case serverPath(String)
     /// The archive field is not base64, or it decodes to nothing.
     case invalidArchive
+    /// The import answer neither says `ok: true` nor names the bot, so the bot may or may not exist.
+    case unconfirmedImport
 
     /// The sentence to show.
     public var message: String {
@@ -18,6 +20,8 @@ public enum ProfileTransferError: Error, Sendable, Equatable {
             "The server saved the archive at \(path). The phone cannot open files on the server yet."
         case .invalidArchive:
             "The archive from the server could not be read."
+        case .unconfirmedImport:
+            "The server did not confirm the import. Check the bot list before you try again."
         }
     }
 
@@ -124,8 +128,8 @@ public struct ProfileArchive: Sendable, Equatable {
     }
 }
 
-/// What a profile import answered (WP-41). UNTESTED LIVE: the contract gives no response schema, so every field is
-/// optional and anything unexpected reads as no name.
+/// What a profile import answered (WP-41). UNTESTED LIVE: the contract gives no response schema, so an import counts as
+/// done only when the answer confirms it, with `ok: true` or a non-empty `name`.
 public struct ProfileImportResult: Sendable, Equatable {
     /// The name the bot was created under, when the answer said so.
     public var name: String?
@@ -135,10 +139,13 @@ public struct ProfileImportResult: Sendable, Equatable {
         self.name = name
     }
 
-    /// Reads an import answer. Never fails.
-    public static func from(answer: HTTPResponse) -> ProfileImportResult {
+    /// Reads an import answer. Throws ``ProfileTransferError/unconfirmedImport`` unless the answer confirms the import
+    /// and `ok` is not `false`.
+    public static func from(answer: HTTPResponse) throws -> ProfileImportResult {
         let fields = (try? JSONSerialization.jsonObject(with: answer.body)) as? [String: Any]
-        guard let name = fields?["name"] as? String, !name.isEmpty else { return ProfileImportResult() }
+        let name = (fields?["name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let ok = fields?["ok"] as? Bool
+        guard ok != false, name != nil || ok == true else { throw ProfileTransferError.unconfirmedImport }
         return ProfileImportResult(name: name)
     }
 }

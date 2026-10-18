@@ -22,18 +22,11 @@ private func profiles() throws -> [HermesProfile] {
 
     @Test func pickingAnotherProfileEditsThatOneWhileTheActiveOneStaysPut() throws {
         let list = try profiles()
-        let choice = AppliesTo.picking("ops", active: "default")
-        #expect(choice == .profile("ops"))
+        let choice = AppliesTo.profile("ops")
         #expect(choice.target(in: list, active: "default") == "ops")
         #expect(choice.chipTitle(in: list, active: "default") == "Ops bot", "the chip shows the display name")
         // The active profile is a separate input: picking changes what the page edits, not who is active.
         #expect(AppliesTo.activeProfile.target(in: list, active: "default") == "default")
-    }
-
-    @Test func pickingTheActiveProfileMeansFollowingIt() throws {
-        #expect(AppliesTo.picking("default", active: "default") == .activeProfile)
-        #expect(AppliesTo.picking("research", active: "default") == .profile("research"))
-        #expect(AppliesTo.picking("ops", active: nil) == .profile("ops"))
     }
 
     @Test func aStaleNameFallsBackToTheActiveProfile() throws {
@@ -63,19 +56,6 @@ private func profiles() throws -> [HermesProfile] {
         #expect(AppliesTo.isShown(for: list))
     }
 
-    @Test func aChangeOfActiveProfileResetsTheChoice() throws {
-        #expect(AppliesTo.profile("ops").afterActiveChange(from: "default", to: "research") == .activeProfile)
-        #expect(AppliesTo.profile("ops").afterActiveChange(from: "default", to: nil) == .activeProfile)
-        #expect(AppliesTo.profile("ops").afterActiveChange(from: "default", to: "default") == .profile("ops"))
-        #expect(AppliesTo.activeProfile.afterActiveChange(from: "default", to: "ops") == .activeProfile)
-    }
-
-    @Test func aChangeOfServerResetsTheChoiceEvenWithTheSameProfileName() throws {
-        let choice = AppliesTo.profile("ops")
-        #expect(choice.afterActiveChange(from: "server-a/default", to: "server-b/default") == .activeProfile)
-        #expect(choice.afterActiveChange(from: "server-a/default", to: "server-a/default") == choice)
-    }
-
     @Test func menuRowsFollowFirstThenTheOtherProfilesInServerOrder() throws {
         let rows = AppliesTo.profile("ops").options(in: try profiles(), active: "default")
         #expect(rows.map(\.title) == ["Follows the active profile", "Ops bot", "research"])
@@ -93,5 +73,74 @@ private func profiles() throws -> [HermesProfile] {
         let only = Array(try profiles().prefix(1))
         let rows = AppliesTo.activeProfile.options(in: only, active: "default")
         #expect(rows.count == 1 && rows[0].isSelected && rows[0].choice == .activeProfile)
+    }
+
+    // MARK: - The choice as the app keeps it
+
+    private let server = UUID()
+
+    @Test func pickingTheActiveProfileMeansFollowingIt() throws {
+        let list = try profiles()
+        var state = AppliesToState()
+        state.observe(server: server, active: "default")
+        state.pick(.profile("default"), in: list)
+        #expect(state.choice(in: list) == .activeProfile)
+        state.pick(.profile("research"), in: list)
+        #expect(state.choice(in: list) == .profile("research"))
+    }
+
+    @Test func aStaleNameIsNotKeptAsAChoice() throws {
+        let list = try profiles()
+        var state = AppliesToState()
+        state.observe(server: server, active: "default")
+        state.pick(.profile("deleted-bot"), in: list)
+        #expect(state.choice(in: list) == .activeProfile)
+    }
+
+    @Test func aChoiceSurvivesAnObservationOfTheSameServerAndProfile() throws {
+        let list = try profiles()
+        var state = AppliesToState()
+        state.observe(server: server, active: "default")
+        state.pick(.profile("ops"), in: list)
+        state.observe(server: server, active: "default")
+        #expect(state.choice(in: list) == .profile("ops"))
+    }
+
+    @Test func aChangeOfActiveProfileResetsTheChoice() throws {
+        let list = try profiles()
+        var state = AppliesToState()
+        state.observe(server: server, active: "default")
+        state.pick(.profile("ops"), in: list)
+        state.observe(server: server, active: "research")
+        #expect(state.choice(in: list) == .activeProfile)
+        #expect(state.stored == .activeProfile)
+    }
+
+    @Test func aChangeToNoActiveProfileResetsTheChoice() throws {
+        let list = try profiles()
+        var state = AppliesToState()
+        state.observe(server: server, active: "default")
+        state.pick(.profile("ops"), in: list)
+        state.observe(server: server, active: nil)
+        #expect(state.choice(in: list) == .activeProfile)
+    }
+
+    @Test func aChangeOfServerResetsTheChoiceEvenWithTheSameProfileName() throws {
+        let list = try profiles()
+        var state = AppliesToState()
+        state.observe(server: server, active: "default")
+        state.pick(.profile("ops"), in: list)
+        state.observe(server: UUID(), active: "default")
+        #expect(state.choice(in: list) == .activeProfile)
+    }
+
+    @Test func aChoiceThatTheServerDroppedFollowsTheActiveProfile() throws {
+        let list = try profiles()
+        var state = AppliesToState()
+        state.observe(server: server, active: "default")
+        state.pick(.profile("ops"), in: list)
+        let withoutOps = Array(list.prefix(1))
+        #expect(state.choice(in: withoutOps) == .activeProfile)
+        #expect(state.choice(in: list) == .profile("ops"), "the choice returns if the server lists ops again")
     }
 }

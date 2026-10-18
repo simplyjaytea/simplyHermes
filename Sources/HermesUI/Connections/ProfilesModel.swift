@@ -11,12 +11,10 @@
     @Observable
     public final class ProfilesModel {
         public private(set) var selection = ProfileSelection()
-        /// The profile the settings pages edit, when it is not the active one (WP-41). Resets when the active profile or
-        /// the server changes.
-        public private(set) var appliesTo: AppliesTo = .activeProfile
+        /// The "Applies to" choice, with the server and active profile it was made under (WP-41). Its rules live in HermesKit.
+        public private(set) var appliesToState = AppliesToState()
         @ObservationIgnored private let connections: ConnectionsModel
         @ObservationIgnored private let defaults: UserDefaults
-        @ObservationIgnored private var activeKey: ActiveKey?
 
         public init(connections: ConnectionsModel, defaults: UserDefaults = .standard) {
             self.connections = connections
@@ -51,24 +49,19 @@
             }
         }
 
+        /// The profile the settings pages edit, as it applies now (WP-41). Following the active profile is the default.
+        public var appliesTo: AppliesTo { appliesToState.choice(in: selection.profiles) }
+
         /// Picks the profile the settings pages edit. Picking the active profile means following it.
         public func setAppliesTo(_ choice: AppliesTo) {
-            appliesTo = choice.normalized(in: selection.profiles, active: selection.current?.name)
+            appliesToState.pick(choice, in: selection.profiles)
         }
 
         private static func key(_ id: UUID) -> String { "profile.\(id.uuidString)" }
 
-        /// Resets the "Applies to" choice when the server or its active profile changed (WP-41).
+        /// Tells the "Applies to" state which server and active profile are now in effect, so a change resets the choice.
         private func noteActiveProfile() {
-            let key = ActiveKey(server: connections.active?.id, profile: selection.current?.name)
-            if let activeKey { appliesTo = appliesTo.afterActiveChange(from: activeKey, to: key) }
-            activeKey = key
-        }
-
-        /// The server and the active profile on it: what the "Applies to" choice was made under.
-        private struct ActiveKey: Equatable {
-            var server: UUID?
-            var profile: String?
+            appliesToState.observe(server: connections.active?.id, active: selection.current?.name)
         }
 
         /// A model with fixed profiles, for previews and snapshots.

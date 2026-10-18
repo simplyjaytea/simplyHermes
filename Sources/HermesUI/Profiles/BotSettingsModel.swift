@@ -3,14 +3,11 @@
     import HermesKit
     import Observation
 
-    /// The state of Bot settings (WP-41): the bots of the active server, the one the "Applies to" choice points at, and
-    /// the export and import of a bot's profile.
+    /// The state of Bot settings (WP-41): the export and import of the bot the "Applies to" choice points at.
     @MainActor
     @Observable
     public final class BotSettingsModel {
-        /// The bots of the active server, read from `profiles.list`. Empty until the first load.
-        public private(set) var roster: [BotFacts] = []
-        /// True while a load, an export or an import runs.
+        /// True while an export or an import runs.
         public private(set) var isWorking = false
         /// What went wrong last, as a sentence to show. Nil when nothing did.
         public private(set) var problem: String?
@@ -19,6 +16,8 @@
 
         @ObservationIgnored private let profiles: ProfilesModel
         @ObservationIgnored private let connections: ConnectionsModel
+        /// The folder holding the last export, removed by ``discardExport()``.
+        @ObservationIgnored private var exportFolder: URL?
 
         /// Creates the model for the profiles and servers the app already holds.
         public init(profiles: ProfilesModel, connections: ConnectionsModel) {
@@ -31,42 +30,22 @@
             profiles.appliesTo.target(in: profiles.selection.profiles, active: profiles.selection.current?.name)
         }
 
-        /// The facts of the target bot, once the roster has loaded.
-        public var facts: BotFacts? {
-            guard let target else { return nil }
-            return roster.first { $0.name == target }
-        }
-
-        /// Reads the roster of the active server, connecting on demand.
-        public func load() async {
-            guard let connection = connections.active, let manager = connections.manager else { return }
-            isWorking = true
-            defer { isWorking = false }
-            do {
-                let client = try await manager.client(for: connection)
-                let result: ProfilesListResult = try await client.call(
-                    "profiles.list", params: ProfilesListParams(includeSessions: true))
-                roster = result.profiles.map(BotFacts.init(row:))
-                problem = nil
-            } catch {
-                problem = ProfileTransferError.describe(error)
-            }
-        }
-
-        /// Exports the target bot to a file in the temporary directory and returns it for the share sheet. Nil when the
-        /// export failed, and ``problem`` says why.
+        /// Exports the target bot into a new folder in the temporary directory and returns the file for the share sheet.
+        /// Nil when the export failed, and ``problem`` says why. The file stays until ``discardExport()``.
         public func exportTarget() async -> URL? {
             guard let name = target, let connection = connections.active, let manager = connections.manager else {
                 return nil
             }
+            await discardExport()
             isWorking = true
             defer { isWorking = false }
+            notice = nil
             do {
                 let rest = try await restClient(for: connection, manager: manager)
                 let archive = try await rest.exportProfileArchive(name: name)
-                let file = try archive.writeTemporaryFile(for: name)
+                let file = try await Task.detached { try archive.writeTemporaryFile(for: name) }.value
+                exportFolder = file.deletingLastPathComponent()
                 problem = nil
-                notice = nil
                 return file
             } catch {
                 problem = ProfileTransferError.describe(error)
@@ -74,28 +53,48 @@
             }
         }
 
-        /// Creates a bot from an archive the user picked, then refreshes the switcher and the roster.
+        /// Removes the file of the last export. The sheet calls it when the share sheet closes, and the next export calls
+        /// it first, so an archive of a bot never outlives its share.
+        public func discardExport() async {
+            guard let folder = exportFolder else { return }
+            exportFolder = nil
+            await Task.detached {
+                _ = try? FileManager.default.removeItem(at: folder)
+            }.value
+        }
+
+        /// Creates a bot from an archive the user picked, then refreshes the switcher. The file is read off the main actor.
         public func importArchive(from url: URL) async {
             guard let connection = connections.active, let manager = connections.manager else { return }
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            guard let archive = try? Data(contentsOf: url) else {
+            isWorking = true
+            defer { isWorking = false }
+            problem = nil
+            notice = nil
+            let archive: Data
+            do {
+                archive = try await Self.readArchive(at: url)
+            } catch {
                 problem = "The file could not be read."
                 return
             }
-            isWorking = true
-            defer { isWorking = false }
             do {
                 let rest = try await restClient(for: connection, manager: manager)
                 let result = try await rest.importProfileArchive(archive)
-                problem = nil
                 notice = result.name.map { "Created \($0)." } ?? "Created the bot from the archive."
             } catch {
                 problem = ProfileTransferError.describe(error)
                 return
             }
             await profiles.refresh()
-            await load()
+        }
+
+        /// Reads the picked file on a background task, inside the file's security scope.
+        private static func readArchive(at url: URL) async throws -> Data {
+            try await Task.detached {
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                return try Data(contentsOf: url)
+            }.value
         }
 
         /// Connects on demand and returns the signed-in REST client of the connection.
