@@ -92,7 +92,8 @@
             }
         }
 
-        /// Makes a change on the active server, then reads the page again. `notice` confirms the change.
+        /// Makes a change on the active server, then reads the page again. `notice` confirms the change. Status only:
+        /// the answer of the change is not read.
         func change<Value: Sendable>(
             _ notice: String, _ work: @Sendable (RESTClient) async throws -> Value
         ) async {
@@ -110,25 +111,6 @@
             await load()
         }
 
-        /// Runs a read that is not part of the page load, such as a scan or an audit, and shows its answer as the
-        /// panel `id`. A later run with the same id replaces the panel's rows.
-        func showAnswer(
-            panel id: String, title: String, footer: String? = nil,
-            _ work: @Sendable (RESTClient) async throws -> JSONValue
-        ) async {
-            var panel = SettingsAssistantPanel(id: id, title: title, footer: footer)
-            do {
-                let rest = try await client()
-                let answer = try await work(rest)
-                panel.rows = SettingsAssistantRows.rows(for: answer)
-            } catch {
-                if error is CancellationError { return }
-                panel.errorText = SettingsAssistantErrorText.message(for: error)
-            }
-            panel.isLoaded = true
-            store(panel)
-        }
-
         /// The REST client of the active server, connecting first when needed.
         private func client() async throws -> RESTClient {
             guard let connections, let connection = connections.active, let manager = connections.manager else {
@@ -144,14 +126,6 @@
         private func update(_ id: String, _ change: (inout SettingsAssistantPanel) -> Void) {
             guard let index = panels.firstIndex(where: { $0.id == id }) else { return }
             change(&panels[index])
-        }
-
-        private func store(_ panel: SettingsAssistantPanel) {
-            if let index = panels.firstIndex(where: { $0.id == panel.id }) {
-                panels[index] = panel
-            } else {
-                panels.append(panel)
-            }
         }
 
         /// A model with fixed answers and no server, for previews. `answers` maps a read id to its answer.

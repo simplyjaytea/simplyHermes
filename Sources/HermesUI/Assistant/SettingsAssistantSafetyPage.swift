@@ -29,10 +29,7 @@
                     Button("Run security audit") { runAudit() }
                         .accessibilityIdentifier("assistant.safety.audit")
                 } footer: {
-                    Text("Runs the audit on the server. Its answer appears below.")
-                }
-                if let audit = model.panel("audit") {
-                    SettingsAssistantPanelSection(panel: audit)
+                    Text("Runs the audit on the server. This page shows only whether the server accepted it.")
                 }
             }
             .navigationTitle("Safety")
@@ -41,7 +38,7 @@
 
         private func setSharing(_ enabled: Bool) {
             Task {
-                await model.change(enabled ? "Shared metrics are on." : "Shared metrics are off.") {
+                await model.change(enabled ? "Sharing on requested." : "Sharing off requested.") {
                     try await $0.setAssistantSharedMetricsConsent(enabled: enabled)
                 }
             }
@@ -49,7 +46,7 @@
 
         private func runAudit() {
             Task {
-                await model.showAnswer(panel: "audit", title: "Security audit") {
+                await model.change("Security audit requested.") {
                     try await $0.runAssistantSecurityAudit()
                 }
             }
@@ -61,8 +58,8 @@
         .preview(
             reads: SettingsAssistantReads.safetyReads,
             answers: [
-                "egress": ["status": "ok"],
-                "sharedMetrics": ["enabled": false],
+                "egress": SettingsAssistantSamples.egress,
+                "sharedMetrics": SettingsAssistantSamples.consent,
             ])
     }
 

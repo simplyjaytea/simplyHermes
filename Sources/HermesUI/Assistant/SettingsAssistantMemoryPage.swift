@@ -3,7 +3,7 @@
     import SwiftUI
 
     /// Settings > Assistant > Memory & context: the memory status and the reset (WP-53d). The provider picker and the
-    /// provider settings wait on the server's answer shapes, so they are not here yet.
+    /// provider settings are not here yet: their writes are status only and not verified against a server [JT].
     struct SettingsAssistantMemoryPage: View {
         @State private var model: SettingsAssistantModel
         @State private var confirmsReset = false
@@ -40,7 +40,7 @@
 
         private func reset() {
             Task {
-                await model.change("Memory was reset.") {
+                await model.change("Memory reset requested.") {
                     try await $0.resetAssistantMemory()
                 }
             }
@@ -51,7 +51,7 @@
     private func memoryPreview() -> SettingsAssistantModel {
         .preview(
             reads: SettingsAssistantReads.memoryReads,
-            answers: ["memory": ["provider": "sample", "api_token": "placeholder"]])
+            answers: ["memory": SettingsAssistantSamples.memory])
     }
 
     #Preview("Memory, outer", traits: .fixedLayout(width: 466, height: 678)) {

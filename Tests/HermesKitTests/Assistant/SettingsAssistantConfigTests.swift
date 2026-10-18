@@ -3,6 +3,8 @@ import HermesKit
 import Testing
 
 @Suite struct SettingsAssistantConfigTests {
+    /// Synthetic on purpose: its keys have mixed case, to show that decoding keeps each key as sent. The recorded
+    /// config document in Fixtures/rest/GET_api_config.json uses lowercase keys.
     private let answer =
         #"{"Some_Key":1,"camelKey":2,"OPENAI_API_KEY":"sk-x","nested_map":{"my_value":[1,{"A_B":null}]},"ratio":0.25}"#
 
@@ -23,23 +25,24 @@ import Testing
     }
 
     @Test func setCreatesMissingObjectsAndReplacesNull() throws {
+        // Keys are recorded in GET_api_config.json: voice, terminal and curator. Values are canned.
         var config = SettingsAssistantConfig(values: [
             "terminal": .null,
-            "voice": .object(["speed": .double(1.5)]),
+            "voice": .object(["beep_volume": .double(0.3)]),
         ])
-        try config.set(.string("bash"), at: ["terminal", "shell"])
-        try config.set(.bool(true), at: ["voice", "enabled"])
-        try config.set(.int(3), at: ["agent", "max_turns"])
-        #expect(config.value(at: ["terminal", "shell"]) == .string("bash"))
-        #expect(config.value(at: ["voice"]) == .object(["speed": .double(1.5), "enabled": .bool(true)]))
-        #expect(config.value(at: ["agent", "max_turns"]) == .int(3))
+        try config.set(.string("."), at: ["terminal", "cwd"])
+        try config.set(.bool(true), at: ["voice", "barge_in"])
+        try config.set(.int(24), at: ["curator", "interval_hours"])
+        #expect(config.value(at: ["terminal", "cwd"]) == .string("."))
+        #expect(config.value(at: ["voice"]) == .object(["beep_volume": .double(0.3), "barge_in": .bool(true)]))
+        #expect(config.value(at: ["curator", "interval_hours"]) == .int(24))
         #expect(config.values.count == 3)
     }
 
     @Test func setRefusesToReplaceAScalarOnThePath() {
         var config = SettingsAssistantConfig(values: ["voice": .string("on")])
         #expect(throws: SettingsAssistantConfigError.notAnObject(path: ["voice"])) {
-            try config.set(.bool(true), at: ["voice", "enabled"])
+            try config.set(.bool(true), at: ["voice", "barge_in"])
         }
         #expect(config.value(at: ["voice"]) == .string("on"))
     }

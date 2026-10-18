@@ -1,7 +1,8 @@
 import Foundation
 
-/// The config document of `GET /api/config`. The schema gives the document as any object, so its keys are not modelled
-/// here. ``RESTClient/editAssistantConfig(_:)`` writes every key back, which keeps each key a change does not name.
+/// The config document of `GET /api/config`: the server answers with the object itself, with no outer key. Its shape
+/// is recorded in `Fixtures/rest/GET_api_config.json` under `body`. Its keys are not modelled here.
+/// ``RESTClient/editAssistantConfig(_:)`` writes every key back, which keeps each key a change does not name.
 public struct SettingsAssistantConfig: Sendable, Equatable {
     /// The top-level keys, exactly as the server sent them.
     public private(set) var values: [String: JSONValue]

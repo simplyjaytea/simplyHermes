@@ -2,6 +2,8 @@ import Foundation
 import HermesKit
 import Testing
 
+/// Synthetic answers: these check the row renderer, not a server shape. The recorded case is
+/// `recordedSecretFieldIsMarked`.
 @Suite struct SettingsAssistantRowsTests {
     @Test func rowsFollowSortedKeysAndArrayOrder() {
         let answer: JSONValue = ["zeta": 1, "alpha": ["beta": [true, nil]], "empty": [:], "list": []]
@@ -39,6 +41,15 @@ import Testing
             ])
     }
 
+    @Test func recordedSecretFieldIsMarked() {
+        // Keys from auxiliary.curator in GET_api_config.json. Values are canned.
+        let answer: JSONValue = ["auxiliary": ["curator": ["api_key": "", "model": "", "timeout": 600]]]
+        let rows = SettingsAssistantRows.rows(for: answer)
+        #expect(
+            rows.map(\.label) == ["auxiliary.curator.api_key", "auxiliary.curator.model", "auxiliary.curator.timeout"])
+        #expect(rows.map(\.isSecret) == [true, false, false])
+    }
+
     @Test func secretKeyNamesMatchWithoutRegardToCase() {
         #expect(SettingsAssistantRows.isSecretKey("API_KEY"))
         #expect(SettingsAssistantRows.isSecretKey("Password"))
@@ -51,13 +62,14 @@ import Testing
 @Suite struct SettingsAssistantErrorTextTests {
     @Test func errorTextPassesServerMessages() {
         #expect(
-            SettingsAssistantErrorText.message(for: RESTError.http(status: 400, detail: "Provider is busy"))
-                == "Provider is busy")
+            SettingsAssistantErrorText.message(for: RESTError.http(status: 400, detail: "identifier is required"))
+                == "identifier is required")
         #expect(
             SettingsAssistantErrorText.message(for: RESTError.http(status: 500, detail: nil))
                 == "The server answered with status 500.")
         #expect(
-            SettingsAssistantErrorText.message(for: RESTError.http(status: 404, detail: "Not Found"))
+            SettingsAssistantErrorText.message(
+                for: RESTError.http(status: 404, detail: "byterover does not support OAuth connect"))
                 == "This server doesn't have this setting yet.")
         #expect(
             SettingsAssistantErrorText.message(for: SettingsAssistantFailure.noServer) == "Choose a server first.")

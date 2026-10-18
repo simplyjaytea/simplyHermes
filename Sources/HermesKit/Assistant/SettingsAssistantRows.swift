@@ -23,8 +23,8 @@ public struct SettingsAssistantRow: Identifiable, Sendable, Equatable {
     }
 }
 
-/// Turns an answer into rows. The schema gives most answers of the assistant settings as any JSON, so the app shows
-/// them without assuming key names.
+/// Turns an answer into rows. Recorded answers have no fixed type, so rows name no field. Only the secret words below
+/// look at key names.
 public enum SettingsAssistantRows {
     /// Words that mark a key as a secret. Matching is by substring and ignores case, so `api_key`, `Token` and
     /// `db_password` all match. It errs toward masking: `max_tokens` is masked too, and one tap shows it.
@@ -82,7 +82,9 @@ public enum SettingsAssistantFailure: Error, Sendable, Equatable {
     case noServer
 }
 
-/// The text a settings screen shows for an error. A server's own message passes through only when it sent one.
+/// The text a settings screen shows for an error. A server's own message passes through only when it sent one, as its
+/// `detail`: recorded in `Fixtures/rest/GET_api_skills_hub_scan.json` (400) and
+/// `Fixtures/rest/GET_api_memory_providers_byterover_oauth_status.json` (404).
 public enum SettingsAssistantErrorText {
     /// The message for `error`.
     public static func message(for error: any Error) -> String {

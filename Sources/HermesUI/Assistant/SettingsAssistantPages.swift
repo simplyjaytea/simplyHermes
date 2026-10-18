@@ -52,15 +52,15 @@
 
         private func scan() {
             Task {
-                await model.showAnswer(panel: "workspaces", title: "Workspaces") {
-                    try await $0.assistantWorkspaces(scan: true)
+                await model.change("Scan requested.") {
+                    try await $0.scanAssistantWorkspaces()
                 }
             }
         }
     }
 
     /// Settings > Assistant > Appearance: the server dashboard's theme and font, as read. The app's own look is not
-    /// changed here (WP-53d). The pickers wait on the answer shape of the theme list.
+    /// changed here (WP-53d). Pickers are not built: their writes are status only and not verified [JT].
     struct SettingsAssistantAppearancePage: View {
         @State private var model: SettingsAssistantModel
 
@@ -87,19 +87,27 @@
     private func voicePreview() -> SettingsAssistantModel {
         .preview(
             reads: SettingsAssistantReads.voiceReads,
-            answers: ["voiceConfig": ["status": "ok"], "voices": ["status": "ok"]])
+            answers: [
+                "voiceConfig": SettingsAssistantSamples.voiceConfig,
+                "voices": SettingsAssistantSamples.voices,
+            ])
     }
 
     @MainActor
     private func workspacePreview() -> SettingsAssistantModel {
-        .preview(reads: SettingsAssistantReads.workspaceReads, answers: ["workspaces": ["status": "ok"]])
+        .preview(
+            reads: SettingsAssistantReads.workspaceReads,
+            answers: ["workspaces": SettingsAssistantSamples.workspaces])
     }
 
     @MainActor
     private func appearancePreview() -> SettingsAssistantModel {
         .preview(
             reads: SettingsAssistantReads.appearanceReads,
-            answers: ["themes": ["status": "ok"], "font": ["status": "ok"]])
+            answers: [
+                "themes": SettingsAssistantSamples.themes,
+                "font": SettingsAssistantSamples.font,
+            ])
     }
 
     #Preview("Voice, outer", traits: .fixedLayout(width: 466, height: 678)) {

@@ -49,7 +49,7 @@
 
         private func run() {
             Task {
-                await model.change("Curator run started.") {
+                await model.change("Curator run requested.") {
                     try await $0.runAssistantCurator()
                 }
             }
@@ -60,7 +60,7 @@
     private func curatorPreview() -> SettingsAssistantModel {
         .preview(
             reads: SettingsAssistantReads.curatorReads,
-            answers: ["curator": ["paused": false]])
+            answers: ["curator": SettingsAssistantSamples.curator])
     }
 
     #Preview("Curator, outer", traits: .fixedLayout(width: 466, height: 678)) {
