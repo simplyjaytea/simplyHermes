@@ -17,7 +17,7 @@ import Testing
         #expect(index["recorder"] as? String == "testbed/tools/record_rest.py")
         let upstream = try #require(index["upstream"] as? String)
         #expect(upstream.count == 40 && upstream.allSatisfy(\.isHexDigit))
-        #expect(index["entries"] as? [Any] != nil)
+        #expect(index["entries"] is [Any])
     }
 
     @Test func everyEntryIsSkippedWithAReasonOrPointsAtAMatchingAnswerFile() throws {

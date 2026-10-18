@@ -13,8 +13,9 @@ Stdlib only. Options: --base (default http://127.0.0.1:9119), --spec (default do
      finally block, and uses only the writes in SEED_WRITES.
 
 Output is deterministic (sorted keys, 2-space indent, no timestamps): one JSON file per recorded request, named by
-method and path, plus index.json. Each file is {"step", "request", "status", "contentType", "body"}. A key matching
-REDACT_KEYS keeps its place but its value becomes "<redacted>" (see redact()). Exit 1 only when the login fails.
+method and path, plus index.json. Each file is {"step", "request", "status", "contentType", "body"}. Strings under a
+secret key name (REDACT_KEYS) become "<redacted>"; numbers, booleans and null keep their type (see redact()). Exit 1
+only when the login fails.
 """
 import argparse
 import http.client
@@ -42,9 +43,10 @@ MAX_429_RETRIES = 3
 MAX_RETRY_AFTER = 60
 MAX_TEXT_BYTES = 256 * 1024
 REDACTED = "<redacted>"
-REDACT_KEYS = re.compile(r"key|token|secret|password|credential|cookie|authorization|oauth|value", re.IGNORECASE)
-REDACT_TEXT = re.compile(r"(key|token|secret|password|credential|cookie|authorization|oauth|value)"
-                         r"([\"']?\s*[:=]\s*)([^\s,;\"'}]+)", re.IGNORECASE)
+# Secret names, case-insensitive. Bare "key", "value" and "oauth" are not secret names on their own.
+SECRET_NAMES = r"api[_-]?key|secret|token|password|passwd|credential|cookie|authorization|private[_-]?key"
+REDACT_KEYS = re.compile(SECRET_NAMES, re.IGNORECASE)
+REDACT_TEXT = re.compile(r"(" + SECRET_NAMES + r")([\"']?\s*[:=]\s*)([^\s,;\"'}]+)", re.IGNORECASE)
 
 # Excluded by the testbed rules. A prefix also excludes its bare path (for example /api/files).
 EXCLUDED_PREFIXES = ("/api/fs/", "/api/files/", "/api/git/", "/api/media/", "/api/ops/", "/api/local-models/",
@@ -322,20 +324,23 @@ def warn_schema(spec, method, template, body):
 
 
 def redact(node, hits, hidden=False):
-    """A copy of node with secret values replaced. Keys and shape stay. A key matching REDACT_KEYS hides its value:
-    a scalar becomes "<redacted>" (null stays null), and an object or list keeps its keys and length while every
-    scalar inside it is replaced. Matched key names are added to hits."""
+    """A copy of node with secret strings replaced, keys and shape kept. A key matching REDACT_KEYS hides the strings
+    below it: a non-empty string becomes "<redacted>", while numbers, booleans and null keep their type. Objects and
+    lists keep their shape and are walked. An env-style "value" is hidden only when its object's "key" or "name"
+    matches REDACT_KEYS. Matched key names are added to hits."""
     if isinstance(node, dict):
+        env_secret = any(isinstance(node.get(k), str) and REDACT_KEYS.search(node[k]) for k in ("key", "name"))
         out = {}
         for key, child in node.items():
-            matched = bool(REDACT_KEYS.search(str(key)))
+            name = str(key)
+            matched = bool(REDACT_KEYS.search(name)) or (name.lower() == "value" and env_secret)
             if matched:
-                hits.add(str(key))
+                hits.add(name)
             out[key] = redact(child, hits, hidden or matched)
         return out
     if isinstance(node, list):
         return [redact(child, hits, hidden) for child in node]
-    if hidden and node is not None:
+    if hidden and isinstance(node, str) and node:
         return REDACTED
     return node
 
