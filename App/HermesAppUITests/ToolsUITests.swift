@@ -17,8 +17,8 @@ final class ToolsUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 10))
         back(app, from: "Backup cron fix", to: "Chats")
 
-        // The tabs are buttons in a toolbar on this layout, not tab bar buttons. The visible one comes first.
-        let toolsTab = app.buttons["Tools"]
+        // The tabs are buttons in a toolbar on this layout, not tab bar buttons. Hidden copies follow the visible one.
+        let toolsTab = app.buttons.matching(NSPredicate(format: "label == 'Tools'")).firstMatch
         XCTAssertTrue(toolsTab.waitForExistence(timeout: 10), "The tab should show Tools")
         toolsTab.tap()
 
