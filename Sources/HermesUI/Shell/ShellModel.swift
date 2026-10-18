@@ -164,46 +164,87 @@
             open(item.id)
         }
 
-        /// Creates the server chat New chat opens. Nil when no server is saved, so New chat stays a placeholder.
+        /// Creates the server chat for a New chat's first message. Nil when no server is saved: New chats then stay
+        /// placeholders.
         @ObservationIgnored public var startServerChat: (@MainActor () async throws -> SessionListItem?)?
-        /// Server chats started in this run. A list sync keeps each until the server lists it, since an empty chat may not be listed.
+        /// Hands a New chat's first message and its files to the chat's live model, which sends them on attach.
+        @ObservationIgnored public var handOffFirstMessage: (@MainActor (String, String, [ComposerAttachment]) -> Void)?
+        /// Server chats created in this run. A list sync keeps each until the server lists it, which may take a moment.
         @ObservationIgnored private var startedServerIDs: Set<String> = []
-        /// The server chat being created. A New chat while it runs joins it, so a double tap makes one chat.
-        @ObservationIgnored private var startingChat: Task<Void, Never>?
-        /// Why the last New chat did not start, in words. The shell shows it in an alert, which clears it.
+        /// New chats whose server chat is created by their first message. Until then they are placeholders.
+        @ObservationIgnored private var unstartedChatIDs: Set<String> = []
+        /// The first message being sent in each New chat. A repeat send there joins it, so a double tap sends once.
+        @ObservationIgnored private var startingChats: [String: Task<Void, Never>] = [:]
+        /// Counts placeholder ids, so a new placeholder never reuses the id of one still open.
+        @ObservationIgnored private var placeholderCount = 0
+        /// Why the last first message failed, in words. The shell shows it in an alert, which clears it.
         public var newChatError: String?
 
-        /// Starts a chat: a real server chat when a server is saved, else a placeholder. The task is nil for a placeholder.
-        /// A call while a server chat is being created returns that task and starts nothing. A failure opens nothing,
-        /// sets ``newChatError``, and leaves the open chats and their drafts as they were.
-        @discardableResult
-        public func newChat() -> Task<Void, Never>? {
-            guard let startServerChat else {
-                addPlaceholderChat()
-                return nil
+        /// Starts a chat. With a server saved it is a placeholder until its first message creates the server chat, so
+        /// New chat never waits on the network. An empty chat not yet started is shown again, so repeat taps make one.
+        public func newChat() {
+            if let empty = sessions.first(where: { session in
+                unstartedChatIDs.contains(session.id) && drafts[session.id, default: ""].isEmpty
+                    && attachments[session.id, default: []].isEmpty && transcripts[session.id, default: []].isEmpty
+            }) {
+                open(empty.id)
+                return
             }
-            if let startingChat { return startingChat }
+            let id = addPlaceholderChat()
+            if startServerChat != nil { unstartedChatIDs.insert(id) }
+        }
+
+        /// Creates the server chat for a first message and sends the message there. A send in the same chat while that
+        /// runs joins it. A failure keeps the text and the files in the composer and sets ``newChatError``.
+        private func startFirstMessage(in id: String) -> Task<Void, Never>? {
+            if let running = startingChats[id] { return running }
+            guard let startServerChat else { return nil }
+            let typed = drafts[id, default: ""]
+            let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty || !attachments[id, default: []].isEmpty else { return nil }
             newChatError = nil
             let task: Task<Void, Never> = Task {
-                defer { self.startingChat = nil }
+                defer { self.startingChats[id] = nil }
                 do {
-                    if let item = try await startServerChat() {
-                        self.startedServerIDs.insert(item.id)
-                        self.show(item)
-                    } else {
-                        self.addPlaceholderChat()
+                    guard let item = try await startServerChat() else {
+                        self.newChatError = Self.newChatMessage(for: nil)
+                        return
                     }
+                    self.adopt(item, replacing: id)
+                    let files = self.attachments.removeValue(forKey: item.id) ?? []
+                    self.handOffFirstMessage?(item.id, text, files)
+                    if self.drafts[item.id] == typed { self.drafts[item.id] = nil }
                 } catch {
-                    // Nothing opens on failure. A placeholder would answer with the demo reply instead of the server.
                     self.newChatError = Self.newChatMessage(for: error)
                 }
             }
-            startingChat = task
+            startingChats[id] = task
             return task
         }
 
-        /// The words the user reads when New chat does not start.
-        static func newChatMessage(for error: Error) -> String {
+        /// Gives a New chat its server id. The sidebar row, tab, transcript, draft and files move to the server chat.
+        private func adopt(_ item: SessionListItem, replacing placeholderID: String) {
+            unstartedChatIDs.remove(placeholderID)
+            startedServerIDs.insert(item.id)
+            serverSessionIDs.insert(item.id)
+            let summary = ChatSessionSummary(
+                id: item.id, title: item.title, subtitle: item.time ?? "", serverName: item.serverName)
+            if let index = sessions.firstIndex(where: { $0.id == placeholderID }) {
+                sessions[index] = summary
+            } else {
+                sessions.insert(summary, at: 0)
+            }
+            transcripts[item.id] = transcripts.removeValue(forKey: placeholderID) ?? []
+            drafts[item.id] = drafts.removeValue(forKey: placeholderID)
+            attachments[item.id] = attachments.removeValue(forKey: placeholderID)
+            scrollAnchors[item.id] = scrollAnchors.removeValue(forKey: placeholderID)
+            openSessionIDs = openSessionIDs.map { $0 == placeholderID ? item.id : $0 }
+            closedSessionIDs = closedSessionIDs.map { $0 == placeholderID ? item.id : $0 }
+            if selectedSessionID == placeholderID { selectedSessionID = item.id }
+        }
+
+        /// The words the user reads when a first message does not start its chat. A nil error means no chat came back.
+        static func newChatMessage(for error: Error?) -> String {
             if let offline = error as? ServerNotConnectedError {
                 return offline.isConnecting
                     ? "\(offline.serverName) is still connecting. Try again in a moment."
@@ -212,12 +253,16 @@
             return "Could not start a new chat. Try again."
         }
 
-        private func addPlaceholderChat() {
-            let id = "new-\(sessions.count + 1)"
+        /// Adds an empty chat at the top of the list and opens it. Ids count up: a count of chats can repeat after a
+        /// list sync and reuse an id that is still open.
+        private func addPlaceholderChat() -> String {
+            placeholderCount += 1
+            let id = "new-\(placeholderCount)"
             sessions.insert(
                 ChatSessionSummary(id: id, title: "New chat", subtitle: "Now", serverName: "home-server"), at: 0)
             transcripts[id] = []
             open(id)
+            return id
         }
 
         /// The live chat for a listed server session, or nil for a placeholder chat.
@@ -244,13 +289,17 @@
             streamingSessionIDs.contains(id)
         }
 
-        /// Sends the draft as a user message. The demo reply streams in word by word.
-        public func send(in id: String) {
+        /// Sends the draft as a user message. The demo reply streams in word by word. A New chat's first message
+        /// creates its server chat instead, and the returned task ends once that message is sent or has failed.
+        @discardableResult
+        public func send(in id: String) -> Task<Void, Never>? {
+            if unstartedChatIDs.contains(id) { return startFirstMessage(in: id) }
             let text = drafts[id, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { return }
+            guard !text.isEmpty else { return nil }
             drafts[id] = ""
             append(ShellMessage(id: UUID().uuidString, kind: .user, text: text), to: id)
             startDemoStream(in: id)
+            return nil
         }
 
         /// Streams a canned reply into a chat, a few words at a time, so fold changes can be tested mid-stream.

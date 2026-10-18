@@ -26,9 +26,13 @@
             self.model = model
             self.connections = connections
             self.sessionsList = sessionsList
-            model.liveChats = connections.map(LiveChatStore.init)
+            let liveChats = connections.map(LiveChatStore.init)
+            model.liveChats = liveChats
             if let connections {
                 model.startServerChat = { try await connections.startChat() }
+                model.handOffFirstMessage = { id, text, files in
+                    liveChats?.chat(for: id)?.queueFirstMessage(text, attachments: files)
+                }
             }
             _profiles = State(initialValue: connections.map { ProfilesModel(connections: $0) })
             self.showsDebugLayoutMenu = showsDebugLayoutMenu
