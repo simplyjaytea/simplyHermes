@@ -7,6 +7,7 @@
     public struct ProfileSwitcher: View {
         private let profiles: ProfilesModel
         private let connections: ConnectionsModel
+        @State private var showsBotSettings = false
 
         public init(profiles: ProfilesModel, connections: ConnectionsModel) {
             self.profiles = profiles
@@ -33,6 +34,13 @@
                                 }
                             }
                         }
+                        Divider()
+                        Button {
+                            showsBotSettings = true
+                        } label: {
+                            Label("Bot settings…", systemImage: "slider.horizontal.3")
+                        }
+                        .accessibilityIdentifier("profileSwitcher.botSettings")
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "person.crop.circle").font(HermesFont.caption)
@@ -48,6 +56,9 @@
             }
             .task(id: "\(connections.active?.id.uuidString ?? "none")-\(isConnected)") {
                 await profiles.refresh()
+            }
+            .sheet(isPresented: $showsBotSettings) {
+                BotSettingsSheet(profiles: profiles, connections: connections)
             }
         }
     }
