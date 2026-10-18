@@ -157,7 +157,7 @@
                 id: item.id,
                 command: entry.context ?? entry.name,
                 isDone: entry.phase == .completed,
-                text: entry.resultText ?? entry.summary ?? entry.preview ?? ""
+                text: entry.resultText ?? entry.result?["output"]?.stringValue ?? entry.summary ?? entry.preview ?? ""
             )
         }
 
@@ -203,7 +203,9 @@
 
         /// The first 4000 characters, as the inline tool card shows them. Empty output says why.
         private var shownText: String {
-            if output.text.isEmpty { return output.isDone ? "No output" : "Running" }
+            if output.text.isEmpty {
+                return output.isDone ? String(localized: "No output") : String(localized: "Running")
+            }
             return String(output.text.prefix(4000))
         }
     }
