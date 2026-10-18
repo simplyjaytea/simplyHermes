@@ -1,30 +1,49 @@
 import Foundation
 
-/// The Nous Portal as a ``CloudPortalClient`` (WP-17). UNTESTED LIVE, AND A GUESS.
+/// The Nous Portal as a ``CloudPortalClient`` (WP-17). UNTESTED LIVE. Every portal detail below is an assumption.
 ///
-/// Nothing in this repo, and nothing in the public desktop docs, says how to list organizations or agents:
+/// What the sources document about listing organizations and agents, and what they do not:
+///
+/// This repo documents no way to list them:
+/// - `docs/protocol.md` does not mention the portal or Hermes Cloud. It names `nous` (OAuth) only as a login provider
+///   of a gateway, and its section 12 says native PKCE with `nous` is untested.
 /// - `GET /api/portal` (`dashboard-openapi.json`) is a gateway's own Portal login status. It has no response schema,
 ///   it needs a gateway that is already reachable, and a Hermes Cloud entry has no address yet at that point.
-/// - `portal_url` in the billing and free-tier results is a link to the portal's web pages.
+/// - `portal_url` in the billing and free-tier results (`gateway-contract.openrpc.json`) is a link to the portal's
+///   web pages.
 /// - `GET /api/auth/me` and `subscription.state` give one `org_id` / `org_name` for a session on a gateway that is
 ///   already connected. They do not list organizations.
-/// - `agents.list` (`gateway-contract.openrpc.json`) lists background processes on a gateway, not hosted agents.
-/// - The desktop docs say only: sign in once, pick an organization if the login has several, pick an agent, no URL.
+/// - `agents.list` lists background processes on a gateway, not hosted agents.
 ///
-/// The public guide "Manage Hermes Cloud with MCP" names the host `portal.nousresearch.com` and a portal MCP server
-/// with an `agents` tool, and says the organization is chosen in the browser while signing in. That server needs
-/// its own OAuth client registration, so the app's browser sign-in (WP-13) cannot reach it, and its tool arguments
-/// and replies are not documented.
+/// The public desktop guide, https://hermes-agent.nousresearch.com/docs/user-guide/desktop, documents the flow and
+/// nothing beneath it. Hermes Cloud is one of four kinds in the Add flow. The user signs in once to Hermes Cloud and
+/// picks from the agents on the account, with no URL to paste. An organization picker appears when the account spans
+/// several organizations. Cloud entries come from that sign-in and discovery, never from a typed URL, and the
+/// platform updates them. The guide names no endpoint, no API route, no URL format and no sign-in provider.
 ///
-/// So this client assumes plain REST on the portal origin, with the bearer token the browser sign-in returned:
-/// - `GET /api/organizations` answers `{"organizations": [{"id", "name"}]}` (a bare array is accepted too).
-/// - `GET /api/organizations/{id}/agents` answers `{"agents": [{"id", "name", "status", "url"}]}`. The agent's
-///   address may also come as `gateway_url`, `dashboard_url`, `endpoint` or `hostname`.
-/// - `403` on the agents route means the login lost access to the organization.
+/// The public guide, https://hermes-agent.nousresearch.com/docs/guides/manage-hermes-cloud-with-mcp, documents how
+/// Hermes manages Hermes Cloud through an MCP server at `https://portal.nousresearch.com/mcp`. It documents OAuth
+/// with PKCE, OAuth endpoints found through RFC 9728 and RFC 8414 metadata, client registration through RFC 7591
+/// Dynamic Client Registration, and the organization being chosen once in the browser during authorization. It
+/// documents two tools by name: `agents` (list, get or status, cost estimate) and `agent` (start, stop, restart,
+/// create, destroy, update environment, update image). It points to two Portal web pages where the user sees the
+/// same hosted instances: https://portal.nousresearch.com/cloud and `/agents`. It documents no REST route, no JSON
+/// response shape or field name, no status word, no HTTP status code, no tool arguments, no tool result schema, and
+/// no instance address, URL, hostname or dashboard. It does not mention the `/auth/native/*` routes that the app's
+/// browser sign-in (WP-13) calls.
 ///
-/// Every name above is in ``Route`` and in the private wire types at the end of this file, so the first live test
-/// can fix them in one place. A wrong guess ends in ``CloudPortalError/unexpectedReply(_:)``, never in a made-up
-/// list.
+/// Everything else here is assumed, guessed and unverified against a real portal:
+/// - Assumed: the portal origin is `https://portal.nousresearch.com` (the MCP URL's host) and it also serves REST.
+/// - Assumed: it accepts the app's native PKCE sign-in with provider `nous`, and those tokens work as a bearer token.
+/// - Assumed: `GET /api/organizations` returns `{"organizations": [{"id", "name"}]}`. A bare array is accepted too.
+/// - Assumed: `GET /api/organizations/{id}/agents` returns `{"agents": [{"id", "name", "status", "url"}]}`. The
+///   agent's address may also sit under the guessed names `gateway_url`, `dashboard_url`, `endpoint` or `hostname`.
+/// - Assumed: each listed agent carries an HTTPS address of a gateway the app can reach like any remote gateway.
+/// - Assumed: `403` or `410` on the agents route means the login lost access to the organization.
+///
+/// Every route, key and status word is in ``Route``, in the private wire types at the end of this file, or in
+/// ``CloudAgent/Status``, so the first live test can correct them in one place. When a guess is wrong the client
+/// throws ``CloudPortalError/unexpectedReply(_:)``. It never makes up a list.
 public struct NousPortalClient: CloudPortalClient {
     public let endpoint: HermesEndpoint
     private let makeTransport: @Sendable () -> any HTTPTransport
@@ -38,7 +57,8 @@ public struct NousPortalClient: CloudPortalClient {
         self.makeTransport = makeTransport
     }
 
-    /// `https://portal.nousresearch.com`, the host the public docs name for the Nous Portal.
+    /// `https://portal.nousresearch.com`: the host of the MCP server URL in the public guide named in the header.
+    /// That this origin also serves a REST API for this app is an assumption.
     public static var portalEndpoint: HermesEndpoint {
         guard let endpoint = HermesEndpoint(string: "https://portal.nousresearch.com") else {
             preconditionFailure("The portal URL is valid")
@@ -46,7 +66,7 @@ public struct NousPortalClient: CloudPortalClient {
         return endpoint
     }
 
-    /// The guessed routes.
+    /// The assumed routes. Neither appears in any source named in the header.
     enum Route {
         static let organizations = "/api/organizations"
 
@@ -89,8 +109,9 @@ public struct NousPortalClient: CloudPortalClient {
         return RESTClient(endpoint: endpoint, transport: makeTransport(), auth: .bearer(accessToken), config: config)
     }
 
-    /// Maps a REST failure to what the screens say. `organization` is set for the agents route, where `403` means
-    /// the access was revoked. Only `403` and `410` do: a `404` there more likely means a wrong route.
+    /// Maps a REST failure to what the screens say. `organization` is set for the agents route. Assumed and
+    /// unverified: there `403` or `410` mean the login lost access to the organization. A `404` is read as a wrong
+    /// route, not as a revocation.
     static func portalError(_ error: any Error, organization: CloudOrganization?) -> any Error {
         switch error {
         case is CancellationError, is CloudPortalError:
@@ -124,14 +145,15 @@ public struct NousPortalClient: CloudPortalClient {
     }
 }
 
-// MARK: - Wire types (the guessed shapes)
+// MARK: - Wire types (guessed shapes, unverified)
 
-/// A list item the portal sends, and the keys its list may sit under.
+/// A list item the portal is assumed to send, and the guessed keys its list may sit under.
 private protocol PortalListItem: Decodable, Sendable {
     static var listKeys: [String] { get }
 }
 
-/// A JSON array, or an object with the array under one of the item's keys.
+/// A JSON array, or an object with the array under one of the item's guessed keys. The real shape is unknown, so
+/// both are accepted.
 private struct PortalList<Item: PortalListItem>: Decodable, Sendable {
     var items: [Item]
 
@@ -162,7 +184,7 @@ private struct PortalKey: CodingKey {
     init?(intValue: Int) { return nil }
 }
 
-/// An id sent as a string or as a number.
+/// An id sent as a string or as a number. The real type is unknown, so both are accepted.
 private struct PortalID: Decodable, Sendable {
     let value: String
 
@@ -189,6 +211,7 @@ private func firstText(_ candidates: String?...) -> String? {
     candidates.lazy.compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.first { !$0.isEmpty }
 }
 
+/// An organization as the portal is assumed to send it. Every field name is a guess.
 private struct OrganizationWire: PortalListItem {
     static let listKeys = ["organizations", "orgs", "items", "data"]
 
@@ -203,6 +226,7 @@ private struct OrganizationWire: PortalListItem {
     }
 }
 
+/// An agent as the portal is assumed to send it. Every field name, and which one holds the address, is a guess.
 private struct AgentWire: PortalListItem {
     static let listKeys = ["agents", "instances", "items", "data"]
 

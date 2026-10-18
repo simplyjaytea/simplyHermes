@@ -2,10 +2,12 @@ import Foundation
 
 /// Lists what a Hermes Cloud login can reach (WP-17): its organizations, and the agents of one organization.
 ///
-/// ``NousPortalClient`` is the one live implementation. It is a guess (see its header): no contract in this repo
-/// and no public page describes the portal's discovery API. Tests and previews pass a stub.
+/// ``NousPortalClient`` is the one live implementation. Its routes and response shapes are assumptions: no contract
+/// in this repo and no public page documents them (its header says exactly what each source does and does not
+/// cover). Tests and previews pass a stub.
 public protocol CloudPortalClient: Sendable {
-    /// The portal's origin. The browser sign-in runs against it.
+    /// The portal's origin. The browser sign-in runs against it, which assumes the portal accepts the app's native
+    /// sign-in.
     var endpoint: HermesEndpoint { get }
 
     /// The organizations the login belongs to. An empty list is an answer, not an error.

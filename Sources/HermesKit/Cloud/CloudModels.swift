@@ -2,8 +2,8 @@ import Foundation
 
 /// Names shared by the Hermes Cloud flow (WP-17).
 public enum HermesCloud {
-    /// The sign-in provider. The public desktop docs do not name one for Hermes Cloud; this is the Nous Portal's
-    /// (plan: assume `nous`).
+    /// The sign-in provider. The public desktop guide names none for Hermes Cloud, so `nous` is an assumption from
+    /// the plan; this repo knows it only as a login provider of a gateway.
     public static let provider = "nous"
     /// What lists call a saved Hermes Cloud connection.
     public static let displayName = "Hermes Cloud"
@@ -33,7 +33,8 @@ public struct CloudAgent: Sendable, Hashable, Identifiable {
         /// Empty or not recognised.
         case unknown
 
-        /// Reads the portal's word for it, case-insensitively.
+        /// Reads the portal's word for it, case-insensitively. No source documents the words, so the lists below are
+        /// guesses and anything else reads as unknown.
         public init(portalValue: String?) {
             switch portalValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
             case "running", "ready", "online", "active", "started": self = .running
