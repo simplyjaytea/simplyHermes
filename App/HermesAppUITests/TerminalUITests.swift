@@ -14,8 +14,8 @@ final class TerminalUITests: XCTestCase {
         app.launchArguments += ["-HermesOnboarding", "skip", "-HermesLayout", "compact"]
         app.launch()
 
-        app.tabBars.buttons["Tools"].tap()
-        let row = app.buttons["Terminal"]
+        openToolsTab(app)
+        let row = element(app, labeled: "Terminal")
         XCTAssertTrue(row.waitForExistence(timeout: 10), "Tools should list Terminal")
     }
 
@@ -25,9 +25,24 @@ final class TerminalUITests: XCTestCase {
         app.launchArguments += ["-HermesOnboarding", "skip", "-HermesLayout", "compact"]
         app.launch()
 
-        app.tabBars.buttons["Tools"].tap()
-        app.buttons["Terminal"].tap()
+        openToolsTab(app)
+        element(app, labeled: "Terminal").tap()
         XCTAssertTrue(app.navigationBars["Terminal"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["New Terminal"].waitForExistence(timeout: 5))
+    }
+
+    /// Taps the Tools tab. CI draws the tabs as a vertical rail, and XCUITest found no tab bar to search, so the tab
+    /// is found by its label.
+    @MainActor
+    private func openToolsTab(_ app: XCUIApplication) {
+        let tab = element(app, labeled: "Tools")
+        XCTAssertTrue(tab.waitForExistence(timeout: 10), "The Tools tab should be on screen")
+        tab.tap()
+    }
+
+    /// The first element with this exact label, whatever its type: a List row may expose itself as a cell or a button.
+    @MainActor
+    private func element(_ app: XCUIApplication, labeled label: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", label)).firstMatch
     }
 }
