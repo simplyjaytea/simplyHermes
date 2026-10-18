@@ -87,4 +87,20 @@ import Testing
         #expect(data == Data("PNG".utf8))
         #expect(http.requests.first?.url.query == "path=/opt/hermes/a.png")
     }
+
+    @Test func skipsAProjectRowThatDoesNotDecode() async throws {
+        let http = FakeHTTP()
+        http.enqueue(
+            200,
+            #"""
+            {"projects":[{"label":"no root here"},{"root":"/work/app","label":"app"}],"repos":[],
+            "default_cwd":"/opt/hermes","home":"/root","scan_enabled":true}
+            """#
+        )
+        let list = try await makeClient(http).workspaces()
+
+        #expect(list.projects.map(\.root) == ["/work/app"])
+        #expect(list.repos.isEmpty)
+        #expect(list.defaultCwd == "/opt/hermes")
+    }
 }

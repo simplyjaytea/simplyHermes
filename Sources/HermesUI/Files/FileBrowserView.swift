@@ -37,7 +37,7 @@
                 }
                 .listStyle(.plain)
             }
-            .task { await browser.load() }
+            .task(id: browser.loadKey) { await browser.load() }
             .quickLookPreview(
                 Binding(get: { browser.quickLookURL }, set: { if $0 == nil { browser.closeQuickLook() } })
             )
@@ -60,7 +60,7 @@
                 }
                 .disabled(browser.folder == nil || browser.folder == "/")
                 .accessibilityLabel(Text("Up one folder"))
-                Text(browser.folder ?? "No folder")
+                Text(browser.folder ?? String(localized: "No folder"))
                     .font(HermesFont.code)
                     .foregroundStyle(HermesColor.secondaryText)
                     .lineLimit(1)
@@ -75,15 +75,25 @@
         let onAddToChat: () -> Void
         @Environment(\.dismiss) private var dismiss
 
+        /// The most characters drawn. The server may send megabytes, and one `Text` that long freezes the rail.
+        private static let characterLimit = 20_000
+
         var body: some View {
             NavigationStack {
                 ScrollView {
-                    Text(file.text ?? "This file has no text to show.")
-                        .font(HermesFont.code)
-                        .foregroundStyle(file.text == nil ? HermesColor.secondaryText : HermesColor.primaryText)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(shownText)
+                            .font(HermesFont.code)
+                            .foregroundStyle(file.text == nil ? HermesColor.secondaryText : HermesColor.primaryText)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if isCut {
+                            Text("Showing the first \(Self.characterLimit) characters.")
+                                .font(HermesFont.caption)
+                                .foregroundStyle(HermesColor.secondaryText)
+                        }
+                    }
+                    .padding()
                 }
                 .navigationTitle(URL(fileURLWithPath: file.path).lastPathComponent)
                 .navigationBarTitleDisplayMode(.inline)
@@ -96,6 +106,18 @@
                     }
                 }
             }
+        }
+
+        /// The start of the text, or why there is none.
+        private var shownText: String {
+            guard let text = file.text else { return String(localized: "This file has no text to show.") }
+            return String(text.prefix(Self.characterLimit))
+        }
+
+        /// True when the text is longer than what is drawn.
+        private var isCut: Bool {
+            guard let text = file.text else { return false }
+            return !text.dropFirst(Self.characterLimit).isEmpty
         }
     }
 #endif
