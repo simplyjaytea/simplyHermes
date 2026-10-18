@@ -57,6 +57,44 @@
                 """#) ?? []
         }
 
+        static var catalog: MCPCatalog? {
+            decode(
+                MCPCatalog.self,
+                #"""
+                {"entries":[{"name":"github","description":"Issues, pull requests and code search.",
+                  "transport":"stdio","auth_type":"none",
+                  "required_env":[{"name":"GITHUB_TOKEN","prompt":"Personal access token","required":true}],
+                  "installed":false,"enabled":false,"needs_install":false},
+                 {"name":"notes","description":"Search your notes folder.","transport":"http",
+                  "url":"https://notes.example/mcp","auth_type":"oauth","installed":true,"enabled":true,
+                  "needs_install":true,"post_install":"Restart the Hermes session to use it."}]}
+                """#)
+        }
+
+        static var toolsetConfig: ToolsetConfig? {
+            decode(
+                ToolsetConfig.self,
+                #"""
+                {"name":"web","has_category":true,"active_search_backend":"firecrawl",
+                 "active_extract_backend":"firecrawl",
+                 "providers":[{"name":"Firecrawl","badge":"paid","tag":"","status":"needs_keys",
+                   "is_active":true,"requires_nous_auth":false,
+                   "env_vars":[{"key":"FIRECRAWL_API_KEY","prompt":"Firecrawl API key","url":null,"is_set":false}],
+                   "post_setup":null,"capabilities":["search","extract"]},
+                  {"name":"Local","badge":"free","tag":"","status":"needs_setup",
+                   "is_active":false,"requires_nous_auth":false,
+                   "env_vars":[],"post_setup":"local-search","capabilities":["search"]}]}
+                """#)
+        }
+
+        static var computerUse: CapabilityComputerUseStatus? {
+            decode(
+                CapabilityComputerUseStatus.self,
+                #"""
+                {"platform":"darwin","platform_supported":true,"installed":true,"can_grant":true}
+                """#)
+        }
+
         /// Decodes a sample with the same key strategy as the client.
         static func decode<Value: Decodable>(_ type: Value.Type, _ json: String) -> Value? {
             let decoder = JSONDecoder()

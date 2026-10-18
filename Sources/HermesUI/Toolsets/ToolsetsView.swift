@@ -2,8 +2,8 @@
     import HermesKit
     import SwiftUI
 
-    /// Settings > Tools & MCP > Toolsets: switch each toolset on or off (WP-53b). A toolset's settings (keys, providers
-    /// and models) are not on this screen yet. Their reads are decoded from recorded fixtures.
+    /// Settings > Tools & MCP > Toolsets: switch each toolset on or off, and open its settings (WP-53b). A toolset's
+    /// model list is not on this screen yet.
     public struct ToolsetsView: View {
         private let connections: ConnectionsModel
         @State private var model: ToolsetsModel
@@ -50,6 +50,12 @@
                 }
                 .disabled(model.isChanging(toolset))
                 .accessibilityIdentifier("toolset.\(toolset.name)")
+                NavigationLink {
+                    ToolsetConfigView(connections: connections, toolset: toolset)
+                } label: {
+                    Label("Settings", systemImage: "slider.horizontal.3")
+                }
+                .accessibilityIdentifier("toolset.settings.\(toolset.name)")
             } footer: {
                 if let description = toolset.description, !description.isEmpty {
                     Text(description)

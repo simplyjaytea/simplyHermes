@@ -387,6 +387,12 @@
                         Label("Toolsets", systemImage: "wrench.and.screwdriver")
                     }
                     .accessibilityIdentifier("settings.toolsets")
+                    NavigationLink {
+                        CapabilityStatusView(connections: connections)
+                    } label: {
+                        Label("Capabilities", systemImage: "desktopcomputer")
+                    }
+                    .accessibilityIdentifier("settings.capabilities")
                 }
                 Section("Support") {
                     NavigationLink {
