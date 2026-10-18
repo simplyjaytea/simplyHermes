@@ -74,6 +74,8 @@ jobs:
       - name: Get iOS 27.1 simulator runtime (best effort)
         continue-on-error: true
         run: xcodebuild -downloadPlatform iOS -buildVersion 27.1 || xcodebuild -downloadPlatform iOS
+      - name: Get Metal toolchain (SwiftTerm shaders)
+        run: xcodebuild -downloadComponent MetalToolchain
       - name: Pick simulator
         id: sim
         run: |
