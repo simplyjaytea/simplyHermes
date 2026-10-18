@@ -8,6 +8,12 @@ public protocol ChatTransport: PromptSession {
     func resumeSession(_ params: SessionResumeParams) async throws -> SessionAttachResult
     /// A new stream of client events.
     func clientEvents() async -> AsyncStream<GatewayClientEvent>
+    /// Calls `image.attach_bytes`: queues an image for the next turn.
+    func attachImage(_ params: ImageAttachBytesParams) async throws -> AttachedImageResult
+    /// Calls `pdf.attach`: queues the pages of a PDF for the next turn.
+    func attachPDF(_ params: PdfAttachParams) async throws -> PdfAttachResult
+    /// Calls `file.attach`: stages a file in the session workspace.
+    func attachFile(_ params: FileAttachParams) async throws -> FileAttachResult
 }
 
 extension GatewayClient: ChatTransport {
@@ -25,6 +31,34 @@ extension GatewayClient: ChatTransport {
 
     /// The client's event stream.
     public func clientEvents() async -> AsyncStream<GatewayClientEvent> { events() }
+
+    /// Calls `image.attach_bytes`.
+    public func attachImage(_ params: ImageAttachBytesParams) async throws -> AttachedImageResult {
+        try await call("image.attach_bytes", params: params)
+    }
+
+    /// Calls `pdf.attach`.
+    public func attachPDF(_ params: PdfAttachParams) async throws -> PdfAttachResult {
+        try await call("pdf.attach", params: params)
+    }
+
+    /// Calls `file.attach`.
+    public func attachFile(_ params: FileAttachParams) async throws -> FileAttachResult {
+        try await call("file.attach", params: params)
+    }
+}
+
+/// The server refused an attachment, so the message was not sent.
+public struct AttachmentRefused: Error, Equatable {
+    /// Name of the refused file.
+    public var name: String
+    /// Reason the server gave, when it gave one.
+    public var reason: String?
+
+    /// Text for the failed message row.
+    public var message: String {
+        reason.map { "\(name): \($0)" } ?? "Hermes did not accept \(name)."
+    }
 }
 
 /// Owns the ``TranscriptState`` of one open chat: resumes the session, feeds gateway events to the reducer,
@@ -92,16 +126,17 @@ public actor ChatSessionController {
         eventTask = nil
     }
 
-    /// Sends a prompt. While Hermes is busy the message waits in the queue and goes out when the turn ends.
-    public func send(_ text: String) async {
+    /// Sends a prompt with its files. While Hermes is busy the message waits in the queue and goes out when the turn
+    /// ends, with its files.
+    public func send(_ text: String, attachments: [ComposerAttachment] = []) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, state.liveSessionID != nil else { return }
+        guard !trimmed.isEmpty || !attachments.isEmpty, state.liveSessionID != nil else { return }
         if !isIdle || !queue.isEmpty {
-            queue.enqueue(trimmed)
+            queue.enqueue(trimmed, attachments: attachments)
             publish()
             return
         }
-        await submit(trimmed)
+        await submit(trimmed, attachments: attachments)
         await drainIfIdle()
     }
 
@@ -156,17 +191,27 @@ public actor ChatSessionController {
         if !paused { await drainIfIdle() }
     }
 
-    private func submit(_ text: String) async {
+    private func submit(_ text: String, attachments: [ComposerAttachment] = []) async {
         guard let live = state.liveSessionID else { return }
         isSubmitting = true
         defer { isSubmitting = false }
         submitCount += 1
         let localID = "\(submitCount)"
-        state.apply(.userSubmitted(localID: localID, text: text))
+        // Files go up first, so a refused file shows as a failed message and never reaches the prompt.
+        let outgoing: String
+        do {
+            outgoing = try await upload(attachments, text: text, live: live)
+        } catch {
+            state.apply(.userSubmitted(localID: localID, text: Self.displayText(text, attachments)))
+            state.apply(.submitFailed(localID: localID, message: Self.message(for: error)))
+            publish()
+            return
+        }
+        state.apply(.userSubmitted(localID: localID, text: outgoing))
         publish()
         do {
             let result = try await transport.submitPrompt(
-                PromptSubmitParams(sessionID: live, text: text, profile: profile))
+                PromptSubmitParams(sessionID: live, text: outgoing, profile: profile))
             state.apply(.submitAcknowledged(localID: localID, result))
             awaitingTurn = result.status != .queued && state.turn == nil
         } catch {
@@ -175,12 +220,47 @@ public actor ChatSessionController {
         publish()
     }
 
+    /// Uploads the files in order. Returns the prompt text: the message, then the `@file:` references of the staged
+    /// files. Without any text, it is the file names, so the message is never blank.
+    private func upload(_ attachments: [ComposerAttachment], text: String, live: String) async throws -> String {
+        var references: [String] = []
+        for file in attachments {
+            switch file.kind {
+            case .image:
+                let result = try await transport.attachImage(
+                    ImageAttachBytesParams(
+                        sessionID: live, profile: profile, contentBase64: file.data.base64EncodedString(),
+                        filename: file.name))
+                guard result.attached else { throw AttachmentRefused(name: file.name, reason: result.message) }
+            case .pdf:
+                let result = try await transport.attachPDF(
+                    PdfAttachParams(
+                        sessionID: live, profile: profile, contentBase64: file.data.base64EncodedString(),
+                        filename: file.name))
+                guard result.attached else { throw AttachmentRefused(name: file.name, reason: nil) }
+            case .file:
+                let result = try await transport.attachFile(
+                    FileAttachParams(sessionID: live, profile: profile, dataURL: file.dataURL, name: file.name))
+                guard result.attached else { throw AttachmentRefused(name: file.name, reason: nil) }
+                references.append(result.refText)
+            }
+        }
+        let parts = [text] + references
+        let joined = parts.filter { !$0.isEmpty }.joined(separator: "\n")
+        return joined.isEmpty ? Self.displayText("", attachments) : joined
+    }
+
+    /// The text of a message as the transcript shows it: the message, or the file names when there is no text.
+    private static func displayText(_ text: String, _ attachments: [ComposerAttachment]) -> String {
+        text.isEmpty ? attachments.map(\.name).joined(separator: ", ") : text
+    }
+
     /// Sends the next waiting message when Hermes is free.
     private func drainIfIdle() async {
         // One message per idle moment: the next turn's events decide when the following one may go.
         guard isIdle, let next = queue.takeNext() else { return }
         publish()
-        await submit(next.text)
+        await submit(next.text, attachments: next.attachments)
     }
 
     /// Interrupts the running turn.
@@ -214,6 +294,7 @@ public actor ChatSessionController {
 
     private static func message(for error: any Error) -> String {
         if let rpc = error as? RPCError { return rpc.message }
+        if let refused = error as? AttachmentRefused { return refused.message }
         return "\(error)"
     }
 }

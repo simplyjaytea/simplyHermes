@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+    import HermesKit
     import Observation
     import SwiftUI
 
@@ -50,6 +51,8 @@
         /// Closed chats, most recent last, for "Reopen closed chat".
         public private(set) var closedSessionIDs: [String] = []
         public var drafts: [String: String] = [:]
+        /// Files attached in each chat's composer. They go out with the next message of that chat.
+        public var attachments: [String: [ComposerAttachment]] = [:]
         public var scrollAnchors: [String: String] = [:]
         public var transcripts: [String: [ShellMessage]] = [:]
         /// Chats with a turn streaming right now.
@@ -170,6 +173,13 @@
             Binding(
                 get: { self.drafts[id, default: ""] },
                 set: { self.drafts[id] = $0 }
+            )
+        }
+
+        public func attachmentsBinding(for id: String) -> Binding<[ComposerAttachment]> {
+            Binding(
+                get: { self.attachments[id, default: []] },
+                set: { self.attachments[id] = $0 }
             )
         }
 

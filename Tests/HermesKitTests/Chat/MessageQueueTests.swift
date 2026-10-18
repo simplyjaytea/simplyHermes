@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import HermesKit
@@ -35,5 +36,16 @@ import Testing
         #expect(queue.takeNext() == nil)
         queue.isPaused = false
         #expect(queue.takeNext()?.text == "held")
+    }
+
+    @Test func blankTextKeepsAMessageThatHasFiles() throws {
+        var queue = MessageQueue()
+        let photo = ComposerAttachment(kind: .image, name: "IMG_1.jpg", data: Data([1]))
+        let id = try #require(queue.enqueue("", attachments: [photo]) as Int?)
+        #expect(queue.enqueue("") == nil)
+        queue.edit(id, to: "")
+        #expect(queue.entries.map(\.attachments.count) == [1])
+        queue.edit(id, to: "now with words")
+        #expect(queue.entries.map(\.text) == ["now with words"])
     }
 }

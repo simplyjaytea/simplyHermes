@@ -1,50 +1,59 @@
 #if canImport(UIKit)
+    import HermesKit
+    import PhotosUI
     import SwiftUI
+    import UniformTypeIdentifiers
 
-    /// The message composer in bubble style: an attach button, then a rounded field with an inline send button.
+    /// The message composer in bubble style: an attach menu, then a rounded field with the attached files above the
+    /// text and an inline send button (plan Q21). Without `attachments` the composer has no attach menu.
     public struct Composer: View {
         @Binding private var text: String
         private let placeholder: String
-        private let onAttach: () -> Void
+        private let attachments: Binding<[ComposerAttachment]>?
         private let onSend: () -> Void
         private let onSteer: (() -> Void)?
 
         @State private var sendCount = 0
+        @State private var isPhotosPresented = false
+        @State private var photoItems: [PhotosPickerItem] = []
+        @State private var isFilesPresented = false
+        @State private var isCameraPresented = false
+        @State private var problem: String?
 
         public init(
             text: Binding<String>,
             placeholder: String = "Message Hermes",
-            onAttach: @escaping () -> Void = {},
+            attachments: Binding<[ComposerAttachment]>? = nil,
             onSend: @escaping () -> Void,
             onSteer: (() -> Void)? = nil
         ) {
             _text = text
             self.placeholder = placeholder
-            self.onAttach = onAttach
+            self.attachments = attachments
             self.onSend = onSend
             self.onSteer = onSteer
         }
 
         public var body: some View {
             HStack(alignment: .bottom, spacing: 8) {
-                Button(action: onAttach) {
-                    Image(systemName: "plus")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(HermesColor.primaryText)
-                        .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
-                        .background(HermesColor.fill, in: Circle())
+                if let attachments {
+                    attachMenu(attachments)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text("Attach"))
-
-                HStack(alignment: .bottom, spacing: 4) {
-                    TextField(placeholder, text: $text, axis: .vertical)
-                        .accessibilityIdentifier("composer.field")
-                        .font(HermesFont.body)
-                        .lineLimit(1...6)
-                        .padding(.vertical, 11)
-                        .padding(.leading, 14)
-                    sendButton
+                VStack(alignment: .leading, spacing: 6) {
+                    if let attachments, !attachments.wrappedValue.isEmpty {
+                        AttachmentStrip(attachments: attachments)
+                            .padding(.top, 8)
+                            .padding(.horizontal, 8)
+                    }
+                    HStack(alignment: .bottom, spacing: 4) {
+                        TextField(placeholder, text: $text, axis: .vertical)
+                            .accessibilityIdentifier("composer.field")
+                            .font(HermesFont.body)
+                            .lineLimit(1...6)
+                            .padding(.vertical, 11)
+                            .padding(.leading, 14)
+                        sendButton
+                    }
                 }
                 .overlay(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -54,6 +63,109 @@
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .hermesFeedback(.send, trigger: sendCount)
+            .alert(
+                "Could not attach the file",
+                isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(problem ?? "")
+            }
+        }
+
+        /// Photos, Files, Camera and Paste. Each adds to the attachments; nothing uploads until the message is sent.
+        private func attachMenu(_ files: Binding<[ComposerAttachment]>) -> some View {
+            Menu {
+                Button("Photos", systemImage: "photo.on.rectangle") { isPhotosPresented = true }
+                Button("Files", systemImage: "doc") { isFilesPresented = true }
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button("Camera", systemImage: "camera") { isCameraPresented = true }
+                }
+                Button("Paste Image", systemImage: "doc.on.clipboard") { pasteImage(into: files) }
+                    .disabled(!UIPasteboard.general.hasImages)
+            } label: {
+                Image(systemName: "plus")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(HermesColor.primaryText)
+                    .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
+                    .background(HermesColor.fill, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Attach"))
+            .accessibilityIdentifier("composer.attach")
+            .photosPicker(
+                isPresented: $isPhotosPresented, selection: $photoItems, maxSelectionCount: 5, matching: .images
+            )
+            .onChange(of: photoItems) { _, items in
+                guard !items.isEmpty else { return }
+                photoItems = []
+                Task { await addPhotos(items, to: files) }
+            }
+            .fileImporter(
+                isPresented: $isFilesPresented, allowedContentTypes: [.item], allowsMultipleSelection: true
+            ) { result in
+                addFiles(result, to: files)
+            }
+            .sheet(isPresented: $isCameraPresented) {
+                CameraPicker { image in
+                    guard let jpeg = AttachmentImage.jpeg(from: image) else {
+                        problem = "The photo could not be read."
+                        return
+                    }
+                    files.wrappedValue.append(
+                        ComposerAttachment(kind: .image, name: "Photo \(files.wrappedValue.count + 1).jpg", data: jpeg))
+                }
+                .ignoresSafeArea()
+            }
+        }
+
+        private func addPhotos(_ items: [PhotosPickerItem], to files: Binding<[ComposerAttachment]>) async {
+            for item in items {
+                guard let data = try? await item.loadTransferable(type: Data.self),
+                    let image = UIImage(data: data),
+                    let jpeg = AttachmentImage.jpeg(from: image)
+                else {
+                    problem = "One of the photos could not be read."
+                    continue
+                }
+                files.wrappedValue.append(
+                    ComposerAttachment(kind: .image, name: "Photo \(files.wrappedValue.count + 1).jpg", data: jpeg))
+            }
+        }
+
+        private func addFiles(_ result: Result<[URL], any Error>, to files: Binding<[ComposerAttachment]>) {
+            guard case .success(let urls) = result else { return }
+            for url in urls {
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                guard let data = try? Data(contentsOf: url) else {
+                    problem = "\(url.lastPathComponent) could not be read."
+                    continue
+                }
+                guard data.count <= ComposerAttachment.maxBytes else {
+                    problem = "\(url.lastPathComponent) is larger than 20 MB."
+                    continue
+                }
+                let type = UTType(filenameExtension: url.pathExtension)
+                let photo =
+                    type?.conforms(to: .image) == true ? UIImage(data: data).flatMap(AttachmentImage.jpeg(from:)) : nil
+                if let photo {
+                    let stem = url.deletingPathExtension().lastPathComponent
+                    files.wrappedValue.append(ComposerAttachment(kind: .image, name: "\(stem).jpg", data: photo))
+                } else if type?.conforms(to: .pdf) == true {
+                    files.wrappedValue.append(ComposerAttachment(kind: .pdf, name: url.lastPathComponent, data: data))
+                } else {
+                    files.wrappedValue.append(ComposerAttachment(kind: .file, name: url.lastPathComponent, data: data))
+                }
+            }
+        }
+
+        private func pasteImage(into files: Binding<[ComposerAttachment]>) {
+            guard let image = UIPasteboard.general.image, let jpeg = AttachmentImage.jpeg(from: image) else {
+                problem = "There is no image on the clipboard."
+                return
+            }
+            files.wrappedValue.append(ComposerAttachment(kind: .image, name: "Pasted image.jpg", data: jpeg))
         }
 
         private var sendButton: some View {
@@ -84,7 +196,8 @@
         }
 
         private var canSend: Bool {
-            !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return hasText || !(attachments?.wrappedValue.isEmpty ?? true)
         }
     }
 #endif
