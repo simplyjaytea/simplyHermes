@@ -13,9 +13,6 @@
             let message: String
         }
 
-        /// Reasoning levels in the menu. The contract does not list them, so the server has the final say.
-        private static let levels = ["none", "minimal", "low", "medium", "high", "xhigh"]
-
         @State private var held: Held?
         @State private var problem: String?
 
@@ -26,9 +23,10 @@
 
         var body: some View {
             Menu {
-                if !chat.preferences.favorites.isEmpty {
+                let favorites = chat.listedFavorites
+                if !favorites.isEmpty {
                     Section("Favorites") {
-                        ForEach(chat.preferences.favorites, id: \.self) { choice in
+                        ForEach(favorites, id: \.self) { choice in
                             Button {
                                 pick(choice)
                             } label: {
@@ -44,11 +42,12 @@
                         }
                     }
                 }
-                if chat.state.info?.reasoningEffort?.isEmpty == false {
+                let levels = chat.reasoningLevels
+                if !levels.isEmpty {
                     Section("Reasoning") {
                         Picker("Reasoning", selection: effort) {
-                            ForEach(Self.levels, id: \.self) { level in
-                                Text(level.capitalized).tag(level)
+                            ForEach(levels, id: \.self) { level in
+                                Text(level.capitalized).tag(String?.some(level))
                             }
                         }
                     }
@@ -97,10 +96,13 @@
             }
         }
 
-        private var effort: Binding<String> {
+        /// The level the server reports. Nil while it reports none, which leaves every row unchecked.
+        private var effort: Binding<String?> {
             Binding(
-                get: { chat.state.info?.reasoningEffort ?? "" },
-                set: { level in Task { await setEffort(level) } }
+                get: { chat.state.info?.reasoningEffort.flatMap { $0.isEmpty ? nil : $0 } },
+                set: { level in
+                    if let level { Task { await setEffort(level) } }
+                }
             )
         }
 
@@ -135,7 +137,9 @@
         }
 
         private static func describe(_ error: any Error) -> String {
-            (error as? RPCError)?.message ?? "\(error)"
+            if let rpc = error as? RPCError { return rpc.message }
+            if error is GatewayClientError { return "The server is not reachable." }
+            return "\(error)"
         }
     }
 #endif

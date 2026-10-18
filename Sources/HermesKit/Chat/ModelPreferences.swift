@@ -47,15 +47,30 @@ public struct ModelPreferences: Sendable, Equatable, Codable {
         }
     }
 
-    /// The `config.set` calls that bring a chat to the remembered pick. Empty when the chat already matches. A reasoning
-    /// level is sent only when the chat's model reports one.
-    public func restoreParams(for info: SessionInfo, sessionID: String) -> [ConfigSetParams] {
+    /// The starred models that `options` lists. A model starred on another server or profile stays out of the menu.
+    public func listedFavorites(in options: ModelOptionsResult) -> [ModelChoice] {
+        favorites.filter { options.lists($0) }
+    }
+
+    /// The `config.set` calls that bring a chat to the remembered pick. Empty when the chat already matches. `options`
+    /// is the model list of the server the chat is on. A model it does not list is never sent. A reasoning level goes
+    /// only when the list says the chat's model reasons, and "none" only when it says reasoning can be off.
+    public func restoreParams(
+        for info: SessionInfo, sessionID: String, options: ModelOptionsResult
+    ) -> [ConfigSetParams] {
         var params: [ConfigSetParams] = []
-        if let sticky, sticky.model != info.model || sticky.provider != info.provider {
-            let value = sticky.configValue(currentProvider: info.provider)
-            params.append(ConfigSetParams(key: "model", value: value, sessionID: sessionID))
+        let provider = info.provider ?? options.provider
+        var running: ModelChoice?
+        if let provider, let model = info.model ?? options.model {
+            running = ModelChoice(provider: provider, model: model)
         }
-        if let stickyEffort, let current = info.reasoningEffort, !current.isEmpty, current != stickyEffort {
+        if let sticky, sticky != running, options.lists(sticky) {
+            let value = sticky.configValue(currentProvider: provider)
+            params.append(ConfigSetParams(key: "model", value: value, sessionID: sessionID))
+            running = sticky
+        }
+        let levels = running.map { options.reasoningLevels(for: $0) } ?? []
+        if let stickyEffort, levels.contains(stickyEffort), stickyEffort != info.reasoningEffort {
             params.append(
                 ConfigSetParams(key: "reasoning", value: stickyEffort, sessionID: sessionID, scope: "session"))
         }

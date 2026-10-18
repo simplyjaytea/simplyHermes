@@ -79,3 +79,28 @@ extension GatewayClient {
         try await call("model.options", params: params)
     }
 }
+
+extension ModelOptionsResult {
+    /// The model and provider the session uses now. Nil when the server did not report both.
+    public var currentChoice: ModelChoice? {
+        guard let provider, let model else { return nil }
+        return ModelChoice(provider: provider, model: model)
+    }
+
+    /// True when the server lists the model under that provider.
+    public func lists(_ choice: ModelChoice) -> Bool {
+        providers.contains { $0.slug == choice.provider && $0.models?.contains(choice.model) == true }
+    }
+
+    /// The reasoning levels to offer for a model. Empty when the capabilities in `model.options` do not say that the
+    /// model reasons. "none" is offered only when they say the model can run with reasoning off.
+    public func reasoningLevels(for choice: ModelChoice) -> [String] {
+        let capability = providers.first { $0.slug == choice.provider }?.capabilities?[choice.model]
+        guard capability?["reasoning"]?.boolValue == true else { return [] }
+        let canDisable = capability?["can_disable_reasoning"]?.boolValue == true
+        return Self.allReasoningLevels.filter { $0 != "none" || canDisable }
+    }
+
+    /// Every level the picker knows. The contract does not list them, so the server has the final say.
+    private static let allReasoningLevels = ["none", "minimal", "low", "medium", "high", "xhigh"]
+}

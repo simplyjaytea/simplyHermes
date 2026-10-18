@@ -147,6 +147,19 @@
             modelOptions = try? await client.modelOptions(ModelOptionsParams(sessionID: live))
         }
 
+        /// The starred models that this server lists. A model starred on another server or profile stays out of the
+        /// menu.
+        public var listedFavorites: [ModelChoice] {
+            modelOptions.map { preferences.listedFavorites(in: $0) } ?? []
+        }
+
+        /// The reasoning levels of the chat's model, as `model.options` reports them. Empty until the list has loaded,
+        /// and for a model that does not reason.
+        public var reasoningLevels: [String] {
+            guard let options = modelOptions, let current = options.currentChoice else { return [] }
+            return options.reasoningLevels(for: current)
+        }
+
         /// Switches this chat to a model and remembers the pick on this device. A model the server holds comes back as
         /// `.needsConfirmation`. Call again with `confirmed` once the user agrees.
         public func chooseModel(_ choice: ModelChoice, confirmed: Bool = false) async throws -> ModelSwitchOutcome {
@@ -183,15 +196,19 @@
             preferences = updated
         }
 
-        /// Brings a chat that just opened to the remembered model and reasoning level, then loads the picker. A switch
-        /// the server holds for confirmation is not forced.
+        /// Brings a chat that just opened to the remembered model and reasoning level. The picker's list loads first.
+        /// Only a model that this server lists is sent, and a list that does not load leaves the chat as it is. A
+        /// switch the server holds for confirmation is not forced.
         private func restoreModelPreferences(for info: SessionInfo) {
             guard let client, let live = state.liveSessionID else { return }
-            preferences = ModelPreferencesStore.load()
-            let changes = preferences.restoreParams(for: info, sessionID: live)
             Task { [weak self] in
-                for change in changes { _ = try? await client.configSet(change) }
                 await self?.loadModelOptions()
+                guard let self, let options = self.modelOptions else { return }
+                self.preferences = ModelPreferencesStore.load()
+                let changes = self.preferences.restoreParams(for: info, sessionID: live, options: options)
+                guard !changes.isEmpty else { return }
+                for change in changes { _ = try? await client.configSet(change) }
+                await self.loadModelOptions()
             }
         }
 
