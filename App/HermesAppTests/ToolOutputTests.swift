@@ -1,5 +1,5 @@
-@testable import HermesUI
 import Testing
+@testable import HermesUI
 
 @MainActor
 struct ToolOutputTests {
