@@ -2,7 +2,7 @@
     import SwiftUI
 
     /// Asks how old the ended sessions to prune must be, then confirms with a destructive alert (WP-40). The server keeps
-    /// live, pinned and archived sessions.
+    /// live and archived sessions.
     struct PruneSessionsSheet: View {
         let model: SessionsListModel
         @Environment(\.dismiss) private var dismiss
@@ -26,7 +26,7 @@
                     } footer: {
                         Text(
                             "Ended sessions idle for longer than this are deleted from the server. "
-                                + "Live and pinned sessions are never removed."
+                                + "Live sessions are never removed."
                         )
                     }
                 }
@@ -51,7 +51,7 @@
                     Button("Cancel", role: .cancel) {}
                 } message: {
                     Text(
-                        "Ended sessions are deleted from the server. Live and pinned sessions are never removed, "
+                        "Ended sessions are deleted from the server. Live sessions are never removed, "
                             + "and archived sessions are kept. This cannot be undone."
                     )
                 }

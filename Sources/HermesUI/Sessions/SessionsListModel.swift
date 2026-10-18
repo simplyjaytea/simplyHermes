@@ -160,7 +160,7 @@
             noticeText = "Link copied."
         }
 
-        /// Deletes ended sessions idle for more than `days` days. The server keeps live, pinned and archived sessions.
+        /// Deletes ended sessions idle for more than `days` days. The server keeps live and archived sessions.
         /// Returns true when the server answered, so the sheet can close.
         public func prune(olderThanDays days: Int) async -> Bool {
             guard let library else { return false }
