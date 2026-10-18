@@ -26,6 +26,18 @@ public struct MCPServerList: Sendable, Equatable, Codable {
     public var servers: [MCPServerInfo]
 }
 
+/// `POST /api/mcp/servers/{name}/test`: the answer of a test. Typed from
+/// `Fixtures/rest/POST_api_mcp_servers_recorder-mcp_test.json`, which holds a failed test: `ok` is false and
+/// `error` is the server's own words. No recording holds a passed test, so `ok` true is unverified until a real
+/// server runs one. `tools` is an empty list in that answer, and prompts and resources do not appear in it, so they
+/// have no type here.
+public struct MCPTestResult: Sendable, Equatable, Codable {
+    /// True when the test passed. Unverified for `true`.
+    public var ok: Bool?
+    /// Why the test failed, in the server's own words.
+    public var error: String?
+}
+
 /// `GET /api/mcp/catalog`: the catalog entries. Typed from `Fixtures/rest/GET_api_mcp_catalog.json`. Its `diagnostics`
 /// list is empty in that answer, so it has no type here.
 public struct MCPCatalog: Sendable, Equatable, Codable {

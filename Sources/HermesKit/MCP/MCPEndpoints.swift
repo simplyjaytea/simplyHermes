@@ -11,8 +11,8 @@ private func mcpPath(_ parts: String...) -> String {
     return parts.map { $0.addingPercentEncoding(withAllowedCharacters: allowed) ?? $0 }.joined(separator: "/")
 }
 
-/// MCP servers and the catalog. The two reads are decoded from recorded fixtures. The writes check the HTTP status
-/// only (WP-53b).
+/// MCP servers and the catalog. The reads, and the answer of the test, are decoded from recorded fixtures. The other
+/// writes check the HTTP status only (WP-53b).
 extension RESTClient {
     /// `GET /api/mcp/servers`. Typed from `Fixtures/rest/GET_api_mcp_servers.seeded.json`.
     public func mcpServers() async throws -> [MCPServerInfo] {
@@ -49,9 +49,10 @@ extension RESTClient {
             "PUT", "/api/mcp/servers/" + mcpPath(name, "enabled"), body: MCPEnabledBody(enabled: enabled))
     }
 
-    /// `POST /api/mcp/servers/{name}/test`: connects, lists the tools and disconnects. Only the HTTP status is checked.
-    public func testMCPServer(_ name: String) async throws {
-        let _: HTTPResponse = try await send("POST", "/api/mcp/servers/" + mcpPath(name, "test"))
+    /// `POST /api/mcp/servers/{name}/test`: connects, lists the tools and disconnects. The answer is decoded and typed
+    /// from `Fixtures/rest/POST_api_mcp_servers_recorder-mcp_test.json`.
+    public func testMCPServer(_ name: String) async throws -> MCPTestResult {
+        try await send("POST", "/api/mcp/servers/" + mcpPath(name, "test"))
     }
 
     /// `POST /api/mcp/servers/{name}/auth`: starts an OAuth sign-in. Only the HTTP status is checked: the flow id and

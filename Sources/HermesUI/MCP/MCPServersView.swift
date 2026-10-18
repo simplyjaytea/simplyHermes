@@ -5,8 +5,8 @@
     /// Settings > Tools & MCP > MCP servers: the servers in config, with Test and Remove, then Add and the catalog
     /// (WP-53b).
     ///
-    /// Each change is sent once and only its HTTP status is checked, then the list is read again. A test's result is not
-    /// shown here yet. The switches and sign-ins are not on this screen.
+    /// Add and Remove are checked by their HTTP status only. Test shows the answer the server gives. Each change
+    /// reads the list again. The switches and sign-ins are not on this screen.
     public struct MCPServersView: View {
         private let connections: ConnectionsModel
         @State private var model: MCPServersModel
@@ -37,6 +37,12 @@
                 if let errorText = model.errorText {
                     Section {
                         Label(errorText, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(HermesColor.destructive)
+                    }
+                }
+                if let readErrorText = model.readErrorText {
+                    Section {
+                        Label(readErrorText, systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(HermesColor.destructive)
                     }
                 }
@@ -82,8 +88,8 @@
                 Text("In config")
             } footer: {
                 Text(
-                    "Test checks a server. Remove deletes it from the config. "
-                        + "This screen doesn't show a test's result yet.")
+                    "Test checks the server and shows its answer here. "
+                        + "Remove deletes the server from the config.")
             }
         }
 
@@ -93,7 +99,7 @@
                     .foregroundStyle(HermesColor.secondaryText)
             } else if model.isLoading {
                 ProgressView()
-            } else if model.errorText == nil {
+            } else if model.readErrorText == nil {
                 Text("No servers in config yet.")
                     .foregroundStyle(HermesColor.secondaryText)
             }

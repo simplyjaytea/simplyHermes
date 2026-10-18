@@ -3,17 +3,20 @@
     import HermesKit
     import Observation
 
-    /// The MCP servers in config, on the active server (WP-53b). The list is read on screen. Add, Test and Remove each
-    /// send one change, check only its HTTP status, then read the list again. A test's own answer is not read.
+    /// The MCP servers in config, on the active server (WP-53b). The list is read on screen. Add and Remove send one
+    /// change each and check only its HTTP status. Test shows the answer the server gives. Each change reads the list
+    /// again.
     @MainActor
     @Observable
     public final class MCPServersModel {
         /// The servers in config, in the server's order.
         public private(set) var servers: [MCPServerInfo] = []
         public private(set) var isLoading = false
-        /// Set when a read or a change failed. The list on screen stays.
+        /// Set when the list could not be read. The list on screen stays.
+        public private(set) var readErrorText: String?
+        /// Set when a change or a test failed. A failed test shows the server's own words.
         public private(set) var errorText: String?
-        /// Set after a change the server accepted: one sentence.
+        /// Set after a change the server accepted, or a test that passed: one sentence.
         public private(set) var notice: String?
         @ObservationIgnored private let connections: ConnectionsModel
 
@@ -31,11 +34,11 @@
             do {
                 let rest = try await ToolsetAdminClient.rest(connections)
                 servers = try await rest.mcpServers()
-                errorText = nil
+                readErrorText = nil
             } catch is CancellationError {
                 return
             } catch {
-                errorText = ToolsetAdminClient.message(for: error)
+                readErrorText = ToolsetAdminClient.message(for: error)
             }
         }
 
@@ -44,17 +47,34 @@
         public func add(_ server: MCPServerCreate) async throws {
             let rest = try await ToolsetAdminClient.rest(connections)
             try await rest.addMCPServer(server)
+            errorText = nil
             notice = "Added \(server.name)."
             await refresh()
         }
 
-        /// Sends a test of one server, then reads the list again. Only the HTTP status is checked, so the notice says
-        /// that the test was sent and not that it passed.
+        /// Runs a test and shows its answer, then reads the list again. A failed test shows the server's error text.
+        /// A passed test is not in any recording, so its sentence is unverified until a real server runs one.
         public func test(_ server: MCPServerInfo) async {
-            let note = "Test sent for \(server.name). This screen doesn't show the result yet."
-            await change(success: note) { rest in
-                try await rest.testMCPServer(server.name)
+            notice = nil
+            errorText = nil
+            do {
+                let rest = try await ToolsetAdminClient.rest(connections)
+                let result = try await rest.testMCPServer(server.name)
+                if result.ok == true {
+                    // Unverified: no recording holds a passed test. Needs a real server [JT].
+                    notice = "\(server.name) passed the test."
+                } else if result.ok == false {
+                    let reason = result.error?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    errorText = reason.isEmpty ? "\(server.name) failed the test." : reason
+                } else {
+                    notice = "Test sent for \(server.name). The result is not shown here yet."
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                errorText = ToolsetAdminClient.message(for: error)
             }
+            await refresh()
         }
 
         /// Removes a server from config, then reads the list again.
@@ -67,11 +87,11 @@
         /// Runs one change, then reads the list again. A refusal shows the server's sentence.
         private func change(success: String, _ action: (RESTClient) async throws -> Void) async {
             notice = nil
+            errorText = nil
             do {
                 let rest = try await ToolsetAdminClient.rest(connections)
                 try await action(rest)
                 notice = success
-                errorText = nil
             } catch is CancellationError {
                 return
             } catch {

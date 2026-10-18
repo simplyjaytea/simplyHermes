@@ -2,8 +2,8 @@ import Foundation
 import HermesKit
 import Testing
 
-/// Each test scripts the answers the server gives and checks the request the client built. The reads are decoded from
-/// recorded answers. The writes are checked by their HTTP status.
+/// Each test scripts the answers the server gives and checks the request the client built. The reads, and the answer
+/// of the test, are decoded from recorded answers. The other writes are checked by their HTTP status.
 @Suite struct MCPEndpointTests {
     private func jsonObject(_ request: HTTPRequest) throws -> [String: Any] {
         try #require(request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })
@@ -69,13 +69,23 @@ import Testing
         #expect(body.count == 1 && body["enabled"] as? Bool == false)
     }
 
-    @Test func testSendsOnePostAndChecksOnlyTheStatus() async throws {
+    @Test func testSendsOnePostAndDecodesTheAnswer() async throws {
         let http = FakeHTTP()
         http.enqueue(200, #"{"ok":false,"error":"OAuth authentication required — no token found.","tools":[]}"#)
-        try await makeClient(http).testMCPServer("docs")
+        let result = try await makeClient(http).testMCPServer("docs")
         #expect(http.requests.count == 1)
         let request = try #require(http.requests.first)
         #expect(request.method == "POST" && request.url.path == "/api/mcp/servers/docs/test")
+        #expect(result.ok == false && result.error != nil)
+    }
+
+    @Test func testDecodesTheRecordedFailure() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, try recordedBody("POST_api_mcp_servers_recorder-mcp_test"))
+        let result = try await makeClient(http).testMCPServer("recorder-mcp")
+        let request = try #require(http.requests.first)
+        #expect(request.url.path == "/api/mcp/servers/recorder-mcp/test")
+        #expect(result.ok == false && result.error?.isEmpty == false)
     }
 
     @Test func refusedStatusThrowsWithTheServerDetail() async throws {
