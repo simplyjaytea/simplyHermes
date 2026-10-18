@@ -108,6 +108,8 @@
             do {
                 let connection = try await connector.open(
                     attach: tab.attachToken, profile: profile, columns: size.columns, rows: size.rows)
+                // However the pane ends, including a server close with an error code, the socket is shut down.
+                defer { Task { await connection.close() } }
                 terminals.report(.live, for: tab.id)
                 let queue = surface.outbound
                 let input = Task {
@@ -128,6 +130,10 @@
                 }
                 await connection.close()
                 if !Task.isCancelled { terminals.report(.ended, for: tab.id) }
+            } catch WebSocketError.closed(let code, _) where code == 4410 {
+                // 4410 means the TUI exited (protocol 13.1). That ends the session; it is not a failure.
+                guard !Task.isCancelled else { return }
+                terminals.report(.ended, for: tab.id)
             } catch is CancellationError {
                 return
             } catch {

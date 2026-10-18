@@ -61,14 +61,20 @@ public protocol TerminalSocketTransport: Sendable {
                 self.session = session
                 self.task = task
             }
-            try await withTaskCancellationHandler {
-                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-                    lock.withLock { opening = continuation }
-                    task.resume()
+            do {
+                try await withTaskCancellationHandler {
+                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                        lock.withLock { opening = continuation }
+                        task.resume()
+                    }
+                } onCancel: {
+                    self.shutdown(code: .goingAway)
+                    self.resumeOpening(with: .failure(CancellationError()))
                 }
-            } onCancel: {
-                self.shutdown(code: .goingAway)
-                self.resumeOpening(with: .failure(CancellationError()))
+            } catch {
+                // A socket that never opened keeps its URLSession, and the delegate it retains, until invalidated.
+                shutdown(code: .goingAway)
+                throw error
             }
             readLoop(task)
         }

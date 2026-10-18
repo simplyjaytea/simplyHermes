@@ -302,7 +302,7 @@
             if section == .settings, let connections {
                 SettingsHome(connections: connections)
             } else if section == .tools {
-                ToolsHome(connections: connections, terminals: terminals, addToChat: addToChat)
+                TerminalToolsHome(connections: connections, terminals: terminals, addToChat: addToChat)
             } else {
                 SectionPlaceholder(section: section)
             }

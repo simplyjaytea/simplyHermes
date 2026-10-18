@@ -3,7 +3,7 @@
 
     /// The Tools tab (plan Q38): a list of tools. Terminal is here; Git review, Kanban, Memory, Skills and Logs add rows
     /// as their work packages land.
-    struct ToolsHome: View {
+    struct TerminalToolsHome: View {
         let connections: ConnectionsModel?
         let terminals: TerminalModel
         let addToChat: (String) -> Void
