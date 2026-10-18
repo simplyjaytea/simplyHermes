@@ -2,7 +2,8 @@ import Foundation
 import HermesKit
 import Testing
 
-/// Each test checks the method, path, query and JSON body the facade sends, and the answer it returns.
+/// Each test checks the method, path, query and JSON body the facade sends, and the answer it returns. Writes are
+/// checked by their status alone: the transport answers with a body that the call does not read.
 @Suite struct MessagingEndpointTests {
     /// The JSON body a request carried.
     private func body(_ request: HTTPRequest?) throws -> JSONValue {
@@ -12,17 +13,16 @@ import Testing
 
     @Test func platformsReadUpdateAndTest() async throws {
         let http = FakeHTTP()
-        http.enqueue(200, #"{"platforms":[{"id":"telegram","enabled":true}]}"#)
+        http.enqueue(200, MessagingRecorded.platforms)
         http.enqueue(200, "")
-        http.enqueue(200, #"{"ok":true}"#)
+        http.enqueue(200, "")
         let client = makeClient(http, profile: "ops")
         let answer = try await client.messagingPlatforms()
-        #expect(answer["platforms"]?[0]?["id"] == .string("telegram"))
+        #expect(answer.platforms.contains { $0.id == "first" })
         let update = MessagingPlatformUpdate(
             enabled: true, env: ["TELEGRAM_BOT_TOKEN": "123:abc"], clearEnv: ["OLD_KEY"])
         try await client.updateMessagingPlatform(id: "telegram", update)
-        let test = try await client.testMessagingPlatform(id: "telegram")
-        #expect(test == .object(["ok": .bool(true)]))
+        try await client.testMessagingPlatform(id: "telegram")
         let requests = http.requests
         #expect(requests.map(\.method) == ["GET", "PUT", "POST"])
         #expect(requests[0].url.path == "/api/messaging/platforms" && requests[0].url.query == "profile=ops")
@@ -57,18 +57,16 @@ import Testing
 
     @Test func telegramOnboardingStartStatusApplyAndCancel() async throws {
         let http = FakeHTTP()
-        http.enqueue(200, #"{"pairing_id":"p 1/2","status":"pending"}"#)
+        http.enqueue(200, "")
         http.enqueue(200, #"{"status":"pending"}"#)
-        http.enqueue(200, #"{"ok":true}"#)
+        http.enqueue(200, "")
         http.enqueue(200, "")
         let client = makeClient(http, profile: "ops")
-        let started = try await client.startTelegramOnboarding(MessagingTelegramStart(botName: "simply bot"))
-        #expect(started["pairing_id"] == .string("p 1/2"))
+        try await client.startTelegramOnboarding(MessagingTelegramStart(botName: "simply bot"))
         let status = try await client.telegramOnboarding(pairingID: "p 1/2")
         #expect(status == .object(["status": .string("pending")]))
-        let applied = try await client.applyTelegramOnboarding(
+        try await client.applyTelegramOnboarding(
             pairingID: "p 1/2", MessagingTelegramApply(allowedUserIds: ["11", "12"]))
-        #expect(applied == .object(["ok": .bool(true)]))
         try await client.cancelTelegramOnboarding(pairingID: "p 1/2")
         let requests = http.requests
         #expect(requests.map(\.method) == ["POST", "GET", "POST", "DELETE"])
@@ -85,14 +83,14 @@ import Testing
 
     @Test func whatsAppOnboardingStartStatusApplyAndCancel() async throws {
         let http = FakeHTTP()
-        http.enqueue(200, #"{"pairing_id":"w1"}"#)
+        http.enqueue(200, "")
         http.enqueue(200, #"{"status":"pending"}"#)
-        http.enqueue(200, #"{"ok":true}"#)
+        http.enqueue(200, "")
         http.enqueue(200, "")
         let client = makeClient(http, profile: "ops")
-        _ = try await client.startWhatsAppOnboarding(MessagingWhatsAppStart(mode: "bot", allowedUsers: ""))
+        try await client.startWhatsAppOnboarding(MessagingWhatsAppStart(mode: "bot", allowedUsers: ""))
         _ = try await client.whatsAppOnboarding(pairingID: "w1")
-        _ = try await client.applyWhatsAppOnboarding(pairingID: "w1", MessagingWhatsAppApply(mode: "bot"))
+        try await client.applyWhatsAppOnboarding(pairingID: "w1", MessagingWhatsAppApply(mode: "bot"))
         try await client.cancelWhatsAppOnboarding(pairingID: "w1")
         let requests = http.requests
         #expect(requests.map(\.method) == ["POST", "GET", "POST", "DELETE"])
@@ -108,13 +106,13 @@ import Testing
 
     @Test func pairingRequestsApproveRevokeAndClear() async throws {
         let http = FakeHTTP()
-        http.enqueue(200, #"{"pending":[{"platform":"telegram","code":"ABC123"}]}"#)
+        http.enqueue(200, MessagingRecorded.pairing)
         http.enqueue(200, "")
         http.enqueue(200, "")
         http.enqueue(200, "")
         let client = makeClient(http, profile: "ops")
         let pending = try await client.pairingRequests()
-        #expect(pending["pending"]?[0]?["code"] == .string("ABC123"))
+        #expect(pending.pendingCount == 0 && pending.approvedCount == 0)
         try await client.approvePairing(PairingApprove(platform: "telegram", code: "ABC123"))
         try await client.revokePairing(PairingRevoke(platform: "telegram", userId: "42"))
         try await client.clearPendingPairing()
@@ -146,14 +144,14 @@ import Testing
 
     @Test func webhooksListCreateEnableDeleteAndToggle() async throws {
         let http = FakeHTTP()
-        http.enqueue(200, #"{"webhooks":[{"name":"ops/alerts v2","enabled":true}]}"#)
+        http.enqueue(200, MessagingRecorded.webhooks)
         http.enqueue(200, "")
         http.enqueue(200, "")
         http.enqueue(200, "")
         http.enqueue(200, "")
         let client = makeClient(http)
         let list = try await client.webhooks()
-        #expect(list["webhooks"]?[0]?["name"] == .string("ops/alerts v2"))
+        #expect(list.baseUrl == "http://localhost:8644" && !list.enabled && list.subscriptionCount == 0)
         try await client.createWebhook(WebhookCreate(name: "deploy", events: ["push"], deliverOnly: true))
         try await client.enableWebhooks()
         try await client.setWebhookEnabled(name: "ops/alerts v2", false)
@@ -182,6 +180,18 @@ import Testing
         let sent = try body(http.requests.first)
         #expect(sent["secret"] == .string("s3cret") && sent["deliver_chat_id"] == .string("42"))
         #expect(sent["profile"] == nil, "no profile is set, so the body carries none")
+    }
+
+    @Test func webhookCreateRefusalSurfacesTheDetail() async throws {
+        let http = FakeHTTP()
+        http.enqueue(400, MessagingRecorded.webhookCreateRefused)
+        let client = makeClient(http)
+        await #expect(
+            throws: RESTError.http(
+                status: 400, detail: "Webhook platform is not enabled. Enable it from the Webhooks page first.")
+        ) {
+            try await client.createWebhook(WebhookCreate(name: "recorder-hook"))
+        }
     }
 
     @Test func serverRefusalsSurfaceAsRESTErrors() async throws {

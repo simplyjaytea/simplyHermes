@@ -1,8 +1,8 @@
 import Foundation
 
 // Request bodies for the messaging, pairing and webhook calls, as the API schema describes them. Optional fields
-// stay nil and are left out of the JSON, so the server applies its own defaults. The schema does not describe any
-// answer of these calls, so the calls that read an answer return ``JSONValue`` as the server sent it.
+// stay nil and are left out of the JSON, so the server applies its own defaults. The answers are typed in
+// MessagingAnswers.swift, from the recorded testbed answers. Writes read only the HTTP status.
 
 /// `PUT /api/messaging/platforms/{platform_id}`. Turns a platform on or off and sets or clears its settings.
 public struct MessagingPlatformUpdate: Sendable, Equatable, Codable {

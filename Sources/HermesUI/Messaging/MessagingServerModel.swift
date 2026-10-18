@@ -15,13 +15,13 @@
         }
     }
 
-    /// State shared by the messaging screens (WP-53c): the last list the server sent and the result of the last
-    /// request. A list is shown as the server sent it, because the API schema does not describe those answers.
+    /// State shared by the messaging screens (WP-53c): the status rows of the last list and the result of the last
+    /// request. The rows come from typed answers, so a screen shows only the fields those answers show.
     @MainActor
     @Observable
     public final class MessagingServerModel {
-        /// The list the screen shows, as indented JSON. Nil until a load works.
-        public private(set) var answerText: String?
+        /// The status rows the screen shows. Nil until a load works.
+        public private(set) var lines: [MessagingStatusLine]?
         /// True while the list loads.
         public private(set) var isLoading = false
         /// Set when the last request failed. The next request that works clears it.
@@ -30,25 +30,26 @@
         public private(set) var noticeText: String?
 
         @ObservationIgnored private let connections: ConnectionsModel
-        @ObservationIgnored private let read: (@Sendable (RESTClient) async throws -> JSONValue)?
+        @ObservationIgnored private let read: (@Sendable (RESTClient) async throws -> [MessagingStatusLine])?
 
-        /// Creates a model for the active server. `read` loads the screen's list. Nil for a screen without one.
+        /// Creates a model for the active server. `read` loads the screen's status rows. Nil for a screen
+        /// without a list.
         public init(
-            connections: ConnectionsModel, read: (@Sendable (RESTClient) async throws -> JSONValue)? = nil
+            connections: ConnectionsModel,
+            read: (@Sendable (RESTClient) async throws -> [MessagingStatusLine])? = nil
         ) {
             self.connections = connections
             self.read = read
         }
 
-        /// Loads the list again. Does nothing without a list, or without a server (previews, offline).
+        /// Loads the rows again. Does nothing without a list, or without a server (previews, offline).
         public func refresh() async {
             guard let read, connections.manager != nil else { return }
             isLoading = true
             defer { isLoading = false }
             do {
                 let rest = try await client()
-                let answer = try await read(rest)
-                answerText = MessagingAnswerFormat.displayText(answer)
+                lines = try await read(rest)
                 errorText = nil
             } catch is CancellationError {
                 return
@@ -57,8 +58,8 @@
             }
         }
 
-        /// Runs a change on the active server. On success it shows `success` and loads the list again.
-        /// Returns true when the change worked.
+        /// Runs a change on the active server. On success it shows `success` and loads the list again. Only the HTTP
+        /// status decides the result: the answer body is not read. Returns true when the change worked.
         @discardableResult
         public func perform(
             _ success: String, _ change: @escaping @Sendable (RESTClient) async throws -> Void
@@ -125,10 +126,12 @@
             }
         }
 
-        /// A model with a fixed list and no server, for previews. It makes no request.
-        public static func preview(answer: JSONValue? = nil, errorText: String? = nil) -> MessagingServerModel {
+        /// A model with fixed rows and no server, for previews. It makes no request.
+        public static func preview(
+            lines: [MessagingStatusLine]? = nil, errorText: String? = nil
+        ) -> MessagingServerModel {
             let model = MessagingServerModel(connections: .preview())
-            model.answerText = answer.map(MessagingAnswerFormat.displayText)
+            model.lines = lines
             model.errorText = errorText
             return model
         }

@@ -3,15 +3,15 @@
     import HermesKit
     import SwiftUI
 
-    /// Settings > Messaging > Channels. Lists the platforms as the server sent them. Setting a platform up needs the
-    /// settings names the server uses, which the API schema does not describe, so that is not offered yet.
+    /// Settings > Messaging > Channels. Lists each platform with its state and whether it is set up. Setting a platform
+    /// up is not offered yet.
     public struct MessagingChannelsView: View {
         @State private var model: MessagingServerModel
 
         public init(connections: ConnectionsModel) {
             _model = State(
                 initialValue: MessagingServerModel(
-                    connections: connections, read: { try await $0.messagingPlatforms() }))
+                    connections: connections, read: { try await $0.messagingPlatforms().statusLines }))
         }
 
         init(model: MessagingServerModel) {
@@ -21,11 +21,11 @@
         public var body: some View {
             List {
                 Section {
-                    MessagingAnswerText(model: model)
+                    MessagingStatusList(model: model)
                 } header: {
                     Text("Platforms")
                 } footer: {
-                    Text("Shown as the server sent it. Pull down to refresh.")
+                    Text("Pull down to refresh.")
                 }
                 MessagingStatusRows(model: model)
             }
@@ -35,8 +35,8 @@
         }
     }
 
-    /// Settings > Messaging > Pairing requests. Shows the pairing list as the server sent it. Approves a user by the
-    /// code the bot sent, revokes a user, or clears the pending requests. Revoke and clear ask first.
+    /// Settings > Messaging > Pairing requests. Shows how many requests wait and how many users are approved. Approves a
+    /// user by the code the bot sent, revokes a user, or clears the pending requests. Revoke and clear ask first.
     public struct PairingRequestsView: View {
         @State private var model: MessagingServerModel
         @State private var approvePlatform = ""
@@ -48,7 +48,8 @@
 
         public init(connections: ConnectionsModel) {
             _model = State(
-                initialValue: MessagingServerModel(connections: connections, read: { try await $0.pairingRequests() }))
+                initialValue: MessagingServerModel(
+                    connections: connections, read: { try await $0.pairingRequests().statusLines }))
         }
 
         init(model: MessagingServerModel) {
@@ -58,11 +59,11 @@
         public var body: some View {
             List {
                 Section {
-                    MessagingAnswerText(model: model)
+                    MessagingStatusList(model: model)
                 } header: {
                     Text("Requests")
                 } footer: {
-                    Text("Shown as the server sent it. Pull down to refresh.")
+                    Text("Counts only. Pull down to refresh.")
                 }
                 MessagingStatusRows(model: model)
                 approveSection
@@ -141,8 +142,8 @@
         }
     }
 
-    /// Settings > Messaging > Webhooks. Shows the webhook list as the server sent it, turns webhooks on, creates a
-    /// webhook, and enables, disables or deletes one by its name. Delete asks first.
+    /// Settings > Messaging > Webhooks. Shows whether webhooks are on, where they listen and how many there are. Status
+    /// only. Turns webhooks on, creates a webhook, and enables, disables or deletes one by its name. Delete asks first.
     public struct WebhookListView: View {
         @State private var model: MessagingServerModel
         @State private var name = ""
@@ -150,7 +151,8 @@
 
         public init(connections: ConnectionsModel) {
             _model = State(
-                initialValue: MessagingServerModel(connections: connections, read: { try await $0.webhooks() }))
+                initialValue: MessagingServerModel(
+                    connections: connections, read: { try await $0.webhooks().statusLines }))
         }
 
         init(model: MessagingServerModel) {
@@ -160,11 +162,11 @@
         public var body: some View {
             List {
                 Section {
-                    MessagingAnswerText(model: model)
+                    MessagingStatusList(model: model)
                 } header: {
                     Text("Webhooks")
                 } footer: {
-                    Text("Shown as the server sent it. Pull down to refresh.")
+                    Text("Status only. Pull down to refresh.")
                 }
                 MessagingStatusRows(model: model)
                 Section {
@@ -230,7 +232,7 @@
             } header: {
                 Text("Change one by name")
             } footer: {
-                Text("Type the name shown in the list above.")
+                Text("Type the webhook's name. This screen does not list names.")
             }
         }
     }
@@ -253,16 +255,23 @@
         }
     }
 
-    /// The server's answer as indented JSON. Shows a spinner while the first load runs.
-    private struct MessagingAnswerText: View {
+    /// The status rows of the last list: a title, and the status under it at the trailing edge. Shows a spinner while
+    /// the first load runs.
+    private struct MessagingStatusList: View {
         let model: MessagingServerModel
 
         var body: some View {
-            if let text = model.answerText {
-                Text(text)
-                    .font(HermesFont.codeSmall)
-                    .textSelection(.enabled)
-                    .accessibilityIdentifier("messaging.answer")
+            if let lines = model.lines {
+                ForEach(lines.indices, id: \.self) { index in
+                    HStack {
+                        Text(lines[index].title)
+                        Spacer()
+                        Text(lines[index].detail)
+                            .foregroundStyle(HermesColor.secondaryText)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
             } else if model.isLoading {
                 ProgressView()
             } else {
@@ -274,65 +283,66 @@
     }
 
     private enum MessagingPreviewData {
-        static let platforms: JSONValue = .object([
-            "platforms": .array([
-                .object(["id": .string("telegram"), "enabled": .bool(true), "status": .string("connected")]),
-                .object(["id": .string("whatsapp"), "enabled": .bool(false), "status": .string("not set up")]),
-            ])
-        ])
-        static let pairing: JSONValue = .object([
-            "pending": .array([.object(["platform": .string("telegram"), "code": .string("ABC123")])])
-        ])
-        static let webhooks: JSONValue = .object([
-            "webhooks": .array([.object(["name": .string("deploy"), "enabled": .bool(true)])])
-        ])
+        static let platforms: [MessagingStatusLine] = [
+            MessagingStatusLine(title: "Telegram", detail: "disabled, not set up"),
+            MessagingStatusLine(title: "WhatsApp", detail: "disabled, not set up"),
+        ]
+        static let pairing: [MessagingStatusLine] = [
+            MessagingStatusLine(title: "Waiting for approval", detail: "1"),
+            MessagingStatusLine(title: "Approved users", detail: "0"),
+        ]
+        static let webhooks: [MessagingStatusLine] = [
+            MessagingStatusLine(title: "Webhooks", detail: "On"),
+            MessagingStatusLine(title: "Base URL", detail: "http://localhost:8644"),
+            MessagingStatusLine(title: "Subscriptions", detail: "1"),
+        ]
     }
 
     #Preview("Channels, outer", traits: .fixedLayout(width: 466, height: 678)) {
-        NavigationStack { MessagingChannelsView(model: .preview(answer: MessagingPreviewData.platforms)) }
+        NavigationStack { MessagingChannelsView(model: .preview(lines: MessagingPreviewData.platforms)) }
     }
 
     #Preview("Channels, inner portrait", traits: .fixedLayout(width: 626, height: 890)) {
-        NavigationStack { MessagingChannelsView(model: .preview(answer: MessagingPreviewData.platforms)) }
+        NavigationStack { MessagingChannelsView(model: .preview(lines: MessagingPreviewData.platforms)) }
     }
 
     #Preview("Channels, inner landscape", traits: .fixedLayout(width: 890, height: 626)) {
-        NavigationStack { MessagingChannelsView(model: .preview(answer: MessagingPreviewData.platforms)) }
+        NavigationStack { MessagingChannelsView(model: .preview(lines: MessagingPreviewData.platforms)) }
     }
 
     #Preview("Channels, half-fold", traits: .fixedLayout(width: 890, height: 313)) {
-        NavigationStack { MessagingChannelsView(model: .preview(answer: MessagingPreviewData.platforms)) }
+        NavigationStack { MessagingChannelsView(model: .preview(lines: MessagingPreviewData.platforms)) }
     }
 
     #Preview("Pairing requests, outer", traits: .fixedLayout(width: 466, height: 678)) {
-        NavigationStack { PairingRequestsView(model: .preview(answer: MessagingPreviewData.pairing)) }
+        NavigationStack { PairingRequestsView(model: .preview(lines: MessagingPreviewData.pairing)) }
     }
 
     #Preview("Pairing requests, inner portrait", traits: .fixedLayout(width: 626, height: 890)) {
-        NavigationStack { PairingRequestsView(model: .preview(answer: MessagingPreviewData.pairing)) }
+        NavigationStack { PairingRequestsView(model: .preview(lines: MessagingPreviewData.pairing)) }
     }
 
     #Preview("Pairing requests, inner landscape", traits: .fixedLayout(width: 890, height: 626)) {
-        NavigationStack { PairingRequestsView(model: .preview(answer: MessagingPreviewData.pairing)) }
+        NavigationStack { PairingRequestsView(model: .preview(lines: MessagingPreviewData.pairing)) }
     }
 
     #Preview("Pairing requests, half-fold", traits: .fixedLayout(width: 890, height: 313)) {
-        NavigationStack { PairingRequestsView(model: .preview(answer: MessagingPreviewData.pairing)) }
+        NavigationStack { PairingRequestsView(model: .preview(lines: MessagingPreviewData.pairing)) }
     }
 
     #Preview("Webhooks, outer", traits: .fixedLayout(width: 466, height: 678)) {
-        NavigationStack { WebhookListView(model: .preview(answer: MessagingPreviewData.webhooks)) }
+        NavigationStack { WebhookListView(model: .preview(lines: MessagingPreviewData.webhooks)) }
     }
 
     #Preview("Webhooks, inner portrait", traits: .fixedLayout(width: 626, height: 890)) {
-        NavigationStack { WebhookListView(model: .preview(answer: MessagingPreviewData.webhooks)) }
+        NavigationStack { WebhookListView(model: .preview(lines: MessagingPreviewData.webhooks)) }
     }
 
     #Preview("Webhooks, inner landscape", traits: .fixedLayout(width: 890, height: 626)) {
-        NavigationStack { WebhookListView(model: .preview(answer: MessagingPreviewData.webhooks)) }
+        NavigationStack { WebhookListView(model: .preview(lines: MessagingPreviewData.webhooks)) }
     }
 
     #Preview("Webhooks, half-fold", traits: .fixedLayout(width: 890, height: 313)) {
-        NavigationStack { WebhookListView(model: .preview(answer: MessagingPreviewData.webhooks)) }
+        NavigationStack { WebhookListView(model: .preview(lines: MessagingPreviewData.webhooks)) }
     }
 #endif

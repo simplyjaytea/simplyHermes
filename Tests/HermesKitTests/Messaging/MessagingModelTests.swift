@@ -72,46 +72,4 @@ import Testing
         #expect(toggle == WebhookEnabledToggle(enabled: true))
         #expect(try encodedKeys(toggle) == ["enabled"])
     }
-
-    @Test func answerTextIsIndentedWithSortedKeysAndPlainSlashes() throws {
-        let answer: JSONValue = .object(["b": .int(2), "a": .string("x/y")])
-        let text = MessagingAnswerFormat.displayText(answer)
-        #expect(text.contains("x/y") && !text.contains("\\/"))
-        let first = try #require(text.range(of: "\"a\"")?.lowerBound)
-        let second = try #require(text.range(of: "\"b\"")?.lowerBound)
-        #expect(first < second && text.contains("\n"))
-        #expect(try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)) == answer)
-    }
-
-    @Test func answerTextMasksValuesUnderSecretKeysOnly() throws {
-        let answer: JSONValue = .object([
-            "platforms": .array([
-                .object([
-                    "id": .string("telegram"),
-                    "env": .object(["TELEGRAM_BOT_TOKEN": .string("123:abc"), "LOG_LEVEL": .string("debug")]),
-                    "webhook_secret": .string("s3cret"),
-                    "tokens": .array([.string("42")]),
-                    "author": .string("jt"),
-                ])
-            ]),
-            "api_key": .null,
-        ])
-        let text = MessagingAnswerFormat.displayText(answer)
-        #expect(!text.contains("123:abc") && !text.contains("s3cret") && !text.contains("42"))
-        let shown = try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8))
-        #expect(
-            shown
-                == .object([
-                    "platforms": .array([
-                        .object([
-                            "id": .string("telegram"),
-                            "env": .object(["TELEGRAM_BOT_TOKEN": .string("••••"), "LOG_LEVEL": .string("debug")]),
-                            "webhook_secret": .string("••••"),
-                            "tokens": .array([.string("••••")]),
-                            "author": .string("jt"),
-                        ])
-                    ]),
-                    "api_key": .null,
-                ]))
-    }
 }
