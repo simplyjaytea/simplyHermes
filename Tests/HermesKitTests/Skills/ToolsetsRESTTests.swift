@@ -7,7 +7,7 @@ import Testing
 @Suite struct ToolsetsRESTTests {
     @Test func toggleSendsEnabledAndReadsTheStartedInstall() async throws {
         let (result, request) = try await skillsRun("toolset_toggle") {
-            try await $0.setToolsetEnabled("browser", enabled: true)
+            try await $0.setSkillToolsetEnabled("browser", enabled: true)
         }
         #expect(result.ok == true && result.platform == "cli" && result.enabled == true)
         #expect(result.postSetupStarted == "playwright")
@@ -18,7 +18,7 @@ import Testing
     }
 
     @Test func configDecodesTheProviderPicker() async throws {
-        let (config, request) = try await skillsRun("toolset_config") { try await $0.toolsetConfig("web") }
+        let (config, request) = try await skillsRun("toolset_config") { try await $0.skillToolsetConfig("web") }
         #expect(config.name == "web" && config.hasCategory == true && config.activeProvider == "Firecrawl")
         let providers = try #require(config.providers)
         #expect(providers.map(\.name) == ["Firecrawl", "Nous Subscription"])
@@ -32,7 +32,7 @@ import Testing
 
     @Test func modelCatalogCarriesTheProviderAndDecodesDefault() async throws {
         let (catalog, request) = try await skillsRun("toolset_models") {
-            try await $0.toolsetModels("image_gen", provider: "Example Images")
+            try await $0.skillToolsetModels("image_gen", provider: "Example Images")
         }
         #expect(catalog.hasModels == true && catalog.current == "fast-model" && catalog.defaultModel == "fast-model")
         #expect(catalog.models?.map(\.id) == ["fast-model", "best-model"] && catalog.models?.last?.display == "Best")
@@ -44,7 +44,7 @@ import Testing
         let http = FakeHTTP()
         http.enqueue(200, try restFixture("toolset_models"))
         let client = makeClient(http, profile: nil)
-        _ = try await client.toolsetModels("image gen")
+        _ = try await client.skillToolsetModels("image gen")
         let request = try #require(http.requests.first)
         #expect(request.url.path == "/api/tools/toolsets/image%20gen/models")
         #expect(request.url.query == nil)
@@ -52,7 +52,7 @@ import Testing
 
     @Test func modelSelectOmitsAnUnsetProvider() async throws {
         let (selection, request) = try await skillsRun("toolset_model_selected") {
-            try await $0.selectToolsetModel("image_gen", model: "best-model")
+            try await $0.selectSkillToolsetModel("image_gen", model: "best-model")
         }
         #expect(selection.model == "best-model" && selection.plugin == "example-images")
         #expect(request.method == "PUT" && request.url.path == "/api/tools/toolsets/image_gen/model")
@@ -63,7 +63,7 @@ import Testing
 
     @Test func providerSelectSendsCapabilityAndReadsEntitlement() async throws {
         let (selection, request) = try await skillsRun("toolset_provider_selected") {
-            try await $0.selectToolsetProvider("web", provider: "Nous Subscription", capability: "search")
+            try await $0.selectSkillToolsetProvider("web", provider: "Nous Subscription", capability: "search")
         }
         #expect(selection.needsNousAuth == true && selection.feature == "web" && selection.capability == "search")
         #expect(request.method == "PUT" && request.url.path == "/api/tools/toolsets/web/provider")
@@ -74,7 +74,7 @@ import Testing
 
     @Test func envUpdateKeepsVariableNamesExactly() async throws {
         let (saved, request) = try await skillsRun("toolset_env_saved") {
-            try await $0.saveToolsetEnv("web", env: ["FIRECRAWL_API_KEY": "fc-test"])
+            try await $0.saveSkillToolsetEnv("web", env: ["FIRECRAWL_API_KEY": "fc-test"])
         }
         #expect(saved.saved == ["FIRECRAWL_API_KEY"] && saved.isSet?["FIRECRAWL_API_KEY"] == true)
         #expect(request.url.path == "/api/tools/toolsets/web/env")
@@ -86,7 +86,7 @@ import Testing
 
     @Test func postSetupStartsAnActionWithTheKey() async throws {
         let (started, request) = try await skillsRun("action_started") {
-            try await $0.runToolsetPostSetup("browser", key: "playwright")
+            try await $0.runSkillToolsetPostSetup("browser", key: "playwright")
         }
         #expect(started.name == "skills-install-arxiv-1a2b3c4d")
         #expect(request.method == "POST" && request.url.path == "/api/tools/toolsets/browser/post-setup")

@@ -15,7 +15,7 @@ public struct ToolsetToggleResult: Sendable, Equatable, Codable {
 }
 
 /// `GET /api/tools/toolsets/{name}/config`: the provider picker and the key status of one toolset.
-public struct ToolsetConfig: Sendable, Equatable, Codable {
+public struct SkillToolsetConfig: Sendable, Equatable, Codable {
     /// Toolset name.
     public var name: String
     /// False when the toolset has no provider picker.
@@ -35,7 +35,7 @@ public struct ToolsetProviderRow: Sendable, Equatable, Codable, Identifiable {
     /// One-line tag.
     public var tag: String?
     /// Environment variables the provider reads.
-    public var envVars: [ToolsetEnvVar]?
+    public var envVars: [SkillToolsetEnvVar]?
     /// Post-setup key that installs what the provider needs, when any.
     public var postSetup: String?
     /// True when a Nous Portal sign-in is needed.
@@ -50,7 +50,7 @@ public struct ToolsetProviderRow: Sendable, Equatable, Codable, Identifiable {
 }
 
 /// One environment variable a provider reads.
-public struct ToolsetEnvVar: Sendable, Equatable, Codable, Identifiable {
+public struct SkillToolsetEnvVar: Sendable, Equatable, Codable, Identifiable {
     /// Variable name, such as `FIRECRAWL_API_KEY`.
     public var key: String
     /// Prompt to show above the field.
@@ -65,7 +65,7 @@ public struct ToolsetEnvVar: Sendable, Equatable, Codable, Identifiable {
 }
 
 /// `GET /api/tools/toolsets/{name}/models`: the model catalog of a toolset backend, such as image generation.
-public struct ToolsetModelCatalog: Sendable, Equatable, Codable {
+public struct SkillToolsetModelCatalog: Sendable, Equatable, Codable {
     /// Toolset name.
     public var name: String
     /// False when the backend has no model catalog.

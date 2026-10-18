@@ -25,24 +25,24 @@ private struct ToolsetPostSetupBody: Encodable, Sendable {
 /// Toolset calls. The list itself is ``RESTClient/toolsets()``. Every call is scoped to the active profile by ``RESTClient``.
 extension RESTClient {
     /// `PUT /api/tools/toolsets/{name}`: turns a toolset on or off for its configuration platform.
-    public func setToolsetEnabled(_ name: String, enabled: Bool) async throws -> ToolsetToggleResult {
+    public func setSkillToolsetEnabled(_ name: String, enabled: Bool) async throws -> ToolsetToggleResult {
         try await send("PUT", "/api/tools/toolsets/" + restPathSegment(name), body: ToolsetToggleBody(enabled: enabled))
     }
 
     /// `GET /api/tools/toolsets/{name}/config`: the provider picker and which keys are set.
-    public func toolsetConfig(_ name: String) async throws -> ToolsetConfig {
+    public func skillToolsetConfig(_ name: String) async throws -> SkillToolsetConfig {
         try await get("/api/tools/toolsets/" + restPathSegment(name) + "/config")
     }
 
     /// `GET /api/tools/toolsets/{name}/models`. `provider` names a picker row; nil means the active one.
-    public func toolsetModels(_ name: String, provider: String? = nil) async throws -> ToolsetModelCatalog {
+    public func skillToolsetModels(_ name: String, provider: String? = nil) async throws -> SkillToolsetModelCatalog {
         try await get(
             "/api/tools/toolsets/" + restPathSegment(name) + "/models",
             query: provider.map { [URLQueryItem(name: "provider", value: $0)] } ?? [])
     }
 
     /// `PUT /api/tools/toolsets/{name}/model`: picks a model from the catalog of the backend.
-    public func selectToolsetModel(
+    public func selectSkillToolsetModel(
         _ name: String, model: String, provider: String? = nil
     ) async throws -> ToolsetModelSelection {
         try await send(
@@ -51,7 +51,7 @@ extension RESTClient {
     }
 
     /// `PUT /api/tools/toolsets/{name}/provider`. `capability` (`search` or `extract`) applies to the web toolset only.
-    public func selectToolsetProvider(
+    public func selectSkillToolsetProvider(
         _ name: String, provider: String, capability: String? = nil
     ) async throws -> ToolsetProviderSelection {
         try await send(
@@ -60,12 +60,12 @@ extension RESTClient {
     }
 
     /// `PUT /api/tools/toolsets/{name}/env`: saves provider keys. Only the toolset's own variable names are accepted.
-    public func saveToolsetEnv(_ name: String, env: [String: String]) async throws -> ToolsetEnvSaved {
+    public func saveSkillToolsetEnv(_ name: String, env: [String: String]) async throws -> ToolsetEnvSaved {
         try await send("PUT", "/api/tools/toolsets/" + restPathSegment(name) + "/env", body: ToolsetEnvBody(env: env))
     }
 
     /// `POST /api/tools/toolsets/{name}/post-setup`: starts a provider's install in the background. Poll the action.
-    public func runToolsetPostSetup(_ name: String, key: String) async throws -> ServerActionStart {
+    public func runSkillToolsetPostSetup(_ name: String, key: String) async throws -> ServerActionStart {
         try await send(
             "POST", "/api/tools/toolsets/" + restPathSegment(name) + "/post-setup", body: ToolsetPostSetupBody(key: key)
         )

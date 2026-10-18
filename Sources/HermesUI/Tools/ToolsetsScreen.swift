@@ -7,7 +7,7 @@
     /// The toolsets of the active profile (WP-51): the list, and the switch of each one.
     @MainActor
     @Observable
-    final class ToolsetsModel {
+    final class SkillToolsetsModel {
         private(set) var toolsets: [ToolsetInfo] = []
         private(set) var isLoading = false
         /// Why the list could not load. Nil when it loaded.
@@ -39,8 +39,8 @@
         let name: String
         let title: String
         private(set) var enabled: Bool
-        private(set) var config: ToolsetConfig?
-        private(set) var models: ToolsetModelCatalog?
+        private(set) var config: SkillToolsetConfig?
+        private(set) var models: SkillToolsetModelCatalog?
         private(set) var isLoading = false
         /// The capability the web toolset's provider applies to: `search` or `extract`.
         var webCapability = "search"
@@ -66,8 +66,8 @@
             defer { isLoading = false }
             do {
                 let rest = try await ToolsServer.rest(connections)
-                config = try await rest.toolsetConfig(name)
-                let catalog = try? await rest.toolsetModels(name)
+                config = try await rest.skillToolsetConfig(name)
+                let catalog = try? await rest.skillToolsetModels(name)
                 models = catalog?.hasModels == true ? catalog : nil
             } catch {
                 notice = ToolsNotice.error(ToolsMessages.text(for: error))
@@ -78,7 +78,7 @@
         func setEnabled(_ value: Bool) async {
             do {
                 let rest = try await ToolsServer.rest(connections)
-                let result = try await rest.setToolsetEnabled(name, enabled: value)
+                let result = try await rest.setSkillToolsetEnabled(name, enabled: value)
                 enabled = result.enabled ?? value
                 if let provider = result.postSetupStarted {
                     notice = ToolsNotice.info("Installing \(provider) on the server. Check back in a few minutes.")
@@ -95,7 +95,7 @@
             do {
                 let rest = try await ToolsServer.rest(connections)
                 let capability = name == "web" ? webCapability : nil
-                let result = try await rest.selectToolsetProvider(
+                let result = try await rest.selectSkillToolsetProvider(
                     name, provider: provider.name, capability: capability)
                 if result.needsNousAuth == true {
                     notice = ToolsNotice.error("Sign in to Nous Portal to use \(provider.name).")
@@ -117,7 +117,7 @@
             }
             do {
                 let rest = try await ToolsServer.rest(connections)
-                _ = try await rest.saveToolsetEnv(name, env: filled)
+                _ = try await rest.saveSkillToolsetEnv(name, env: filled)
                 notice = ToolsNotice.info("Saved on the server.")
                 await load()
                 return true
@@ -131,7 +131,7 @@
         func runPostSetup(_ key: String) async {
             do {
                 let rest = try await ToolsServer.rest(connections)
-                let start = try await rest.runToolsetPostSetup(name, key: key)
+                let start = try await rest.runSkillToolsetPostSetup(name, key: key)
                 let status = try await actions.run(start, title: "Installing for \(title)", rest: rest)
                 notice = status.succeeded ? nil : ToolsNotice.error(ToolsMessages.failedAction)
                 await load()
@@ -144,7 +144,7 @@
         func selectModel(_ option: ToolsetModelOption) async {
             do {
                 let rest = try await ToolsServer.rest(connections)
-                _ = try await rest.selectToolsetModel(name, model: option.id, provider: models?.provider)
+                _ = try await rest.selectSkillToolsetModel(name, model: option.id, provider: models?.provider)
                 notice = nil
                 await load()
             } catch {
@@ -155,13 +155,13 @@
 
     /// Every toolset on the server, with whether it is on and set up. Tap one to configure it.
     struct ToolsetsScreen: View {
-        @State private var model: ToolsetsModel
+        @State private var model: SkillToolsetsModel
         private let connections: ConnectionsModel?
 
         /// `connections` is nil when the shell has none. The list then says that no server is connected.
         init(connections: ConnectionsModel?) {
             self.connections = connections
-            _model = State(initialValue: ToolsetsModel(connections: connections))
+            _model = State(initialValue: SkillToolsetsModel(connections: connections))
         }
 
         var body: some View {
@@ -259,7 +259,7 @@
             .refreshable { await model.load() }
         }
 
-        private func providerSection(_ config: ToolsetConfig) -> some View {
+        private func providerSection(_ config: SkillToolsetConfig) -> some View {
             Section {
                 if model.name == "web" {
                     Picker("Used for", selection: $model.webCapability) {
@@ -315,7 +315,7 @@
             .accessibilityIdentifier("toolset.provider.\(row.name)")
         }
 
-        private func keysSection(provider: ToolsetProviderRow, variables: [ToolsetEnvVar]) -> some View {
+        private func keysSection(provider: ToolsetProviderRow, variables: [SkillToolsetEnvVar]) -> some View {
             Section {
                 ForEach(variables) { variable in
                     VStack(alignment: .leading, spacing: 4) {
@@ -348,7 +348,7 @@
             }
         }
 
-        private func modelSection(catalog: ToolsetModelCatalog, options: [ToolsetModelOption]) -> some View {
+        private func modelSection(catalog: SkillToolsetModelCatalog, options: [ToolsetModelOption]) -> some View {
             Section {
                 ForEach(options) { option in
                     Button {
