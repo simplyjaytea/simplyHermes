@@ -43,15 +43,18 @@ import HermesKit
         var availability: LocalModelAvailability { .available }
 
         func respond(instructions: String, prompt: String) async throws -> String {
-            // A model too big for the memory left is refused before it loads: the selection falls back to Apple.
-            try memoryGate.check(model)
-            let session: LanguageModelSession
-            if instructions.isEmpty {
-                session = LanguageModelSession(model: languageModel)
-            } else {
-                session = LanguageModelSession(model: languageModel) { instructions }
+            // A model too big for the memory left is refused before it loads: the selection falls back to Apple. Only
+            // a load is checked. Once the model has answered, its weights count against the app, so the gate lets it
+            // through instead of refusing it for the room it already takes.
+            try await memoryGate.answer(with: model) {
+                let session: LanguageModelSession
+                if instructions.isEmpty {
+                    session = LanguageModelSession(model: languageModel)
+                } else {
+                    session = LanguageModelSession(model: languageModel) { instructions }
+                }
+                return try await session.respond(to: prompt).content
             }
-            return try await session.respond(to: prompt).content
         }
     }
 
@@ -76,8 +79,10 @@ import HermesKit
             MLXLocalModel(model: model, folder: folder, memoryGate: memoryGate)
         }
 
-        /// Drops every loaded model from MLX's cache, then frees the buffers MLX kept for reuse.
+        /// Drops every loaded model from MLX's cache, then frees the buffers MLX kept for reuse. The gate hears of it
+        /// first, so the next answer is checked as a load again.
         func unloadAll() async {
+            memoryGate.noteUnloaded()
             await MLXLanguageModel.evictAll()
             MLX.Memory.clearCache()
         }

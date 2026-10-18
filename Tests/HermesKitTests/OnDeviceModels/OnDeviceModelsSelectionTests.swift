@@ -251,6 +251,84 @@ struct OnDeviceModelsSelectionTests {
         }
     }
 
+    @Test func theMemoryGateChecksTheLoadButNotTheAnswersAfterIt() async throws {
+        let estimate = alpha.estimatedMemoryBytes
+        let free = FreeMemory(estimate)
+        let gate = OnDeviceMemoryGate { free.bytes }
+
+        let first = try await gate.answer(with: alpha) { "one" }  // there is room to load
+        // The weights count against the app now, so the free figure is lower by their size.
+        free.bytes = estimate - alpha.weightBytes
+        let second = try await gate.answer(with: alpha) { "two" }  // loaded: not refused for its own weights
+        let third = try await gate.answer(with: alpha) { "three" }
+
+        #expect([first, second, third] == ["one", "two", "three"])
+    }
+
+    @Test func theMemoryGateChecksAgainAfterAnUnload() async throws {
+        let estimate = alpha.estimatedMemoryBytes
+        let free = FreeMemory(estimate)
+        let gate = OnDeviceMemoryGate { free.bytes }
+        _ = try await gate.answer(with: alpha) { "one" }
+        free.bytes = estimate - alpha.weightBytes
+
+        gate.noteUnloaded()
+
+        let refusal = OnDeviceModelError.notEnoughMemory(needed: estimate, available: estimate - alpha.weightBytes)
+        await #expect(throws: refusal) {
+            try await gate.answer(with: alpha) { "two" }
+        }
+    }
+
+    @Test func anAnswerThatRanAcrossAnUnloadIsNotRememberedAsLoaded() async throws {
+        let estimate = alpha.estimatedMemoryBytes
+        let free = FreeMemory(estimate)
+        let gate = OnDeviceMemoryGate { free.bytes }
+        // A memory warning unloads the models while the first answer is still running.
+        _ = try await gate.answer(with: alpha) {
+            gate.noteUnloaded()
+            return "one"
+        }
+        free.bytes = estimate - alpha.weightBytes
+
+        let refusal = OnDeviceModelError.notEnoughMemory(needed: estimate, available: estimate - alpha.weightBytes)
+        await #expect(throws: refusal) {
+            try await gate.answer(with: alpha) { "two" }
+        }
+    }
+
+    @Test func aFailedAnswerIsNotRememberedAsLoaded() async {
+        let estimate = alpha.estimatedMemoryBytes
+        let free = FreeMemory(estimate)
+        let gate = OnDeviceMemoryGate { free.bytes }
+        let broken: () async throws -> String = { throw TestFailure() }
+        await #expect(throws: TestFailure()) {
+            try await gate.answer(with: alpha, broken)
+        }
+        free.bytes = estimate - 1
+
+        let refusal = OnDeviceModelError.notEnoughMemory(needed: estimate, available: estimate - 1)
+        await #expect(throws: refusal) {
+            try await gate.answer(with: alpha) { "next" }
+        }
+    }
+
+    @Test func aModelThatDoesNotFitIsRefusedBeforeItRuns() async {
+        let estimate = alpha.estimatedMemoryBytes
+        let gate = OnDeviceMemoryGate { estimate - 1 }
+        let ran = TestFlag(false)
+
+        let refusal = OnDeviceModelError.notEnoughMemory(needed: estimate, available: estimate - 1)
+        await #expect(throws: refusal) {
+            try await gate.answer(with: alpha) {
+                ran.value = true
+                return "never"
+            }
+        }
+
+        #expect(!ran.value)
+    }
+
     // MARK: Changing and deleting
 
     @Test func switchingModelsUnloadsTheOldOne() async throws {
@@ -288,5 +366,20 @@ struct OnDeviceModelsSelectionTests {
         await setup.selection.modelWillBeDeleted("beta")
         #expect(setup.selection.choice == .downloaded("alpha"))
         #expect(setup.selection.route == .downloaded(alpha))
+    }
+
+    /// The free-memory figure of a test, which the test can lower while the gate reads it.
+    private final class FreeMemory: @unchecked Sendable {
+        private let lock = NSLock()
+        private var current: Int64
+
+        init(_ bytes: Int64) {
+            current = bytes
+        }
+
+        var bytes: Int64 {
+            get { lock.withLock { current } }
+            set { lock.withLock { current = newValue } }
+        }
     }
 }

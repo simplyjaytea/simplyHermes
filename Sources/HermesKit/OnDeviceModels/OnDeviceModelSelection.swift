@@ -26,18 +26,50 @@ public protocol OnDeviceModelRuntime: Sendable {
 
 /// Checks that the phone has the memory a model needs before the runtime loads it. The app supplies the number from
 /// `os_proc_available_memory()`.
-public struct OnDeviceMemoryGate: Sendable {
+///
+/// The check is for a load, not for every answer. Once a model has answered, its weights are in memory and count
+/// against the app, so the free figure is lower by about their size and a second check would refuse a model that
+/// already fits. ``answer(with:_:)`` therefore checks only a model that is not known to be loaded, and the runtime
+/// calls ``noteUnloaded()`` when it frees its models.
+public final class OnDeviceMemoryGate: @unchecked Sendable {
     /// Bytes this app can still allocate, or nil when unknown (then loading is allowed).
-    public var availableBytes: @Sendable () -> Int64?
+    public let availableBytes: @Sendable () -> Int64?
+
+    private let lock = NSLock()
+    private var loadedID: String?
+    /// Counts the unloads, so an answer that began before one does not mark its model as loaded after it.
+    private var unloads = 0
 
     public init(availableBytes: @escaping @Sendable () -> Int64?) {
         self.availableBytes = availableBytes
     }
 
-    /// Throws ``OnDeviceModelError/notEnoughMemory(needed:available:)`` when the estimate does not fit.
+    /// Throws ``OnDeviceModelError/notEnoughMemory(needed:available:)`` when the estimate does not fit. A model that is
+    /// known to be loaded needs no new room, so it passes.
     public func check(_ model: OnDeviceModel) throws {
-        guard let available = availableBytes(), available < model.estimatedMemoryBytes else { return }
+        let isLoaded = lock.withLock { loadedID == model.id }
+        guard !isLoaded, let available = availableBytes(), available < model.estimatedMemoryBytes else { return }
         throw OnDeviceModelError.notEnoughMemory(needed: model.estimatedMemoryBytes, available: available)
+    }
+
+    /// Runs one answer of `model`: checks the memory first, and afterwards remembers that the model is loaded. Nothing
+    /// is remembered when the answer throws or when the models were unloaded while it ran.
+    public func answer<Reply>(with model: OnDeviceModel, _ body: () async throws -> Reply) async throws -> Reply {
+        try check(model)
+        let epoch = lock.withLock { unloads }
+        let reply = try await body()
+        lock.withLock {
+            if unloads == epoch { loadedID = model.id }
+        }
+        return reply
+    }
+
+    /// The runtime freed its models, so the next answer loads again and is checked again.
+    public func noteUnloaded() {
+        lock.withLock {
+            loadedID = nil
+            unloads += 1
+        }
     }
 }
 
