@@ -83,6 +83,8 @@
     /// on-device model's replies stay in the offline chat; only the prompt goes to the server chat.
     struct SendToHermesBar: View {
         let offer: SendToHermesOffer
+        /// True while the prompt is on its way. Both buttons are off then, so a second tap cannot send it again.
+        var isSending = false
         let onSend: () -> Void
         let onDismiss: () -> Void
 
@@ -97,13 +99,15 @@
                         .lineLimit(2)
                 }
                 HStack(spacing: 8) {
-                    Button("Not now", action: onDismiss)
+                    // Dismissing closes the offline chat for good, so the label must not promise a later chance.
+                    Button("Dismiss", action: onDismiss)
                         .buttonStyle(HermesButtonStyle(.tinted))
                         .accessibilityIdentifier("offline.dismissOffer")
                     Button("Send to Hermes", action: onSend)
                         .buttonStyle(HermesButtonStyle(.primary))
                         .accessibilityIdentifier("offline.sendToHermes")
                 }
+                .disabled(isSending)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -130,12 +134,9 @@
                 if let offer = chat.offline.offer {
                     SendToHermesBar(
                         offer: offer,
-                        onSend: {
-                            Task {
-                                if await chat.sendToHermes(offer.prompt) { chat.offline.resolveOffer(.sent) }
-                            }
-                        },
-                        onDismiss: { chat.offline.resolveOffer(.dismissed) }
+                        isSending: chat.offline.isSendingOffer,
+                        onSend: { Task { await chat.sendToHermes(offer) } },
+                        onDismiss: { chat.offline.resolveOffer(offer, as: .dismissed) }
                     )
                     .padding(.top, 6)
                 }

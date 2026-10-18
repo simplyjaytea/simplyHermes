@@ -53,8 +53,9 @@
             switch chat.phase {
             case .loading where chat.state.items.isEmpty:
                 TranscriptSkeleton()
-            case .failed where chat.offline.notice != nil:
-                // Offline chat (WP-65b): while the server is out of reach, it takes the place of the error.
+            case .failed where chat.offline.notice != nil || chat.offline.offer != nil:
+                // Offline chat (WP-65b): while the server is out of reach, and while its "Send to Hermes" offer waits
+                // for an answer, it takes the place of the error.
                 transcript
             case .failed(let message):
                 ContentUnavailableView {

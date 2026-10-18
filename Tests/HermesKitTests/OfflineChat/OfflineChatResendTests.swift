@@ -79,6 +79,53 @@ struct OfflineChatResendTests {
         #expect(offer([message(1, .user, "mine"), stray])?.prompt == "mine")
     }
 
+    // MARK: - One send at a time
+
+    private let tapped = SendToHermesOffer(chatID: "chat-1", messageID: 3, prompt: "second")
+
+    @Test func nothingIsSendingBeforeTheFirstTap() {
+        let progress = SendToHermesProgress()
+        #expect(progress.sending == nil)
+        #expect(!progress.isSending(tapped))
+        #expect(!progress.isSending(nil))
+    }
+
+    @Test func onlyTheFirstTapOnAnOfferSends() {
+        var progress = SendToHermesProgress()
+        let first = progress.begin(tapped)
+        let second = progress.begin(tapped)
+        let third = progress.begin(tapped)
+        #expect(first)
+        #expect(!second)
+        #expect(!third)
+        #expect(progress.isSending(tapped))
+    }
+
+    @Test func anOfferWhoseSendFailedCanBeTappedAgain() {
+        var progress = SendToHermesProgress()
+        let first = progress.begin(tapped)
+        progress.fail()
+        #expect(first)
+        #expect(!progress.isSending(tapped))
+        let again = progress.begin(tapped)
+        #expect(again)
+    }
+
+    @Test func theButtonComesBackOnceTheOfferIsGone() {
+        var progress = SendToHermesProgress()
+        let sent = progress.begin(tapped)
+        #expect(sent)
+        // The offline chat was closed, so the offer is gone from the screen.
+        #expect(!progress.isSending(nil))
+        // The next offline chat offers another prompt, and that one can be sent.
+        let next = SendToHermesOffer(chatID: "chat-2", messageID: 1, prompt: "later")
+        #expect(!progress.isSending(next))
+        let nextSent = progress.begin(next)
+        #expect(nextSent)
+        #expect(progress.isSending(next))
+        #expect(!progress.isSending(tapped))
+    }
+
     // MARK: - With the chat controller and a store
 
     @Test func theOfferGoesAwayOnceTheUserAnswersIt() async throws {

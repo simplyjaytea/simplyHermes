@@ -43,15 +43,22 @@
             SendToHermes.offer(chat: snapshot.chat, messages: snapshot.messages, server: reachability)
         }
 
+        /// True while the offer on screen is on its way to Hermes. Its buttons stay off, so a second tap cannot send
+        /// the prompt twice.
+        public var isSendingOffer: Bool { sending.isSending(offer) }
+
         /// Where "Get a better model" goes, when the app has such a screen (WP-65c).
         public var getBetterModel: (@MainActor () -> Void)? { services?.onGetBetterModel }
 
+        private var sending = SendToHermesProgress()
         @ObservationIgnored private let services: OfflineChatServices?
         @ObservationIgnored private let connections: ConnectionsModel
         @ObservationIgnored private let storedSessionID: String
         @ObservationIgnored private let clock: any GatewayClock
         @ObservationIgnored private var router = OfflineRouter()
         @ObservationIgnored private var controller: OfflineChatController?
+        /// The saved connection's id, as the controller keys it. It outlives ``stop()``, so a chat can still be closed.
+        @ObservationIgnored private var connectionKey: String?
         @ObservationIgnored private var tasks: [Task<Void, Never>] = []
         @ObservationIgnored private var wake: Task<Void, Never>?
 
@@ -71,6 +78,7 @@
                 return
             }
             let sessionID = storedSessionID
+            connectionKey = id.uuidString
             tasks = [
                 Task { [weak self] in
                     let controller = await OfflineChatController(
@@ -117,10 +125,25 @@
             refreshRoute()
         }
 
-        /// Closes the offline chat after the user answered the "Send to Hermes" offer.
-        func resolveOffer(_ resolution: OfflineChat.Resolution) {
-            guard let controller else { return }
-            Task { await controller.resolve(resolution) }
+        /// Marks `offer` as on its way to Hermes. Returns false when it already is, so only the first tap sends.
+        func beginSending(_ offer: SendToHermesOffer) -> Bool {
+            sending.begin(offer)
+        }
+
+        /// The send did not go through, so the offer can be tapped again.
+        func sendFailed() {
+            sending.fail()
+        }
+
+        /// Closes the offline chat after the user answered the "Send to Hermes" offer. A model that was stopped has no
+        /// controller left, so the chat is closed in the store instead: an offer that was answered must not come back.
+        func resolveOffer(_ offer: SendToHermesOffer, as resolution: OfflineChat.Resolution) {
+            if let controller {
+                Task { await controller.resolve(resolution) }
+            } else if let store = services?.store, let connectionKey {
+                let chatID = offer.chatID
+                Task { try? await store.resolve(chat: chatID, connection: connectionKey, as: resolution, at: Date()) }
+            }
         }
 
         // MARK: - Route

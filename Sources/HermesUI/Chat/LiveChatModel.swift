@@ -66,6 +66,8 @@
         public private(set) var retryAt: Date?
         @ObservationIgnored private var retryTask: Task<Void, Never>?
         @ObservationIgnored private var controller: ChatSessionController?
+        /// The attempt to connect and resume that is under way, if any. Calls to ``attach()`` share it.
+        @ObservationIgnored private var attaching: Task<Void, Never>?
         @ObservationIgnored private var client: GatewayClient?
         @ObservationIgnored private var firstSeen: [String: Date] = [:]
         @ObservationIgnored private var wasRunning = false
@@ -80,10 +82,24 @@
                 services: OfflineChatServices.shared, connections: connections, storedSessionID: storedSessionID)
         }
 
-        /// Connects, resumes the session and starts following it. Safe to call again after a failure.
+        /// Connects, resumes the session and starts following it. Safe to call again after a failure. A call made
+        /// while another is still connecting waits for that one, so the session is never opened twice at once.
         public func attach() async {
             offline.start()
+            if let attempt = attaching {
+                await attempt.value
+                return
+            }
             guard controller == nil else { return }
+            let attempt = Task { [weak self] in
+                await self?.connectAndFollow()
+                self?.attaching = nil
+            }
+            attaching = attempt
+            await attempt.value
+        }
+
+        private func connectAndFollow() async {
             guard let connection = connections.active, let manager = connections.manager else {
                 phase = .failed("No server is selected.")
                 return
@@ -136,13 +152,19 @@
             Task { await controller.send(text, attachments: attachments) }
         }
 
-        /// "Send to Hermes" (plan Q44): sends a prompt written offline to this chat once the server is back. Opens the
-        /// chat first when it never opened. Returns false when it could not, so the offer stays.
-        public func sendToHermes(_ text: String) async -> Bool {
+        /// "Send to Hermes" (plan Q44): sends the prompt of `offer`, written offline, to this chat once the server is
+        /// back, then closes the offline chat. Opens the chat first when it never opened. While one send is under way
+        /// a second tap does nothing, so the prompt reaches Hermes once. When the chat cannot open, nothing is sent and
+        /// the offer stays.
+        public func sendToHermes(_ offer: SendToHermesOffer) async {
+            guard offline.beginSending(offer) else { return }
             if controller == nil { await attach() }
-            guard controller != nil else { return false }
-            send(text)
-            return true
+            guard controller != nil else {
+                offline.sendFailed()
+                return
+            }
+            send(offer.prompt)
+            offline.resolveOffer(offer, as: .sent)
         }
 
         /// Sends the text into the running reply instead of queueing it. Falls back to sending normally.
