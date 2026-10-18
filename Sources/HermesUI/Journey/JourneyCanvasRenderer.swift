@@ -31,7 +31,7 @@
                 links.move(to: viewport.toView(link.source, in: size))
                 links.addLine(to: viewport.toView(link.target, in: size))
             }
-            context.stroke(links, with: .color(Color.secondary.opacity(0.35)), lineWidth: 1)
+            context.stroke(links, with: .color(HermesColor.secondaryText.opacity(0.35)), lineWidth: 1)
 
             let visible = CGRect(origin: .zero, size: size).insetBy(dx: -margin, dy: -margin)
             for node in input.scene.nodes {
@@ -43,7 +43,7 @@
                 let center = viewport.toView(node.position, in: size)
                 guard visible.contains(center) else { continue }
                 let below = CGPoint(x: center.x, y: center.y + CGFloat(node.radius) + 4)
-                context.draw(Text(node.label).font(.caption2), at: below, anchor: .top)
+                context.draw(Text(node.label).font(HermesFont.caption2), at: below, anchor: .top)
             }
         }
 
@@ -61,7 +61,7 @@
             }
             if node.isPinned {
                 let dot = box.insetBy(dx: radius * 0.55, dy: radius * 0.55)
-                context.fill(Path(ellipseIn: dot), with: .color(Color.white.opacity(0.9)))
+                context.fill(Path(ellipseIn: dot), with: .color(HermesColor.onAccent.opacity(0.9)))
             }
             if isSelected {
                 let ring = box.insetBy(dx: -7, dy: -7)

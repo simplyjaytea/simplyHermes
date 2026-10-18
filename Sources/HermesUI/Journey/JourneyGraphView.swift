@@ -116,7 +116,7 @@
                 Text("\(board.visibleCount) of \(board.filteredCount) nodes shown")
                 ForEach(board.scene.nodes) { mark in
                     Button(mark.label) { model.openNode(mark.id) }
-                        .accessibilityLabel(board.graph.node(id: mark.id)?.spokenSummary ?? mark.label)
+                        .accessibilityLabel(board.spokenSummaries[mark.id] ?? mark.label)
                         .accessibilityHint("Opens the details")
                         .accessibilityIdentifier("memory.node.\(mark.id)")
                 }
@@ -156,7 +156,7 @@
         ) -> some View {
             Button(action: action) {
                 Image(systemName: symbol)
-                    .font(.body.weight(.semibold))
+                    .font(HermesFont.body.weight(.semibold))
                     .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
             }
             .buttonStyle(.plain)

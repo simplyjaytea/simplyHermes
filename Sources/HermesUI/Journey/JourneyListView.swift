@@ -84,7 +84,7 @@
                 }
                 if node.pinned {
                     Circle()
-                        .fill(Color.white.opacity(0.9))
+                        .fill(HermesColor.onAccent.opacity(0.9))
                         .frame(width: Self.side * 0.35, height: Self.side * 0.35)
                 }
             }

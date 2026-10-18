@@ -19,6 +19,18 @@ import Testing
         #expect(board.scrubDate == board.timeline.end)
     }
 
+    @Test func spokenSummariesAreMadeOncePerGraph() throws {
+        var board = try fixtureBoard()
+        let node = try #require(board.graph.node(id: "backup-cron-fix"))
+        #expect(board.spokenSummaries.count == 9 && board.spokenSummaries["backup-cron-fix"] == node.spokenSummary)
+        board.setFilter(.used)
+        board.zoom(by: 2, around: CGPoint(x: 100, y: 200), in: size)
+        #expect(board.spokenSummaries["backup-cron-fix"] == node.spokenSummary, "a filter or a zoom keeps them")
+        let replaced = journeyDatedGraph()
+        board.replaceGraph(replaced)
+        #expect(Set(board.spokenSummaries.keys) == Set(replaced.nodes.map(\.id)))
+    }
+
     @Test func filterChangesTheListAndTheGraphTogether() throws {
         var board = try fixtureBoard()
         board.setFilter(.used)

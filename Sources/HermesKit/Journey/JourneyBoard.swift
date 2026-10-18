@@ -4,8 +4,8 @@ import Foundation
 /// the scrub position, zoom and pan, the nodes on screen and the rows of the list.
 ///
 /// The screen's model keeps one of these and forwards every gesture and tap to it. All the rules live here as plain
-/// value changes, so they run in tests on Linux. Layout and timeline are computed once per graph; a filter or scrub
-/// change only rebuilds the scene, and zoom and pan rebuild nothing.
+/// value changes, so they run in tests on Linux. Layout, timeline and spoken summaries are computed once per graph; a
+/// filter or scrub change only rebuilds the scene, and zoom and pan rebuild nothing.
 public struct JourneyBoard: Sendable, Equatable {
     /// The graph as the server sent it.
     public private(set) var graph: JourneyGraph
@@ -19,6 +19,9 @@ public struct JourneyBoard: Sendable, Equatable {
     public private(set) var scene: JourneyScene
     /// The nodes that pass the filter, newest first, for the list.
     public private(set) var rows: [JourneyNode]
+    /// What VoiceOver reads for each node, by id. Made once per graph, since it depends on the node alone. Making it on
+    /// every pan would format a date for each node each time.
+    public private(set) var spokenSummaries: [String: String]
 
     /// A board with nothing in it.
     public static let empty = JourneyBoard()
@@ -32,6 +35,7 @@ public struct JourneyBoard: Sendable, Equatable {
         layout = .radial(nodes: graph.nodes, timeline: timeline)
         scene = .empty
         rows = []
+        spokenSummaries = Self.makeSpokenSummaries(for: graph)
         rebuildScene()
         rebuildRows()
     }
@@ -80,6 +84,7 @@ public struct JourneyBoard: Sendable, Equatable {
         graph = newGraph
         timeline = JourneyTimeline(nodes: newGraph.nodes)
         layout = .radial(nodes: newGraph.nodes, timeline: timeline)
+        spokenSummaries = Self.makeSpokenSummaries(for: newGraph)
         let known = Set(newGraph.nodes.map(\.id))
         state.placements = state.placements.filter { known.contains($0.key) }
         rebuildScene()
@@ -135,5 +140,10 @@ public struct JourneyBoard: Sendable, Equatable {
 
     private mutating func rebuildRows() {
         rows = graph.listed(state.filter)
+    }
+
+    /// Keeps the first summary when two nodes share an id, instead of trapping on the repeat.
+    private static func makeSpokenSummaries(for graph: JourneyGraph) -> [String: String] {
+        Dictionary(graph.nodes.map { ($0.id, $0.spokenSummary) }, uniquingKeysWith: { first, _ in first })
     }
 }
