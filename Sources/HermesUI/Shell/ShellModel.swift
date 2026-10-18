@@ -52,8 +52,11 @@
         public private(set) var closedSessionIDs: [String] = []
         /// Unsent text per chat. Kept across launches, so a draft is still there after the app closes.
         public var drafts: [String: String] = [:] {
-            didSet { Self.saveDrafts(drafts) }
+            didSet { Self.saveDrafts(drafts, to: draftDefaults) }
         }
+        /// Where drafts are kept across launches. Nil keeps them in memory only, as UI tests need: a draft typed in one
+        /// run must not be in the field at the start of the next.
+        @ObservationIgnored private let draftDefaults: UserDefaults?
         /// Sent messages and Undo text per chat. The composer steps through the history with Up and Down.
         public var histories: [String: ComposerHistory] = [:]
         /// Files attached in each chat's composer. They go out with the next message of that chat.
@@ -78,9 +81,14 @@
         /// Forces a layout, for UI tests and the debug menu. `nil` follows the screen and posture.
         public var layoutOverride: DisplayLayout?
 
-        public init(sessions: [ChatSessionSummary] = ShellModel.sampleSessions, selectedSessionID: String? = nil) {
+        public init(
+            sessions: [ChatSessionSummary] = ShellModel.sampleSessions,
+            selectedSessionID: String? = nil,
+            draftDefaults: UserDefaults? = .standard
+        ) {
             self.sessions = sessions
-            drafts = Self.loadDrafts()
+            self.draftDefaults = draftDefaults
+            drafts = Self.loadDrafts(from: draftDefaults)
             let initial = selectedSessionID ?? sessions.first?.id
             self.selectedSessionID = initial
             for session in sessions {
@@ -196,18 +204,21 @@
 
         private static let draftsKey = "composer.drafts"
 
-        private static func loadDrafts() -> [String: String] {
-            guard let data = UserDefaults.standard.data(forKey: draftsKey) else { return [:] }
+        private static func loadDrafts(from defaults: UserDefaults?) -> [String: String] {
+            guard let data = defaults?.data(forKey: draftsKey) else { return [:] }
             return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
         }
 
-        private static func saveDrafts(_ drafts: [String: String]) {
-            let kept = drafts.filter { !$0.value.isEmpty }
+        private static func saveDrafts(_ drafts: [String: String], to defaults: UserDefaults?) {
+            guard let defaults else { return }
+            // Placeholder chats ("new-N") are gone after a relaunch and their ids come round again, so a saved draft
+            // would turn up in an unrelated chat.
+            let kept = drafts.filter { !$0.value.isEmpty && !$0.key.hasPrefix("new-") }
             guard !kept.isEmpty, let data = try? JSONEncoder().encode(kept) else {
-                UserDefaults.standard.removeObject(forKey: draftsKey)
+                defaults.removeObject(forKey: draftsKey)
                 return
             }
-            UserDefaults.standard.set(data, forKey: draftsKey)
+            defaults.set(data, forKey: draftsKey)
         }
 
         public func draftBinding(for id: String) -> Binding<String> {
