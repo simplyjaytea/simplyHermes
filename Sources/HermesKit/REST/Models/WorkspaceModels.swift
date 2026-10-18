@@ -24,6 +24,31 @@ public struct WorkspaceList: Decodable, Sendable, Equatable {
     public var home: String?
     /// Whether the server scans for more workspaces.
     public var scanEnabled: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case projects, repos, defaultCwd, home, scanEnabled
+    }
+}
+
+extension WorkspaceList {
+    /// Drops project rows that do not decode, so one unseen row cannot fail the whole list.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        projects = try container.decode([LossyRow<WorkspaceRoot>].self, forKey: .projects).compactMap { $0.value }
+        repos = try container.decode([WorkspaceRoot].self, forKey: .repos)
+        defaultCwd = try container.decode(String.self, forKey: .defaultCwd)
+        home = try container.decodeIfPresent(String.self, forKey: .home)
+        scanEnabled = try container.decode(Bool.self, forKey: .scanEnabled)
+    }
+}
+
+/// Decodes one row, or nil when the row does not match its type.
+private struct LossyRow<Row: Decodable>: Decodable {
+    let value: Row?
+
+    init(from decoder: Decoder) throws {
+        value = try? Row(from: decoder)
+    }
 }
 
 /// One item of a folder listing.
