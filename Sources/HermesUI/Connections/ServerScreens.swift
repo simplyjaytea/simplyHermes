@@ -374,6 +374,26 @@
                     }
                     .accessibilityIdentifier("settings.servers")
                 }
+                Section("Server") {
+                    NavigationLink {
+                        ServerControlScreen(connections: connections)
+                    } label: {
+                        Label("Gateway", systemImage: "antenna.radiowaves.left.and.right")
+                    }
+                    .accessibilityIdentifier("settings.gateway")
+                    NavigationLink {
+                        HermesUpdateScreen(connections: connections)
+                    } label: {
+                        Label("Hermes update", systemImage: "arrow.down.circle")
+                    }
+                    .accessibilityIdentifier("settings.hermesUpdate")
+                    NavigationLink {
+                        FleetUpdateScreen(connections: connections)
+                    } label: {
+                        Label("Update all servers", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .accessibilityIdentifier("settings.updateAll")
+                }
                 Section("Support") {
                     NavigationLink {
                         BugReportScreen(connections: connections)
