@@ -2,60 +2,36 @@
     import HermesKit
     import SwiftUI
 
-    /// The folder a chat runs in, as a glass pill under the chat header. Tapping it opens the picker (WP-37).
-    struct WorkspacePill: View {
-        let folder: String?
-        let action: () -> Void
-
-        var body: some View {
-            Button(action: action) {
-                Label(Self.name(of: folder), systemImage: "folder")
-                    .font(HermesFont.caption.weight(.semibold))
-                    .lineLimit(1)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: HermesMetrics.minTapTarget - 8)
-            }
-            .buttonStyle(.plain)
-            .glassEffect(.regular, in: Capsule())
-            .accessibilityIdentifier("chat.workspace")
-            .accessibilityHint(Text("Chooses the folder this chat runs in"))
-        }
-
-        /// The last part of the path, which is what the pill has room for.
-        static func name(of folder: String?) -> String {
-            guard let folder, !folder.isEmpty else { return "Choose folder" }
-            return URL(fileURLWithPath: folder).lastPathComponent
-        }
-    }
-
     /// The folders the server offers. Picking one moves the chat there and closes the sheet (WP-37).
     struct WorkspacePickerSheet: View {
         @Bindable var browser: WorkspaceBrowserModel
         /// The folder the chat runs in now, which gets a checkmark.
         let current: String?
-        /// Moves the chat. Returns false when the server refuses, and the sheet stays open.
-        let onPick: @MainActor (String) async -> Bool
+        /// Moves the chat. Returns why the server refused, or nil when it moved. The sheet stays open on a refusal.
+        let onPick: @MainActor (String) async -> String?
         @Environment(\.dismiss) private var dismiss
+        /// The folder a move is running for. The rows are off until the server answers, so taps cannot overlap.
+        @State private var moving: String?
+        /// Why the last read of the list or the last move failed.
+        @State private var failure: String?
 
         var body: some View {
             NavigationStack {
                 List {
-                    if let list = browser.workspaces {
-                        ForEach(list.projects + list.repos) { root in
-                            Button {
-                                Task {
-                                    if await onPick(root.root) { dismiss() }
-                                }
-                            } label: {
-                                row(root)
-                            }
-                            .accessibilityIdentifier("workspace.\(root.id)")
+                    ForEach(roots) { root in
+                        Button {
+                            pick(root)
+                        } label: {
+                            row(root)
                         }
+                        .disabled(moving != nil)
+                        .accessibilityIdentifier("workspace.\(root.id)")
+                        .accessibilityAddTraits(root.root == current ? .isSelected : [])
                     }
-                    if let notice = browser.notice {
-                        Text(notice)
+                    if let failure {
+                        Text(failure)
                             .font(HermesFont.caption)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(HermesColor.destructive)
                     }
                 }
                 .navigationTitle("Workspace")
@@ -66,7 +42,26 @@
                     }
                 }
             }
-            .task { await browser.load() }
+            // Read again on every open, so folders that came or went on the server show up.
+            .task { failure = await browser.refreshWorkspaces() }
+        }
+
+        /// Projects, then repos. A folder that is both shows once.
+        private var roots: [WorkspaceRoot] {
+            guard let list = browser.workspaces else { return [] }
+            var seen = Set<String>()
+            return (list.projects + list.repos).filter { seen.insert($0.root).inserted }
+        }
+
+        private func pick(_ root: WorkspaceRoot) {
+            guard moving == nil else { return }
+            moving = root.root
+            failure = nil
+            Task {
+                let refusal = await onPick(root.root)
+                moving = nil
+                if let refusal { failure = refusal } else { dismiss() }
+            }
         }
 
         private func row(_ root: WorkspaceRoot) -> some View {
@@ -81,7 +76,9 @@
                         .truncationMode(.head)
                 }
                 Spacer(minLength: 0)
-                if root.root == current {
+                if root.root == moving {
+                    ProgressView().controlSize(.small)
+                } else if root.root == current {
                     Image(systemName: "checkmark")
                         .foregroundStyle(HermesColor.accent)
                 }

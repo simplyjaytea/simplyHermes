@@ -15,6 +15,7 @@
 
         public private(set) var state: TranscriptState
         /// The folder this chat moved to in this run. Nil until the user picks one, then `state.info.cwd` is stale.
+        /// It clears when the server reports another folder, since the server knows best.
         public private(set) var workspaceCwd: String?
         /// Messages waiting for Hermes to be free.
         public private(set) var queue = MessageQueue()
@@ -69,6 +70,7 @@
         @ObservationIgnored private var firstSeen: [String: Date] = [:]
         @ObservationIgnored private var wasRunning = false
         @ObservationIgnored private var tasks: [Task<Void, Never>] = []
+        @ObservationIgnored private var isMovingWorkspace = false
 
         init(connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String) {
             self.connections = connections
@@ -100,6 +102,7 @@
                         for await next in states {
                             self?.noteTurnEnd(next.transcript.turn != nil)
                             self?.noteSubagents(next.transcript.subagents)
+                            self?.noteWorkspace(next.transcript.info?.cwd)
                             self?.state = next.transcript
                             self?.queue = next.queue
                         }
@@ -150,15 +153,19 @@
             Task { await controller.moveQueued(id, to: position) }
         }
 
-        /// Moves this chat into another folder on the server. Returns false when the server refuses (WP-37).
-        public func moveWorkspace(to cwd: String) async -> Bool {
-            guard let client else { return false }
+        /// Moves this chat into another folder on the server. Returns nil when it moved, else why the server refused,
+        /// and only one move runs at a time (WP-37).
+        public func moveWorkspace(to cwd: String) async -> String? {
+            guard let client else { return String(localized: "The server is not reachable.") }
+            guard !isMovingWorkspace else { return String(localized: "The chat is already moving.") }
+            isMovingWorkspace = true
+            defer { isMovingWorkspace = false }
             let params = SessionWorkspaceMoveParams(sessionKey: storedSessionID, cwd: cwd)
             do {
                 workspaceCwd = try await client.moveSessionWorkspace(params).cwd
-                return true
+                return nil
             } catch {
-                return false
+                return Self.describe(error)
             }
         }
 
@@ -183,6 +190,11 @@
 
         private func noteSubagents(_ states: [SubagentState]) {
             for item in states where firstSeen[item.id] == nil { firstSeen[item.id] = Date() }
+        }
+
+        /// The server's folder wins once it changes, for example when another device moves the chat.
+        private func noteWorkspace(_ cwd: String?) {
+            if cwd != state.info?.cwd { workspaceCwd = nil }
         }
 
         private static func connection(for phase: ConnectionPhase?) -> StripConnection {

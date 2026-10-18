@@ -32,7 +32,7 @@
                     TaskProgressPill(progress: tasks)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                ComposerPills(info: chat.state.info)
+                ComposerPills(info: chat.state.info, workspace: chat.workspaceCwd) { showsWorkspaces = true }
                 Composer(
                     text: model.draftBinding(for: sessionID),
                     attachments: model.attachmentsBinding(for: sessionID),
@@ -285,11 +285,8 @@
                     )
                     .padding(.horizontal, 12)
                     .padding(.top, 4)
-                    HStack(spacing: 8) {
-                        WorkspacePill(folder: workspaceFolder) { showsWorkspaces = true }
-                        ArtifactsButton { showsArtifacts = true }
-                    }
-                    .padding(.horizontal, 12)
+                    ArtifactsButton { showsArtifacts = true }
+                        .padding(.horizontal, 12)
                 }
             }
         }
