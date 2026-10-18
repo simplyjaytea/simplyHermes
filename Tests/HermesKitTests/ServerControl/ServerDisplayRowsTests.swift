@@ -49,6 +49,26 @@ import Testing
         #expect(lines.first == "{" && lines.last == "}" && lines.count == 3)
     }
 
+    @Test func logLinesLoseTheirSecretsButKeepHostsAndAddresses() {
+        // Tokens, keys and bearer values go before the screen shows a line. The host and the addresses stay.
+        let answer: JSONValue = .object([
+            "file": .string("agent"),
+            "lines": .array([
+                .string("GET /api/ws?token=abc123def456&ticket=zz9988 200"),
+                .string("Request sent with Bearer abcdef1234567890"),
+                .string("push with ghp_abcdefghijklmnop1234 done"),
+                .string("gateway at home.example.ts.net 192.168.1.20 up"),
+            ]),
+        ])
+        #expect(
+            ServerLogsRows.lines(from: answer) == [
+                "GET /api/ws?token=[redacted]&ticket=[redacted] 200",
+                "Request sent with Bearer [redacted]",
+                "push with [redacted token] done",
+                "gateway at home.example.ts.net 192.168.1.20 up",
+            ])
+    }
+
     @Test func analyticsSplitTotalsFromPerModelGroups() {
         // GET_api_analytics_models.json and GET_api_analytics_usage.json, trimmed: a scalar, totals, a list of objects.
         let json: JSONValue = .object([

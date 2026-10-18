@@ -51,6 +51,9 @@
             return false
         }
 
+        /// The name of the server the actions go to: the active connection.
+        public var targetName: String? { connections.active?.name }
+
         /// Reads the status and the idle diagnostic of the active server.
         public func load() async {
             guard connections.manager != nil else { return }

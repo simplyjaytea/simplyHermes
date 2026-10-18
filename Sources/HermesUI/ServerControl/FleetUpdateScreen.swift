@@ -2,11 +2,10 @@
     import HermesKit
     import SwiftUI
 
-    /// Settings > Server > Update all servers: the check and update of every saved server, one at a time, behind a
-    /// confirm. Each server gets a line in the result list (WP-54).
+    /// Settings > Server > Update all servers: the check of every saved server, one at a time. A server with an update
+    /// asks first, by name, with Update, Skip and Stop. Each server gets a line in the result list (WP-54).
     public struct FleetUpdateScreen: View {
         @State private var model: FleetUpdateModel
-        @State private var confirming = false
 
         public init(connections: ConnectionsModel) {
             _model = State(initialValue: FleetUpdateModel(connections: connections))
@@ -20,13 +19,13 @@
             List {
                 Section {
                     Button("Update all servers…") {
-                        confirming = true
+                        model.start()
                     }
                     .buttonStyle(HermesButtonStyle(.primary))
                     .disabled(model.isBusy || model.servers.isEmpty)
                     .accessibilityIdentifier("fleetUpdate.start")
                 } footer: {
-                    Text("Each saved server is checked, then updated if an update exists. One server at a time.")
+                    Text("Each saved server is checked. You confirm each update before it runs. One server at a time.")
                 }
                 if let errorText = model.errorText {
                     Section {
@@ -41,12 +40,17 @@
                 }
             }
             .navigationTitle("Update all servers")
-            .confirmationDialog("Update all servers?", isPresented: $confirming, titleVisibility: .visible) {
-                Button("Update all servers", role: .destructive) {
-                    Task { await model.run() }
-                }
-            } message: {
-                Text("Each saved server is checked and updated in turn. Servers restart during their update.")
+            .confirmationDialog(
+                model.question.map { "Update Hermes on \($0.server.name)?" } ?? "",
+                isPresented: Binding(get: { model.question != nil }, set: { if !$0 { model.dismissQuestion() } }),
+                titleVisibility: .visible, presenting: model.question
+            ) { _ in
+                Button("Update", role: .destructive) { model.answer(.update) }
+                Button("Skip") { model.answer(.skip) }
+                Button("Stop", role: .cancel) { model.answer(.stop) }
+            } message: { question in
+                let version = question.check.currentVersion ?? "Current version unknown"
+                Text("\(version), update available. The server restarts.")
             }
         }
 

@@ -59,18 +59,18 @@ extension RESTClient {
     /// Sends a gateway action. Start, stop and restart are `POST /api/gateway/{action}`; drain and cancel drain are
     /// `POST /api/gateway/drain` with an action in the body. Unverified, needs real server [JT]: the recorder forbids
     /// `/api/gateway/*` (Fixtures/rest/index.json), so no answer is recorded. Only the HTTP status is read; the screens
-    /// then refetch `GET /api/status`.
+    /// then refetch `GET /api/status`. A 2xx HTML page, such as a login page, is refused rather than read as sent.
     public func gatewayControl(_ action: ServerControlAction) async throws {
         switch action {
         case .start:
-            _ = try await sendRaw("POST", "/api/gateway/start")
+            let _: HTTPResponse = try await send("POST", "/api/gateway/start")
         case .stop:
-            _ = try await sendRaw("POST", "/api/gateway/stop")
+            let _: HTTPResponse = try await send("POST", "/api/gateway/stop")
         case .restart:
-            _ = try await sendRaw("POST", "/api/gateway/restart")
+            let _: HTTPResponse = try await send("POST", "/api/gateway/restart")
         case .drain, .cancelDrain:
             let body = ServerControlDrainBody(action: action == .cancelDrain ? "cancel" : "drain")
-            _ = try await sendRaw("POST", "/api/gateway/drain", body: body, scoped: false)
+            let _: HTTPResponse = try await send("POST", "/api/gateway/drain", body: body, scoped: false)
         }
     }
 
@@ -84,7 +84,7 @@ extension RESTClient {
     /// testbed recorded no update write. Only the HTTP status is read; the screens then poll ``hermesUpdateReceipt()``
     /// and `GET /api/status`.
     public func hermesUpdate() async throws {
-        _ = try await sendRaw("POST", "/api/hermes/update", scoped: false)
+        let _: HTTPResponse = try await send("POST", "/api/hermes/update", scoped: false)
     }
 
     /// `GET /api/hermes/update/receipt`. The testbed recorded only the 404 answer, `No update receipt found`

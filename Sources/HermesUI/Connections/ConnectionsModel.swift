@@ -100,6 +100,8 @@
         @ObservationIgnored public let services: ConnectionServices
         /// Connects on demand. Nil when ``ConnectionServices/connectionDriver`` is nil.
         @ObservationIgnored public private(set) var manager: ConnectionManager?
+        /// False while a fleet update connects the saved servers, so those connects leave the last used server alone.
+        @ObservationIgnored var recordsLastUsed = true
         @ObservationIgnored private var phaseWatcher: Task<Void, Never>?
 
         /// Loads saved connections from `store`. Nil keeps them in memory only (previews, UI tests).
@@ -178,6 +180,7 @@
         }
 
         private func markConnected(_ id: UUID) {
+            guard recordsLastUsed else { return }
             saved.markConnected(id)
             persist()
         }

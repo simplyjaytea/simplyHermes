@@ -44,6 +44,8 @@ public enum HermesUpdateRunOutcome: Sendable, Equatable {
     case manualUpdateNeeded(command: String?, message: String?)
     /// The check could not tell whether an update exists.
     case checkUnclear(message: String?)
+    /// The user chose not to update this server. Nothing was started.
+    case skipped
     /// The update left a new receipt. `compatibility` is the version check run afterwards.
     case finished(compatibility: ServerCompatibility, receipt: JSONValue)
     /// No new receipt, or no answer to the version check, within the window.
@@ -56,6 +58,8 @@ public struct HermesUpdateFlow: Sendable, Equatable {
     public static let defaultPollInterval: Double = 3
     /// Longest wait for the receipt: 15 minutes.
     public static let defaultTimeout: Double = 900
+    /// Longest wait for the receipt read before the update: 60 seconds.
+    private static let baselineWindow: Double = 60
 
     /// Seconds between polls.
     public var pollInterval: Double
@@ -70,9 +74,10 @@ public struct HermesUpdateFlow: Sendable, Equatable {
         self.timeout = timeout
     }
 
-    /// Checks first (forced), updates only when the check says an update exists and this install can apply it.
+    /// Checks first (forced), updates only when the check says an update exists, this install can apply it, and
+    /// `confirm` says yes. `confirm` runs after the check, with the check's answer, so the user sees what will change.
     public func checkAndApply(
-        _ steps: HermesUpdateSteps, clock: any GatewayClock
+        _ steps: HermesUpdateSteps, clock: any GatewayClock, confirm: @Sendable (HermesUpdateCheck) async -> Bool
     ) async throws -> HermesUpdateRunOutcome {
         let check = try await steps.check(true)
         guard check.updateAvailable == true else {
@@ -82,13 +87,14 @@ public struct HermesUpdateFlow: Sendable, Equatable {
         guard check.canApply == true else {
             return .manualUpdateNeeded(command: check.updateCommand, message: check.message)
         }
+        guard await confirm(check) else { return .skipped }
         return try await apply(steps, clock: clock)
     }
 
     /// Starts the update and waits for a receipt that differs from the one read before. Then reads the version again,
-    /// once the server answers.
+    /// once the server answers. Throws when no receipt read answers before the update, so the update does not start.
     public func apply(_ steps: HermesUpdateSteps, clock: any GatewayClock) async throws -> HermesUpdateRunOutcome {
-        let baseline = Self.receipt(of: await steps.poll())
+        let baseline = try await baselineReceipt(steps, clock: clock)
         try await steps.startUpdate()
         let start = clock.now()
         var finished: JSONValue?
@@ -104,8 +110,20 @@ public struct HermesUpdateFlow: Sendable, Equatable {
         }
     }
 
-    private static func receipt(of poll: HermesUpdatePoll) -> JSONValue? {
-        if case .receipt(let receipt) = poll { return receipt }
-        return nil
+    /// The receipt before the update. A read that does not answer is retried every poll interval, for up to 60 seconds.
+    /// If no read answers, the update does not start: a later read of the old receipt would then count as new.
+    private func baselineReceipt(_ steps: HermesUpdateSteps, clock: any GatewayClock) async throws -> JSONValue? {
+        let start = clock.now()
+        while true {
+            switch await steps.poll() {
+            case .receipt(let receipt):
+                return receipt
+            case .absent:
+                return nil
+            case .unreachable:
+                if clock.now() - start >= Self.baselineWindow { throw ServerControlError.notConnected }
+                try await clock.sleep(seconds: pollInterval)
+            }
+        }
     }
 }

@@ -90,7 +90,8 @@ import Testing
         #expect(request.url.query == nil && request.body == nil)
     }
 
-    /// Writes the testbed did not record read only the HTTP status: a 200 with any body succeeds, and a refusal throws.
+    /// Writes the testbed did not record read only the HTTP status: a 200 with a body that is not a web page succeeds,
+    /// and a refusal throws.
     @Test func writesReadOnlyTheStatus() async throws {
         let http = FakeHTTP()
         http.enqueue(200, "not json, and never read")
@@ -103,6 +104,19 @@ import Testing
             refused = true
         }
         #expect(refused)
+    }
+
+    /// A login page with status 200 is not an answer to a gateway write, so it is refused rather than read as sent.
+    @Test func aGatewayWriteRefusesAWebPage() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, "<html>sign in</html>", headers: ["Content-Type": "text/html"])
+        var refused: RESTError?
+        do {
+            try await makeClient(http).gatewayControl(.start)
+        } catch let error as RESTError {
+            refused = error
+        }
+        #expect(refused == .unexpectedContent(contentType: "text/html"))
     }
 
     @Test func receiptIsAnUnscopedGet() async throws {

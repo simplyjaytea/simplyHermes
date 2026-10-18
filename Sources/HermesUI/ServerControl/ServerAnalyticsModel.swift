@@ -50,6 +50,7 @@
                 groups = Self.makeGroups(from: models ?? usage)
                 errorText = nil
             } catch {
+                if Task.isCancelled { return }
                 errorText = ServerControlError.describe(error)
             }
         }

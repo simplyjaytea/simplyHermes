@@ -69,14 +69,21 @@ public struct ServerLogsFilter: Sendable, Equatable {
 
 /// Reads log lines out of a `GET /api/logs` answer. The recorder's `{file, lines}` answer has `lines` as a list of
 /// strings (Fixtures/rest/GET_api_logs.json), kept in the server's order. A line's trailing newline is dropped. Any
-/// other answer is shown as the JSON it is.
+/// other answer is shown as the JSON it is. Each line loses its secrets (tokens, keys and bearer values) before it is
+/// shown; hosts and addresses stay.
 public enum ServerLogsRows {
+    /// Removes secrets only: a log line can carry a token, and the screen lets the user copy it.
+    private static let redactor = DiagnosticsRedactor()
+
     /// The lines to show, in the order the server sent them.
     public static func lines(from json: JSONValue) -> [String] {
+        let shown: [String]
         if case .object(let fields) = json, case .array(let items)? = fields["lines"] {
-            return items.map(line)
+            shown = items.map(line)
+        } else {
+            shown = pretty(json).split(whereSeparator: \.isNewline).map(String.init)
         }
-        return pretty(json).split(whereSeparator: \.isNewline).map(String.init)
+        return shown.map { redactor.redactSecrets($0) }
     }
 
     private static func line(_ item: JSONValue) -> String {

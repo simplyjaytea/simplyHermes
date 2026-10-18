@@ -33,13 +33,18 @@
             .navigationTitle("Hermes update")
             .refreshable { await model.loadCheck(force: true) }
             .task { await model.loadCheck(force: false) }
-            .confirmationDialog("Update Hermes?", isPresented: $confirming, titleVisibility: .visible) {
+            .confirmationDialog(dialogTitle, isPresented: $confirming, titleVisibility: .visible) {
                 Button("Update Hermes", role: .destructive) {
                     Task { await model.startUpdate() }
                 }
             } message: {
                 Text("The server restarts during the update. The app waits for the new receipt, up to 15 minutes.")
             }
+        }
+
+        /// Names the server the update goes to, so the dialog says which server restarts.
+        private var dialogTitle: String {
+            model.targetName.map { "Update Hermes on \($0)?" } ?? "Update Hermes?"
         }
 
         private func installedSection(_ check: HermesUpdateCheck) -> some View {

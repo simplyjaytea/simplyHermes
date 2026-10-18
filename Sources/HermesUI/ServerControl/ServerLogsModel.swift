@@ -39,6 +39,7 @@
                 lines = ServerLogsRows.lines(from: answer)
                 errorText = nil
             } catch {
+                if Task.isCancelled { return }
                 errorText = ServerControlError.describe(error)
             }
         }

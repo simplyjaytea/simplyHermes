@@ -43,6 +43,9 @@
             phase == .checking || phase == .updating
         }
 
+        /// The name of the server the update goes to: the active connection.
+        public var targetName: String? { connections.active?.name }
+
         /// Reads the update check. `force` asks the server to look again rather than answer from its cache.
         public func loadCheck(force: Bool) async {
             guard connections.manager != nil, !isBusy else { return }

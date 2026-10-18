@@ -46,10 +46,11 @@ public struct ServerControlBackend: Sendable {
     }
 
     /// The REST client when the connection is up now. Otherwise starts a connect, at most once per
-    /// ``ServerControlConnectPacer`` pace, and returns nil.
+    /// ``ServerControlConnectPacer`` pace, and returns nil. A connect that is already running takes no pace.
     public func liveRest() async -> RESTClient? {
         if let rest = await manager.rest(for: connection.id) { return rest }
-        if await pacer.mayConnect() { await manager.connect(connection) }
+        let phase = await manager.phase(of: connection.id)
+        if phase.acceptsConnect, await pacer.mayConnect() { await manager.connect(connection) }
         return nil
     }
 

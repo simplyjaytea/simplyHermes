@@ -49,7 +49,7 @@
                 }
             }
             .confirmationDialog(
-                pending.map { ServerControlModel.title(for: $0) } ?? "",
+                pending.map { dialogTitle(for: $0) } ?? "",
                 isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }),
                 titleVisibility: .visible, presenting: pending
             ) { action in
@@ -120,6 +120,12 @@
             case .idle, .working:
                 EmptyView()
             }
+        }
+
+        /// The action and the server it goes to, so the dialog says which server the action reaches.
+        private func dialogTitle(for action: ServerControlAction) -> String {
+            guard let name = model.targetName else { return ServerControlModel.title(for: action) }
+            return "\(ServerControlModel.title(for: action)) on \(name)"
         }
 
         private func kind(for action: ServerControlAction) -> HermesButtonStyle.Kind {
