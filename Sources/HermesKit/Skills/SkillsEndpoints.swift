@@ -59,8 +59,9 @@ extension RESTClient {
     }
 
     /// `GET /api/skills/hub/search?q=&source=&limit=`. The server searches every source, so this can take a while.
-    public func searchSkillHub(_ query: String, source: String = "all", limit: Int = 20) async throws -> SkillHubSearch
-    {
+    public func searchSkillHub(
+        _ query: String, source: String = "all", limit: Int = 20
+    ) async throws -> SkillHubSearch {
         try await get(
             "/api/skills/hub/search",
             query: [

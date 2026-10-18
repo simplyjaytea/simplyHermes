@@ -141,10 +141,13 @@
                     .accessibilityIdentifier("skills.hub")
                 }
             }
-            .sheet(isPresented: $showsHub, onDismiss: { Task { await model.load() } }) {
+            .sheet(isPresented: $showsHub) {
                 NavigationStack {
                     SkillHubSheet(connections: connections)
                 }
+            }
+            .onChange(of: showsHub) { _, isShowing in
+                if !isShowing { Task { await model.load() } }
             }
             .task { await model.load() }
             .refreshable { await model.load() }
