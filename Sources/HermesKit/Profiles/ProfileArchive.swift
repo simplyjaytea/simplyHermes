@@ -99,11 +99,27 @@ public struct ProfileArchive: Sendable, Equatable {
         return text.allSatisfy { alphabet.contains($0) }
     }
 
-    /// Writes the archive into a new folder under `root` and returns the file. The name comes from the profile.
+    /// The folder every export writes into, under `root`. Its name is fixed, so a later sheet opening
+    /// finds and clears the export of an earlier one.
+    public static func exportFolder(in root: URL = FileManager.default.temporaryDirectory) -> URL {
+        root.appendingPathComponent("hermes-bot-export", isDirectory: true)
+    }
+
+    /// Removes the export folder and the file in it, when there is one. Exports call this before they write,
+    /// so the last export is gone before the next one is written.
+    public static func removeExportFolder(in root: URL = FileManager.default.temporaryDirectory) throws {
+        let folder = exportFolder(in: root)
+        guard FileManager.default.fileExists(atPath: folder.path) else { return }
+        try FileManager.default.removeItem(at: folder)
+    }
+
+    /// Writes the archive into the export folder under `root` and returns the file. The name comes from the profile.
+    /// The folder is created when it is missing. Removing the last export is the caller's job, see
+    /// ``removeExportFolder(in:)``.
     public func writeTemporaryFile(
         for profile: String, in root: URL = FileManager.default.temporaryDirectory
     ) throws -> URL {
-        let folder = root.appendingPathComponent("profile-export-" + UUID().uuidString, isDirectory: true)
+        let folder = Self.exportFolder(in: root)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent(Self.fileStem(for: profile) + "." + fileExtension)
         try data.write(to: url, options: .atomic)

@@ -16,8 +16,6 @@
 
         @ObservationIgnored private let profiles: ProfilesModel
         @ObservationIgnored private let connections: ConnectionsModel
-        /// The folder holding the last export. The next export removes it.
-        @ObservationIgnored private var exportFolder: URL?
 
         /// Creates the model for the profiles and servers the app already holds.
         public init(profiles: ProfilesModel, connections: ConnectionsModel) {
@@ -30,9 +28,8 @@
             profiles.appliesTo.target(in: profiles.selection.profiles, active: profiles.selection.current?.name)
         }
 
-        /// Exports the target bot into a new folder in the temporary directory and returns the file for the share sheet.
-        /// Nil when the export failed, and ``problem`` says why. The file stays in place until the next export
-        /// removes it.
+        /// Exports the target bot into the export folder under the temporary directory and returns its file for the
+        /// share sheet. The last export is removed first. Nil when the export failed, and ``problem`` says why.
         public func exportTarget() async -> URL? {
             guard let name = target, let connection = connections.active, let manager = connections.manager else {
                 return nil
@@ -45,7 +42,6 @@
                 let rest = try await restClient(for: connection, manager: manager)
                 let archive = try await rest.exportProfileArchive(name: name)
                 let file = try await Task.detached { try archive.writeTemporaryFile(for: name) }.value
-                exportFolder = file.deletingLastPathComponent()
                 problem = nil
                 return file
             } catch {
@@ -54,14 +50,13 @@
             }
         }
 
-        /// Removes the folder of the last export. Only the next export calls it, before it writes its own file.
-        /// Closing the share sheet does not: AirDrop and Files can still read the file after it closes. Leftovers
-        /// are left to the system's temporary-directory cleanup.
-        public func discardExport() async {
-            guard let folder = exportFolder else { return }
-            exportFolder = nil
+        /// Removes the export folder, so the last export is gone before a new one is written. Every export calls it
+        /// first, from any opening of the sheet, since the folder has one fixed name. Closing the share sheet does
+        /// not call it, because AirDrop and Files can read the file after it closes. Leftovers are left to the
+        /// system's temporary-directory cleanup.
+        private func discardExport() async {
             await Task.detached {
-                _ = try? FileManager.default.removeItem(at: folder)
+                _ = try? ProfileArchive.removeExportFolder()
             }.value
         }
 

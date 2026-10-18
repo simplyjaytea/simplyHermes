@@ -98,6 +98,28 @@ private func sentBody(_ request: HTTPRequest?) throws -> [String: Any] {
         #expect(unnamed.lastPathComponent == "profile.zip")
     }
 
+    @Test func aNewExportReplacesTheLastOneInTheFixedFolder() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "profile-transfer-tests-" + UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let first = try ProfileArchive(data: gzipBytes).writeTemporaryFile(for: "ops", in: root)
+        #expect(first.deletingLastPathComponent().lastPathComponent == "hermes-bot-export")
+        try ProfileArchive.removeExportFolder(in: root)
+        #expect(!FileManager.default.fileExists(atPath: first.path), "the last export is gone before the next one")
+        let second = try ProfileArchive(data: gzipBytes).writeTemporaryFile(for: "research", in: root)
+        #expect(second.deletingLastPathComponent().lastPathComponent == "hermes-bot-export")
+        #expect(second.lastPathComponent == "research.tar.gz")
+        #expect(try Data(contentsOf: second) == gzipBytes)
+    }
+
+    @Test func removingAMissingExportFolderDoesNothing() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "profile-transfer-tests-" + UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try ProfileArchive.removeExportFolder(in: root)
+        #expect(!FileManager.default.fileExists(atPath: ProfileArchive.exportFolder(in: root).path))
+    }
+
     @Test func importSendsTheArchiveAsBase64AndTheNameWhenRenaming() async throws {
         let http = FakeHTTP()
         http.enqueue(200, #"{"ok":true,"name":"ops2"}"#)
