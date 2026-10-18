@@ -1,6 +1,5 @@
 #if canImport(UIKit)
     import HermesKit
-    import HermesKit
     import Observation
     import SwiftUI
 
