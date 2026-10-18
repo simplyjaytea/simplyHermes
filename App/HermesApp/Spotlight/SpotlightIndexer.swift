@@ -24,7 +24,10 @@ final class SpotlightIndexer {
     private var isSending = false
     private let logger = Logger(subsystem: "com.simplyjaytea.simplyhermes", category: "Spotlight")
 
-    init(directory: URL, index: CSSearchableIndex = .default()) {
+    /// `.complete` protection keeps titles unreadable while the phone is locked, so Lock Screen search shows no chat.
+    init(
+        directory: URL, index: CSSearchableIndex = CSSearchableIndex(name: "simplyHermes", protectionClass: .complete)
+    ) {
         self.index = index
         store = SpotlightIndexState.store(directory: directory)
         let saved = store.load()
