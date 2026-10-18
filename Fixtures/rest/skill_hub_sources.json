@@ -1,0 +1,22 @@
+{
+  "sources": [
+    {"id": "official", "label": "Official (Nous)", "searchable": true},
+    {"id": "github", "label": "GitHub", "rate_limited": false, "searchable": false},
+    {"id": "hermes-index", "label": "Hermes Index", "available": true, "searchable": true}
+  ],
+  "index_available": true,
+  "featured": [
+    {
+      "name": "arxiv",
+      "description": "Search and summarize arXiv papers.",
+      "source": "official",
+      "identifier": "official/research/arxiv",
+      "trust_level": "builtin",
+      "repo": null,
+      "tags": ["research"]
+    }
+  ],
+  "installed": {
+    "official/devops/docker-management": {"name": "docker-management", "trust_level": "builtin", "scan_verdict": "safe"}
+  }
+}

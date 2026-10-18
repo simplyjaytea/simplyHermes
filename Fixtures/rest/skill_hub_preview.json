@@ -1,0 +1,11 @@
+{
+  "name": "arxiv",
+  "description": "Search and summarize arXiv papers.",
+  "source": "official",
+  "identifier": "official/research/arxiv",
+  "trust_level": "builtin",
+  "repo": null,
+  "tags": ["research", "papers"],
+  "skill_md": "---\nname: arxiv\ndescription: Search and summarize arXiv papers.\n---\n\n# arXiv\n",
+  "files": ["SKILL.md", "references/query-syntax.md"]
+}

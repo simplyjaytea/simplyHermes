@@ -1,0 +1,25 @@
+{
+  "results": [
+    {
+      "name": "arxiv",
+      "description": "Search and summarize arXiv papers.",
+      "source": "official",
+      "identifier": "official/research/arxiv",
+      "trust_level": "builtin",
+      "repo": null,
+      "tags": ["research"]
+    },
+    {
+      "name": "paper-notes",
+      "description": "Keep reading notes for papers.",
+      "source": "github",
+      "identifier": "github/example-org/paper-notes",
+      "trust_level": "community",
+      "repo": "example-org/paper-notes",
+      "tags": []
+    }
+  ],
+  "source_counts": {"official": 1, "github": 1},
+  "timed_out": ["clawhub"],
+  "installed": {}
+}

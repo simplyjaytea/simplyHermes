@@ -1,0 +1,43 @@
+{
+  "plugins": [
+    {
+      "name": "example-tools",
+      "version": "1.2.0",
+      "description": "Adds example tools to every chat.",
+      "source": "git",
+      "runtime_status": "enabled",
+      "has_dashboard_manifest": false,
+      "dashboard_manifest": null,
+      "path": "/home/hermes/.hermes/plugins/example-tools",
+      "can_remove": true,
+      "can_update_git": true,
+      "auth_required": false,
+      "auth_command": "",
+      "user_hidden": false,
+      "removed_reason": null
+    },
+    {
+      "name": "example-memory",
+      "version": "0.4.0",
+      "description": "Keeps notes between sessions.",
+      "source": "bundled",
+      "runtime_status": "disabled",
+      "has_dashboard_manifest": true,
+      "dashboard_manifest": {"tab": {"label": "Notes"}},
+      "path": "/opt/hermes/plugins/example-memory",
+      "can_remove": false,
+      "can_update_git": false,
+      "auth_required": true,
+      "auth_command": "example-memory login",
+      "user_hidden": false,
+      "removed_reason": null
+    }
+  ],
+  "orphan_dashboard_plugins": [],
+  "providers": {
+    "memory_provider": "",
+    "memory_options": [],
+    "context_engine": "",
+    "context_options": []
+  }
+}

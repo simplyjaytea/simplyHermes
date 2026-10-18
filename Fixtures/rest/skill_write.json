@@ -1,0 +1,9 @@
+{
+  "success": true,
+  "message": "Skill 'claude-code' updated (full rewrite).",
+  "path": "/opt/hermes/skills/autonomous-ai-agents/claude-code",
+  "_change": {
+    "description": "Delegate coding to Claude Code CLI (features, PRs)."
+  },
+  "system_prompt_preview": "System prompt will show: \"Delegate coding to Claude Code CLI\" - keep the trigger self-contained in the first 60 chars."
+}

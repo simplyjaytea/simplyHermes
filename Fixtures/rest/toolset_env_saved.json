@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "name": "web",
+  "saved": ["FIRECRAWL_API_KEY"],
+  "skipped": [],
+  "is_set": {"FIRECRAWL_API_KEY": true}
+}
