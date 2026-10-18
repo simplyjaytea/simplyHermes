@@ -34,8 +34,8 @@
                     }
                     Section {
                         Picker("API mode", selection: $form.apiMode) {
-                            Text("Automatic").tag(Optional<ProviderAPIMode>.none)
-                            ForEach(ProviderAPIMode.allCases, id: \.self) { mode in
+                            Text("Automatic").tag(Optional<String>.none)
+                            ForEach(ProviderAPIModes.options, id: \.self) { mode in
                                 Text(ProviderModeLabel.title(for: mode)).tag(Optional(mode))
                             }
                         }

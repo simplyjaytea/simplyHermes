@@ -12,8 +12,8 @@
         var baseUrl = ""
         var modelId = ""
         var apiKey = ""
-        /// Nil is automatic.
-        var apiMode: ProviderAPIMode?
+        /// One of ``ProviderAPIModes``. Nil is automatic.
+        var apiMode: String?
         var contextLengthText = ""
         var discoverModels = true
         var makeDefault = false
@@ -47,13 +47,14 @@
             }
         }
 
-        /// Saves the endpoint. With "Use as default" on, it also becomes the provider for new chats.
+        /// Saves the endpoint. With "Use as default" on, it also becomes the provider for new chats. Status-only: the
+        /// list is read again by the screen when the sheet closes.
         func save() async {
             guard let draft = currentDraft(), let rest = await ProviderServer.rest(connections) else { return }
             isWorking = true
             defer { isWorking = false }
             do {
-                _ = try await rest.saveCustomEndpoint(draft)
+                try await rest.saveCustomEndpoint(draft)
                 apiKey = ""
                 didSave = true
                 errorText = nil
@@ -78,7 +79,7 @@
             return ProviderCustomEndpointDraft(
                 name: name.providerTrimmed, baseUrl: baseUrl.providerTrimmed, model: modelId.providerTrimmed,
                 apiKey: apiKey.providerNonEmpty, apiMode: apiMode, contextLength: contextLength,
-                discoverModels: discoverModels, makeDefault: makeDefault)
+                discoverModels: discoverModels, makeDefault: makeDefault ? true : nil)
         }
     }
 #endif

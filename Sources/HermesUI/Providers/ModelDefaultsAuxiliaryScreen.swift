@@ -32,14 +32,14 @@
                 }
                 Section {
                     ForEach(model.tasks) { task in
-                        ModelDefaultsAuxiliaryRow(task: task, setEffort: model.setEfforts[task.task]) { effort in
+                        ModelDefaultsAuxiliaryRow(task: task) { effort in
                             Task { await model.setEffort(effort, for: task) }
                         }
                     }
                 } header: {
                     Text("Tasks")
                 } footer: {
-                    Text("A picked effort is sent at once. The server does not report the stored effort.")
+                    Text("A picked effort is sent at once. The list is read again after each change.")
                 }
                 if let errorText = model.errorText {
                     Section {
@@ -54,27 +54,23 @@
         }
     }
 
-    /// One auxiliary task: its name, the model it runs, and a menu to set its effort.
+    /// One auxiliary task: its name, the model it runs, the effort the server stores, and a menu to set the effort.
     struct ModelDefaultsAuxiliaryRow: View {
         let task: ModelDefaultsAuxiliaryTask
-        /// The effort this screen set for the task, if any.
-        let setEffort: String?
         let onPick: (String) -> Void
 
         var body: some View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(task.label ?? task.task)
+                    Text(task.task)
                         .font(HermesFont.body.weight(.semibold))
                     Text(routeText)
                         .font(HermesFont.codeSmall)
                         .foregroundStyle(HermesColor.secondaryText)
                         .lineLimit(1)
-                    if let setEffort {
-                        Text("Effort set to \(setEffort)")
-                            .font(HermesFont.caption)
-                            .foregroundStyle(HermesColor.statusConnected)
-                    }
+                    Text(effortText)
+                        .font(HermesFont.caption)
+                        .foregroundStyle(HermesColor.secondaryText)
                 }
                 Spacer(minLength: 8)
                 Menu {
@@ -92,6 +88,11 @@
             let provider = task.provider?.providerNonEmpty ?? "auto"
             guard let model = task.model?.providerNonEmpty else { return provider }
             return provider + " · " + model
+        }
+
+        private var effortText: String {
+            guard let effort = task.reasoningEffort?.providerNonEmpty else { return "Effort: default" }
+            return "Effort: " + effort
         }
     }
 

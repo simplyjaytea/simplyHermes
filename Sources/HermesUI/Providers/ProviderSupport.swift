@@ -26,16 +26,8 @@
         }
     }
 
-    /// The words shown for a provider key check (`POST /api/providers/validate`).
-    enum ProviderKeyCheckText {
-        static func text(for check: ProviderCredentialCheck) -> String {
-            if check.ok { return "The provider accepted this key." }
-            if check.reachable == false { return check.message ?? "Could not reach the provider. You can still save." }
-            return check.message ?? "The provider refused this key."
-        }
-    }
-
-    /// An answer the API contract does not type, shown as JSON text. `limit` cuts long text; nil keeps all of it.
+    /// An answer shown as JSON text, as the server sent it. Used where the answer is not typed (reveal, validate).
+    /// `limit` cuts long text; nil keeps all of it.
     enum ProviderAnswer {
         static func text(_ value: JSONValue, limit: Int? = nil) -> String {
             let encoder = JSONEncoder()
@@ -46,19 +38,19 @@
         }
     }
 
-    /// The reasoning-effort values the pickers offer. The API contract does not list them;
-    /// the server has the last word.
+    /// The reasoning-effort values the pickers offer. The testbed recorded only "none", so the server has the last word.
     enum ModelDefaultsEffort {
         static let options = ["minimal", "low", "medium", "high", "xhigh"]
     }
 
-    /// Names for the custom endpoint API modes.
+    /// Names for the custom endpoint API modes. A value the picker does not know is shown as it is.
     enum ProviderModeLabel {
-        static func title(for mode: ProviderAPIMode) -> String {
+        static func title(for mode: String) -> String {
             switch mode {
-            case .chatCompletions: "Chat completions"
-            case .codexResponses: "Codex responses"
-            case .anthropicMessages: "Anthropic messages"
+            case ProviderAPIModes.chatCompletions: "Chat completions"
+            case ProviderAPIModes.codexResponses: "Codex responses"
+            case ProviderAPIModes.anthropicMessages: "Anthropic messages"
+            default: mode
             }
         }
     }
@@ -74,7 +66,8 @@
         }
     }
 
-    /// Sample answers for previews, decoded from JSON with the same key rules as the REST client.
+    /// Sample answers for previews, decoded from JSON with the same key rules as the REST client. They are invented
+    /// for previews, not recorded answers.
     enum ProviderSamples {
         static let providers: [ModelProviderOptions] =
             decode(
@@ -98,12 +91,48 @@
             ModelDefaultsAuxiliary.self,
             #"""
             {"tasks":[
-              {"task":"vision","provider":"openrouter","model":"example-small","base_url":""},
-              {"task":"title","provider":"auto","model":"","base_url":"","label":"Chat titles",
-               "hint":"Short titles","plugin":"chat"}
+              {"task":"vision","provider":"openrouter","model":"example-small","base_url":"","reasoning_effort":null},
+              {"task":"title_generation","provider":"auto","model":"","base_url":"","reasoning_effort":"none"}
             ],"main":{"provider":"openrouter","model":"example-large"}}
             """#
         )
+
+        static let customEndpoints: [ProviderCustomEndpoint] =
+            decode(
+                ProviderCustomEndpointList.self,
+                #"""
+                {"endpoints":[
+                  {"id":"lab","name":"Lab endpoint","base_url":"http://192.168.1.20:8000/v1","model":"lab-model",
+                   "models":["lab-model"],"api_mode":"","discover_models":true,"has_api_key":true,"is_current":true,
+                   "source":"providers"},
+                  {"id":"home","name":"Home server","base_url":"http://10.0.0.5:11434/v1","model":"example-small",
+                   "models":[],"api_mode":"chat_completions","discover_models":false,"has_api_key":false,
+                   "is_current":false,"source":"providers"}
+                ]}
+                """#
+            )?.endpoints ?? []
+
+        static let credentialPool: [CredentialPoolProvider] =
+            decode(
+                CredentialPoolList.self,
+                #"""
+                {"providers":[{"provider":"openrouter","entries":[
+                  {"id":"a1b2c3","index":1,"label":"work","auth_type":"api_key","source":"manual","priority":0,
+                   "request_count":12}
+                ]}]}
+                """#
+            )?.providers ?? []
+
+        static let envKeys: [String: ApiKeyEntry] =
+            decode(
+                [String: ApiKeyEntry].self,
+                #"""
+                {"OPENROUTER_API_KEY":{"is_set":true,"is_password":true,"provider":"openrouter",
+                  "provider_label":"OpenRouter"},
+                 "ANTHROPIC_API_KEY":{"is_set":false,"is_password":true,"provider":"anthropic",
+                  "provider_label":"Anthropic"}}
+                """#
+            ) ?? [:]
 
         private static func decode<Value: Decodable>(_ type: Value.Type, _ json: String) -> Value? {
             let decoder = JSONDecoder()

@@ -63,7 +63,8 @@
             }
         }
 
-        /// Makes the chosen provider and model the main one. New chats use it; running chats keep theirs.
+        /// Makes the chosen provider and model the main one. New chats use it; running chats keep theirs. Status-only:
+        /// the model is read again, and the message reports what the server now holds.
         func save() async {
             guard let provider = providerSlug.providerNonEmpty, let model = modelId.providerNonEmpty else {
                 errorText = "Choose a provider and a model."
@@ -73,15 +74,22 @@
             isWorking = true
             defer { isWorking = false }
             let assignment = ModelDefaultsAssignment(
-                scope: .main, provider: provider, model: model, reasoningEffort: effort.providerNonEmpty)
+                scope: ModelDefaultsScopes.main, provider: provider, model: model,
+                reasoningEffort: effort.providerNonEmpty)
+            var failure: String?
             do {
                 try await rest.assignModel(assignment)
-                errorText = nil
-                savedText = "Saved. New chats use \(model)."
-                current = try? await rest.modelInfo()
             } catch {
+                failure = ProviderErrorText.message(for: error)
+            }
+            current = (try? await rest.modelInfo()) ?? current
+            errorText = failure
+            if failure != nil {
                 savedText = nil
-                errorText = ProviderErrorText.message(for: error)
+            } else if current?.provider == provider && current?.model == model {
+                savedText = "Saved. New chats use \(model)."
+            } else {
+                savedText = "Sent. The server still reports \(current?.model ?? "no model")."
             }
         }
     }

@@ -2,7 +2,7 @@
     import HermesKit
     import SwiftUI
 
-    /// Settings > Models > API keys: set, check, reveal and delete provider keys on the server (WP-53a).
+    /// Settings > Models > API keys: the keys set on the server, and set, check, reveal and delete (WP-53a).
     struct ApiKeyScreen: View {
         @State private var model: ApiKeyModel
         @State private var showsDeleteConfirm = false
@@ -17,6 +17,25 @@
 
         var body: some View {
             Form {
+                if !model.setNames.isEmpty {
+                    Section {
+                        ForEach(model.setNames, id: \.self) { key in
+                            Button {
+                                model.pick(key)
+                            } label: {
+                                HStack {
+                                    Text(key).font(HermesFont.codeSmall)
+                                    Spacer(minLength: 8)
+                                    Text("Set").foregroundStyle(HermesColor.secondaryText)
+                                }
+                            }
+                        }
+                    } header: {
+                        Text("Set on this server")
+                    } footer: {
+                        Text("Tap a name to fill in the form. Its value stays hidden until you tap Show value.")
+                    }
+                }
                 Section {
                     TextField("Name, such as OPENROUTER_API_KEY", text: $model.name)
                         .textInputAutocapitalization(.characters)
@@ -80,6 +99,8 @@
                 }
             }
             .navigationTitle("API keys")
+            .task { await model.load() }
+            .refreshable { await model.load() }
             .onDisappear { model.hideRevealed() }
             .confirmationDialog("Delete this key?", isPresented: $showsDeleteConfirm, titleVisibility: .visible) {
                 Button("Delete key", role: .destructive) {
@@ -92,18 +113,25 @@
     }
 
     #Preview("API keys, outer", traits: .fixedLayout(width: 466, height: 678)) {
-        NavigationStack { ApiKeyScreen(model: ApiKeyModel(connections: .preview())) }
+        NavigationStack { ApiKeyScreen(model: sampleModel()) }
     }
 
     #Preview("API keys, inner portrait", traits: .fixedLayout(width: 626, height: 890)) {
-        NavigationStack { ApiKeyScreen(model: ApiKeyModel(connections: .preview())) }
+        NavigationStack { ApiKeyScreen(model: sampleModel()) }
     }
 
     #Preview("API keys, inner landscape", traits: .fixedLayout(width: 890, height: 626)) {
-        NavigationStack { ApiKeyScreen(model: ApiKeyModel(connections: .preview())) }
+        NavigationStack { ApiKeyScreen(model: sampleModel()) }
     }
 
     #Preview("API keys, half-fold", traits: .fixedLayout(width: 890, height: 313)) {
-        NavigationStack { ApiKeyScreen(model: ApiKeyModel(connections: .preview())) }
+        NavigationStack { ApiKeyScreen(model: sampleModel()) }
+    }
+
+    /// A model with sample names and no connection, for previews.
+    @MainActor
+    private func sampleModel() -> ApiKeyModel {
+        let names = ProviderSamples.envKeys.filter { $0.value.isSet == true }.map { $0.key }.sorted()
+        return ApiKeyModel(connections: .preview(), setNames: names)
     }
 #endif

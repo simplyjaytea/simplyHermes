@@ -4,12 +4,15 @@
 
     /// Sets, checks, deletes and reveals provider keys in the server's env store (WP-53a).
     ///
-    /// The app never reads the store on its own. Only ``reveal()`` asks for a value, and only when the user taps Reveal.
+    /// The list shows only the names of variables that are set. Values are never read on load: only ``reveal()`` asks
+    /// for one, and only when the user taps Show value.
     @MainActor
     @Observable
     final class ApiKeyModel {
         var name = ""
         var value = ""
+        /// Names of the variables that have a value on the server, sorted.
+        private(set) var setNames: [String] = []
         private(set) var checkText: String?
         private(set) var statusText: String?
         private(set) var errorText: String?
@@ -18,11 +21,32 @@
         private(set) var isWorking = false
         @ObservationIgnored let connections: ConnectionsModel
 
-        init(connections: ConnectionsModel) {
+        init(connections: ConnectionsModel, setNames: [String] = []) {
             self.connections = connections
+            self.setNames = setNames
         }
 
-        /// Asks the provider whether the typed key works. Nothing is saved.
+        /// Reads the variables and keeps the names of those that are set. Does nothing until the connection is up.
+        func load() async {
+            guard let rest = await ProviderServer.rest(connections) else { return }
+            do {
+                let env = try await rest.envVars()
+                setNames = env.filter { $0.value.isSet == true }.map { $0.key }.sorted()
+                errorText = nil
+            } catch {
+                errorText = ProviderErrorText.message(for: error)
+            }
+        }
+
+        /// Fills the form from a name in the list. It reveals nothing.
+        func pick(_ key: String) {
+            name = key
+            value = ""
+            revealed = nil
+        }
+
+        /// Sends the typed key to the provider check. The check is status-only: its answer is not read, so the screen
+        /// claims nothing about the key. Nothing is saved.
         func check() async {
             guard let key = name.providerNonEmpty, let secret = value.providerNonEmpty else {
                 errorText = "Enter a name and a value."
@@ -32,8 +56,8 @@
             isWorking = true
             defer { isWorking = false }
             do {
-                let result = try await rest.validateProviderKey(ApiKeyWrite(key: key, value: secret))
-                checkText = ProviderKeyCheckText.text(for: result)
+                try await rest.validateProviderKey(ApiKeyWrite(key: key, value: secret))
+                checkText = "Check sent. The provider's answer is not shown yet."
                 errorText = nil
             } catch {
                 checkText = nil
@@ -41,7 +65,7 @@
             }
         }
 
-        /// Saves the typed name and value. The value field is cleared on success.
+        /// Saves the typed name and value, then reads the list again. The value field is cleared on success.
         func save() async {
             guard let key = name.providerNonEmpty, let secret = value.providerNonEmpty else {
                 errorText = "Enter a name and a value."
@@ -50,18 +74,23 @@
             guard let rest = await ProviderServer.rest(connections) else { return }
             isWorking = true
             defer { isWorking = false }
+            var failure: String?
             do {
                 try await rest.setApiKey(ApiKeyWrite(key: key, value: secret))
                 value = ""
-                errorText = nil
-                statusText = "Saved \(key)."
             } catch {
+                failure = ProviderErrorText.message(for: error)
+            }
+            await load()
+            errorText = failure ?? errorText
+            if failure == nil {
+                statusText = setNames.contains(key) ? "Saved \(key)." : "The server does not report \(key) as set."
+            } else {
                 statusText = nil
-                errorText = ProviderErrorText.message(for: error)
             }
         }
 
-        /// Deletes the named variable. Call it only after the user confirms.
+        /// Deletes the named variable, then reads the list again. Call it only after the user confirms.
         func delete() async {
             guard let key = name.providerNonEmpty else {
                 errorText = "Enter the name to delete."
@@ -70,18 +99,23 @@
             guard let rest = await ProviderServer.rest(connections) else { return }
             isWorking = true
             defer { isWorking = false }
+            var failure: String?
             do {
                 try await rest.deleteApiKey(named: key)
                 revealed = nil
-                errorText = nil
-                statusText = "Deleted \(key)."
             } catch {
+                failure = ProviderErrorText.message(for: error)
+            }
+            await load()
+            errorText = failure ?? errorText
+            if failure == nil {
+                statusText = setNames.contains(key) ? "The server still reports \(key) as set." : "Deleted \(key)."
+            } else {
                 statusText = nil
-                errorText = ProviderErrorText.message(for: error)
             }
         }
 
-        /// Shows the stored value of the named variable. Only the Reveal button calls this.
+        /// Shows the stored value of the named variable. Only the Show value button calls this.
         func reveal() async {
             guard let key = name.providerNonEmpty else {
                 errorText = "Enter the name to show."
