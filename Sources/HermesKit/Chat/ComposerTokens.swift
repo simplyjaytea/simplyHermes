@@ -41,7 +41,8 @@ public enum ComposerTokens {
         return nil
     }
 
-    /// Replaces the token with `replacement`, then a space unless a space already follows. Returns the new text and
+    /// Replaces the token with `replacement`, then a space unless a space already follows or the replacement ends a
+    /// folder or a context prefix (`/` or `:`), where the next level is typed straight on. Returns the new text and
     /// the caret position after the replacement.
     public static func replacing(
         _ token: ComposerToken, in text: String, with replacement: String
@@ -49,7 +50,8 @@ public enum ComposerTokens {
         var units = Array(text.utf16)
         guard token.range.upperBound <= units.count else { return (text, units.count) }
         let followedBySpace = token.range.upperBound < units.count && isSpace(units[token.range.upperBound])
-        let inserted = Array((followedBySpace ? replacement : replacement + " ").utf16)
+        let opensLevel = replacement.hasSuffix("/") || replacement.hasSuffix(":")
+        let inserted = Array((followedBySpace || opensLevel ? replacement : replacement + " ").utf16)
         units.replaceSubrange(token.range, with: inserted)
         return (String(decoding: units, as: UTF16.self), token.range.lowerBound + inserted.count)
     }

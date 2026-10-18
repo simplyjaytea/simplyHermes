@@ -49,6 +49,13 @@ import Testing
         #expect(result.caret == 19)
     }
 
+    @Test func replacingAFolderLeavesTheTokenOpenForTheNextLevel() throws {
+        let token = try #require(ComposerTokens.active(in: "@sr", caret: 3))
+        let result = ComposerTokens.replacing(token, in: "@sr", with: "@src/")
+        #expect(result.text == "@src/")
+        #expect(result.caret == 5)
+    }
+
     @Test func mentionRangesFindAtWordsOnly() {
         #expect(ComposerTokens.mentionRanges(in: "see @a.txt and @ or x@y") == [4..<10])
     }
