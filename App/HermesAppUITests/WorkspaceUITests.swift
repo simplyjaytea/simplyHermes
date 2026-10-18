@@ -66,6 +66,7 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertTrue(element(app, "welcome.addGateway").waitForNonExistence(timeout: 10))
     }
 
+    @MainActor
     private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }

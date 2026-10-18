@@ -33,6 +33,12 @@
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    // QuickLook has no Add to chat, so every file offers it here.
+                    .contextMenu {
+                        if !entry.isDirectory {
+                            Button("Add to chat") { onAddToChat(entry.path) }
+                        }
+                    }
                     .accessibilityIdentifier("file.\(entry.id)")
                 }
                 .listStyle(.plain)

@@ -27,8 +27,17 @@
         /// Counts requests and server changes, so an answer that comes in late is dropped.
         @ObservationIgnored private var requestID = 0
 
+        /// The biggest binary file QuickLook gets. The download holds the whole body in memory, so bigger files are
+        /// not fetched.
+        static let maxDownloadBytes = 50_000_000
+        /// Where QuickLook copies live.
+        private nonisolated static let copies = PreviewCopies()
+        /// Clears the copies an earlier run left behind. It runs once, when the first browser of a launch is made.
+        private static let leftoversCleared: Void = copies.removeAll()
+
         public init(connections: ConnectionsModel) {
             self.connections = connections
+            _ = Self.leftoversCleared
         }
 
         /// Changes when the active server or its connection does. The view loads again then (`.task(id:)`).
@@ -93,9 +102,9 @@
             preview = nil
         }
 
-        /// Closes the QuickLook preview.
+        /// Closes the QuickLook preview and deletes its copy.
         public func closeQuickLook() {
-            quickLookURL = nil
+            discardQuickLookCopy()
         }
 
         private func restClient() async -> RESTClient? {
@@ -125,6 +134,14 @@
             entries = []
             notice = nil
             preview = nil
+            discardQuickLookCopy()
+        }
+
+        /// Forgets the file QuickLook shows and deletes its copy.
+        private func discardQuickLookCopy() {
+            guard let url = quickLookURL else { return }
+            quickLookURL = nil
+            Self.copies.remove(url)
         }
 
         /// The header names the folder only once its list is in, so the two never disagree.
@@ -150,11 +167,21 @@
             do {
                 let file = try await rest.readText(path)
                 guard request == requestID else { return }
-                if file.binary {
-                    quickLookURL = try await Self.localCopy(of: path, using: rest)
-                } else {
+                guard file.binary else {
                     preview = file
+                    return
                 }
+                guard let size = file.byteSize, size <= Self.maxDownloadBytes else {
+                    notice = String(localized: "This file is too large to preview.")
+                    return
+                }
+                let url = try await Self.localCopy(of: path, using: rest)
+                guard request == requestID else {
+                    Self.copies.remove(url)
+                    return
+                }
+                discardQuickLookCopy()
+                quickLookURL = url
             } catch {
                 guard request == requestID else { return }
                 notice = String(localized: "Could not open this file.")
@@ -162,14 +189,10 @@
         }
 
         /// Copies a server file into the temporary folder under its own name, so QuickLook can tell its type.
-        private static func localCopy(of path: String, using rest: RESTClient) async throws -> URL {
+        /// It is not tied to the main actor, so the download and the write stay off the main thread.
+        private nonisolated static func localCopy(of path: String, using rest: RESTClient) async throws -> URL {
             let data = try await rest.downloadFile(path)
-            let folder = FileManager.default.temporaryDirectory.appendingPathComponent(
-                UUID().uuidString, isDirectory: true)
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let url = folder.appendingPathComponent(URL(fileURLWithPath: path).lastPathComponent)
-            try data.write(to: url)
-            return url
+            return try copies.write(data, named: URL(fileURLWithPath: path).lastPathComponent)
         }
 
         private static func foldersFirst(_ lhs: FsEntry, _ rhs: FsEntry) -> Bool {
