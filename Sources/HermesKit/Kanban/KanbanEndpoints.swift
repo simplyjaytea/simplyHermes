@@ -1,7 +1,8 @@
 import Foundation
 
-// The schema leaves most kanban answers untyped (`{}`). Those calls return the answer as ``JSONValue``. Typed calls
-// stay in `REST/RESTEndpoints.swift` and `REST/Models/KanbanModels.swift`.
+// Reads whose answers the recorder did not type return ``JSONValue``. Writes return nothing: the caller checks the
+// status and reloads from the server. Typed calls stay in `REST/RESTEndpoints.swift` and
+// `REST/Models/KanbanModels.swift`.
 
 private struct KanbanReclaimBody: Encodable, Sendable {
     var reason: String?
@@ -26,11 +27,6 @@ private func kanbanSegment(_ value: String) -> String {
     var allowed = CharacterSet.urlPathAllowed
     allowed.remove(charactersIn: "/")
     return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
-}
-
-/// Keeps a JSON answer when the server sent one. Answers that are empty or not JSON give nil.
-private func kanbanAnswer(_ response: HTTPResponse) -> JSONValue? {
-    try? JSONDecoder().decode(JSONValue.self, from: response.body)
 }
 
 extension RESTClient {
@@ -75,25 +71,28 @@ extension RESTClient {
             query: kanbanQuery(["tail": tail.map { String($0) }, "board": board]))
     }
 
-    /// `GET /api/plugins/kanban/runs/{id}`: one run, under `run`.
+    /// `GET /api/plugins/kanban/runs/{id}`: one run, under `run`. Not recorded: the testbed never dispatches, so no run
+    /// id exists.
     public func kanbanRun(id: String, board: String? = nil) async throws -> JSONValue {
         try await get("/api/plugins/kanban/runs/" + kanbanSegment(id), query: kanbanQuery(["board": board]))
     }
 
     // MARK: Boards
 
-    /// `POST /api/plugins/kanban/boards`. A slug that exists already returns that board.
+    /// `POST /api/plugins/kanban/boards`. Reads only the status.
     public func createKanbanBoard(_ draft: KanbanBoardDraft) async throws {
         let _: HTTPResponse = try await send("POST", "/api/plugins/kanban/boards", body: draft)
     }
 
     /// `PATCH /api/plugins/kanban/boards/{slug}`: display metadata, working directory and project. The slug stays.
+    /// Not recorded on the testbed.
     public func updateKanbanBoard(slug: String, _ update: KanbanBoardUpdate) async throws {
         let _: HTTPResponse = try await send(
             "PATCH", "/api/plugins/kanban/boards/" + kanbanSegment(slug), body: update)
     }
 
     /// `DELETE /api/plugins/kanban/boards/{slug}`. Archives the board unless `hard` is true, which deletes it.
+    /// The hard delete is recorded on the testbed. Archiving is not.
     public func deleteKanbanBoard(slug: String, hard: Bool = false) async throws {
         let query = hard ? [URLQueryItem(name: "delete", value: "true")] : []
         let _: HTTPResponse = try await send(
@@ -101,58 +100,54 @@ extension RESTClient {
     }
 
     /// `POST /api/plugins/kanban/boards/{slug}/switch`: makes the board the server's current one for every client.
+    /// Not recorded on the testbed.
     public func switchKanbanBoard(slug: String) async throws {
         let _: HTTPResponse = try await send("POST", "/api/plugins/kanban/boards/" + kanbanSegment(slug) + "/switch")
     }
 
     // MARK: Tasks
 
-    /// `POST /api/plugins/kanban/tasks/bulk`. Returns the server's per-id answer when it sends JSON.
-    /// A refused move throws ``RESTError/http(status:detail:)``.
-    public func bulkUpdateKanbanTasks(_ change: KanbanBulkChange, board: String? = nil) async throws -> JSONValue? {
-        let response: HTTPResponse = try await send(
+    /// `POST /api/plugins/kanban/tasks/bulk`: one change applied to every id. Not recorded on the testbed. The answer
+    /// is not read, so reload the board to see the result. A refused move throws ``RESTError/http(status:detail:)``.
+    public func bulkUpdateKanbanTasks(_ change: KanbanBulkChange, board: String? = nil) async throws {
+        let _: HTTPResponse = try await send(
             "POST", "/api/plugins/kanban/tasks/bulk", query: kanbanQuery(["board": board]), body: change)
-        return kanbanAnswer(response)
     }
 
     /// `POST /api/plugins/kanban/tasks/{id}/reclaim`: releases the active worker's claim now instead of at the claim
-    /// timeout. The running worker is stopped.
-    public func reclaimKanbanTask(id: String, reason: String? = nil, board: String? = nil) async throws -> JSONValue? {
-        let response: HTTPResponse = try await send(
+    /// timeout. The running worker is stopped. Not recorded on the testbed; reload the task to see the result.
+    public func reclaimKanbanTask(id: String, reason: String? = nil, board: String? = nil) async throws {
+        let _: HTTPResponse = try await send(
             "POST", "/api/plugins/kanban/tasks/" + kanbanSegment(id) + "/reclaim",
             query: kanbanQuery(["board": board]), body: KanbanReclaimBody(reason: reason))
-        return kanbanAnswer(response)
     }
 
     /// `POST /api/plugins/kanban/tasks/{id}/reassign`: gives the task to `profile`, optionally reclaiming it first.
+    /// Not recorded on the testbed; reload the task to see the result.
     public func reassignKanbanTask(
         id: String, to profile: String, reclaimFirst: Bool = false, reason: String? = nil, board: String? = nil
-    ) async throws -> JSONValue? {
-        let response: HTTPResponse = try await send(
+    ) async throws {
+        let _: HTTPResponse = try await send(
             "POST", "/api/plugins/kanban/tasks/" + kanbanSegment(id) + "/reassign",
             query: kanbanQuery(["board": board]),
             body: KanbanReassignBody(profile: profile, reclaimFirst: reclaimFirst, reason: reason))
-        return kanbanAnswer(response)
     }
 
-    /// `POST /api/plugins/kanban/tasks/{id}/specify`: fleshes out a triage task with the auxiliary model. A refusal
-    /// comes back in the answer, not as an HTTP error.
-    public func specifyKanbanTask(id: String, author: String? = nil, board: String? = nil) async throws -> JSONValue? {
-        let response: HTTPResponse = try await send(
+    /// `POST /api/plugins/kanban/tasks/{id}/specify`: fleshes out a triage task with the auxiliary model. Not recorded
+    /// on the testbed. The answer is not read, so reload the task to see the result.
+    public func specifyKanbanTask(id: String, author: String? = nil, board: String? = nil) async throws {
+        let _: HTTPResponse = try await send(
             "POST", "/api/plugins/kanban/tasks/" + kanbanSegment(id) + "/specify",
             query: kanbanQuery(["board": board]), body: KanbanSpecifyBody(author: author))
-        return kanbanAnswer(response)
     }
 
     /// `POST /api/plugins/kanban/dispatch`: starts ready tasks now instead of at the next dispatcher tick.
-    /// `dryRun` only reports what would start. `maxTasks` caps the count (the server default is 8).
-    public func dispatchKanban(board: String? = nil, dryRun: Bool = false, maxTasks: Int? = nil) async throws
-        -> JSONValue?
-    {
+    /// Not recorded: the testbed forbids dispatch. `dryRun` only reports what would start. `maxTasks` caps the count,
+    /// and the server default is 8.
+    public func dispatchKanban(board: String? = nil, dryRun: Bool = false, maxTasks: Int? = nil) async throws {
         let query = kanbanQuery([
             "board": board, "dry_run": dryRun ? "true" : nil, "max": maxTasks.map { String($0) },
         ])
-        let response: HTTPResponse = try await send("POST", "/api/plugins/kanban/dispatch", query: query)
-        return kanbanAnswer(response)
+        let _: HTTPResponse = try await send("POST", "/api/plugins/kanban/dispatch", query: query)
     }
 }

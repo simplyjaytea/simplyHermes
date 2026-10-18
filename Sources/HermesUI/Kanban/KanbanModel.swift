@@ -110,7 +110,7 @@
         /// Asks the dispatcher to start ready tasks now instead of at its next tick.
         func dispatch() async -> String? {
             let slug = selectedSlug
-            let failure = await change { _ = try await $0.dispatchKanban(board: slug) }
+            let failure = await change { try await $0.dispatchKanban(board: slug) }
             if failure == nil { notice = "Dispatch requested." }
             return failure
         }

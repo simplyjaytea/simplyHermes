@@ -4,10 +4,10 @@
 
     /// A task opened in the sheet, with its own model, so the sheet keeps its state while the board reloads.
     struct KanbanOpenedTask: Identifiable {
-        let task: KanbanTask
+        let card: KanbanCard
         let model: KanbanTaskModel
 
-        var id: String { task.id }
+        var id: String { card.id }
     }
 
     /// The board-wide actions that ask first.
@@ -68,7 +68,7 @@
             .refreshable { await model.refresh() }
             .sheet(item: $openedTask) { opened in
                 KanbanTaskSheet(
-                    seed: opened.task, model: opened.model, columns: model.columnNames, assignees: model.assignees
+                    card: opened.card, model: opened.model, columns: model.columnNames, assignees: model.assignees
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
@@ -120,8 +120,8 @@
             if let board = model.board, !board.columns.isEmpty {
                 TabView(selection: $model.selectedColumn) {
                     ForEach(board.columns, id: \.name) { column in
-                        KanbanColumnPage(column: column) { task in
-                            open(task)
+                        KanbanColumnPage(column: column) { card in
+                            open(card)
                         }
                         .tag(column.name)
                     }
@@ -212,12 +212,12 @@
             Binding(get: { pendingAction != nil }, set: { if !$0 { pendingAction = nil } })
         }
 
-        private func open(_ task: KanbanTask) {
+        private func open(_ card: KanbanCard) {
             let screenModel = model
             let taskModel = KanbanTaskModel(
-                connections: model.connections, taskID: task.id, board: model.selectedSlug,
+                connections: model.connections, taskID: card.id, board: model.selectedSlug,
                 onChange: { Task { await screenModel.refresh() } })
-            openedTask = KanbanOpenedTask(task: task, model: taskModel)
+            openedTask = KanbanOpenedTask(card: card, model: taskModel)
         }
 
         private func perform(_ action: KanbanBoardAction) {

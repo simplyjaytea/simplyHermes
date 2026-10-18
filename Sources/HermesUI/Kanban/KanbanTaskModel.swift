@@ -29,7 +29,7 @@
             self.onChange = onChange
         }
 
-        /// Reads the task with its comments and history.
+        /// Reads the task and its history.
         func load() async {
             do {
                 let rest = try await KanbanRemote.rest(connections)
@@ -48,15 +48,15 @@
             guard !trimmed.isEmpty else { return false }
             let id = taskID
             let slug = board
-            return await run { _ = try await $0.addKanbanComment(id: id, text: trimmed, board: slug) }
+            return await run { try await $0.addKanbanComment(id: id, text: trimmed, board: slug) }
         }
 
         /// Moves the task to another column. A move is a status change, and the server can refuse it.
         func move(to status: String) async -> Bool {
             let change = KanbanBulkChange(ids: [taskID], status: status)
             let slug = board
-            guard await run({ _ = try await $0.bulkUpdateKanbanTasks(change, board: slug) }) else { return false }
-            // The bulk answer is per id and untyped, so the reloaded status is the check.
+            guard await run({ try await $0.bulkUpdateKanbanTasks(change, board: slug) }) else { return false }
+            // The answer is not read, so the reloaded status is the check.
             if detail?.task.status != status {
                 errorText = "The server did not move this task. Pull to refresh and try again."
                 return false
@@ -68,21 +68,21 @@
         func reassign(to profile: String) async -> Bool {
             let id = taskID
             let slug = board
-            return await run { _ = try await $0.reassignKanbanTask(id: id, to: profile, board: slug) }
+            return await run { try await $0.reassignKanbanTask(id: id, to: profile, board: slug) }
         }
 
         /// Releases the running worker's claim. The worker is stopped.
         func reclaim() async -> Bool {
             let id = taskID
             let slug = board
-            return await run { _ = try await $0.reclaimKanbanTask(id: id, board: slug) }
+            return await run { try await $0.reclaimKanbanTask(id: id, board: slug) }
         }
 
         /// Asks the server to flesh out a triage task with the auxiliary model.
         func specify() async -> Bool {
             let id = taskID
             let slug = board
-            let done = await run { _ = try await $0.specifyKanbanTask(id: id, board: slug) }
+            let done = await run { try await $0.specifyKanbanTask(id: id, board: slug) }
             if done { notice = "Specify requested. Pull to refresh to see the result." }
             return done
         }

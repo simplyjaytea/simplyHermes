@@ -40,7 +40,6 @@
         private static let detailJSON = #"""
             {"task":{"id":"t_c3","title":"Write the release notes","body":"Cover the kanban and tools work.",
             "assignee":"default","status":"ready","priority":1},
-            "comments":[{"author":"jt","body":"Keep it short.","created_at":1791985368}],
             "events":[{"id":1,"kind":"created","created_at":1791985368},{"id":2,"kind":"claimed","created_at":1791985400}]}
             """#
     }

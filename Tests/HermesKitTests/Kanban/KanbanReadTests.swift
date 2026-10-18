@@ -2,6 +2,28 @@ import Foundation
 import HermesKit
 import Testing
 
+/// The `body` of an answer the recorder saved under Fixtures/rest. The recorder wraps each answer in an envelope that
+/// also holds the request and the status. The client reads only the body.
+func kanbanRecordedBody(_ name: String) throws -> String {
+    let envelope = try #require(try JSONSerialization.jsonObject(with: Data(restFixture(name).utf8)) as? [String: Any])
+    let body = try JSONSerialization.data(withJSONObject: try #require(envelope["body"]), options: [.fragmentsAllowed])
+    return String(decoding: body, as: UTF8.self)
+}
+
+/// A JSON text read as an object. Tests compare each decoded value with the value in the same file, so no sample value
+/// is pinned.
+func kanbanJSONObject(_ text: String) throws -> [String: Any] {
+    try #require(try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+}
+
+/// The sorted keys of the request body the recorder sent with a write.
+func kanbanRecordedRequestKeys(_ name: String) throws -> [String] {
+    let envelope = try kanbanJSONObject(try restFixture(name))
+    let request = try #require(envelope["request"] as? [String: Any])
+    let body = try #require(request["body"] as? [String: Any])
+    return body.keys.sorted()
+}
+
 @Suite struct KanbanReadTests {
     @Test func columnsKeepTheOrderTheServerSends() async throws {
         let http = FakeHTTP()
@@ -16,22 +38,137 @@ import Testing
             """#)
         let board = try await makeClient(http).kanbanBoard("work")
         #expect(board.columns.map(\.name) == ["done", "triage", "blocked"])
-        let task = try #require(board.columns[1].tasks.first)
-        #expect(task.id == "t_1" && task.title == "Sort logs" && task.priority == 2 && task.assignee == "ops")
+        let card = try #require(board.columns[1].cards.first)
+        #expect(card.id == "t_1" && card.title == "Sort logs")
         #expect(board.assignees == ["ops"] && board.latestEventId == 7)
         #expect(http.requests.first?.url.query == "board=work")
     }
 
-    @Test func boardsAndTaskDetailDecodeTheRecordedShapes() async throws {
+    @Test func cardsReadOnlyIdAndTitleLeniently() async throws {
+        // No recorded board has a card, so the card shape is unverified. The board still decodes, and each card keeps
+        // only a string id and a string title.
         let http = FakeHTTP()
-        http.enqueue(200, try restFixture("kanban_boards"))
+        http.enqueue(
+            200,
+            #"""
+            {"assignees":[],"latest_event_id":1,"now":1,"columns":[
+              {"name":"ready","tasks":[
+                {"id":"t_1","title":7,"extra":{"nested":[1,2]}},
+                {"title":"no id"},
+                "text",
+                {"id":5,"title":"numeric id"},
+                {"id":"t_2","title":"Second"}
+              ]}
+            ]}
+            """#)
+        let board = try await makeClient(http).kanbanBoard()
+        let cards = try #require(board.columns.first).cards
+        #expect(cards.map(\.id) == ["t_1", "t_2"])
+        #expect(cards.map(\.title) == [nil, "Second"])
+    }
+
+    @Test func boardListDecodesTheRecordedAnswer() async throws {
+        let name = "GET_api_plugins_kanban_boards"
+        let http = FakeHTTP()
+        http.enqueue(200, try kanbanRecordedBody(name))
+        let listing = try await makeClient(http).kanbanBoards()
+        let raw = try kanbanJSONObject(try kanbanRecordedBody(name))
+        let rawBoards = try #require(raw["boards"] as? [[String: Any]])
+        let rawSlugs = rawBoards.compactMap { $0["slug"] as? String }
+        #expect(listing.current == raw["current"] as? String)
+        #expect(listing.boards.map(\.slug) == rawSlugs)
+        let board = try #require(listing.boards.first)
+        let rawBoard = try #require(rawBoards.first)
+        #expect(board.name == rawBoard["name"] as? String)
+        #expect(board.description == rawBoard["description"] as? String)
+        #expect(board.isCurrent == rawBoard["is_current"] as? Bool)
+        #expect(board.archived == rawBoard["archived"] as? Bool)
+        #expect(board.total == rawBoard["total"] as? Int)
+    }
+
+    @Test func boardDecodesTheRecordedColumnsInOrder() async throws {
+        let name = "GET_api_plugins_kanban_board"
+        let http = FakeHTTP()
+        http.enqueue(200, try kanbanRecordedBody(name))
+        let board = try await makeClient(http).kanbanBoard()
+        let raw = try kanbanJSONObject(try kanbanRecordedBody(name))
+        let rawColumns = try #require(raw["columns"] as? [[String: Any]])
+        let rawNames = rawColumns.compactMap { $0["name"] as? String }
+        #expect(board.columns.map(\.name) == rawNames)
+        #expect(board.assignees == raw["assignees"] as? [String])
+        #expect(board.latestEventId == raw["latest_event_id"] as? Int)
+        #expect(board.now == raw["now"] as? Int)
+        #expect(http.requests.first?.url.query == nil)
+    }
+
+    @Test func taskDetailDecodesTheRecordedTaskAndHistory() async throws {
+        let name = "GET_api_plugins_kanban_tasks_task_id"
+        let http = FakeHTTP()
+        http.enqueue(200, try kanbanRecordedBody(name))
+        let detail = try await makeClient(http).kanbanTask(id: "t_fixture", board: "recorder")
+        let raw = try kanbanJSONObject(try kanbanRecordedBody(name))
+        let rawTask = try #require(raw["task"] as? [String: Any])
+        let task = detail.task
+        #expect(task.id == rawTask["id"] as? String)
+        #expect(task.title == rawTask["title"] as? String)
+        #expect(task.body == rawTask["body"] as? String)
+        #expect(task.status == rawTask["status"] as? String)
+        #expect(task.assignee == rawTask["assignee"] as? String)
+        #expect(task.priority == rawTask["priority"] as? Int)
+        #expect(task.consecutiveFailures == rawTask["consecutive_failures"] as? Int)
+        #expect(task.createdAt == rawTask["created_at"] as? Int)
+        let rawEvent = try #require((raw["events"] as? [[String: Any]])?.first)
+        let event = try #require(detail.events?.first)
+        #expect(event.id == rawEvent["id"] as? Int)
+        #expect(event.kind == rawEvent["kind"] as? String)
+        #expect(event.createdAt == rawEvent["created_at"] as? Int)
+        #expect((event.payload != nil) == (rawEvent["payload"] is [String: Any]))
+        #expect(http.requests.first?.url.query == "board=recorder")
+    }
+
+    @Test func createdTaskDecodesTheRecordedAnswer() async throws {
+        let name = "POST_api_plugins_kanban_tasks"
+        let http = FakeHTTP()
+        http.enqueue(200, try kanbanRecordedBody(name))
+        let draft = KanbanTaskDraft(title: "recorder task", body: "recorder fixture")
+        let created = try await makeClient(http).createKanbanTask(draft, board: "recorder")
+        let raw = try kanbanJSONObject(try kanbanRecordedBody(name))
+        let rawTask = try #require(raw["task"] as? [String: Any])
+        #expect(created.task.id == rawTask["id"] as? String)
+        #expect(created.task.title == rawTask["title"] as? String)
+        #expect(created.warning == raw["warning"] as? String)
+        #expect(http.requests.first?.url.query == "board=recorder")
+    }
+
+    @Test func handCopiedAnswersFillTheAssigneeAndTheWarning() async throws {
+        // The recorded task answers have a null assignee and no warning in this run. The two hand-copied files are
+        // the samples where both are set, so each decoded value is checked against its own file.
+        let http = FakeHTTP()
         http.enqueue(200, try restFixture("kanban_task_detail"))
+        http.enqueue(200, try restFixture("kanban_task_created"))
         let client = makeClient(http)
-        let boards = try await client.kanbanBoards()
-        #expect(boards.current == "default" && boards.boards.first?.isCurrent == true)
-        let detail = try await client.kanbanTask(id: "t_2cc67aea", board: "work")
-        #expect(detail.task.priority == 0 && detail.task.status == "ready" && detail.comments?.isEmpty == true)
-        #expect(http.requests.last?.url.query == "board=work")
+        let detail = try await client.kanbanTask(id: "t_fixture")
+        let created = try await client.createKanbanTask(KanbanTaskDraft(title: "Second", assignee: "default"))
+        let rawDetail = try kanbanJSONObject(try restFixture("kanban_task_detail"))
+        let rawTask = try #require(rawDetail["task"] as? [String: Any])
+        let rawCreated = try kanbanJSONObject(try restFixture("kanban_task_created"))
+        #expect(detail.task.assignee != nil && detail.task.assignee == rawTask["assignee"] as? String)
+        #expect(created.warning != nil && created.warning == rawCreated["warning"] as? String)
+    }
+
+    @Test func aWrongTypeInAssigneeOrWarningDoesNotFailTheAnswer() async throws {
+        let http = FakeHTTP()
+        http.enqueue(
+            200,
+            #"{"task":{"id":"t_1","title":"x","status":"ready","assignee":{"name":"ops"}},"events":[]}"#)
+        http.enqueue(
+            200,
+            #"{"task":{"id":"t_2","title":"y","status":"todo","assignee":["ops"]},"warning":5}"#)
+        let client = makeClient(http)
+        let detail = try await client.kanbanTask(id: "t_1")
+        #expect(detail.task.id == "t_1" && detail.task.assignee == nil)
+        let created = try await client.createKanbanTask(KanbanTaskDraft(title: "y"))
+        #expect(created.task.id == "t_2" && created.task.assignee == nil && created.warning == nil)
     }
 
     @Test func untypedReadsReturnTheirAnswer() async throws {
