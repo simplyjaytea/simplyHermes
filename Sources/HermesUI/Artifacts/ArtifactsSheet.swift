@@ -33,7 +33,7 @@
             NavigationStack {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 10)], spacing: 10) {
-                        ForEach(artifacts) { artifact in
+                        ForEach(Array(artifacts.enumerated()), id: \.element.id) { index, artifact in
                             Button {
                                 onJump(artifact.id)
                                 dismiss()
@@ -41,6 +41,8 @@
                                 ArtifactThumbnail(image: artifact.image, load: media)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel(Text("Artifact \(index + 1) of \(artifacts.count)"))
+                            .accessibilityHint(Text("Jumps to where it was made in the chat."))
                             .accessibilityIdentifier("artifact.\(artifact.id)")
                         }
                     }
@@ -71,8 +73,6 @@
         let image: String
         let load: @MainActor (String) async -> Data?
         @State private var picture: UIImage?
-        /// The image as a PNG file, for the share sheet. Nil until the bytes load.
-        @State private var shareURL: URL?
         @State private var loaded = false
 
         var body: some View {
@@ -92,29 +92,17 @@
             .task(id: image) {
                 if let data = await load(image), let decoded = UIImage(data: data) {
                     picture = decoded
-                    shareURL = Self.writePNG(decoded)
                 }
                 loaded = true
             }
             .contextMenu {
-                if let shareURL {
-                    ShareLink(item: shareURL) {
+                if let picture {
+                    // Shares the image itself, so loading a thumbnail writes no file.
+                    let photo = Image(uiImage: picture)
+                    ShareLink(item: photo, preview: SharePreview("Artifact", image: photo)) {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
                 }
-            }
-            .accessibilityLabel(Text("Artifact"))
-        }
-
-        /// Writes the image to a temporary PNG so the share sheet can send the file itself.
-        private static func writePNG(_ picture: UIImage) -> URL? {
-            guard let png = picture.pngData() else { return nil }
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).png")
-            do {
-                try png.write(to: url)
-                return url
-            } catch {
-                return nil
             }
         }
     }
