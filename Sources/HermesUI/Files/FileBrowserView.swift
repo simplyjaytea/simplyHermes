@@ -1,5 +1,6 @@
 #if canImport(UIKit)
     import HermesKit
+    import QuickLook
     import SwiftUI
 
     /// The read-only file browser in the preview rail: folders first, then text files (WP-37).
