@@ -17,6 +17,10 @@
         /// Messages waiting for Hermes to be free.
         public private(set) var queue = MessageQueue()
         public private(set) var phase: Phase = .loading
+        /// Providers and models for the model picker. Loaded when the chat attaches and after a switch.
+        public private(set) var modelOptions: ModelOptionsResult?
+        /// The model and reasoning level this device picked last, and its starred models.
+        public private(set) var preferences = ModelPreferencesStore.load()
         /// Approvals of this chat that wait for the user.
         public private(set) var approvals: [PendingApproval] = []
 
@@ -96,10 +100,12 @@
                 tasks = [
                     Task { [weak self] in
                         for await next in states {
+                            let firstInfo = self?.state.info == nil && next.transcript.info != nil
                             self?.noteTurnEnd(next.transcript.turn != nil)
                             self?.noteSubagents(next.transcript.subagents)
                             self?.state = next.transcript
                             self?.queue = next.queue
+                            if firstInfo, let info = next.transcript.info { self?.restoreModelPreferences(for: info) }
                         }
                     },
                     Task { [weak self] in
@@ -132,6 +138,60 @@
             case .mention(let query):
                 let result = try? await client.completePath(CompletePathParams(word: "@" + query, sessionID: session))
                 return result?.items ?? []
+            }
+        }
+
+        /// Loads the providers and models for the model picker.
+        public func loadModelOptions() async {
+            guard let client, let live = state.liveSessionID else { return }
+            modelOptions = try? await client.modelOptions(ModelOptionsParams(sessionID: live))
+        }
+
+        /// Switches this chat to a model and remembers the pick on this device. A model the server holds comes back as
+        /// `.needsConfirmation`. Call again with `confirmed` once the user agrees.
+        public func chooseModel(_ choice: ModelChoice, confirmed: Bool = false) async throws -> ModelSwitchOutcome {
+            guard let client, let live = state.liveSessionID else { throw GatewayClientError.notConnected }
+            let value = choice.configValue(currentProvider: modelOptions?.provider)
+            let params = ConfigSetParams(key: "model", value: value, sessionID: live, confirmExpensiveModel: confirmed)
+            let outcome = try await client.configSet(params).outcome
+            if case .applied = outcome {
+                updatePreferences { $0.sticky = choice }
+                await loadModelOptions()
+            }
+            return outcome
+        }
+
+        /// Sets the reasoning level of this session and remembers it on this device.
+        public func chooseEffort(_ level: String) async throws {
+            guard let client, let live = state.liveSessionID else { throw GatewayClientError.notConnected }
+            let params = ConfigSetParams(key: "reasoning", value: level, sessionID: live, scope: "session")
+            _ = try await client.configSet(params)
+            updatePreferences { $0.stickyEffort = level }
+        }
+
+        /// Stars a model for the picker, or unstars it.
+        public func toggleFavorite(_ choice: ModelChoice) {
+            updatePreferences { $0.toggleFavorite(choice) }
+        }
+
+        /// Applies a change to the device's preferences. It starts from the saved copy, so a change made in another
+        /// chat is kept.
+        private func updatePreferences(_ change: (inout ModelPreferences) -> Void) {
+            var updated = ModelPreferencesStore.load()
+            change(&updated)
+            ModelPreferencesStore.save(updated)
+            preferences = updated
+        }
+
+        /// Brings a chat that just opened to the remembered model and reasoning level, then loads the picker. A switch
+        /// the server holds for confirmation is not forced.
+        private func restoreModelPreferences(for info: SessionInfo) {
+            guard let client, let live = state.liveSessionID else { return }
+            preferences = ModelPreferencesStore.load()
+            let changes = preferences.restoreParams(for: info, sessionID: live)
+            Task { [weak self] in
+                for change in changes { _ = try? await client.configSet(change) }
+                await self?.loadModelOptions()
             }
         }
 

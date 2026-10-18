@@ -30,7 +30,7 @@
                     TaskProgressPill(progress: tasks)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                ComposerPills(info: chat.state.info)
+                ComposerPills(chat: chat)
                 Composer(
                     text: model.draftBinding(for: sessionID),
                     attachments: model.attachmentsBinding(for: sessionID),

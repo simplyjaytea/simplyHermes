@@ -70,15 +70,16 @@
     }
 
     /// The settings of the chat, as pills above the composer's field (plan Q19): model, reasoning and workspace.
-    /// They only show what the server reported; the model pill becomes a picker menu with WP-31c.
+    /// The model pill is a popup menu (plan Q22). The other pills only show what the server reported.
     struct ComposerPills: View {
-        let info: SessionInfo?
+        let chat: LiveChatModel
 
         var body: some View {
-            let pills = entries
-            if !pills.isEmpty {
+            if chat.state.info != nil {
+                let pills = entries
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
+                        ModelPicker(chat: chat)
                         ForEach(pills, id: \.label) { pill in
                             Label(pill.label, systemImage: pill.symbol)
                                 .font(HermesFont.caption)
@@ -95,8 +96,8 @@
         }
 
         private var entries: [(label: String, symbol: String)] {
+            let info = chat.state.info
             var result: [(String, String)] = []
-            if let model = info?.model, !model.isEmpty { result.append((model, "cpu")) }
             if let effort = info?.reasoningEffort, !effort.isEmpty { result.append((effort.capitalized, "brain")) }
             if let cwd = info?.cwd, !cwd.isEmpty {
                 let name = cwd.split(separator: "/").last.map(String.init) ?? cwd
