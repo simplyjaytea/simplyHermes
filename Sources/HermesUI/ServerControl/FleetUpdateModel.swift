@@ -47,7 +47,7 @@
         @ObservationIgnored private var previewConnections: ConnectionsModel?
         @ObservationIgnored private let clock: any GatewayClock
         /// The task of the run. Stop cancels it.
-        @ObservationIgnored private var runTask: Task<Void, Never>?
+        private var runTask: Task<Void, Never>?
         /// Resumes the run with the answer to `question`: true for Update.
         @ObservationIgnored private var resumeQuestion: CheckedContinuation<Bool, Never>?
 
@@ -67,9 +67,16 @@
             return false
         }
 
-        /// Starts the run in a task the model keeps, so Stop can cancel it. A start while a run goes on does nothing.
+        /// From the tap that starts a run until the run ends. A single-server update checks this.
+        public var isActive: Bool { runTask != nil }
+
+        /// True while a single-server update runs on a saved server. A run does not start then.
+        public var singleUpdateRunning: Bool { connections?.singleUpdate.phase == .updating }
+
+        /// Starts the run in a task the model keeps, so Stop can cancel it. Does nothing while a run goes on,
+        /// or while a single-server update runs.
         public func start() {
-            guard runTask == nil else { return }
+            guard runTask == nil, !singleUpdateRunning else { return }
             runTask = Task {
                 await self.run()
                 self.runTask = nil

@@ -9,7 +9,7 @@
         @State private var confirming = false
 
         public init(connections: ConnectionsModel) {
-            _model = State(initialValue: HermesUpdateModel(connections: connections))
+            _model = State(initialValue: connections.singleUpdate)
         }
 
         init(model: HermesUpdateModel) {

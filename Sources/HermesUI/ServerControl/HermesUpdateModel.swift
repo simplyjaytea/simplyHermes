@@ -48,7 +48,7 @@
 
         /// True while "Update all servers" runs. That run reaches every saved server in turn, so a single-server
         /// update waits for the whole run, not only for the server it is on.
-        public var isFleetUpdateRunning: Bool { connections.fleetUpdate.isBusy }
+        public var isFleetUpdateRunning: Bool { connections.fleetUpdate.isActive }
 
         /// Reads the update check. `force` asks the server to look again rather than answer from its cache.
         public func loadCheck(force: Bool) async {

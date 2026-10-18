@@ -23,7 +23,7 @@
                         model.start()
                     }
                     .buttonStyle(HermesButtonStyle(.primary))
-                    .disabled(model.isBusy || model.servers.isEmpty)
+                    .disabled(model.isBusy || model.servers.isEmpty || model.singleUpdateRunning)
                     .accessibilityIdentifier("fleetUpdate.start")
                 } footer: {
                     Text("Each saved server is checked. You confirm each update before it runs. One server at a time.")
@@ -31,6 +31,11 @@
                 if let errorText = model.errorText {
                     Section {
                         ServerControlProblem(text: errorText)
+                    }
+                }
+                if model.singleUpdateRunning {
+                    Section {
+                        ServerControlBusyLine(text: "A Hermes update runs. Update all servers waits for it.")
                     }
                 }
                 progressSection
