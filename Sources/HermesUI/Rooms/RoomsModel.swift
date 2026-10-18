@@ -39,6 +39,7 @@
             guard let manager = connections.manager, let connection = connections.active else {
                 client = nil
                 chats = [:]
+                connectionID = nil
                 rooms = []
                 return
             }
