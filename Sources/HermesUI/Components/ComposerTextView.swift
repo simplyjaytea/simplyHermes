@@ -29,7 +29,7 @@
                 top: Self.verticalInset, left: 0, bottom: Self.verticalInset, right: 0)
             view.textContainer.lineFragmentPadding = 0
             view.accessibilityIdentifier = "composer.field"
-            view.accessibilityLabel = "Message"
+            view.accessibilityLabel = String(localized: "Message")
             return view
         }
 
@@ -80,7 +80,7 @@
                     .foregroundColor, value: UIColor.label, range: NSRange(location: 0, length: storage.length))
                 for range in ComposerTokens.mentionRanges(in: textView.text) {
                     storage.addAttribute(
-                        .foregroundColor, value: UIColor.systemBlue,
+                        .foregroundColor, value: UIColor(HermesColor.accent),
                         range: NSRange(location: range.lowerBound, length: range.count))
                 }
                 storage.endEditing()

@@ -42,6 +42,11 @@
                 .background(HermesColor.background)
             }
             .task(id: sessionID) { await chat.attach() }
+            .onChange(of: chat.prefill, initial: true) { _, text in
+                guard let text else { return }
+                model.drafts[sessionID] = text
+                chat.clearPrefill()
+            }
             .sheet(item: Binding(get: { chat.valueRequests.first }, set: { _ in })) { item in
                 SecureValueSheet(
                     item: item, onSend: { chat.answerValue(item, $0) }, onCancel: { chat.dismissValue(item) })

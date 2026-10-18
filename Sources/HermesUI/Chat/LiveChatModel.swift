@@ -61,6 +61,8 @@
         @ObservationIgnored private let storedSessionID: String
         /// When an automatic retry will fire, if one is scheduled.
         public private(set) var retryAt: Date?
+        /// Text a slash command asked the composer to take back, unsent. The chat screen moves it into the draft.
+        public private(set) var prefill: String?
         @ObservationIgnored private var retryTask: Task<Void, Never>?
         @ObservationIgnored private var controller: ChatSessionController?
         @ObservationIgnored private var client: GatewayClient?
@@ -138,7 +140,14 @@
         public func send(_ text: String, attachments: [ComposerAttachment] = []) {
             guard let controller else { return }
             HermesSounds.play(.send)
-            Task { await controller.send(text, attachments: attachments) }
+            Task {
+                if let composerText = await controller.send(text, attachments: attachments) { prefill = composerText }
+            }
+        }
+
+        /// Clears ``prefill`` once the composer has taken its text.
+        public func clearPrefill() {
+            prefill = nil
         }
 
         /// Sends the text into the running reply instead of queueing it. Falls back to sending normally.
