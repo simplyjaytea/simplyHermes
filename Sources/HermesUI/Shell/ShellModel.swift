@@ -50,7 +50,12 @@
         public private(set) var openSessionIDs: [String] = []
         /// Closed chats, most recent last, for "Reopen closed chat".
         public private(set) var closedSessionIDs: [String] = []
-        public var drafts: [String: String] = [:]
+        /// Unsent text per chat. Kept across launches, so a draft is still there after the app closes.
+        public var drafts: [String: String] = [:] {
+            didSet { Self.saveDrafts(drafts) }
+        }
+        /// Sent messages and Undo text per chat. The composer steps through the history with Up and Down.
+        public var histories: [String: ComposerHistory] = [:]
         /// Files attached in each chat's composer. They go out with the next message of that chat.
         public var attachments: [String: [ComposerAttachment]] = [:]
         public var scrollAnchors: [String: String] = [:]
@@ -75,6 +80,7 @@
 
         public init(sessions: [ChatSessionSummary] = ShellModel.sampleSessions, selectedSessionID: String? = nil) {
             self.sessions = sessions
+            drafts = Self.loadDrafts()
             let initial = selectedSessionID ?? sessions.first?.id
             self.selectedSessionID = initial
             for session in sessions {
@@ -167,6 +173,41 @@
         func liveChat(for id: String) -> LiveChatModel? {
             guard serverSessionIDs.contains(id) else { return nil }
             return liveChats?.chat(for: id)
+        }
+
+        /// Empties a chat's field. The text stays one Undo away.
+        public func clearDraft(in id: String) {
+            let text = drafts[id, default: ""]
+            drafts[id] = ""
+            histories[id, default: ComposerHistory()].keepCleared(text)
+        }
+
+        /// Adds a sent message to the chat's history.
+        public func rememberSent(_ text: String, in id: String) {
+            histories[id, default: ComposerHistory()].remember(text)
+        }
+
+        public func historyBinding(for id: String) -> Binding<ComposerHistory> {
+            Binding(
+                get: { self.histories[id, default: ComposerHistory()] },
+                set: { self.histories[id] = $0 }
+            )
+        }
+
+        private static let draftsKey = "composer.drafts"
+
+        private static func loadDrafts() -> [String: String] {
+            guard let data = UserDefaults.standard.data(forKey: draftsKey) else { return [:] }
+            return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
+        }
+
+        private static func saveDrafts(_ drafts: [String: String]) {
+            let kept = drafts.filter { !$0.value.isEmpty }
+            guard !kept.isEmpty, let data = try? JSONEncoder().encode(kept) else {
+                UserDefaults.standard.removeObject(forKey: draftsKey)
+                return
+            }
+            UserDefaults.standard.set(data, forKey: draftsKey)
         }
 
         public func draftBinding(for id: String) -> Binding<String> {
