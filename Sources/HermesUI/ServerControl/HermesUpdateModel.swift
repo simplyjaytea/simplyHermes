@@ -46,6 +46,10 @@
         /// The name of the server the update goes to: the active connection.
         public var targetName: String? { connections.active?.name }
 
+        /// True while "Update all servers" runs. That run reaches every saved server in turn, so a single-server
+        /// update waits for the whole run, not only for the server it is on.
+        public var isFleetUpdateRunning: Bool { connections.fleetUpdate.isBusy }
+
         /// Reads the update check. `force` asks the server to look again rather than answer from its cache.
         public func loadCheck(force: Bool) async {
             guard connections.manager != nil, !isBusy else { return }
@@ -64,8 +68,9 @@
         }
 
         /// Starts the update, which the user confirmed. Waits for the receipt, then re-runs the version check.
+        /// Does nothing while "Update all servers" runs, so two updates never overlap.
         public func startUpdate() async {
-            guard connections.manager != nil, !isBusy else { return }
+            guard connections.manager != nil, !isBusy, !isFleetUpdateRunning else { return }
             guard let backend = serverControlBackend(connections, connections.active) else { return }
             phase = .updating
             versionText = nil

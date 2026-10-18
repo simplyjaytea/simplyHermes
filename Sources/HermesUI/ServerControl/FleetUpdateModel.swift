@@ -41,7 +41,10 @@
         /// The update that waits for the answer. Nil when no question is open.
         private(set) var question: FleetUpdateQuestion?
 
-        @ObservationIgnored private let connections: ConnectionsModel
+        /// Weak, because ConnectionsModel holds this model (fleetUpdate). A strong reference would be a cycle.
+        @ObservationIgnored private weak var connections: ConnectionsModel?
+        /// Previews only: keeps the preview's connections alive, since the model holds them weakly.
+        @ObservationIgnored private var previewConnections: ConnectionsModel?
         @ObservationIgnored private let clock: any GatewayClock
         /// The task of the run. Stop cancels it.
         @ObservationIgnored private var runTask: Task<Void, Never>?
@@ -55,7 +58,7 @@
 
         /// The saved servers, in the order the list shows them.
         public var servers: [ServerConnection] {
-            connections.connections
+            connections?.connections ?? []
         }
 
         /// True while the servers run, so the button stays off.
@@ -94,7 +97,7 @@
             guard !isBusy else { return }
             let servers = self.servers
             guard !servers.isEmpty else { return }
-            guard let manager = connections.manager else {
+            guard let manager = connections?.manager else {
                 errorText = "Servers are not ready yet. Try again in a moment."
                 return
             }
@@ -103,13 +106,13 @@
             entries = []
             phase = .running(position: 0, total: servers.count, name: nil)
             // The servers this run connects keep the last used server as it is.
-            connections.recordsLastUsed = false
+            connections?.recordsLastUsed = false
             entries = await FleetUpdateRunner.run(servers) { [weak self] server in
                 guard let self else { throw CancellationError() }
                 await self.began(server, in: servers)
                 return try await self.checkAndUpdate(server, manager: manager, clock: clock)
             }
-            connections.recordsLastUsed = true
+            connections?.recordsLastUsed = true
             phase = .finished
         }
 
@@ -194,7 +197,9 @@
         static func preview(
             entries: [FleetUpdateEntry] = [], phase: FleetUpdatePhase = .idle, errorText: String? = nil
         ) -> FleetUpdateModel {
-            let model = FleetUpdateModel(connections: .preview())
+            let connections = ConnectionsModel.preview()
+            let model = FleetUpdateModel(connections: connections)
+            model.previewConnections = connections
             model.entries = entries
             model.phase = phase
             model.errorText = errorText

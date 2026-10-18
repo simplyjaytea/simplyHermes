@@ -18,6 +18,12 @@
 
         public var body: some View {
             List {
+                if model.isFleetUpdateRunning {
+                    Section {
+                        ServerControlBusyLine(
+                            text: "Update all servers is running. Hermes can be updated when it finishes.")
+                    }
+                }
                 if let check = model.check {
                     installedSection(check)
                     if check.updateAvailable == true {
@@ -70,7 +76,7 @@
                         confirming = true
                     }
                     .buttonStyle(HermesButtonStyle(.primary))
-                    .disabled(model.isBusy)
+                    .disabled(model.isBusy || model.isFleetUpdateRunning)
                     .accessibilityIdentifier("hermesUpdate.start")
                 } footer: {
                     Text(check.message ?? "The server restarts during the update.")
