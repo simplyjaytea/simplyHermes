@@ -3,11 +3,12 @@
     import SwiftUI
 
     /// What the editor saves. `create` makes a job in `profile`: a bot's profile, or the default profile for System.
-    /// `edit` changes a job. Its schedule is sent only when it is a 5-field cron expression that changed, and
-    /// `enabledChange` is set only when the enabled switch moved, so the model pauses or resumes the job.
+    /// `edit` changes a job in `profile`, the profile that owns it. Its schedule is sent only when it is a 5-field cron
+    /// expression that changed, and `enabledChange` is set only when the enabled switch moved, so the model pauses or
+    /// resumes the job.
     public enum CronJobSave: Sendable, Equatable {
         case create(CronJobCreate, profile: String)
-        case edit(id: String, changes: CronJobUpdate, enabledChange: Bool?)
+        case edit(id: String, profile: String, changes: CronJobUpdate, enabledChange: Bool?)
     }
 
     /// Creates or edits a cron job (plan Q36): name, prompt, bot, a schedule from presets with a time wheel, and raw
@@ -328,7 +329,7 @@
             let change: CronJobSave
             if let job {
                 change = .edit(
-                    id: job.id, changes: editChanges(for: job),
+                    id: job.id, profile: profile, changes: editChanges(for: job),
                     enabledChange: enabled == job.isEnabled ? nil : enabled)
             } else {
                 change = .create(

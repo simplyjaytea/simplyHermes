@@ -80,20 +80,21 @@
             }
         }
 
-        /// The job as the server has it now. The single read is not labelled with its profile, so the profile comes
-        /// from the list row.
+        /// The job as the server has it now. The single read is not labelled with its profile, so the read names the
+        /// profile the list row gives, and the profile comes from that row.
         public func job(id: String) async throws -> CronJob {
-            var job = try await rest().cronJob(id: id)
-            if let row = jobs.first(where: { $0.id == id }) {
+            let row = jobs.first(where: { $0.id == id })
+            var job = try await rest().cronJob(id: id, profile: row?.profile)
+            if let row {
                 job.profile = job.profile ?? row.profile
                 job.isDefaultProfile = job.isDefaultProfile ?? row.isDefaultProfile
             }
             return job
         }
 
-        /// The past runs of a job, newest first, as the server lists them.
+        /// The past runs of a job, newest first, as the server lists them. Read in the profile the list row gives.
         public func runs(of id: String) async throws -> [CronRun] {
-            try await rest().cronJobRuns(id: id)
+            try await rest().cronJobRuns(id: id, profile: jobs.first(where: { $0.id == id })?.profile)
         }
 
         /// The server's time zone for a profile, for the editor's preview: an IANA name, or `""` for the server's own
@@ -108,7 +109,7 @@
         /// Runs a job now, outside its schedule. Returns whether the server accepted it.
         @discardableResult
         public func runNow(_ job: CronJob) async -> Bool {
-            await act { client in try await client.triggerCronJob(id: job.id) }
+            await act { client in try await client.triggerCronJob(id: job.id, profile: job.profile) }
         }
 
         /// Pauses a job, or resumes it. Returns whether the server accepted the change.
@@ -116,9 +117,9 @@
         public func setEnabled(_ job: CronJob, _ enabled: Bool) async -> Bool {
             await act { client in
                 if enabled {
-                    try await client.resumeCronJob(id: job.id)
+                    try await client.resumeCronJob(id: job.id, profile: job.profile)
                 } else {
-                    try await client.pauseCronJob(id: job.id)
+                    try await client.pauseCronJob(id: job.id, profile: job.profile)
                 }
             }
         }
@@ -126,7 +127,7 @@
         /// Deletes a job on the server. The caller asks first. Returns whether the server deleted it.
         @discardableResult
         public func delete(_ job: CronJob) async -> Bool {
-            await act { client in try await client.deleteCronJob(id: job.id) }
+            await act { client in try await client.deleteCronJob(id: job.id, profile: job.profile) }
         }
 
         /// Creates a job in its profile, or saves the changes to one. Throws when the server refuses, so the editor
@@ -137,13 +138,13 @@
                 switch change {
                 case .create(let body, let profile):
                     try await client.createCronJob(body, profile: profile)
-                case .edit(let id, let changes, let enabledChange):
-                    try await client.updateCronJob(id: id, changes)
+                case .edit(let id, let profile, let changes, let enabledChange):
+                    try await client.updateCronJob(id: id, changes, profile: profile)
                     if let enabledChange {
                         if enabledChange {
-                            try await client.resumeCronJob(id: id)
+                            try await client.resumeCronJob(id: id, profile: profile)
                         } else {
-                            try await client.pauseCronJob(id: id)
+                            try await client.pauseCronJob(id: id, profile: profile)
                         }
                     }
                 }

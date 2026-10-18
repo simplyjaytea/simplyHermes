@@ -50,12 +50,16 @@ private func jsonBody(_ request: HTTPRequest?) -> [String: Any]? {
     @Test func singleJobReadsTheBareRecordAndTheWrappedForm() async throws {
         let bare = FakeHTTP()
         bare.enqueue(200, try restFixture("cron_job"))
-        let job = try await makeClient(bare, profile: "ops").cronJob(id: "9c1f0a2e5b7d")
+        bare.enqueue(200, try restFixture("cron_job"))
+        let client = makeClient(bare, profile: "ops")
+        let job = try await client.cronJob(id: "9c1f0a2e5b7d")
         #expect(job.prompt == "Summarise yesterday's chats and list open approvals.")
         #expect(job.schedule?.expr == "0 9 * * 1-5")
         #expect(job.profile == nil, "a single read is not annotated with its profile")
         let request = try #require(bare.requests.first)
         #expect(request.url.path == "/api/cron/jobs/9c1f0a2e5b7d" && request.url.query == "profile=ops")
+        _ = try await client.cronJob(id: "9c1f0a2e5b7d", profile: "bo")
+        #expect(bare.requests.last?.url.query == "profile=bo", "a job is read in the profile its list row names")
         let wrapped = FakeHTTP()
         wrapped.enqueue(200, #"{"job": {"id":"z","name":"Ping","schedule":{"kind":"cron","expr":"*/5 * * * *"}}}"#)
         let other = try await makeClient(wrapped).cronJob(id: "z")
@@ -68,11 +72,12 @@ private func jsonBody(_ request: HTTPRequest?) -> [String: Any]? {
         let client = makeClient(http, profile: "ops")
         try await client.createCronJob(
             CronJobCreate(schedule: "0 9 * * *", name: "Summary", prompt: "Summarise", paused: false), profile: "ana")
-        try await client.updateCronJob(id: "a/b c", CronJobUpdate(name: "Renamed", schedule: "0 10 * * *"))
-        try await client.pauseCronJob(id: "j1")
-        try await client.resumeCronJob(id: "j1")
-        try await client.triggerCronJob(id: "j1")
-        try await client.deleteCronJob(id: "j1")
+        try await client.updateCronJob(
+            id: "a/b c", CronJobUpdate(name: "Renamed", schedule: "0 10 * * *"), profile: "bo")
+        try await client.pauseCronJob(id: "j1", profile: "bo")
+        try await client.resumeCronJob(id: "j1", profile: "bo")
+        try await client.triggerCronJob(id: "j1", profile: "bo")
+        try await client.deleteCronJob(id: "j1", profile: "bo")
         let requests = http.requests
         #expect(requests.map(\.method) == ["POST", "PUT", "POST", "POST", "POST", "DELETE"])
         #expect(
@@ -81,7 +86,9 @@ private func jsonBody(_ request: HTTPRequest?) -> [String: Any]? {
                 "/api/cron/jobs/j1/trigger", "/api/cron/jobs/j1",
             ])
         #expect(requests[0].url.query == "profile=ana", "a new job goes to the profile the editor chose")
-        #expect(requests.dropFirst().allSatisfy { $0.url.query == "profile=ops" })
+        #expect(
+            requests.dropFirst().allSatisfy { $0.url.query == "profile=bo" },
+            "a job's calls go to its own profile, not the active one")
         let created = try #require(jsonBody(requests[0]))
         #expect(created["name"] as? String == "Summary" && created["prompt"] as? String == "Summarise")
         #expect(created["schedule"] as? String == "0 9 * * *" && created["paused"] as? Bool == false)
@@ -120,7 +127,9 @@ private func jsonBody(_ request: HTTPRequest?) -> [String: Any]? {
     @Test func runsReadTheWrapperAndTheEpochStart() async throws {
         let http = FakeHTTP()
         http.enqueue(200, try restFixture("cron_job_runs"))
-        let runs = try await makeClient(http).cronJobRuns(id: "9c1f0a2e5b7d", limit: 5)
+        http.enqueue(200, try restFixture("cron_job_runs"))
+        let client = makeClient(http)
+        let runs = try await client.cronJobRuns(id: "9c1f0a2e5b7d", limit: 5)
         #expect(runs.count == 2)
         #expect(runs[0].title == "COMPLETED · Summary" && runs[0].preview?.hasPrefix("Summary") == true)
         #expect(runs[0].started?.timeIntervalSince1970 == 1_792_141_201)
@@ -128,6 +137,8 @@ private func jsonBody(_ request: HTTPRequest?) -> [String: Any]? {
         #expect(runs[1].title == "FAILED · provider timeout" && runs[1].preview == nil)
         let request = try #require(http.requests.first)
         #expect(request.url.path == "/api/cron/jobs/9c1f0a2e5b7d/runs" && request.url.query == "limit=5")
+        _ = try await client.cronJobRuns(id: "9c1f0a2e5b7d", limit: 5, profile: "bo")
+        #expect(http.requests.last?.url.query == "limit=5&profile=bo")
     }
 
     @Test func deliveryTargetsReadTheIdAndTheName() async throws {
