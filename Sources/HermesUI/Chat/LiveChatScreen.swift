@@ -34,6 +34,7 @@
                 Composer(
                     text: model.draftBinding(for: sessionID),
                     attachments: model.attachmentsBinding(for: sessionID),
+                    completer: Self.completer(for: chat),
                     onSend: { send() },
                     // Files cannot be steered into the running reply, so they wait for the queue.
                     onSteer: chat.isRunning && model.attachments[sessionID, default: []].isEmpty ? { steer() } : nil
@@ -285,6 +286,11 @@
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             model.drafts[sessionID] = ""
             chat.steer(text)
+        }
+
+        /// Looks up completions on the chat. The closure captures only the chat, not the view.
+        private static func completer(for chat: LiveChatModel) -> CompletionLookup {
+            { trigger in await chat.complete(trigger) }
         }
 
         private func send() {

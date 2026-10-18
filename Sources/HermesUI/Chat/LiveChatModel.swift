@@ -121,6 +121,20 @@
             Task { await controller?.detach() }
         }
 
+        /// Completions for a `/` command or an `@` mention, ranked by the server. Empty while the chat is not attached.
+        public func complete(_ trigger: ComposerTrigger) async -> [CompletionItem] {
+            guard let client else { return [] }
+            let session = state.liveSessionID
+            switch trigger {
+            case .slash(let query):
+                let result = try? await client.completeSlash(CompleteSlashParams(text: "/" + query, sessionID: session))
+                return result?.items ?? []
+            case .mention(let query):
+                let result = try? await client.completePath(CompletePathParams(word: "@" + query, sessionID: session))
+                return result?.items ?? []
+            }
+        }
+
         public func send(_ text: String, attachments: [ComposerAttachment] = []) {
             guard let controller else { return }
             HermesSounds.play(.send)
