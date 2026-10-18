@@ -176,7 +176,12 @@
                     Task { await model.updateInstalled() }
                 }
             } message: {
-                Text("The server updates every hub skill installed for this profile. The app has no way to undo an update.")
+                Text(
+                    """
+                    The server updates every hub skill installed for this profile. \
+                    The app has no way to undo an update.
+                    """
+                )
             }
         }
 
