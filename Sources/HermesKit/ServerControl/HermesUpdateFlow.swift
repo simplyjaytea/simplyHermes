@@ -71,9 +71,9 @@ public struct HermesUpdateFlow: Sendable, Equatable {
     }
 
     /// Checks first (forced), updates only when the check says an update exists and this install can apply it.
-    public func checkAndApply(_ steps: HermesUpdateSteps, clock: any GatewayClock) async throws
-        -> HermesUpdateRunOutcome
-    {
+    public func checkAndApply(
+        _ steps: HermesUpdateSteps, clock: any GatewayClock
+    ) async throws -> HermesUpdateRunOutcome {
         let check = try await steps.check(true)
         guard check.updateAvailable == true else {
             if check.isUpToDate { return .upToDate }

@@ -55,9 +55,9 @@ public struct ServerControlBackend: Sendable {
 
     /// Sends a gateway action. Stop and restart then wait for the server to answer again, for up to 60 s. Over SSH a
     /// restart also drops the connection, so the manager starts a new tunnel and the dashboard before the wait.
-    public func perform(_ action: ServerControlAction, clock: any GatewayClock) async throws
-        -> ServerControlActionOutcome
-    {
+    public func perform(
+        _ action: ServerControlAction, clock: any GatewayClock
+    ) async throws -> ServerControlActionOutcome {
         let rest = try await rest()
         try await rest.gatewayControl(action)
         guard action.waitsForServer else { return .sent }

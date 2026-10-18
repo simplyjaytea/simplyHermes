@@ -4,8 +4,9 @@
 
     /// The backend for the saved connection, or nil when the connection manager is not running (previews, offline).
     @MainActor
-    func serverControlBackend(_ connections: ConnectionsModel, _ connection: ServerConnection?) -> ServerControlBackend?
-    {
+    func serverControlBackend(
+        _ connections: ConnectionsModel, _ connection: ServerConnection?
+    ) -> ServerControlBackend? {
         guard let connection, let manager = connections.manager else { return nil }
         return ServerControlBackend(manager: manager, connection: connection)
     }

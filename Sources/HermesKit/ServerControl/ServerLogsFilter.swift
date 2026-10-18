@@ -96,6 +96,6 @@ public enum ServerLogsRows {
         let encoder = JSONEncoder()
         encoder.outputFormatting = formatting
         guard let data = try? encoder.encode(json) else { return "?" }
-        return String(decoding: data, as: UTF8.self)
+        return String(bytes: data, encoding: .utf8) ?? "?"
     }
 }

@@ -82,9 +82,8 @@
             } catch {
                 phase = .failed(ServerControlError.describe(error))
             }
-            if let rest = await backend.connectedRest(), let refreshed = try? await rest.hermesUpdateCheck(force: true)
-            {
-                check = refreshed
+            if let rest = await backend.connectedRest(), let latest = try? await rest.hermesUpdateCheck(force: true) {
+                check = latest
             }
         }
 
