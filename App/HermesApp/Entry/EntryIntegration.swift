@@ -154,19 +154,44 @@ final class EntryIntegration {
 
     // MARK: Shares
 
-    /// Sends the shares the Share extension left in the shared container. Each share goes out once: it is deleted
-    /// when its message has been sent or saved as a draft, and until then it stays on disk in case the app is closed.
+    /// Sends the shares the Share extension left in the shared container. Each share goes out once. A share is deleted
+    /// once its message has been sent. A message kept as a draft keeps its share on disk, marked, and the next launch
+    /// puts it back as a draft. It is never sent.
     func drainShares() {
         guard let sharedDirectory, hasServer else { return }
         let outbox = ShareOutbox(directory: sharedDirectory)
         outbox.purge(now: Date())
         for payload in outbox.pending() {
             guard handledShares.insert(payload.id).inserted else { continue }
-            deliver(payload, from: outbox)
+            if payload.keptAsDraft {
+                restoreDraft(payload, from: outbox)
+            } else {
+                deliver(payload, from: outbox)
+            }
         }
     }
 
     private func deliver(_ payload: SharePayload, from outbox: ShareOutbox) {
+        let id = payload.id
+        outbound.submit(message(for: payload, from: outbox)) { outcome in
+            switch outcome {
+            case .sent:
+                outbox.remove(id: id)
+            case .keptAsDraft:
+                // An unmarked share would be sent at the next launch, so one that cannot be marked is removed instead.
+                if !outbox.markKeptAsDraft(id: id) { outbox.remove(id: id) }
+            }
+        }
+    }
+
+    /// Puts a share that an earlier launch kept as a draft back into a composer. The share leaves the outbox once it is
+    /// in the composer, and it is not sent.
+    private func restoreDraft(_ payload: SharePayload, from outbox: ShareOutbox) {
+        guard outbound.restoreDraft(message(for: payload, from: outbox)) else { return }
+        outbox.remove(id: payload.id)
+    }
+
+    private func message(for payload: SharePayload, from outbox: ShareOutbox) -> OutboundMessage {
         let attachments = payload.attachments.compactMap { file in
             outbox.data(of: file, in: payload.id).map { file.composerAttachment(data: $0) }
         }
@@ -175,9 +200,7 @@ final class EntryIntegration {
             case .newChat: .newChat
             case .chat(let sessionID): .chat(sessionID)
             }
-        let message = OutboundMessage(
+        return OutboundMessage(
             id: payload.id, text: payload.text, attachments: attachments, target: target, createdAt: Date())
-        let id = payload.id
-        outbound.submit(message) { outbox.remove(id: id) }
     }
 }

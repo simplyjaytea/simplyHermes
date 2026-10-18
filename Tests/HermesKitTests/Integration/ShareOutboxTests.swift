@@ -72,6 +72,26 @@ private func temporaryDirectory() -> URL {
         #expect(!FileManager.default.fileExists(atPath: outbox.folder(for: id).path))
     }
 
+    @Test func aShareKeptAsDraftKeepsItsFilesUntilItIsRemoved() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let outbox = ShareOutbox(directory: directory)
+        let id = ShareOutbox.makeID()
+        try outbox.prepare(id: id)
+        let photo = try outbox.storeData(id: id, data: Data([1, 2, 3]), fileName: "Photo.jpg", kind: .image)
+        try outbox.commit(
+            SharePayload(id: id, createdAt: now, destination: .newChat, text: "note", attachments: [photo]))
+        #expect(outbox.pending().map(\.keptAsDraft) == [false], "a share is sent unless it was kept as a draft")
+
+        #expect(outbox.markKeptAsDraft(id: id))
+        #expect(outbox.pending().map(\.keptAsDraft) == [true], "the next launch puts it back as a draft")
+        #expect(outbox.data(of: photo, in: id) == Data([1, 2, 3]), "the photo is still there for that")
+
+        outbox.remove(id: id)
+        #expect(outbox.pending().isEmpty)
+        #expect(!outbox.markKeptAsDraft(id: id), "a removed share cannot be marked")
+    }
+
     @Test func pendingSharesComeOldestFirst() throws {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

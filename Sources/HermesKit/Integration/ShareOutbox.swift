@@ -130,15 +130,20 @@ public struct SharePayload: Codable, Equatable, Sendable, Identifiable {
     /// The note and the shared text and links, already joined (see ``ShareMessage``).
     public var text: String
     public var attachments: [Attachment]
+    /// Set by the app when the message was kept as a draft instead of sent. Such a share is put back as a draft at the
+    /// next launch and is never sent.
+    public var keptAsDraft: Bool
 
     public init(
-        id: String, createdAt: Date, destination: Destination, text: String, attachments: [Attachment] = []
+        id: String, createdAt: Date, destination: Destination, text: String, attachments: [Attachment] = [],
+        keptAsDraft: Bool = false
     ) {
         self.id = id
         self.createdAt = createdAt
         self.destination = destination
         self.text = text
         self.attachments = attachments
+        self.keptAsDraft = keptAsDraft
     }
 }
 
@@ -290,6 +295,19 @@ public struct ShareOutbox: Sendable {
         let name = attachment.storedName
         guard Self.isValidID(id), !name.isEmpty, name != ".", name != "..", !name.contains("/") else { return nil }
         return try? Data(contentsOf: filesFolder(for: id).appendingPathComponent(name))
+    }
+
+    /// Marks a share whose message was kept as a draft. Its files stay, so the next launch can put it back as a draft.
+    /// Returns false when the share is missing or the mark cannot be saved.
+    public func markKeptAsDraft(id: String) -> Bool {
+        guard var payload = payload(id: id) else { return false }
+        payload.keptAsDraft = true
+        do {
+            try commit(payload)
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// Deletes a share and its files.

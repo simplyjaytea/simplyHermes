@@ -2,6 +2,14 @@
     import Foundation
     import HermesKit
 
+    /// How a queued message ended. A message that was not sent is kept as a draft, so nothing the user said is lost.
+    public enum OutboundOutcome: Equatable, Sendable {
+        /// The chat takes the message to send.
+        case sent
+        /// The message is in a chat's composer as a draft. It was not sent.
+        case keptAsDraft
+    }
+
     /// Delivers messages that start outside a chat screen: Siri and Shortcuts, Quick Entry and the Share extension.
     ///
     /// A message names its chat loosely ("the chat I used last", "a new chat"), and the app may have just launched with
@@ -21,7 +29,7 @@
         private let chatStarter: ServerChatStarter?
         private let clock: @MainActor () -> Date
         private var waiting: [OutboundMessage] = []
-        private var completions: [String: @MainActor () -> Void] = [:]
+        private var completions: [String: @MainActor (OutboundOutcome) -> Void] = [:]
         private var boundChats: [String: String] = [:]
         private var opened: Set<String> = []
         /// Messages whose server chat is being made, and messages whose chat could not be made.
@@ -56,12 +64,21 @@
             return model.showStartedChat(started, serverName: chatStarter.serverName)
         }
 
-        /// Queues a message. `completion` runs once it has been sent or saved as a draft, never before.
-        public func submit(_ message: OutboundMessage, completion: (@MainActor () -> Void)? = nil) {
+        /// Queues a message. `completion` runs once it has been sent or kept as a draft, never before, and says which.
+        public func submit(_ message: OutboundMessage, completion: (@MainActor (OutboundOutcome) -> Void)? = nil) {
             guard !waiting.contains(where: { $0.id == message.id }) else { return }
             waiting.append(message)
             if let completion { completions[message.id] = completion }
             runLoop()
+        }
+
+        /// Puts a message that an earlier launch kept as a draft into a new chat's composer. It is never sent. Returns
+        /// false when no chat was made for it, and the caller keeps the message.
+        public func restoreDraft(_ message: OutboundMessage) -> Bool {
+            model.newChat()
+            guard let created = model.selectedSessionID else { return false }
+            keepAsDraft(message, in: created)
+            return true
         }
 
         private func runLoop() {
@@ -80,10 +97,10 @@
             let now = clock()
             var remaining: [OutboundMessage] = []
             for message in waiting {
-                if deliver(message, now: now) {
+                if let outcome = deliver(message, now: now) {
                     boundChats[message.id] = nil
                     opened.remove(message.id)
-                    completions.removeValue(forKey: message.id)?()
+                    completions.removeValue(forKey: message.id)?(outcome)
                 } else {
                     remaining.append(message)
                 }
@@ -92,21 +109,22 @@
             return !waiting.isEmpty
         }
 
-        /// Returns true once the message is done: sent, or kept as a draft.
-        private func deliver(_ message: OutboundMessage, now: Date) -> Bool {
+        /// Returns how the message ended, or nil while it still waits.
+        private func deliver(_ message: OutboundMessage, now: Date) -> OutboundOutcome? {
             let resolution = OutboundPlanner.resolve(
                 message, bound: boundChats[message.id], knownChatIDs: Set(model.sessions.map(\.id)),
                 lastUsedID: lastUsedID(), now: now)
             let chatID: String
             switch resolution {
             case .wait:
-                return false
+                return nil
             case .createChat:
                 switch NewChatPolicy.kind(hasServer: chatStarter?.hasServer ?? false) {
                 case .placeholder:
                     // `newChat()` opens and selects the chat it makes.
                     model.newChat()
-                    guard let created = model.selectedSessionID else { return true }
+                    // Nothing was placed, so the share is kept rather than sent.
+                    guard let created = model.selectedSessionID else { return .keptAsDraft }
                     boundChats[message.id] = created
                     opened.insert(message.id)
                     chatID = created
@@ -114,7 +132,7 @@
                     // The chat is made in the background. A later pass finds it, or finds that it could not be made.
                     if failedStarts.remove(message.id) != nil { return keepInLocalChat(message) }
                     startChat(for: message)
-                    return false
+                    return nil
                 }
             case .chat(let id):
                 chatID = id
@@ -149,27 +167,27 @@
 
         /// The server would not make a chat. The message waits as a draft in a new local chat, so nothing is lost. It
         /// is not sent, because a local chat can only be answered by the demo.
-        private func keepInLocalChat(_ message: OutboundMessage) -> Bool {
+        private func keepInLocalChat(_ message: OutboundMessage) -> OutboundOutcome {
             model.newChat()
-            guard let created = model.selectedSessionID else { return true }
+            guard let created = model.selectedSessionID else { return .keptAsDraft }
             keepAsDraft(message, in: created)
-            return true
+            return .keptAsDraft
         }
 
-        private func place(_ message: OutboundMessage, in id: String, now: Date) -> Bool {
+        private func place(_ message: OutboundMessage, in id: String, now: Date) -> OutboundOutcome? {
             let live = model.liveChat(for: id)
             let step = OutboundPlanner.step(
                 for: message, isLive: model.serverSessionIDs.contains(id), readiness: Self.readiness(of: live), now: now
             )
             switch step {
             case .wait:
-                return false
+                return nil
             case .send:
                 send(message, in: id, live: live)
-                return true
+                return .sent
             case .saveAsDraft:
                 keepAsDraft(message, in: id)
-                return true
+                return .keptAsDraft
             }
         }
 

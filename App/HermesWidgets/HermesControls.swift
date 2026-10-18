@@ -39,7 +39,7 @@ struct StopAllControl: ControlWidget {
             ControlWidgetButton(action: StopAllTurnsIntent()) {
                 Label(state.title, systemImage: "stop.circle")
             }
-            .tint(.red)
+            .tint(HermesColor.destructive)
             .disabled(!state.isEnabled)
         }
         .displayName("Stop all turns")
