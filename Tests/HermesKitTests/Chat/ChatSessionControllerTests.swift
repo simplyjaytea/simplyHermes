@@ -105,9 +105,10 @@ private let twoTurns: [JSONValue] = [
 ]
 
 /// Three user turns, each with a reply: row ids 1 to 6.
-private let threeTurns: [JSONValue] = twoTurns + [
-    ["role": "user", "text": "third", "row_id": 5], ["role": "assistant", "text": "three", "row_id": 6],
-]
+private let threeTurns: [JSONValue] =
+    twoTurns + [
+        ["role": "user", "text": "third", "row_id": 5], ["role": "assistant", "text": "three", "row_id": 6],
+    ]
 
 /// Runs an edit and unwraps the outcome. Nil would mean the controller did nothing, which these tests do not expect.
 private func edited(
