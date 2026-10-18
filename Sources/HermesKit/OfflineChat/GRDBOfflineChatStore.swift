@@ -27,20 +27,20 @@ public struct GRDBOfflineChatStore: OfflineChatStore {
         }
     }
 
-    public func openChat(forSession sessionID: String, connection: String, title: String, at date: Date) async throws
-        -> OfflineChat
-    {
+    public func openChat(
+        forSession sessionID: String, connection: String, title: String, at date: Date
+    ) async throws -> OfflineChat {
         let stamp = date.timeIntervalSince1970
         return try await database.write { handle in
-            if let row = try Row.fetchOne(
+            let existing = try Row.fetchOne(
                 handle,
                 sql: """
                     SELECT * FROM offline_chat
                     WHERE connection = ? AND session_id = ? AND resolution IS NULL
                     """,
                 arguments: [connection, sessionID])
-            {
-                return Self.chat(row)
+            if let existing {
+                return Self.chat(existing)
             }
             let id = UUID().uuidString
             try handle.execute(
