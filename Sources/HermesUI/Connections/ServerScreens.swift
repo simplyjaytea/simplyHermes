@@ -374,6 +374,38 @@
                     }
                     .accessibilityIdentifier("settings.servers")
                 }
+                Section("Models") {
+                    NavigationLink {
+                        ProvidersKeysScreen(connections: connections)
+                    } label: {
+                        Label("Providers & keys", systemImage: "key.horizontal")
+                    }
+                    .accessibilityIdentifier("settings.models.providers")
+                    NavigationLink {
+                        ModelDefaultsScreen(connections: connections)
+                    } label: {
+                        Label("Model defaults", systemImage: "cpu")
+                    }
+                    .accessibilityIdentifier("settings.models.defaults")
+                    NavigationLink {
+                        ModelDefaultsAuxiliaryScreen(connections: connections)
+                    } label: {
+                        Label("Auxiliary models", systemImage: "slider.horizontal.3")
+                    }
+                    .accessibilityIdentifier("settings.models.auxiliary")
+                    NavigationLink {
+                        CredentialPoolScreen(connections: connections)
+                    } label: {
+                        Label("Credentials pool", systemImage: "key.fill")
+                    }
+                    .accessibilityIdentifier("settings.models.pool")
+                    NavigationLink {
+                        ApiKeyScreen(connections: connections)
+                    } label: {
+                        Label("API keys", systemImage: "lock.fill")
+                    }
+                    .accessibilityIdentifier("settings.models.keys")
+                }
                 Section("Support") {
                     NavigationLink {
                         BugReportScreen(connections: connections)
