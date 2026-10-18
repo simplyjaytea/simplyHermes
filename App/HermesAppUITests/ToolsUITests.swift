@@ -17,7 +17,8 @@ final class ToolsUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 10))
         back(app, from: "Backup cron fix", to: "Chats")
 
-        let toolsTab = tabButton(app, "Tools")
+        // The tabs are buttons in a toolbar on this layout, not tab bar buttons. The visible one comes first.
+        let toolsTab = app.buttons["Tools"]
         XCTAssertTrue(toolsTab.waitForExistence(timeout: 10), "The tab should show Tools")
         toolsTab.tap()
 
@@ -62,13 +63,6 @@ final class ToolsUITests: XCTestCase {
             app.navigationBars[current].waitForNonExistence(timeout: 5),
             "Expected to back out of \(current) to \(previous)"
         )
-    }
-
-    /// A tab found by its label. The tabs are exposed as buttons in a toolbar here, not as tab bar buttons.
-    /// Hidden copies of the same buttons exist, so only a hittable one counts.
-    @MainActor
-    private func tabButton(_ app: XCUIApplication, _ title: String) -> XCUIElement {
-        app.buttons.matching(NSPredicate(format: "label == %@ AND hittable == YES", title)).firstMatch
     }
 
     @MainActor
