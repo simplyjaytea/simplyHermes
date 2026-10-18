@@ -54,7 +54,7 @@
                     }
                 }
                 .fileImporter(isPresented: $showsImporter, allowedContentTypes: [.data]) { result in
-                    guard case .success(let urls) = result, let url = urls.first else { return }
+                    guard case .success(let url) = result else { return }
                     Task { await model.importArchive(from: url) }
                 }
                 .sheet(item: $shareFile) { file in
