@@ -1,0 +1,18 @@
+{
+  "body": {
+    "decided": false,
+    "enabled": false,
+    "managed": false,
+    "reask": false,
+    "send": false
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/shared-metrics/consent",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

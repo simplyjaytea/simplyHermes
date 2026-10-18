@@ -1,0 +1,14 @@
+{
+  "body": {
+    "count": 0
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/sessions/empty/count",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

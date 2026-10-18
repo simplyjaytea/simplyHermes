@@ -1,5 +1,1263 @@
 {
-  "entries": [],
+  "entries": [
+    {
+      "file": "DELETE_api_credentials_pool_recorder_0.json",
+      "method": "DELETE",
+      "path": "/api/credentials/pool/recorder/0",
+      "status": 404,
+      "step": "credentials.delete"
+    },
+    {
+      "file": "DELETE_api_env.json",
+      "method": "DELETE",
+      "path": "/api/env",
+      "status": 200,
+      "step": "env.delete"
+    },
+    {
+      "file": "DELETE_api_mcp_servers_recorder-mcp.json",
+      "method": "DELETE",
+      "path": "/api/mcp/servers/recorder-mcp",
+      "status": 200,
+      "step": "mcp.delete"
+    },
+    {
+      "file": "DELETE_api_plugins_kanban_boards_recorder.json",
+      "method": "DELETE",
+      "path": "/api/plugins/kanban/boards/recorder",
+      "status": 200,
+      "step": "kanban.board-delete"
+    },
+    {
+      "file": "DELETE_api_plugins_kanban_tasks_task_id.json",
+      "method": "DELETE",
+      "path": "/api/plugins/kanban/tasks/t_3848a8c2",
+      "status": 200,
+      "step": "kanban.task-delete"
+    },
+    {
+      "file": "DELETE_api_providers_custom-endpoints_endpoint_id.json",
+      "method": "DELETE",
+      "path": "/api/providers/custom-endpoints/recorder-endpoint",
+      "status": 200,
+      "step": "custom-endpoint.delete"
+    },
+    {
+      "file": "DELETE_api_webhooks_recorder-hook.json",
+      "method": "DELETE",
+      "path": "/api/webhooks/recorder-hook",
+      "status": 404,
+      "step": "webhooks.delete"
+    },
+    {
+      "file": "GET_api_analytics_models.json",
+      "method": "GET",
+      "path": "/api/analytics/models",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_analytics_usage.json",
+      "method": "GET",
+      "path": "/api/analytics/usage",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_audio_elevenlabs_voices.json",
+      "method": "GET",
+      "path": "/api/audio/elevenlabs/voices",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_audio_voice-config.json",
+      "method": "GET",
+      "path": "/api/audio/voice-config",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_audio_voice-live_status.json",
+      "method": "GET",
+      "path": "/api/audio/voice-live/status",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_auth_me.json",
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_auth_providers.json",
+      "method": "GET",
+      "path": "/api/auth/providers",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_chat_workspaces.json",
+      "method": "GET",
+      "path": "/api/chat/workspaces",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_config.json",
+      "method": "GET",
+      "path": "/api/config",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_config_defaults.json",
+      "method": "GET",
+      "path": "/api/config/defaults",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_config_schema.json",
+      "method": "GET",
+      "path": "/api/config/schema",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_credentials_pool.json",
+      "method": "GET",
+      "path": "/api/credentials/pool",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_credentials_pool.seeded.json",
+      "method": "GET",
+      "path": "/api/credentials/pool",
+      "status": 200,
+      "step": "credentials.seeded"
+    },
+    {
+      "file": "GET_api_cron_blueprints.json",
+      "method": "GET",
+      "path": "/api/cron/blueprints",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_cron_delivery-targets.json",
+      "method": "GET",
+      "path": "/api/cron/delivery-targets",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_cron_jobs.json",
+      "method": "GET",
+      "path": "/api/cron/jobs",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_curator.json",
+      "method": "GET",
+      "path": "/api/curator",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_dashboard_font.json",
+      "method": "GET",
+      "path": "/api/dashboard/font",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_dashboard_plugins.json",
+      "method": "GET",
+      "path": "/api/dashboard/plugins",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_dashboard_plugins_catalog.json",
+      "method": "GET",
+      "path": "/api/dashboard/plugins/catalog",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_dashboard_plugins_hub.json",
+      "method": "GET",
+      "path": "/api/dashboard/plugins/hub",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_dashboard_plugins_rescan.json",
+      "method": "GET",
+      "path": "/api/dashboard/plugins/rescan",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_dashboard_themes.json",
+      "method": "GET",
+      "path": "/api/dashboard/themes",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_egress_status.json",
+      "method": "GET",
+      "path": "/api/egress/status",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_env.json",
+      "method": "GET",
+      "path": "/api/env",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_env.seeded.json",
+      "method": "GET",
+      "path": "/api/env",
+      "status": 200,
+      "step": "env.seeded"
+    },
+    {
+      "file": "GET_api_health.json",
+      "method": "GET",
+      "path": "/api/health",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_health_idle.json",
+      "method": "GET",
+      "path": "/api/health/idle",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_hermes_update_check.json",
+      "method": "GET",
+      "path": "/api/hermes/update/check",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_hermes_update_receipt.json",
+      "method": "GET",
+      "path": "/api/hermes/update/receipt",
+      "status": 404,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_host_identity.json",
+      "method": "GET",
+      "path": "/api/host/identity",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_learning_graph.json",
+      "method": "GET",
+      "path": "/api/learning/graph",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_learning_node.json",
+      "method": "GET",
+      "path": "/api/learning/node",
+      "status": 422,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_logs.json",
+      "method": "GET",
+      "path": "/api/logs",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_mcp_catalog.json",
+      "method": "GET",
+      "path": "/api/mcp/catalog",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_mcp_servers.json",
+      "method": "GET",
+      "path": "/api/mcp/servers",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_mcp_servers.seeded.json",
+      "method": "GET",
+      "path": "/api/mcp/servers",
+      "status": 200,
+      "step": "mcp.seeded"
+    },
+    {
+      "file": "GET_api_memory.json",
+      "method": "GET",
+      "path": "/api/memory",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_memory_providers_byterover_config.json",
+      "method": "GET",
+      "path": "/api/memory/providers/byterover/config",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_memory_providers_byterover_oauth_status.json",
+      "method": "GET",
+      "path": "/api/memory/providers/byterover/oauth/status",
+      "status": 404,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_messaging_platforms.json",
+      "method": "GET",
+      "path": "/api/messaging/platforms",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_model_auxiliary.json",
+      "method": "GET",
+      "path": "/api/model/auxiliary",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_model_info.json",
+      "method": "GET",
+      "path": "/api/model/info",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_model_moa.json",
+      "method": "GET",
+      "path": "/api/model/moa",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_model_options.json",
+      "method": "GET",
+      "path": "/api/model/options",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_model_recommended-default.json",
+      "method": "GET",
+      "path": "/api/model/recommended-default",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_pairing.json",
+      "method": "GET",
+      "path": "/api/pairing",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_hermes-achievements_achievements.json",
+      "method": "GET",
+      "path": "/api/plugins/hermes-achievements/achievements",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_hermes-achievements_recent-unlocks.json",
+      "method": "GET",
+      "path": "/api/plugins/hermes-achievements/recent-unlocks",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_hermes-achievements_scan-status.json",
+      "method": "GET",
+      "path": "/api/plugins/hermes-achievements/scan-status",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_hermes-achievements_sessions_session_id_badges.json",
+      "method": "GET",
+      "path": "/api/plugins/hermes-achievements/sessions/20261018_045102_598cc4/badges",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_kanban_assignees.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/assignees",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_kanban_board.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/board",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_kanban_board.seeded.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/board",
+      "status": 200,
+      "step": "kanban.seeded"
+    },
+    {
+      "file": "GET_api_plugins_kanban_boards.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/boards",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_kanban_config.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/config",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_kanban_diagnostics.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/diagnostics",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_kanban_home-channels.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/home-channels",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_kanban_model-options.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/model-options",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_kanban_orchestration.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/orchestration",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_kanban_profiles.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/profiles",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_kanban_projects.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/projects",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_kanban_stats.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/stats",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_kanban_tasks_task_id.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/tasks/t_3848a8c2",
+      "status": 200,
+      "step": "kanban.task.seeded"
+    },
+    {
+      "file": "GET_api_plugins_kanban_tasks_task_id_attachments.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/tasks/t_3848a8c2/attachments",
+      "status": 200,
+      "step": "kanban.attachments.seeded"
+    },
+    {
+      "file": "GET_api_plugins_kanban_tasks_task_id_log.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/tasks/t_3848a8c2/log",
+      "status": 200,
+      "step": "kanban.log.seeded"
+    },
+    {
+      "file": "GET_api_plugins_kanban_workers_active.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/workers/active",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_plugins_kanban_workflow.json",
+      "method": "GET",
+      "path": "/api/plugins/kanban/workflow",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_portal.json",
+      "method": "GET",
+      "path": "/api/portal",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_profiles.json",
+      "method": "GET",
+      "path": "/api/profiles",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_profiles_active.json",
+      "method": "GET",
+      "path": "/api/profiles/active",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_profiles_default_desktop-overlay.json",
+      "method": "GET",
+      "path": "/api/profiles/default/desktop-overlay",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_profiles_default_setup-command.json",
+      "method": "GET",
+      "path": "/api/profiles/default/setup-command",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_profiles_default_soul.json",
+      "method": "GET",
+      "path": "/api/profiles/default/soul",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_profiles_projects_tree.json",
+      "method": "GET",
+      "path": "/api/profiles/projects/tree",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_profiles_sessions.json",
+      "method": "GET",
+      "path": "/api/profiles/sessions",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_profiles_sessions_sidebar.json",
+      "method": "GET",
+      "path": "/api/profiles/sessions/sidebar",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_providers_custom-endpoints.json",
+      "method": "GET",
+      "path": "/api/providers/custom-endpoints",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_providers_custom-endpoints.seeded.json",
+      "method": "GET",
+      "path": "/api/providers/custom-endpoints",
+      "status": 200,
+      "step": "custom-endpoint.seeded"
+    },
+    {
+      "file": "GET_api_providers_oauth.json",
+      "method": "GET",
+      "path": "/api/providers/oauth",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_sessions.json",
+      "method": "GET",
+      "path": "/api/sessions",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_sessions_empty_count.json",
+      "method": "GET",
+      "path": "/api/sessions/empty/count",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_sessions_search.json",
+      "method": "GET",
+      "path": "/api/sessions/search",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_sessions_session_id.json",
+      "method": "GET",
+      "path": "/api/sessions/20261018_045102_598cc4",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_sessions_session_id_export.json",
+      "method": "GET",
+      "path": "/api/sessions/20261018_045102_598cc4/export",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_sessions_session_id_latest-descendant.json",
+      "method": "GET",
+      "path": "/api/sessions/20261018_045102_598cc4/latest-descendant",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_sessions_session_id_messages.json",
+      "method": "GET",
+      "path": "/api/sessions/20261018_045102_598cc4/messages",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_sessions_session_id_messages_around.json",
+      "method": "GET",
+      "path": "/api/sessions/20261018_045102_598cc4/messages/around",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_sessions_session_id_timeline.json",
+      "method": "GET",
+      "path": "/api/sessions/20261018_045102_598cc4/timeline",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_sessions_stats.json",
+      "method": "GET",
+      "path": "/api/sessions/stats",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_shared-metrics_consent.json",
+      "method": "GET",
+      "path": "/api/shared-metrics/consent",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_skills.json",
+      "method": "GET",
+      "path": "/api/skills",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_skills_content.json",
+      "method": "GET",
+      "path": "/api/skills/content",
+      "status": 422,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_skills_hub_official.json",
+      "method": "GET",
+      "path": "/api/skills/hub/official",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_skills_hub_preview.json",
+      "method": "GET",
+      "path": "/api/skills/hub/preview",
+      "status": 400,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_skills_hub_scan.json",
+      "method": "GET",
+      "path": "/api/skills/hub/scan",
+      "status": 400,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_skills_hub_search.json",
+      "method": "GET",
+      "path": "/api/skills/hub/search",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_skills_hub_sources.json",
+      "method": "GET",
+      "path": "/api/skills/hub/sources",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_ssh_ownership.json",
+      "method": "GET",
+      "path": "/api/ssh/ownership",
+      "status": 404,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_status.json",
+      "method": "GET",
+      "path": "/api/status",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_system_stats.json",
+      "method": "GET",
+      "path": "/api/system/stats",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_tools_computer-use_status.json",
+      "method": "GET",
+      "path": "/api/tools/computer-use/status",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_tools_terminal_backends.json",
+      "method": "GET",
+      "path": "/api/tools/terminal/backends",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_tools_toolsets.json",
+      "method": "GET",
+      "path": "/api/tools/toolsets",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_tools_toolsets_web_config.json",
+      "method": "GET",
+      "path": "/api/tools/toolsets/web/config",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_tools_toolsets_web_models.json",
+      "method": "GET",
+      "path": "/api/tools/toolsets/web/models",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_webhooks.json",
+      "method": "GET",
+      "path": "/api/webhooks",
+      "status": 200,
+      "step": "enumerate"
+    },
+    {
+      "file": "GET_api_webhooks.seeded.json",
+      "method": "GET",
+      "path": "/api/webhooks",
+      "status": 200,
+      "step": "webhooks.seeded"
+    },
+    {
+      "file": "PATCH_api_plugins_kanban_tasks_task_id.json",
+      "method": "PATCH",
+      "path": "/api/plugins/kanban/tasks/t_3848a8c2",
+      "status": 200,
+      "step": "kanban.update"
+    },
+    {
+      "file": "POST_api_credentials_pool.json",
+      "method": "POST",
+      "path": "/api/credentials/pool",
+      "status": 200,
+      "step": "credentials.create"
+    },
+    {
+      "file": "POST_api_mcp_servers.json",
+      "method": "POST",
+      "path": "/api/mcp/servers",
+      "status": 200,
+      "step": "mcp.create"
+    },
+    {
+      "file": "POST_api_mcp_servers_recorder-mcp_test.json",
+      "method": "POST",
+      "path": "/api/mcp/servers/recorder-mcp/test",
+      "status": 200,
+      "step": "mcp.test"
+    },
+    {
+      "file": "POST_api_plugins_kanban_boards.json",
+      "method": "POST",
+      "path": "/api/plugins/kanban/boards",
+      "status": 200,
+      "step": "kanban.board-create"
+    },
+    {
+      "file": "POST_api_plugins_kanban_tasks.json",
+      "method": "POST",
+      "path": "/api/plugins/kanban/tasks",
+      "status": 200,
+      "step": "kanban.task-create"
+    },
+    {
+      "file": "POST_api_plugins_kanban_tasks_task_id_comments.json",
+      "method": "POST",
+      "path": "/api/plugins/kanban/tasks/t_3848a8c2/comments",
+      "status": 200,
+      "step": "kanban.comment"
+    },
+    {
+      "file": "POST_api_providers_custom-endpoints.json",
+      "method": "POST",
+      "path": "/api/providers/custom-endpoints",
+      "status": 200,
+      "step": "custom-endpoint.create"
+    },
+    {
+      "file": "POST_api_providers_custom-endpoints_validate.json",
+      "method": "POST",
+      "path": "/api/providers/custom-endpoints/validate",
+      "status": 200,
+      "step": "custom-endpoint.validate"
+    },
+    {
+      "file": "POST_api_webhooks.json",
+      "method": "POST",
+      "path": "/api/webhooks",
+      "status": 400,
+      "step": "webhooks.create"
+    },
+    {
+      "file": "POST_auth_password-login.json",
+      "method": "POST",
+      "path": "/auth/password-login",
+      "status": 200,
+      "step": "login"
+    },
+    {
+      "file": "PUT_api_env.json",
+      "method": "PUT",
+      "path": "/api/env",
+      "status": 200,
+      "step": "env.set"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/actions/{name}/status",
+      "skipped": "no action name: the spec does not list actions",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/config/raw",
+      "skipped": "excluded: /api/config/raw (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/cron/jobs/{job_id}",
+      "skipped": "not sent: 'job_id' not found in the recorded /api/cron/jobs answer",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/cron/jobs/{job_id}/runs",
+      "skipped": "not sent: 'job_id' not found in the recorded /api/cron/jobs answer",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/files",
+      "skipped": "excluded: /api/files/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/files/download",
+      "skipped": "excluded: /api/files/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/files/read",
+      "skipped": "excluded: /api/files/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/files/stream",
+      "skipped": "excluded: /api/files/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/fs/default-cwd",
+      "skipped": "excluded: /api/fs/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/fs/download",
+      "skipped": "excluded: /api/fs/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/fs/git-root",
+      "skipped": "excluded: /api/fs/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/fs/list",
+      "skipped": "excluded: /api/fs/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/fs/read-data-url",
+      "skipped": "excluded: /api/fs/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/fs/read-text",
+      "skipped": "excluded: /api/fs/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/gateway/migrate/plan",
+      "skipped": "forbidden: /api/gateway/*",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/git/base-branches",
+      "skipped": "excluded: /api/git/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/git/branches",
+      "skipped": "excluded: /api/git/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/git/file-diff",
+      "skipped": "excluded: /api/git/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/git/gh-auth",
+      "skipped": "excluded: /api/git/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/git/review/commit-context",
+      "skipped": "excluded: /api/git/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/git/review/diff",
+      "skipped": "excluded: /api/git/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/git/review/list",
+      "skipped": "excluded: /api/git/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/git/review/rev-parse",
+      "skipped": "excluded: /api/git/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/git/review/ship-info",
+      "skipped": "excluded: /api/git/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/git/status",
+      "skipped": "excluded: /api/git/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/git/worktrees",
+      "skipped": "excluded: /api/git/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/local-models/catalog",
+      "skipped": "excluded: /api/local-models/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/local-models/hardware",
+      "skipped": "excluded: /api/local-models/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/local-models/jobs",
+      "skipped": "excluded: /api/local-models/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/local-models/jobs/{job_id}",
+      "skipped": "excluded: /api/local-models/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/local-models/search",
+      "skipped": "excluded: /api/local-models/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/local-models/search/files",
+      "skipped": "excluded: /api/local-models/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/local-models/status",
+      "skipped": "excluded: /api/local-models/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/mcp/oauth/callback/{server_name}",
+      "skipped": "not sent: OAuth callback (needs the provider's code and state)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/mcp/oauth/flows/{flow_id}",
+      "skipped": "no OAuth flow id: no flow is started (OAuth is not driven)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/media",
+      "skipped": "excluded: /api/media/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/media/proxy",
+      "skipped": "excluded: /api/media/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/messaging/telegram/onboarding/{pairing_id}",
+      "skipped": "no pairing id: onboarding needs a pairing that a person starts",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/messaging/whatsapp/onboarding/{pairing_id}",
+      "skipped": "no pairing id: onboarding needs a pairing that a person starts",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/ops/backup/download",
+      "skipped": "excluded: /api/ops/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/ops/checkpoints",
+      "skipped": "excluded: /api/ops/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/ops/hooks",
+      "skipped": "excluded: /api/ops/ (testbed rules)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/plugins/kanban/attachments/{attachment_id}",
+      "skipped": "no attachment id: the seeded task has none",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/plugins/kanban/runs/{run_id}",
+      "skipped": "no run id: the seeded task is never dispatched (dispatch is forbidden)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/plugins/kanban/runs/{run_id}/inspect",
+      "skipped": "no run id: the seeded task is never dispatched (dispatch is forbidden)",
+      "status": null,
+      "step": "enumerate"
+    },
+    {
+      "file": null,
+      "method": "GET",
+      "path": "/api/providers/oauth/{provider_id}/poll/{session_id}",
+      "skipped": "forbidden: provider OAuth start, submit or poll",
+      "status": null,
+      "step": "enumerate"
+    }
+  ],
   "recorder": "testbed/tools/record_rest.py",
   "upstream": "d97007c32d6340f7ba79ac1dfb5773cc00846448"
 }
