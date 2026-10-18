@@ -4,6 +4,8 @@ import Testing
 @testable import HermesKit
 
 /// Answers each method from a script of replies. A method's last reply repeats once its script runs out.
+/// With `activeProfile` set, each call is scoped the way `GatewayClient` scopes it (`ProfileScope`): a method that
+/// takes `profile` and does not name one records the active profile.
 private actor FakeBotGateway: BotGateway {
     enum Reply: Sendable {
         case json(String)
@@ -16,16 +18,20 @@ private actor FakeBotGateway: BotGateway {
     }
 
     private var scripts: [String: [Reply]]
+    private let activeProfile: String?
     private(set) var calls: [Call] = []
 
-    init(_ scripts: [String: [Reply]]) {
+    init(_ scripts: [String: [Reply]], activeProfile: String? = nil) {
         self.scripts = scripts
+        self.activeProfile = activeProfile
     }
 
     func call<Value: Decodable & Sendable>(
         _ method: String, params: (any Encodable & Sendable)?, as type: Value.Type
     ) async throws -> Value {
-        calls.append(Call(method: method, params: try params.map { try JSONValue(encoding: $0) }))
+        let encoded = try params.map { try JSONValue(encoding: $0) }
+        calls.append(
+            Call(method: method, params: ProfileScope.scoped(method: method, params: encoded, profile: activeProfile)))
         guard let script = scripts[method], let reply = script.first else {
             throw RPCError(code: -32601, message: "no reply scripted for \(method)")
         }
@@ -269,5 +275,32 @@ private let saved = #"{"ok": true, "applied": {"ui_meta": true}}"#
         await #expect(throws: BotError.roleNotSaved("ops")) {
             try await BotClient(gateway: gateway).setRole(profile: "ops", role: "Runs deploys")
         }
+    }
+
+    @Test func botWritesNameTheBotsProfileWhateverProfileIsActive() async throws {
+        let gateway = FakeBotGateway(
+            [
+                "profiles.list": [.json(listing())],
+                "profiles.configure": [.json(saved), .json(#"{"ok": true, "applied": {"description": true}}"#)],
+                "session.create": [.json(#"{"session_id": "live1", "stored_session_id": "stored1"}"#)],
+                "session.title": [.json(#"{"ok": true}"#)],
+            ], activeProfile: "default")
+        let client = BotClient(gateway: gateway)
+        try await client.updateNamespace(profile: "ops", namespace: BotMetaNamespace.desktop) { $0.pinned = true }
+        try await client.setRole(profile: "ops", role: "Runs deploys")
+        _ = try await client.createBotChat(profile: "ops")
+
+        let calls = await gateway.calls
+        // The roster read does not name a profile, so it records the active one: the fake did scope the calls.
+        let rosterRead = calls.first { $0.method == "profiles.list" }
+        #expect(rosterRead?.params?["profile"]?.stringValue == "default")
+        for method in ["profiles.configure", "session.create", "session.title"] {
+            let sent = calls.filter { $0.method == method }
+            #expect(!sent.isEmpty)
+            for call in sent { #expect(call.params?["profile"]?.stringValue == "ops") }
+        }
+        // `profiles.configure` still carries `name` as well.
+        let configures = calls.filter { $0.method == "profiles.configure" }
+        #expect(configures.allSatisfy { $0.params?["name"]?.stringValue == "ops" })
     }
 }

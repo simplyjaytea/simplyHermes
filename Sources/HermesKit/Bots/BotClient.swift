@@ -65,14 +65,16 @@ public struct BotSessionCreateResult: Sendable, Equatable, Codable {
     }
 }
 
-/// `session.title`: materializes the lazy Bot Chat row.
+/// `session.title`: materializes the lazy Bot Chat row. `profile` is the bot's, so the connection does not fill in its
+/// active profile, which may be another bot's.
 public struct BotSessionTitleParams: Sendable, Equatable, Codable {
     public var sessionID: String
+    public var profile: String
     public var title: String
 
     enum CodingKeys: String, CodingKey {
         case sessionID = "session_id"
-        case title
+        case profile, title
     }
 }
 
@@ -117,8 +119,10 @@ public struct BotClient: Sendable {
             ])
             let encoded = try JSONEncoder().encode(payload.uiMeta)
             guard encoded.count <= BotMetaNamespace.maxPayloadBytes else { throw BotError.metaTooLarge }
+            // `profile` and `name` both name the bot. Left unset, the connection adds its active profile, and the
+            // contract does not say which of the two picks the target.
             let params = ProfilesConfigureParams(
-                name: profile, uiMeta: payload.uiMeta, uiMetaExpectedRevisions: payload.expected)
+                profile: profile, name: profile, uiMeta: payload.uiMeta, uiMetaExpectedRevisions: payload.expected)
             let result = try await gateway.call(
                 "profiles.configure", params: params, as: ProfilesConfigureResult.self)
             if let conflicts = result.applied.uiMetaConflicts, !conflicts.isEmpty { continue }
@@ -149,7 +153,7 @@ public struct BotClient: Sendable {
         do {
             _ = try await gateway.call(
                 "session.title",
-                params: BotSessionTitleParams(sessionID: created.sessionID, title: BotChat.title),
+                params: BotSessionTitleParams(sessionID: created.sessionID, profile: profile, title: BotChat.title),
                 as: JSONValue.self)
         } catch let error as RPCError where error.code == 4022 {
             switch try await findBotChat(profile: profile, rosterKnowsChat: true) {
@@ -210,7 +214,7 @@ public struct BotClient: Sendable {
     /// Sets the role text, which is the profile's description. Desktop writes it the same way.
     public func setRole(profile: String, role: String) async throws {
         let result = try await gateway.call(
-            "profiles.configure", params: ProfilesConfigureParams(name: profile, description: role),
+            "profiles.configure", params: ProfilesConfigureParams(profile: profile, name: profile, description: role),
             as: ProfilesConfigureResult.self)
         guard result.applied.description == true else { throw BotError.roleNotSaved(profile) }
     }

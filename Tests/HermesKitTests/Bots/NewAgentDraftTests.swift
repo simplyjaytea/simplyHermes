@@ -57,6 +57,7 @@ import Testing
         #expect(NewAgentDraft(name: "ops").stagedConfigureParams() == nil)
         let staged = NewAgentDraft(name: "ops", disabledSkills: ["x"]).stagedConfigureParams()
         #expect(staged?.name == "ops")
+        #expect(staged?.profile == "ops")
         #expect(staged?.disabledSkills == ["x"])
     }
 }

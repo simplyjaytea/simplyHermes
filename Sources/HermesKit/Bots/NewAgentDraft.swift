@@ -119,7 +119,7 @@ public struct NewAgentDraft: Sendable, Equatable {
     public func stagedConfigureParams() -> ProfilesConfigureParams? {
         guard disabledSkills != nil || enabledToolsets != nil || enabledMCPServers != nil else { return nil }
         return ProfilesConfigureParams(
-            name: profileName, disabledSkills: disabledSkills, enabledToolsets: enabledToolsets,
+            profile: profileName, name: profileName, disabledSkills: disabledSkills, enabledToolsets: enabledToolsets,
             enabledMCPServers: enabledMCPServers)
     }
 }
