@@ -43,9 +43,19 @@ final class ToolsUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5), "Expected the \(title) screen")
     }
 
+    /// Backs out of the screen the test pushed. Taps the back button when the runner exposes it.
+    /// Otherwise the interactive back swipe pops the screen, so the tab bar returns either way.
     @MainActor
     private func back(_ app: XCUIApplication) {
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let button = app.navigationBars.buttons.element(boundBy: 0)
+        if button.waitForExistence(timeout: 2) {
+            button.tap()
+            return
+        }
+        add(XCTAttachment(string: app.debugDescription))
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
+        start.press(forDuration: 0.1, thenDragTo: end)
     }
 
     @MainActor
