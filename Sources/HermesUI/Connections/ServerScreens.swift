@@ -374,6 +374,7 @@
                     }
                     .accessibilityIdentifier("settings.servers")
                 }
+                SettingsAssistantSection(connections: connections)
                 Section("Support") {
                     NavigationLink {
                         BugReportScreen(connections: connections)
