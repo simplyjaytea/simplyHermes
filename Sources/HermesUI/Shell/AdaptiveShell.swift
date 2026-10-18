@@ -300,6 +300,8 @@
         private func sectionContent(_ section: AppSection) -> some View {
             if section == .settings, let connections {
                 SettingsHome(connections: connections)
+            } else if section == .automations, let connections {
+                AutomationsScreen(connections: connections)
             } else {
                 SectionPlaceholder(section: section)
             }
