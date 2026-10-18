@@ -44,9 +44,10 @@
                 VStack(alignment: .trailing, spacing: 2) {
                     MessageBubble(role: .user, text: entry.text, rendersMarkdown: true)
                         .contextMenu {
-                            if entry.rowID != nil {
+                            if let rowID = entry.rowID {
                                 Button("Edit", systemImage: "pencil") {
-                                    draft = entry.text
+                                    // An edit that did not go through comes back as the user typed it.
+                                    draft = chat.unsentEdits[rowID] ?? entry.text
                                     isEditing = true
                                 }
                                 .disabled(chat.isRunning)

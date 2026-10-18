@@ -296,7 +296,7 @@
         private static func cutMessage(_ confirmation: TurnEditConfirmation?) -> String {
             switch confirmation {
             case .deepCut(let messages, let turns)?:
-                "This moves \(messages ?? 0) messages and \(turns ?? 0) of your turns to the archive."
+                "This moves \(messages ?? 0) items and \(turns ?? 0) of your turns to the archive."
             case .emptiesTranscript?:
                 "This moves every message in this chat to the archive."
             case nil:
