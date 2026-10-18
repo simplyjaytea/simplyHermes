@@ -70,6 +70,13 @@ private func sentBody(_ request: HTTPRequest?) throws -> [String: Any] {
         }
     }
 
+    @Test func exportWithAPathUnderTheArchiveKeyIsAServerPathToo() {
+        let body = Data(#"{"archive":"/data/hermes/exports/ops-2026-10-18.tar.gz","ok":true}"#.utf8)
+        #expect(throws: ProfileTransferError.serverPath("/data/hermes/exports/ops-2026-10-18.tar.gz")) {
+            try ProfileArchive.from(answer: answer(body))
+        }
+    }
+
     @Test func exportWithoutAnArchiveOrWithBadBase64Fails() {
         #expect(throws: ProfileTransferError.noArchive) { try ProfileArchive.from(answer: answer(Data("{}".utf8))) }
         #expect(throws: ProfileTransferError.noArchive) { try ProfileArchive.from(answer: answer(Data())) }

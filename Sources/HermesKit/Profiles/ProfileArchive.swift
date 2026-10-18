@@ -46,8 +46,8 @@ public enum ProfileTransferError: Error, Sendable, Equatable {
 ///
 /// UNTESTED LIVE. The contract does not describe the export's answer, so ``from(answer:)`` takes the shapes the server
 /// could plausibly send: the archive as raw bytes, or a JSON object (or JSON string) with the archive as base64 under
-/// `archive`, `data`, `base64` or `content`. A JSON answer with only a `path` means the server kept the file on its own
-/// disk, which the phone cannot fetch yet.
+/// `archive`, `data`, `base64` or `content`. A JSON answer with only a `path`, or with a path under `archive`,
+/// means the server kept the file on its own disk, which the phone cannot fetch yet.
 public struct ProfileArchive: Sendable, Equatable {
     /// The archive bytes.
     public var data: Data
@@ -73,7 +73,10 @@ public struct ProfileArchive: Sendable, Equatable {
             }
             if let fields = object as? [String: Any] {
                 for key in ["archive", "data", "base64", "content"] {
-                    if let text = fields[key] as? String { return try ProfileArchive(data: decodeBase64(text)) }
+                    guard let text = fields[key] as? String else { continue }
+                    // A leading slash is a path on the server's disk. Base64 of a gzip or zip never starts with one.
+                    if text.hasPrefix("/") { throw ProfileTransferError.serverPath(text) }
+                    return try ProfileArchive(data: decodeBase64(text))
                 }
                 if let path = fields["path"] as? String, !path.isEmpty { throw ProfileTransferError.serverPath(path) }
                 throw ProfileTransferError.noArchive
