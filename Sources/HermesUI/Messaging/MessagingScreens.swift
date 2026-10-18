@@ -225,6 +225,7 @@
                         }
                     }
                 }
+                .buttonStyle(.borderless)
                 .disabled(name.messagingTrimmed.isEmpty)
                 Button("Delete…", role: .destructive) { pendingDelete = name.messagingTrimmed }
                     .disabled(name.messagingTrimmed.isEmpty)
