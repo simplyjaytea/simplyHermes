@@ -45,18 +45,19 @@ final class ToolsUITests: XCTestCase {
 
     /// Pops `current` back to `previous`. The runner does not reliably expose the back button, so the
     /// leading edge of the bar, where the button sits, is tapped. The back swipe is the fallback.
+    /// A pushed screen leaves the previous bar in the hierarchy, so the pop is confirmed by `current` going away.
     @MainActor
     private func back(_ app: XCUIApplication, from current: String, to previous: String) {
         app.navigationBars[current].coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.25)).tap()
-        if !app.navigationBars[previous].waitForExistence(timeout: 3) {
+        if !app.navigationBars[current].waitForNonExistence(timeout: 3) {
             add(XCTAttachment(string: app.debugDescription))
             let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
             let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
             start.press(forDuration: 0.1, thenDragTo: end)
         }
         XCTAssertTrue(
-            app.navigationBars[previous].waitForExistence(timeout: 5),
-            "Expected the \(previous) screen after backing out of \(current)"
+            app.navigationBars[current].waitForNonExistence(timeout: 5),
+            "Expected to back out of \(current) to \(previous)"
         )
     }
 
