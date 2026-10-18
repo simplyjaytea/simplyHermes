@@ -26,7 +26,9 @@ final class TerminalUITests: XCTestCase {
         app.launch()
 
         openToolsTab(app)
-        element(app, labeled: "Terminal").tap()
+        let row = element(app, labeled: "Terminal")
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "Tools should list Terminal")
+        row.tap()
         XCTAssertTrue(app.navigationBars["Terminal"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["New Terminal"].waitForExistence(timeout: 5))
     }
@@ -40,9 +42,11 @@ final class TerminalUITests: XCTestCase {
         tab.tap()
     }
 
-    /// The first element with this exact label, whatever its type: a List row may expose itself as a cell or a button.
+    /// The first on-screen element with this exact label, whatever its type: a List row may be a cell or a button.
+    /// A control can also linger in the accessibility tree with no frame, so only a hittable one counts.
     @MainActor
     private func element(_ app: XCUIApplication, labeled label: String) -> XCUIElement {
-        app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", label)).firstMatch
+        let predicate = NSPredicate(format: "label == %@ AND hittable == true", label)
+        return app.descendants(matching: .any).matching(predicate).firstMatch
     }
 }
