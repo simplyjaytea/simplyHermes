@@ -31,11 +31,15 @@
         public private(set) var pendingCut: PendingCut?
         /// Why the last edit or regenerate did not go through. Nil when it did or none ran.
         public private(set) var cutError: String?
+        /// Text of a rewound turn for the composer to show again. The view takes it with ``takeRefill()``.
+        public private(set) var refillText: String?
 
         public struct PendingCut: Equatable {
             public let rowID: Int
             public let text: String
             public let confirmation: TurnEditConfirmation
+            /// True for Rewind, false for Edit. Rewind runs through session.undo and refills the composer.
+            public var isRewind = false
         }
 
         /// Clarify questions of this chat that wait for an answer.
@@ -159,8 +163,55 @@
         public func confirmPendingCut() {
             guard let cut = pendingCut else { return }
             pendingCut = nil
+            if cut.isRewind {
+                rewind(toRowID: cut.rowID, confirmed: true)
+                return
+            }
             let consent: TurnEditConsent = cut.confirmation == .emptiesTranscript ? .emptiesTranscript : .deepCut
             runCut(fromRowID: cut.rowID, text: cut.text, consent: consent)
+        }
+
+        /// Cuts the chat at the user turn `rowID` and everything after it, then puts that turn's text back in the
+        /// composer (WP-34). The server has no cut-only call, so this drops the last user turn with session.undo
+        /// once per turn from `rowID` on. A cut that archives several turns asks first, unless `confirmed`.
+        public func rewind(toRowID rowID: Int, confirmed: Bool = false) {
+            guard let client, let live = state.liveSessionID else { return }
+            guard let start = state.items.firstIndex(where: { Self.isUserTurn($0, rowID: rowID) }),
+                case .user(let target) = state.items[start].content
+            else { return }
+            let tail = state.items[start...]
+            let turns = tail.filter { Self.isUserTurn($0, rowID: nil) }.count
+            if turns > 1, !confirmed {
+                pendingCut = PendingCut(
+                    rowID: rowID, text: target.text,
+                    confirmation: .deepCut(archivedMessages: tail.count, archivedUserTurns: turns), isRewind: true)
+                return
+            }
+            let text = target.text
+            Task { [weak self] in
+                do {
+                    for _ in 0..<turns {
+                        _ = try await client.undoSession(SessionUndoParams(sessionID: live))
+                    }
+                    self?.cutError = nil
+                    self?.refillText = text
+                } catch {
+                    self?.cutError = Self.describe(error)
+                }
+            }
+        }
+
+        /// The composer takes the rewound text once and clears it here.
+        public func takeRefill() -> String? {
+            defer { refillText = nil }
+            return refillText
+        }
+
+        /// True for a user turn the server stored. With `rowID`, only the turn with that id.
+        private static func isUserTurn(_ item: TranscriptItem, rowID: Int?) -> Bool {
+            guard case .user(let entry) = item.content, entry.displayKind == nil else { return false }
+            guard let rowID else { return true }
+            return entry.rowID == rowID
         }
 
         public func dismissPendingCut() {

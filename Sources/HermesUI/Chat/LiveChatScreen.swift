@@ -58,6 +58,10 @@
                 actions: { Button("OK", role: .cancel) {} },
                 message: { Text(chat.cutError ?? "") }
             )
+            // A rewound turn goes back into the composer (WP-34, Rewind).
+            .onChange(of: chat.refillText) { _, _ in
+                if let text = chat.takeRefill() { model.drafts[sessionID] = text }
+            }
             .sheet(item: Binding(get: { chat.valueRequests.first }, set: { _ in })) { item in
                 SecureValueSheet(
                     item: item, onSend: { chat.answerValue(item, $0) }, onCancel: { chat.dismissValue(item) })

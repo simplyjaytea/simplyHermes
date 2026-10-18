@@ -45,10 +45,15 @@
                 VStack(alignment: .trailing, spacing: 2) {
                     MessageBubble(role: .user, text: entry.text, rendersMarkdown: true)
                         .contextMenu {
-                            if entry.rowID != nil {
+                            if let rowID = entry.rowID {
                                 Button("Edit", systemImage: "pencil") {
                                     draft = entry.text
                                     isEditing = true
+                                }
+                                .disabled(chat.isRunning)
+                                // Cuts here and puts this text back in the composer (WP-34, Rewind).
+                                Button("Rewind to here", systemImage: "arrow.uturn.backward") {
+                                    chat.rewind(toRowID: rowID)
                                 }
                                 .disabled(chat.isRunning)
                             }
