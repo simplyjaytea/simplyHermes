@@ -9,6 +9,7 @@ struct HermesApp: App {
     @State private var sessionsList: SessionsListModel
     private let launch: LaunchOptions
     private let integration: AppIntegration
+    private let entry: EntryIntegration
 
     init() {
         let launch = LaunchOptions(defaults: .standard)
@@ -19,7 +20,10 @@ struct HermesApp: App {
         let model = ShellModel()
         _model = State(initialValue: model)
         // Set up before any scene: a Live Activity or widget button can launch the app in the background.
-        integration = AppIntegration(model: model)
+        let integration = AppIntegration(model: model)
+        self.integration = integration
+        // Intents, Quick Entry, shared items and Spotlight results all arrive through this one object.
+        entry = EntryIntegration(model: model, connections: connections, integration: integration)
         // UI tests set -HermesOnboarding; a tip popover would cover the controls they tap.
         HermesTips.configure(enabled: launch.onboarding == nil)
     }
@@ -27,6 +31,7 @@ struct HermesApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(model: model, connections: connections, sessionsList: sessionsList, launch: launch)
+                .integrationHost(entry)
                 .tint(HermesColor.accent)
                 .onOpenURL { url in
                     if let id = HermesURL.chatID(from: url), model.session(id: id) != nil {

@@ -1,0 +1,170 @@
+import CoreSpotlight
+import Foundation
+import HermesKit
+import HermesUI
+
+/// Owns the ways into the app from outside: App Intents and Siri, Quick Entry, the Share extension and Spotlight.
+///
+/// Everything that talks to a server happens here, in the app's process. The intents, the controls and the Share
+/// extension only leave a request (in memory or in the shared container) and this class carries it out.
+@MainActor
+final class EntryIntegration {
+    let quickEntry: QuickEntryCoordinator
+    private let model: ShellModel
+    private let connections: ConnectionsModel
+    private let integration: AppIntegration
+    private let outbound: OutboundCoordinator
+    private let roster: BotRosterService
+    private let sharedDirectory: URL?
+    private var handledShares: Set<String> = []
+    private var pendingActionPoll: Task<Void, Never>?
+
+    init(model: ShellModel, connections: ConnectionsModel, integration: AppIntegration) {
+        let quickEntry = QuickEntryCoordinator()
+        let localDirectory = IntentDirectory.directory
+        let sharedDirectory = integration.sharedContainer.directory
+        let spotlight = SpotlightIndexer(directory: localDirectory)
+        let directory = ChatDirectoryObserver(
+            model: model, quickEntry: quickEntry, sharedDirectory: sharedDirectory, localDirectory: localDirectory,
+            spotlight: spotlight)
+        let outbound = OutboundCoordinator(model: model, lastUsedID: { directory.lastChat?.id })
+        let roster = BotRosterService(connections: connections, directory: localDirectory) { saved in
+            spotlight.update(bots: saved.bots.map { SpotlightBot(name: $0.name, title: $0.title) })
+            HermesShortcuts.updateAppShortcutParameters()
+        }
+        let executor = IntentExecutor(
+            model: model, connections: connections, outbound: outbound, quickEntry: quickEntry, roster: roster,
+            directory: directory)
+
+        self.quickEntry = quickEntry
+        self.model = model
+        self.connections = connections
+        self.integration = integration
+        self.outbound = outbound
+        self.roster = roster
+        self.sharedDirectory = sharedDirectory
+
+        AppCommandCenter.shared.handler = { request in await executor.perform(request) }
+        directory.start()
+        roster.start()
+    }
+
+    /// Whether a server is saved. Quick Entry needs one to send anything.
+    var hasServer: Bool { !connections.isEmpty }
+
+    // MARK: Quick Entry
+
+    /// Sends what the user typed in the Quick Entry sheet.
+    func sendQuickEntry(text: String, target: OutboundTarget) {
+        let message = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else { return }
+        outbound.submit(OutboundMessage(text: message, target: target, createdAt: Date()))
+    }
+
+    // MARK: Becoming active
+
+    /// Called when the app comes to the front and at launch.
+    func becameActive() {
+        integration.settingsMayHaveChanged()
+        watchForPendingAction()
+        drainShares()
+    }
+
+    /// The Action button and the Control Center control can run outside the app and leave a request behind. The
+    /// request may land a moment after the app comes forward, so look for a few seconds.
+    private func watchForPendingAction() {
+        pendingActionPoll?.cancel()
+        pendingActionPoll = Task { [weak self] in
+            for _ in 0..<10 {
+                guard let self, !Task.isCancelled else { return }
+                if self.takePendingAction() { return }
+                try? await Task.sleep(for: .milliseconds(300))
+            }
+        }
+    }
+
+    private func takePendingAction() -> Bool {
+        guard let sharedDirectory, let action = PendingActionStore(directory: sharedDirectory).consume(now: Date())
+        else { return false }
+        switch action.kind {
+        case .quickEntry:
+            quickEntry.present(prefill: action.prefill)
+        }
+        return true
+    }
+
+    // MARK: Links and Spotlight
+
+    func handle(url: URL) {
+        if HermesURL.shareID(from: url) != nil {
+            drainShares()
+        } else if let route = HermesURL.quickEntryRoute(from: url) {
+            quickEntry.present(prefill: route.prefill)
+        }
+    }
+
+    /// A tap on a Spotlight result: a chat opens, and a bot starts a new chat as that bot.
+    func handle(activity: NSUserActivity) {
+        guard let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+            let target = SpotlightPlanner.target(of: identifier)
+        else { return }
+        switch target {
+        case .chat(let id):
+            open(chatID: id)
+        case .bot(let name):
+            startChat(withBot: name)
+        }
+    }
+
+    /// The chat list may not have loaded yet when Spotlight opens the app, so wait for the chat for a while.
+    private func open(chatID id: String) {
+        Task { [weak self] in
+            for _ in 0..<40 {
+                guard let self else { return }
+                if self.model.session(id: id) != nil {
+                    self.model.open(id)
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+        }
+    }
+
+    private func startChat(withBot name: String) {
+        Task { [weak self] in
+            guard let self, let bot = self.roster.roster.bot(named: name) else { return }
+            if await self.roster.select(bot) == .selected {
+                self.model.newChat()
+            }
+        }
+    }
+
+    // MARK: Shares
+
+    /// Sends the shares the Share extension left in the shared container. Each share goes out once: it is deleted
+    /// when its message has been sent or saved as a draft, and until then it stays on disk in case the app is closed.
+    func drainShares() {
+        guard let sharedDirectory, hasServer else { return }
+        let outbox = ShareOutbox(directory: sharedDirectory)
+        outbox.purge(now: Date())
+        for payload in outbox.pending() {
+            guard handledShares.insert(payload.id).inserted else { continue }
+            deliver(payload, from: outbox)
+        }
+    }
+
+    private func deliver(_ payload: SharePayload, from outbox: ShareOutbox) {
+        let attachments = payload.attachments.compactMap { file in
+            outbox.data(of: file, in: payload.id).map { file.composerAttachment(data: $0) }
+        }
+        let target: OutboundTarget =
+            switch payload.destination {
+            case .newChat: .newChat
+            case .chat(let sessionID): .chat(sessionID)
+            }
+        let message = OutboundMessage(
+            id: payload.id, text: payload.text, attachments: attachments, target: target, createdAt: Date())
+        let id = payload.id
+        outbound.submit(message) { outbox.remove(id: id) }
+    }
+}
