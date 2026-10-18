@@ -8,7 +8,7 @@
         let row: RoomRow
         let chat: RoomChatModel
 
-        private static let bubbleShape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+        private static let bubbleShape = RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
 
         var body: some View {
             switch row {
@@ -64,7 +64,7 @@
                     .fill(Self.fill(forProfile: profile))
                 Text(Self.monogram(for: name))
                     .font(.system(size: size * 0.5, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(HermesColor.onAccent)
             }
             .frame(width: size, height: size)
             .accessibilityHidden(true)

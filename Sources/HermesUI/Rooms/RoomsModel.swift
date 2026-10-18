@@ -43,16 +43,21 @@
                 rooms = []
                 return
             }
+            if connectionID != connection.id {
+                // Another gateway is active. Its client and rooms go before the first await, so a failed read
+                // cannot leave them on screen or let a chat keep polling it.
+                client = nil
+                capabilities = nil
+                chats = [:]
+                rooms = []
+                connectionID = connection.id
+            }
             isLoading = true
             defer { isLoading = false }
             do {
                 let gateway = try await manager.client(for: connection)
                 let roomClient = RoomClient(gateway: gateway)
                 let caps = try await roomClient.capabilities()
-                if connectionID != connection.id {
-                    chats = [:]
-                    connectionID = connection.id
-                }
                 client = roomClient
                 capabilities = caps
                 rooms = try await roomClient.rooms()

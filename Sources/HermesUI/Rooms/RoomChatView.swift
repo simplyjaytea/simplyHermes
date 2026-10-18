@@ -23,7 +23,7 @@
             .navigationTitle(model.room.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if RoomStatus.showsStop(model.status) {
+                if RoomStatus.showsStop(model.status), model.readOnlyNote == nil {
                     ToolbarItem(placement: .primaryAction) {
                         Button("Stop", systemImage: "stop.fill", role: .destructive) {
                             Task { await model.stop() }
@@ -67,7 +67,7 @@
                 }
                 .onChange(of: model.rows.last?.id) { _, last in
                     guard let last else { return }
-                    withAnimation { proxy.scrollTo(last, anchor: .bottom) }
+                    proxy.scrollTo(last, anchor: .bottom)
                 }
             }
             .overlay {
@@ -79,22 +79,30 @@
             }
         }
 
-        /// The line the driver shows, or the approval it waits on, then any retry offer and the last failure.
+        /// The line the driver shows, or the approval it waits on, then any retry offer and the failures. A read-only
+        /// room shows no approval and no retry, since the server would refuse both here.
         private var statusArea: some View {
             VStack(alignment: .leading, spacing: 6) {
                 if let action = RoomStatus.pendingApproval(in: model.status) {
-                    approvalArea(action)
+                    if model.readOnlyNote == nil {
+                        approvalArea(action)
+                    }
                 } else if let line = RoomStatus.line(for: model.status) {
                     Text(line)
                         .font(HermesFont.caption)
                         .foregroundStyle(HermesColor.secondaryText)
                 }
-                if let retry = RoomStatus.pendingActions(in: model.status).first(where: { $0.kind == "retry" }) {
+                if let retry = pendingRetry {
                     Button("Run This Turn Again…") {
                         retryAction = retry
                         isConfirmingRetry = true
                     }
                     .font(HermesFont.footnote)
+                }
+                if let error = model.actionError {
+                    Text(error)
+                        .font(HermesFont.footnote)
+                        .foregroundStyle(HermesColor.destructive)
                 }
                 if let error = model.errorMessage {
                     Text(error)
@@ -105,6 +113,12 @@
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.top, 4)
+        }
+
+        /// The retry the room offers, or nil in a read-only room.
+        private var pendingRetry: RoomPendingAction? {
+            guard model.readOnlyNote == nil else { return nil }
+            return RoomStatus.pendingActions(in: model.status).first(where: { $0.kind == "retry" })
         }
 
         /// The approval shows the command it would run, so the user answers knowing what it is.

@@ -8,6 +8,8 @@ public enum RoomError: Error, Sendable, Equatable {
     case emptyMessage
     case messageTooLarge
     case slashCommand
+    /// The room takes no changes on this gateway, because another gateway holds it or a member runs elsewhere.
+    case readOnly
     /// The approval has no id, so it cannot be answered. It was probably answered already.
     case staleAction
     /// No gateway is connected, so there is nowhere to make the room.
@@ -31,6 +33,8 @@ public enum RoomError: Error, Sendable, Equatable {
         case .slashCommand:
             return "Slash commands are not supported in group chats. "
                 + "Open an individual bot chat to use them."
+        case .readOnly:
+            return "This Group Chat is read-only here."
         case .staleAction:
             return "That request is no longer pending."
         }

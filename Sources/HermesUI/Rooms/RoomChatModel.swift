@@ -12,8 +12,11 @@
         private(set) var rows: [RoomRow] = []
         private(set) var status: RoomDriverStatus?
         private(set) var isSending = false
-        /// The newest failure, shown above the composer. Nil once a read or an action works.
+        /// The newest read failure, shown above the composer. Nil once a read works.
         var errorMessage: String?
+        /// The newest failure of a send, stop, answer or retry. Only the next action that works clears it, so a read
+        /// does not hide it.
+        var actionError: String?
         /// What the composer holds. The mention picker and the slash guard read it.
         var draft = ""
         /// The last send that failed. Sending the same text again reuses its ids, so the server stores it once.
@@ -90,7 +93,7 @@
 
         /// Sends the draft. A send that fails keeps its ids, so sending the same text again is the same message.
         func send() async {
-            guard !isSending else { return }
+            guard !isSending, readOnlyNote == nil else { return }
             let typed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
             let message: RoomOutgoingMessage
             if let outgoing, outgoing.text == typed {
@@ -108,9 +111,9 @@
                 outgoing = nil
                 draft = ""
                 lastSendAt = Date()
-                errorMessage = nil
+                actionError = nil
             } catch {
-                errorMessage = RoomFailure.message(for: error)
+                actionError = RoomFailure.message(for: error)
             }
             isSending = false
             await refresh()
@@ -118,44 +121,49 @@
 
         /// Stops every running turn. Each tap gets its own cancel id (WP-43 spec, section 4).
         func stop() async {
+            guard readOnlyNote == nil else { return }
             do {
                 _ = try await client.stop(roomID: room.roomID, cancelID: RoomIdentifier.newCancelID())
-                errorMessage = nil
+                actionError = nil
             } catch {
-                errorMessage = RoomFailure.message(for: error)
+                actionError = RoomFailure.message(for: error)
             }
             await refresh()
         }
 
         /// Answers an approval the room waits on.
         func answer(_ action: RoomPendingAction, with choice: RoomApprovalChoice) async {
+            guard readOnlyNote == nil else { return }
             do {
                 try await client.approve(roomID: room.roomID, action: action, choice: choice)
-                errorMessage = nil
+                actionError = nil
             } catch {
-                errorMessage = RoomFailure.message(for: error)
+                actionError = RoomFailure.message(for: error)
             }
             await refresh()
         }
 
         /// Runs a task again. Call only after the user confirms, since the room may already have run part of it.
         func retry(_ action: RoomPendingAction) async {
+            guard readOnlyNote == nil else { return }
             do {
                 _ = try await client.retry(roomID: room.roomID, taskID: action.taskID)
-                errorMessage = nil
+                actionError = nil
             } catch {
-                errorMessage = RoomFailure.message(for: error)
+                actionError = RoomFailure.message(for: error)
             }
             await refresh()
         }
 
         /// Renames the room. Each rename gets its own event id, so a repeat of the same rename is harmless.
         func rename(to name: String) async throws {
+            guard readOnlyNote == nil else { throw RoomError.readOnly }
             room = try await client.rename(roomID: room.roomID, eventID: RoomIdentifier.newEventID(), to: name)
         }
 
         /// Disbands the room. It stops running turns first, and it leaves the list.
         func disband() async throws {
+            guard readOnlyNote == nil else { throw RoomError.readOnly }
             let tombstone = try await client.disband(roomID: room.roomID)
             room.disbandedAt = tombstone.disbandedAt
         }

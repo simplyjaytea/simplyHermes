@@ -70,4 +70,8 @@ import Testing
 
         #expect(note?.contains("Hermes Desktop") == true)
     }
+
+    @Test func aChangeToAReadOnlyRoomIsRefusedInWords() {
+        #expect(RoomError.readOnly.message == "This Group Chat is read-only here.")
+    }
 }
