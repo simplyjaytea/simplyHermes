@@ -1,0 +1,19 @@
+{
+  "body": {
+    "auto_context_length": 256000,
+    "capabilities": {},
+    "config_context_length": 0,
+    "effective_context_length": 256000,
+    "model": "fake-model",
+    "provider": "custom"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/model/info",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

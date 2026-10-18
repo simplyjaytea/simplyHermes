@@ -1,0 +1,23 @@
+{
+  "body": {
+    "ok": true,
+    "stt": {
+      "mode": "relay",
+      "reason": "command/plugin provider",
+      "streaming": false
+    },
+    "tts": {
+      "mode": "relay",
+      "reason": "provider 'edge' has no client wire"
+    }
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/audio/voice-config",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

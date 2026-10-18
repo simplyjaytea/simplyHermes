@@ -1,0 +1,120 @@
+{
+  "body": {
+    "archived": "archived",
+    "columns": [
+      {
+        "drag_target": true,
+        "icon": "◇",
+        "key": "triage",
+        "label": "Triage"
+      },
+      {
+        "drag_target": true,
+        "icon": "◻",
+        "key": "todo",
+        "label": "Todo"
+      },
+      {
+        "drag_target": false,
+        "icon": "⏱",
+        "key": "scheduled",
+        "label": "Scheduled"
+      },
+      {
+        "drag_target": true,
+        "icon": "▶",
+        "key": "ready",
+        "label": "Ready"
+      },
+      {
+        "drag_target": false,
+        "icon": "●",
+        "key": "running",
+        "label": "Running"
+      },
+      {
+        "drag_target": true,
+        "icon": "⊘",
+        "key": "blocked",
+        "label": "Blocked"
+      },
+      {
+        "drag_target": false,
+        "icon": "◎",
+        "key": "review",
+        "label": "Review"
+      },
+      {
+        "drag_target": true,
+        "icon": "✓",
+        "key": "done",
+        "label": "Done"
+      }
+    ],
+    "manual": {
+      "archived": [
+        "ready",
+        "todo",
+        "triage"
+      ],
+      "blocked": [
+        "done",
+        "ready",
+        "scheduled",
+        "todo",
+        "triage"
+      ],
+      "done": [
+        "ready",
+        "todo",
+        "triage"
+      ],
+      "ready": [
+        "blocked",
+        "done",
+        "review",
+        "scheduled",
+        "todo",
+        "triage"
+      ],
+      "review": [
+        "done",
+        "ready",
+        "todo",
+        "triage"
+      ],
+      "running": [
+        "blocked",
+        "done",
+        "ready",
+        "review",
+        "scheduled",
+        "todo",
+        "triage"
+      ],
+      "scheduled": [
+        "ready",
+        "todo",
+        "triage"
+      ],
+      "todo": [
+        "ready",
+        "scheduled",
+        "triage"
+      ],
+      "triage": [
+        "ready",
+        "todo"
+      ]
+    }
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/plugins/kanban/workflow",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}
