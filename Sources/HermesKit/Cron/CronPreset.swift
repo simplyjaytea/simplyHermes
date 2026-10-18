@@ -10,7 +10,7 @@ public enum CronPreset: String, CaseIterable, Identifiable, Sendable, Hashable {
     case weekdays
     /// One weekday at the chosen time.
     case weekly
-    /// One day of the month at the chosen time.
+    /// One day of the month, 1 to 28, at the chosen time. Days 29 to 31 need raw cron.
     case monthly
 
     /// Stable identity, the raw name.
@@ -37,7 +37,7 @@ public enum CronPreset: String, CaseIterable, Identifiable, Sendable, Hashable {
         case .daily: return "\(clock) * * *"
         case .weekdays: return "\(clock) * * 1-5"
         case .weekly: return "\(clock) * * \(min(max(weekday, 0), 6))"
-        case .monthly: return "\(clock) \(min(max(dayOfMonth, 1), 31)) * *"
+        case .monthly: return "\(clock) \(min(max(dayOfMonth, 1), 28)) * *"
         }
     }
 
@@ -61,7 +61,7 @@ public enum CronPreset: String, CaseIterable, Identifiable, Sendable, Hashable {
                     candidate = CronPresetSettings(preset: .weekly, hour: hour, minute: minute, weekday: weekday)
                 }
             }
-        } else if let minute, let hour, weekdayText == "*", let day = plainNumber(dayText, upTo: 31, from: 1) {
+        } else if let minute, let hour, weekdayText == "*", let day = plainNumber(dayText, upTo: 28, from: 1) {
             candidate = CronPresetSettings(preset: .monthly, hour: hour, minute: minute, dayOfMonth: day)
         }
         guard let candidate, candidate.expression == fields.joined(separator: " ") else { return nil }
@@ -85,7 +85,7 @@ public struct CronPresetSettings: Sendable, Equatable {
     public var minute: Int
     /// Weekday for `weekly`, 0 (Sunday) to 6.
     public var weekday: Int
-    /// Day of the month for `monthly`, 1 to 31.
+    /// Day of the month for `monthly`, 1 to 28.
     public var dayOfMonth: Int
 
     /// Creates settings. Only the values the preset uses matter.

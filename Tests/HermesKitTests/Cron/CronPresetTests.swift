@@ -14,6 +14,7 @@ import Testing
         #expect(CronPreset.daily.expression(hour: 25, minute: -3) == "0 23 * * *")
         #expect(CronPreset.weekly.expression(weekday: 9) == "0 9 * * 6")
         #expect(CronPreset.monthly.expression(dayOfMonth: 0) == "0 9 1 * *")
+        #expect(CronPreset.monthly.expression(dayOfMonth: 31) == "0 9 28 * *")
         for preset in CronPreset.allCases {
             #expect(CronExpression.validate(preset.expression()) == nil, "\(preset) must produce valid cron")
         }
@@ -33,6 +34,7 @@ import Testing
         #expect(CronPreset.matching("0 9 * * 1,3") == nil)
         #expect(CronPreset.matching("0 9 * jan *") == nil)
         #expect(CronPreset.matching("0 9 * * 7") == nil)
+        #expect(CronPreset.matching("0 9 29 * *") == nil)
         #expect(CronPreset.matching("every 2h") == nil)
     }
 
