@@ -236,10 +236,9 @@
 
         /// Answers an approval from an alert. A live chat answers on the server, a placeholder chat locally.
         public func answer(_ alert: ApprovalAlert, approved: Bool) {
-            if let chat = liveChats?.existingChat(for: alert.sessionID),
-                let approval = chat.approvals.first(where: { $0.id == alert.id })
-            {
-                chat.answer(approval, approved ? .once : .deny)
+            let chat = liveChats?.existingChat(for: alert.sessionID)
+            if let approval = chat?.approvals.first(where: { $0.id == alert.id }) {
+                chat?.answer(approval, approved ? .once : .deny)
             } else {
                 resolveApproval(in: alert.sessionID, approved: approved)
             }
