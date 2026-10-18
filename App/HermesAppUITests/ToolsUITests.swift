@@ -17,8 +17,11 @@ final class ToolsUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 10))
         back(app, from: "Backup cron fix", to: "Chats")
 
-        let toolsTab = app.tabBars.buttons["Tools"]
-        XCTAssertTrue(toolsTab.waitForExistence(timeout: 10), "The tab bar should show Tools")
+        // The tabs are buttons in a toolbar on this layout, not tab bar buttons.
+        guard let toolsTab = visibleTab(app, "Tools") else {
+            XCTFail("The tab should show Tools")
+            return
+        }
         toolsTab.tap()
 
         openRow(app, "tools.skills", title: "Skills")
@@ -43,12 +46,15 @@ final class ToolsUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5), "Expected the \(title) screen")
     }
 
-    /// Pops `current` back to `previous`. The runner does not reliably expose the back button, so the
-    /// leading edge of the bar, where the button sits, is tapped. The back swipe is the fallback.
-    /// A pushed screen leaves the previous bar in the hierarchy, so the pop is confirmed by `current` going away.
+    /// Pops `current` back to `previous`. The back button is found by its identifier, wherever the layout puts it.
+    /// The back swipe is the fallback. A pushed screen leaves the previous bar in the hierarchy, so the pop is
+    /// confirmed by `current` going away.
     @MainActor
     private func back(_ app: XCUIApplication, from current: String, to previous: String) {
-        app.navigationBars[current].coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.25)).tap()
+        let backButton = app.buttons["BackButton"]
+        if backButton.waitForExistence(timeout: 3) {
+            backButton.tap()
+        }
         if !app.navigationBars[current].waitForNonExistence(timeout: 3) {
             add(XCTAttachment(string: app.debugDescription))
             let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
@@ -59,6 +65,21 @@ final class ToolsUITests: XCTestCase {
             app.navigationBars[current].waitForNonExistence(timeout: 5),
             "Expected to back out of \(current) to \(previous)"
         )
+    }
+
+    /// The on-screen tab with this label. Hidden copies stay in the hierarchy and can come first, so take the
+    /// one that is hittable. Polls, because the tab bar settles after a pop.
+    @MainActor
+    private func visibleTab(_ app: XCUIApplication, _ title: String) -> XCUIElement? {
+        let copies = app.buttons.matching(NSPredicate(format: "label == %@", title))
+        let deadline = Date().addingTimeInterval(10)
+        repeat {
+            if let tab = copies.allElementsBoundByIndex.first(where: \.isHittable) {
+                return tab
+            }
+            Thread.sleep(forTimeInterval: 0.2)
+        } while Date() < deadline
+        return nil
     }
 
     @MainActor
