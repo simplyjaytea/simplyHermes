@@ -177,6 +177,9 @@
         private func splitView(showsRail: Bool) -> some View {
             NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: .constant(.detail)) {
                 List(selection: sidebarSelection) {
+                    if let tip = [InlineTipKind.unfold, .shake].first { InlineTipStore.isPending($0) } {
+                        Section { InlineTipCard(kind: tip) }
+                    }
                     Section("Chats") {
                         ForEach(model.sessions) { session in
                             SessionRow(session: session, isStreaming: model.isStreaming(session.id))
