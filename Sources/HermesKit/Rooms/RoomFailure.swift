@@ -10,10 +10,14 @@ public enum RoomError: Error, Sendable, Equatable {
     case slashCommand
     /// The approval has no id, so it cannot be answered. It was probably answered already.
     case staleAction
+    /// No gateway is connected, so there is nowhere to make the room.
+    case noGateway
 
     /// The words for this refusal.
     public var message: String {
         switch self {
+        case .noGateway:
+            return "Connect to a gateway first."
         case .invalidIdentifier:
             return "That id is not valid."
         case .invalidDraft(let problems):
@@ -61,8 +65,17 @@ extension Room {
     /// True when the room takes no new messages here: another gateway holds its authority, or a member runs on another
     /// gateway (WP-43 spec, section 5). The log still reads.
     public func isReadOnly(on capabilities: GroupsCapabilitiesResult?) -> Bool {
-        let foreignAuthority = capabilities.map { $0.authorityGatewayID != authorityGatewayID } ?? false
-        let peerMember = members.contains { $0.target?["kind"]?.stringValue == "peer" }
-        return foreignAuthority || peerMember
+        readOnlyNote(on: capabilities) != nil
+    }
+
+    /// Why the room takes no new messages here, in words for its banner. Nil when it takes them.
+    public func readOnlyNote(on capabilities: GroupsCapabilitiesResult?) -> String? {
+        if let capabilities, capabilities.authorityGatewayID != authorityGatewayID {
+            return "This Group Chat is managed by another gateway. Its history still reads here."
+        }
+        if members.contains(where: { $0.target?["kind"]?.stringValue == "peer" }) {
+            return "A bot in this Group Chat runs on another computer. Open it in Hermes Desktop to keep talking."
+        }
+        return nil
     }
 }

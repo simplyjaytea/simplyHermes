@@ -44,9 +44,14 @@ public enum RoomTimeline {
         var labels: [String: String] = [:]
         for member in room.members {
             guard let memberID = member.memberID else { continue }
-            labels[memberID] = member.displayName ?? profileLabel(member.profile ?? memberID)
+            labels[memberID] = label(for: member)
         }
         return labels
+    }
+
+    /// The name one member shows as, the same rule `labels(for:)` uses.
+    public static func label(for member: RoomMember) -> String {
+        member.displayName ?? profileLabel(member.profile ?? member.memberID ?? "")
     }
 
     /// The rows for a log, in sequence order.
