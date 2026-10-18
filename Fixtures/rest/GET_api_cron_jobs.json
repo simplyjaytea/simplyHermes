@@ -1,0 +1,12 @@
+{
+  "body": [],
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/cron/jobs",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

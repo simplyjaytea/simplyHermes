@@ -1,0 +1,31 @@
+{
+  "body": {
+    "message": "",
+    "model_details": [
+      {
+        "id": "fake-model"
+      }
+    ],
+    "models": [
+      "fake-model"
+    ],
+    "ok": true,
+    "reachable": true,
+    "resolved_base_url": "http://fake-llm:8700/v1",
+    "transport_checked": "chat_completions"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": {
+      "base_url": "http://fake-llm:8700/v1",
+      "discover_models": false,
+      "model": "fake-model",
+      "name": "recorder-endpoint"
+    },
+    "method": "POST",
+    "path": "/api/providers/custom-endpoints/validate",
+    "query": {}
+  },
+  "status": 200,
+  "step": "custom-endpoint.validate"
+}

@@ -1,0 +1,14 @@
+{
+  "body": {
+    "home_channels": []
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/plugins/kanban/home-channels",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}
