@@ -114,6 +114,16 @@
                     )
             }
             .background { KeyboardShortcuts(model: model) }
+            .alert(
+                "Chat not started",
+                isPresented: Binding(
+                    get: { model.newChatError != nil },
+                    set: { if !$0 { model.newChatError = nil } })
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(model.newChatError ?? "")
+            }
             .onDeviceShake { screenshot in
                 guard !model.isBugReportPresented, !model.isPalettePresented else { return }
                 model.bugReportScreenshot = screenshot

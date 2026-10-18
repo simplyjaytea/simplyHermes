@@ -168,15 +168,24 @@
         @ObservationIgnored public var startServerChat: (@MainActor () async throws -> SessionListItem?)?
         /// Server chats started in this run. A list sync keeps each until the server lists it, since an empty chat may not be listed.
         @ObservationIgnored private var startedServerIDs: Set<String> = []
+        /// The server chat being created. A New chat while it runs joins it, so a double tap makes one chat.
+        @ObservationIgnored private var startingChat: Task<Void, Never>?
+        /// Why the last New chat did not start, in words. The shell shows it in an alert, which clears it.
+        public var newChatError: String?
 
         /// Starts a chat: a real server chat when a server is saved, else a placeholder. The task is nil for a placeholder.
+        /// A call while a server chat is being created returns that task and starts nothing. A failure opens nothing,
+        /// sets ``newChatError``, and leaves the open chats and their drafts as they were.
         @discardableResult
         public func newChat() -> Task<Void, Never>? {
             guard let startServerChat else {
                 addPlaceholderChat()
                 return nil
             }
-            return Task {
+            if let startingChat { return startingChat }
+            newChatError = nil
+            let task: Task<Void, Never> = Task {
+                defer { self.startingChat = nil }
                 do {
                     if let item = try await startServerChat() {
                         self.startedServerIDs.insert(item.id)
@@ -186,8 +195,21 @@
                     }
                 } catch {
                     // Nothing opens on failure. A placeholder would answer with the demo reply instead of the server.
+                    self.newChatError = Self.newChatMessage(for: error)
                 }
             }
+            startingChat = task
+            return task
+        }
+
+        /// The words the user reads when New chat does not start.
+        static func newChatMessage(for error: Error) -> String {
+            if let offline = error as? ServerNotConnectedError {
+                return offline.isConnecting
+                    ? "\(offline.serverName) is still connecting. Try again in a moment."
+                    : "\(offline.serverName) is not connected. Connect to it, then try again."
+            }
+            return "Could not start a new chat. Try again."
         }
 
         private func addPlaceholderChat() {
