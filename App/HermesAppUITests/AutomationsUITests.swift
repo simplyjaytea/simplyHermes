@@ -14,8 +14,8 @@ final class AutomationsUITests: XCTestCase {
         // Launch opens the newest chat, which pushes over the tab bar. Back out to reach the tabs.
         XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 10))
         back(app, from: "Backup cron fix", to: "Chats")
-        // The tabs are buttons in a toolbar on this layout, not tab bar buttons. The visible one comes first.
-        let tab = app.buttons["Automations"]
+        // The tabs are buttons in a toolbar on this layout, not tab bar buttons. Hidden copies follow the visible one.
+        let tab = app.buttons.matching(NSPredicate(format: "label == 'Automations'")).firstMatch
         XCTAssertTrue(tab.waitForExistence(timeout: 10), "The tab should show Automations")
         tab.tap()
         XCTAssertTrue(app.navigationBars["Automations"].waitForExistence(timeout: 10))
