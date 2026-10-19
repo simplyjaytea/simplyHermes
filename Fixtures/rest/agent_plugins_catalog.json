@@ -1,0 +1,54 @@
+{
+  "entries": [
+    {
+      "name": "example-tools",
+      "repo": "https://git.example.com/example-tools.git",
+      "sha": "0123456789abcdef0123456789abcdef01234567",
+      "description": "Adds example tools to every chat.",
+      "maintainer": "Example Maintainers",
+      "tier": "community",
+      "category": "tools",
+      "requires_hermes": "",
+      "subdir": "",
+      "docs_url": "https://docs.example.com/example-tools",
+      "version": "1.2.0",
+      "image": "",
+      "screenshots": [],
+      "readme": true,
+      "platforms": [],
+      "title": "Example Tools",
+      "onboarding": false,
+      "capabilities": {
+        "provides_tools": ["example_lookup"],
+        "provides_hooks": [],
+        "provides_middleware": [],
+        "requires_env": ["EXAMPLE_TOKEN"]
+      },
+      "known_issues": [],
+      "sha_short": "0123456",
+      "capability_summary": "example-tools (community, maintained by Example Maintainers).",
+      "installed": true,
+      "installed_sha": "fedcba9876543210fedcba9876543210fedcba98",
+      "update_available": true,
+      "runtime_status": "enabled"
+    },
+    {
+      "name": "example-kit",
+      "repo": "https://git.example.com/kits.git",
+      "sha": "1111111111111111111111111111111111111111",
+      "description": "A kit with no tools.",
+      "maintainer": "Example Maintainers",
+      "tier": "official",
+      "subdir": "plugins/kit",
+      "capabilities": {"provides_tools": [], "provides_hooks": [], "provides_middleware": [], "requires_env": []},
+      "installed": false,
+      "installed_sha": null,
+      "update_available": false,
+      "runtime_status": null
+    }
+  ],
+  "removed": [
+    {"name": "old-plugin", "repo": "https://git.example.com/old.git", "reason": "Superseded", "date": "2026-09-01"}
+  ],
+  "generated_at": "2026-10-18T09:00:00Z"
+}

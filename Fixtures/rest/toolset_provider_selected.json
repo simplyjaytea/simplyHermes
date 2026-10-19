@@ -1,0 +1,8 @@
+{
+  "ok": true,
+  "name": "web",
+  "provider": "Nous Subscription",
+  "capability": "search",
+  "needs_nous_auth": true,
+  "feature": "web"
+}
