@@ -96,8 +96,8 @@ struct LaunchOptions {
     var posture: DevicePosture?
     /// Shows the layout switcher used by the fold UI test.
     var showsDebugLayoutSwitcher: Bool
-    /// "stream" starts a long demo reply in the first chat; "liveActivity" starts one long enough
-    /// for CI to screenshot the Dynamic Island from another app.
+    /// "stream" starts a demo reply that lasts about three minutes, so the fold UI test can change layout mid-stream
+    /// even on a slow CI run. "liveActivity" starts one long enough for CI to screenshot the Dynamic Island.
     var demo: String?
     /// "skip" opens the shell even with no saved server; "fresh" starts with no servers, in memory.
     var onboarding: Onboarding?
@@ -147,7 +147,7 @@ struct RootView: View {
                 model.selectedSection = section
             }
             if launch.demo == "stream", let id = model.selectedSessionID {
-                model.startDemoStream(in: id, words: 400)
+                model.startDemoStream(in: id, words: 1500)
             }
             if launch.demo == "liveActivity", let id = model.selectedSessionID {
                 model.startDemoStream(in: id, words: 1500)
