@@ -433,6 +433,7 @@
                     }
                     .accessibilityIdentifier("settings.models.keys")
                 }
+                SettingsMessagingSection(connections: connections)
                 Section("Support") {
                     NavigationLink {
                         BugReportScreen(connections: connections)
