@@ -1,0 +1,11 @@
+{
+  "_note": "Hand-written to the shape NousPortalClient guesses. Not recorded from a live portal.",
+  "agents": [
+    {"id": "agt_1", "name": "research-bot", "status": "running", "url": "https://research-bot.acme.example"},
+    {"id": "agt_2", "display_name": "Night shift", "status": "Stopped", "gateway_url": "https://night.acme.example/hermes/"},
+    {"id": 3, "name": "numeric-id", "status": "provisioning", "hostname": "numeric.acme.example"},
+    {"id": "agt_4", "name": "plain-http", "status": "running", "url": "http://203.0.113.7:9119"},
+    {"id": "agt_5", "name": "no-address", "status": "running"},
+    {"id": "agt_1", "name": "research-bot (repeat)", "url": "https://research-bot.acme.example"}
+  ]
+}
