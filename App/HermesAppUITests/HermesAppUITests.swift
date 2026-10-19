@@ -112,6 +112,13 @@ final class HermesAppUITests: XCTestCase {
         menu.tap()
         let item = app.buttons[layout]
         XCTAssertTrue(item.waitForExistence(timeout: 5))
+        // The item can exist before the menu lays it out. Wait until it can be tapped.
+        let hittable = NSPredicate(format: "isHittable == true")
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hittable, object: item)], timeout: 10),
+            .completed,
+            "The \(layout) item should be tappable in the debug menu"
+        )
         item.tap()
     }
 

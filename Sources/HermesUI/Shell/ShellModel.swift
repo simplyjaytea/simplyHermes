@@ -392,16 +392,19 @@
         }
 
         /// Streams a canned reply into a chat, a few words at a time, so fold changes can be tested mid-stream.
+        /// Words arrive five at a time, every 600 ms: the same pace, with a fifth of the view updates.
         public func startDemoStream(in id: String, words: Int = 60) {
             guard !streamingSessionIDs.contains(id) else { return }
             streamingSessionIDs.insert(id)
             let messageID = UUID().uuidString
             append(ShellMessage(id: messageID, kind: .assistant, text: ""), to: id)
             streamTasks[id] = Task { [weak self] in
-                for index in 0..<words {
-                    try? await Task.sleep(for: .milliseconds(120))
+                for start in stride(from: 0, to: words, by: 5) {
+                    try? await Task.sleep(for: .milliseconds(600))
                     if Task.isCancelled { break }
-                    self?.appendWord("word\(index)", to: messageID, in: id)
+                    for index in start..<min(start + 5, words) {
+                        self?.appendWord("word\(index)", to: messageID, in: id)
+                    }
                 }
                 self?.streamingSessionIDs.remove(id)
                 self?.streamTasks[id] = nil
