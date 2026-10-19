@@ -1,0 +1,19 @@
+{
+  "body": {
+    "config_updates": [],
+    "key": "RECORDER_TEST_VAR",
+    "ok": true
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": {
+      "key": "RECORDER_TEST_VAR",
+      "value": "recorder"
+    },
+    "method": "PUT",
+    "path": "/api/env",
+    "query": {}
+  },
+  "status": 200,
+  "step": "env.set"
+}

@@ -14,6 +14,9 @@
         }
 
         public private(set) var state: TranscriptState
+        /// The folder this chat moved to in this run. Nil until the user picks one, then `state.info.cwd` is stale.
+        /// It clears when the server reports another folder, since the server knows best.
+        public private(set) var workspaceCwd: String?
         /// Messages waiting for Hermes to be free.
         public private(set) var queue = MessageQueue()
         public private(set) var phase: Phase = .loading
@@ -31,6 +34,9 @@
         public private(set) var pendingCut: PendingCut?
         /// Why the last edit or regenerate did not go through. Nil when it did or none ran.
         public private(set) var cutError: String?
+        /// What the user typed for an edit the server has not taken, by the row it was for. The Edit sheet offers it
+        /// again, so a failed edit or a cancelled question does not lose the text.
+        public private(set) var unsentEdits: [Int: String] = [:]
 
         public struct PendingCut: Equatable {
             public let rowID: Int
@@ -56,6 +62,9 @@
 
         public var isRunning: Bool { state.turn != nil }
 
+        /// The on-device side of this chat: where messages go while the server is out of reach (WP-65b).
+        public let offline: OfflineChatModel
+
         /// The status strip readings for this chat: context fill, cache, speed and the connection.
         public var strip: ChatStatusStrip {
             let phase = connections.active.flatMap { connections.phases[$0.id] }
@@ -72,23 +81,45 @@
         @ObservationIgnored private let storedSessionID: String
         /// When an automatic retry will fire, if one is scheduled.
         public private(set) var retryAt: Date?
+        /// Text a slash command asked the composer to take back, unsent. The chat screen moves it into the draft.
+        public private(set) var prefill: String?
         @ObservationIgnored private var retryTask: Task<Void, Never>?
         @ObservationIgnored private var controller: ChatSessionController?
+        /// The attempt to connect and resume that is under way, if any. Calls to ``attach()`` share it.
+        @ObservationIgnored private var attaching: Task<Void, Never>?
         @ObservationIgnored private var client: GatewayClient?
         @ObservationIgnored private var firstSeen: [String: Date] = [:]
         @ObservationIgnored private var wasRunning = false
         @ObservationIgnored private var tasks: [Task<Void, Never>] = []
+        @ObservationIgnored private var isMovingWorkspace = false
 
         init(connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String) {
             self.connections = connections
             self.broker = broker
             self.storedSessionID = storedSessionID
             state = TranscriptState(storedSessionID: storedSessionID)
+            offline = OfflineChatModel(
+                services: OfflineChatServices.shared, connections: connections, storedSessionID: storedSessionID)
         }
 
-        /// Connects, resumes the session and starts following it. Safe to call again after a failure.
+        /// Connects, resumes the session and starts following it. Safe to call again after a failure. A call made
+        /// while another is still connecting waits for that one, so the session is never opened twice at once.
         public func attach() async {
+            offline.start()
+            if let attempt = attaching {
+                await attempt.value
+                return
+            }
             guard controller == nil else { return }
+            let attempt = Task { [weak self] in
+                await self?.connectAndFollow()
+                self?.attaching = nil
+            }
+            attaching = attempt
+            await attempt.value
+        }
+
+        private func connectAndFollow() async {
             guard let connection = connections.active, let manager = connections.manager else {
                 phase = .failed("No server is selected.")
                 return
@@ -109,6 +140,7 @@
                         for await next in states {
                             self?.noteTurnEnd(next.transcript.turn != nil)
                             self?.noteSubagents(next.transcript.subagents)
+                            self?.noteWorkspace(next.transcript.info?.cwd)
                             self?.state = next.transcript
                             self?.queue = next.queue
                         }
@@ -126,16 +158,55 @@
         public func detach() {
             for task in tasks { task.cancel() }
             retryTask?.cancel()
+            offline.stop()
             tasks = []
             let controller = controller
             self.controller = nil
             Task { await controller?.detach() }
         }
 
+        /// Completions for a `/` command or an `@` mention, ranked by the server. Empty while the chat is not attached.
+        public func complete(_ trigger: ComposerTrigger) async -> [CompletionItem] {
+            guard let client else { return [] }
+            let session = state.liveSessionID
+            switch trigger {
+            case .slash(let query):
+                let result = try? await client.completeSlash(CompleteSlashParams(text: "/" + query, sessionID: session))
+                return result?.items ?? []
+            case .mention(let query):
+                let result = try? await client.completePath(CompletePathParams(word: "@" + query, sessionID: session))
+                return result?.items ?? []
+            }
+        }
+
         public func send(_ text: String, attachments: [ComposerAttachment] = []) {
+            // Plan Q44: while the server is out of reach, text goes to the on-device model. Files need Hermes.
+            if attachments.isEmpty, offline.send(text) { return }
             guard let controller else { return }
             HermesSounds.play(.send)
-            Task { await controller.send(text, attachments: attachments) }
+            Task {
+                if let composerText = await controller.send(text, attachments: attachments) { prefill = composerText }
+            }
+        }
+
+        /// Clears ``prefill`` once the composer has taken its text.
+        public func clearPrefill() {
+            prefill = nil
+        }
+
+        /// "Send to Hermes" (plan Q44): sends the prompt of `offer`, written offline, to this chat once the server is
+        /// back, then closes the offline chat. Opens the chat first when it never opened. While one send is under way
+        /// a second tap does nothing, so the prompt reaches Hermes once. When the chat cannot open, nothing is sent and
+        /// the offer stays.
+        public func sendToHermes(_ offer: SendToHermesOffer) async {
+            guard offline.beginSending(offer) else { return }
+            if controller == nil { await attach() }
+            guard controller != nil else {
+                offline.sendFailed()
+                return
+            }
+            send(offer.prompt)
+            offline.resolveOffer(offer, as: .sent)
         }
 
         /// Sends the text into the running reply instead of queueing it. Falls back to sending normally.
@@ -146,6 +217,7 @@
 
         /// Replaces the user turn at `rowID` and everything after it with `text`, then sends it (WP-34).
         public func edit(rowID: Int, text: String) {
+            unsentEdits[rowID] = text
             runCut(fromRowID: rowID, text: text, consent: [])
         }
 
@@ -159,8 +231,7 @@
         public func confirmPendingCut() {
             guard let cut = pendingCut else { return }
             pendingCut = nil
-            let consent: TurnEditConsent = cut.confirmation == .emptiesTranscript ? .emptiesTranscript : .deepCut
-            runCut(fromRowID: cut.rowID, text: cut.text, consent: consent)
+            runCut(fromRowID: cut.rowID, text: cut.text, consent: cut.confirmation.consent)
         }
 
         public func dismissPendingCut() {
@@ -192,13 +263,12 @@
             return nil
         }
 
+        /// Runs the cut through the controller, so the transcript is cut and the reply lands under the edited message.
         private func runCut(fromRowID rowID: Int, text: String, consent: TurnEditConsent) {
-            guard let client, let live = state.liveSessionID else { return }
-            let editor = TurnEditor(session: client, sessionID: live)
-            let impact = RewindImpact.of(state, fromRowID: rowID)
+            guard let controller else { return }
             Task { [weak self] in
-                let outcome = await editor.edit(text: text, fromRowID: rowID, impact: impact, consent: consent)
-                self?.noteCut(outcome, rowID: rowID, text: text)
+                let outcome = await controller.edit(text: text, fromRowID: rowID, consent: consent)
+                if let outcome { self?.noteCut(outcome, rowID: rowID, text: text) }
             }
         }
 
@@ -206,10 +276,12 @@
             switch outcome {
             case .done:
                 cutError = nil
+                unsentEdits[rowID] = nil
             case .needsConfirmation(let confirmation):
                 pendingCut = PendingCut(rowID: rowID, text: text, confirmation: confirmation)
             case .stale:
-                cutError = "That message is no longer in this chat. Reload the chat and try again."
+                // The controller has read the history again by now.
+                cutError = "That message is no longer in this chat. Check the chat and try again."
             case .busy:
                 cutError = "Hermes is still replying. Try again when it finishes."
             case .failed(let error):
@@ -230,6 +302,22 @@
         public func moveQueued(_ id: Int, to position: Int) {
             guard let controller else { return }
             Task { await controller.moveQueued(id, to: position) }
+        }
+
+        /// Moves this chat into another folder on the server. Returns nil when it moved, else why the server refused,
+        /// and only one move runs at a time (WP-37).
+        public func moveWorkspace(to cwd: String) async -> String? {
+            guard let client else { return String(localized: "The server is not reachable.") }
+            guard !isMovingWorkspace else { return String(localized: "The chat is already moving.") }
+            isMovingWorkspace = true
+            defer { isMovingWorkspace = false }
+            let params = SessionWorkspaceMoveParams(sessionKey: storedSessionID, cwd: cwd)
+            do {
+                workspaceCwd = try await client.moveSessionWorkspace(params).cwd
+                return nil
+            } catch {
+                return Self.describe(error)
+            }
         }
 
         public func setQueuePaused(_ paused: Bool) {
@@ -253,6 +341,11 @@
 
         private func noteSubagents(_ states: [SubagentState]) {
             for item in states where firstSeen[item.id] == nil { firstSeen[item.id] = Date() }
+        }
+
+        /// The server's folder wins once it changes, for example when another device moves the chat.
+        private func noteWorkspace(_ cwd: String?) {
+            if cwd != state.info?.cwd { workspaceCwd = nil }
         }
 
         private static func connection(for phase: ConnectionPhase?) -> StripConnection {

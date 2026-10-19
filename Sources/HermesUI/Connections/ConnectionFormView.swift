@@ -163,11 +163,16 @@
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .font(HermesFont.code)
+                    .disabled(form.cloudOrigin != nil)
                     .accessibilityIdentifier("connection.url")
             } header: {
                 Text("Server")
             } footer: {
-                AddressFooter(address: form.address)
+                if let cloud = form.cloudOrigin {
+                    Text("\(cloud.agentName) in \(cloud.organizationName). Hermes Cloud sets this address.")
+                } else {
+                    AddressFooter(address: form.address)
+                }
             }
             .task(id: form.urlText) {
                 try? await Task.sleep(for: .milliseconds(600))
