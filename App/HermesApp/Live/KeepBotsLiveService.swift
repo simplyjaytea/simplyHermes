@@ -38,12 +38,10 @@ final class KeepBotsLiveService {
 
     private func hold() {
         guard engine == nil else { return }
-        let session = AVAudioSession.sharedInstance()
         let engine = AVAudioEngine()
         let player = AVAudioPlayerNode()
         do {
-            try session.setCategory(.playback, options: [.mixWithOthers])
-            try session.setActive(true)
+            try SharedAudioSession.shared.claim(.keepAlive)
             let format = engine.mainMixerNode.outputFormat(forBus: 0)
             guard let silence = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(format.sampleRate))
             else { return }
@@ -62,15 +60,17 @@ final class KeepBotsLiveService {
             logger.info("Holding the app awake for running bots")
         } catch {
             logger.error("Keep bots live failed: \(error.localizedDescription, privacy: .public)")
-            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+            SharedAudioSession.shared.release(.keepAlive)
         }
     }
 
     private func release() {
-        guard let engine else { return }
-        engine.stop()
-        self.engine = nil
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        logger.info("Released the app for suspension")
+        if let engine {
+            engine.stop()
+            self.engine = nil
+            logger.info("Released the app for suspension")
+        }
+        // Gives the session back even when no engine runs, so a claim left by a hold that failed is dropped too.
+        SharedAudioSession.shared.release(.keepAlive)
     }
 }

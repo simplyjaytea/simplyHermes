@@ -15,7 +15,10 @@
         @State private var isFinding = false
         @State private var query = ""
         @State private var currentMatch: String?
+        @State private var voice: VoiceInputModel?
+        @State private var announcedReplyID: String?
         @FocusState private var findFocused: Bool
+        @Environment(\.scenePhase) private var scenePhase
         @State private var showsWorkspaces = false
         @State private var showsArtifacts = false
 
@@ -40,11 +43,32 @@
                     completer: Self.completer(for: chat),
                     onSend: { send() },
                     // Files cannot be steered into the running reply, so they wait for the queue.
-                    onSteer: chat.isRunning && model.attachments[sessionID, default: []].isEmpty ? { steer() } : nil
+                    onSteer: chat.isRunning && model.attachments[sessionID, default: []].isEmpty ? { steer() } : nil,
+                    voice: voice
                 )
                 .background(HermesColor.background)
             }
             .task(id: sessionID) { await chat.attach() }
+            .task(id: sessionID) {
+                // Voice (WP-60) dictates into this chat's draft and sends spoken messages through it. A chat change
+                // stops the previous chat's voice first, so its microphone and conversation do not keep running.
+                voice?.cancel()
+                let draft = model.draftBinding(for: sessionID)
+                voice = chat.makeVoice { spoken in
+                    draft.wrappedValue = DictationText.appending(spoken, to: draft.wrappedValue)
+                }
+            }
+            .onChange(of: chat.isRunning) { _, running in
+                // A finished reply is spoken once: the id stops a reply from being read twice.
+                guard !running, let reply = chat.newestFinishedReply, reply.id != announcedReplyID else { return }
+                announcedReplyID = reply.id
+                voice?.replyFinished(reply.text)
+            }
+            .onDisappear { voice?.cancel() }
+            // Locking the phone or leaving the app ends voice. Inactive is not used: the microphone prompt sets it too.
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background { voice?.cancel() }
+            }
             // A cut that erases or archives more than one turn waits here for the user's yes (WP-34).
             .confirmationDialog(
                 "Cut the chat here?",

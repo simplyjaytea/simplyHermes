@@ -14,6 +14,7 @@
         private let completer: CompletionLookup?
         private let onSend: () -> Void
         private let onSteer: (() -> Void)?
+        private let voice: VoiceInputModel?
 
         @State private var sendCount = 0
         @State private var selection = NSRange(location: 0, length: 0)
@@ -33,7 +34,8 @@
             attachments: Binding<[ComposerAttachment]>? = nil,
             completer: CompletionLookup? = nil,
             onSend: @escaping () -> Void,
-            onSteer: (() -> Void)? = nil
+            onSteer: (() -> Void)? = nil,
+            voice: VoiceInputModel? = nil
         ) {
             _text = text
             self.placeholder = placeholder
@@ -41,6 +43,7 @@
             self.completer = completer
             self.onSend = onSend
             self.onSteer = onSteer
+            self.voice = voice
         }
 
         public var body: some View {
@@ -59,8 +62,21 @@
                                 .padding(.horizontal, 8)
                         }
                         HStack(alignment: .bottom, spacing: 4) {
-                            field
+                            // Voice turns the field into a waveform bar while the microphone is open (plan Q41).
+                            if let voice, voice.isActive {
+                                VoiceWaveBar(voice: voice)
+                                    .padding(.vertical, 6)
+                                    .padding(.leading, 14)
+                            } else {
+                                field
+                                if let voice {
+                                    VoiceMicButton(voice: voice)
+                                }
+                            }
                             sendButton
+                        }
+                        if let voice, !voice.isActive, let problem = voice.problem {
+                            VoiceProblemLine(problem: problem)
                         }
                     }
                     .overlay(
