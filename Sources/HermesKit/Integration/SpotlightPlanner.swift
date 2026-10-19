@@ -52,13 +52,22 @@ public struct SpotlightItem: Equatable, Sendable {
 /// Which entries the app has given to Spotlight, so the next update sends only what changed.
 public struct SpotlightIndexState: Codable, Equatable, Sendable {
     public static let fileName = "spotlight-index.json"
+    /// Bump this when the index name or its protection class changes. Entries saved under another revision were
+    /// written to a different index, so they are replaced rather than trusted.
+    public static let currentRevision = 1
 
     /// Entry id to the fingerprint it was indexed with.
     public var fingerprints: [String: String]
+    /// The revision the entries were written under. Nil in state saved before revisions existed.
+    public var revision: Int?
 
     public init(fingerprints: [String: String] = [:]) {
         self.fingerprints = fingerprints
+        revision = Self.currentRevision
     }
+
+    /// Whether the entries were written to the index this build uses.
+    public var isCurrent: Bool { revision == Self.currentRevision }
 
     public static func store(directory: URL) -> JSONFileStore<SpotlightIndexState> {
         JSONFileStore(directory: directory, fileName: fileName)

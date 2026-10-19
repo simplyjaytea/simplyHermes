@@ -32,8 +32,8 @@ final class SpotlightIndexer {
         store = SpotlightIndexState.store(directory: directory)
         let saved = store.load()
         state = saved ?? SpotlightIndexState()
-        // With no saved state (first run, or the app was reinstalled) older entries may linger, so start clean.
-        needsCleanSlate = saved == nil
+        // Entries from an older index, or from a run with no saved state (first run, reinstall), may linger.
+        needsCleanSlate = saved?.isCurrent != true
     }
 
     /// The chats the server lists, newest first. Call with the full list each time it changes.
@@ -69,6 +69,8 @@ final class SpotlightIndexer {
         do {
             if needsCleanSlate {
                 try await deleteEverything()
+                state = SpotlightIndexState()
+                try store.save(state)
                 needsCleanSlate = false
             }
             let plan = SpotlightPlanner.plan(chats: chats, bots: bots, indexed: state)

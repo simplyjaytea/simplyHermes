@@ -131,4 +131,11 @@ private let bots = [SpotlightBot(name: "ops", title: "Ops bot")]
         let reloaded = try #require(store.load())
         #expect(SpotlightPlanner.plan(chats: chats, bots: bots, indexed: reloaded).isEmpty)
     }
+
+    @Test func anOlderStateIsNotCurrentAndANewOneIs() throws {
+        #expect(SpotlightIndexState().isCurrent)
+        let saved = Data(#"{"fingerprints":{"chat:c1":"chat|Deploy|"}}"#.utf8)
+        let older = try JSONDecoder().decode(SpotlightIndexState.self, from: saved)
+        #expect(!older.isCurrent)
+    }
 }
