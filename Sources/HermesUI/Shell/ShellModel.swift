@@ -68,6 +68,8 @@
         @ObservationIgnored private var streamTasks: [String: Task<Void, Never>] = [:]
         /// Chats read from the connected server (WP-30). Nil when there is no server connection to read from.
         @ObservationIgnored public var liveChats: LiveChatStore?
+        /// Browses the active server's files for the preview rail (WP-37). Nil when there is no server connection.
+        @ObservationIgnored public var workspaceBrowser: WorkspaceBrowserModel?
         /// Ids of the chats the server listed. These open as live chats; the rest stay placeholders.
         public private(set) var serverSessionIDs: Set<String> = []
         public var isPalettePresented = false
@@ -80,6 +82,10 @@
         public var showsPreviewRail = true
         /// Forces a layout, for UI tests and the debug menu. `nil` follows the screen and posture.
         public var layoutOverride: DisplayLayout?
+        /// A session link to open, set by the URL handler. The shell opens it, then clears this (WP-40).
+        public var pendingSessionReference: SessionReference?
+        /// A calm message the shell shows when a session link cannot be opened.
+        public var sessionNotice: String?
 
         public init(sessions: [ChatSessionSummary] = ShellModel.sampleSessions, selectedSessionID: String? = nil) {
             self.sessions = sessions

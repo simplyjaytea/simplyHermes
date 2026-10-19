@@ -235,6 +235,8 @@ public enum TranscriptAction: Sendable, Equatable {
     case submitAcknowledged(localID: String, PromptSubmitResult)
     /// `prompt.submit` failed for the prompt with `localID`.
     case submitFailed(localID: String, message: String)
+    /// A line the app adds to the transcript itself, such as a slash command's output. It is not sent to the model.
+    case notice(localID: String, text: String)
     /// A live server request arrived on this socket.
     case serverRequest(ServerRequest)
     /// `session.events.since` re-delivered an unanswered request.

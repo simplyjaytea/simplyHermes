@@ -135,4 +135,38 @@ import Testing
         #expect(status.files?.first?.path == "testbed-entrypoints/" && status.files?.first?.untracked == true)
         #expect(request.url.query == "path=/opt/hermes")
     }
+
+    @Test func sessionExportLookupAndPruneCarryTheProfile() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, #"{"id":"a/b c","messages":[]}"#)
+        http.enqueue(200, #"{"id":"s1"}"#)
+        http.enqueue(404, #"{"detail":"Session not found"}"#)
+        http.enqueue(200, #"{"deleted":2}"#)
+        let client = makeClient(http, profile: "default")
+        let bytes = try await client.exportSession(id: "a/b c", profile: "ops")
+        #expect(String(bytes: bytes, encoding: .utf8) == #"{"id":"a/b c","messages":[]}"#)
+        _ = try await client.session(id: "s1", profile: "ops")
+        await #expect(throws: RESTError.http(status: 404, detail: "Session not found")) {
+            try await client.session(id: "gone", profile: "ops")
+        }
+        let answer = try await client.pruneSessions(SessionPruneFilter(olderThanDays: 90, profile: "ops"))
+        #expect(answer == .object(["deleted": .int(2)]))
+        let requests = http.requests
+        #expect(requests[0].method == "GET" && requests[0].url.path == "/api/sessions/a%2Fb%20c/export")
+        #expect(requests[0].url.query == "profile=ops", "an explicit owner replaces the client's scope")
+        #expect(requests[1].url.path == "/api/sessions/s1" && requests[1].url.query == "profile=ops")
+        let prune = try #require(requests.last)
+        #expect(prune.method == "POST" && prune.url.path == "/api/sessions/prune")
+        let body = try #require(prune.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })
+        #expect(body["older_than_days"] as? Int == 90 && body["profile"] as? String == "ops")
+        #expect(body["include_archived"] == nil, "archived sessions stay out unless asked for")
+    }
+
+    @Test func exportWithoutAnOwnerUsesTheClientsScope() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, #"{"id":"s1"}"#)
+        let client = makeClient(http, profile: "ops")
+        _ = try await client.exportSession(id: "s1", profile: nil)
+        #expect(http.requests.first?.url.query == "profile=ops")
+    }
 }
