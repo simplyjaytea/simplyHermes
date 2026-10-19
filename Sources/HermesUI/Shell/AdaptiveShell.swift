@@ -15,6 +15,7 @@
         @Environment(\.hermesReduceMotion) private var reduceMotionOverride
         @State private var postureMonitor = DevicePostureMonitor()
         @State private var profiles: ProfilesModel?
+        @State private var terminals = TerminalModel()
         @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
         /// `connections` fills Settings > Servers and the server switcher (WP-22). Nil shows placeholders.
@@ -302,9 +303,18 @@
         private func sectionContent(_ section: AppSection) -> some View {
             if section == .settings, let connections {
                 SettingsHome(connections: connections)
+            } else if section == .tools {
+                TerminalToolsHome(connections: connections, terminals: terminals, addToChat: addToChat)
             } else {
                 SectionPlaceholder(section: section)
             }
+        }
+
+        /// Appends a block to the selected chat's draft, as the Tools tab's "Add to chat" does.
+        private func addToChat(_ text: String) {
+            guard let id = model.selectedSessionID else { return }
+            let draft = model.drafts[id, default: ""]
+            model.drafts[id] = draft.isEmpty ? text : draft + "\n" + text
         }
 
         @ToolbarContentBuilder
