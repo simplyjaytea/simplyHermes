@@ -1,0 +1,33 @@
+{
+  "body": {
+    "profiles": [
+      {
+        "bot_title": "",
+        "description": "",
+        "description_auto": false,
+        "display_name": "",
+        "distribution_name": null,
+        "distribution_source": null,
+        "distribution_version": null,
+        "gateway_running": false,
+        "has_alias": false,
+        "has_env": false,
+        "is_default": true,
+        "model": "fake-model",
+        "name": "default",
+        "path": "/data/hermes",
+        "provider": "custom",
+        "skill_count": 58
+      }
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/profiles",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}
