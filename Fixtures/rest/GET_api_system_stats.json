@@ -1,0 +1,49 @@
+{
+  "body": {
+    "arch": "x86_64",
+    "cpu_count": 4,
+    "cpu_percent": 0.0,
+    "disk": {
+      "free": 89523499008,
+      "percent": 42.2,
+      "total": 154894188544,
+      "used": 65353912320
+    },
+    "hermes_version": "unknown",
+    "hostname": "f03e0a4d7d11",
+    "load_avg": [
+      1.48876953125,
+      0.56103515625,
+      0.20654296875
+    ],
+    "memory": {
+      "available": 14694985728,
+      "percent": 12.4,
+      "total": 16766410752,
+      "used": 2071425024
+    },
+    "os": "Linux",
+    "os_release": "6.17.0-1022-azure",
+    "os_version": "#22-Ubuntu SMP Mon Jul 27 17:24:03 UTC 2026",
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.36",
+    "process": {
+      "create_time": 1792299043,
+      "num_threads": 21,
+      "pid": 1,
+      "rss": 512618496
+    },
+    "psutil": true,
+    "python_impl": "CPython",
+    "python_version": "3.14.2",
+    "uptime_seconds": 135
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/system/stats",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

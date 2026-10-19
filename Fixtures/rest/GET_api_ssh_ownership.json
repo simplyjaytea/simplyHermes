@@ -1,0 +1,14 @@
+{
+  "body": {
+    "detail": "SSH ownership is not active"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/ssh/ownership",
+    "query": {}
+  },
+  "status": 404,
+  "step": "enumerate"
+}

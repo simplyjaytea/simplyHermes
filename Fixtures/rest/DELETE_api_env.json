@@ -1,0 +1,22 @@
+{
+  "body": {
+    "config_scrubbed": [],
+    "found": true,
+    "key": "RECORDER_TEST_VAR",
+    "ok": true,
+    "pool_pruned": [],
+    "providers": [],
+    "removed": true
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": {
+      "key": "RECORDER_TEST_VAR"
+    },
+    "method": "DELETE",
+    "path": "/api/env",
+    "query": {}
+  },
+  "status": 200,
+  "step": "env.delete"
+}

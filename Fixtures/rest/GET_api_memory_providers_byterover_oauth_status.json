@@ -1,0 +1,14 @@
+{
+  "body": {
+    "detail": "byterover does not support OAuth connect"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/memory/providers/byterover/oauth/status",
+    "query": {}
+  },
+  "status": 404,
+  "step": "enumerate"
+}

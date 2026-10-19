@@ -1,0 +1,16 @@
+{
+  "body": {
+    "attachments": []
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/plugins/kanban/tasks/t_3848a8c2/attachments",
+    "query": {
+      "board": "recorder"
+    }
+  },
+  "status": 200,
+  "step": "kanban.attachments.seeded"
+}
