@@ -72,6 +72,8 @@
         @ObservationIgnored public var workspaceBrowser: WorkspaceBrowserModel?
         /// Ids of the chats the server listed. These open as live chats; the rest stay placeholders.
         public private(set) var serverSessionIDs: Set<String> = []
+        /// Chats made on the server from outside the chat list, which the server does not list yet.
+        @ObservationIgnored var startedChats = StartedChats()
         public var isPalettePresented = false
         /// Report a bug, opened from the command palette.
         public var isBugReportPresented = false
@@ -144,12 +146,15 @@
         /// Replaces the listed chats with the server's (WP-40). Chats started here stay. Their transcripts arrive with
         /// WP-30, so a synced chat opens empty for now.
         public func syncSessions(_ items: [SessionListItem]) {
+            let started = startedChatsToKeep(listed: Set(items.map(\.id)))
             let local = sessions.filter { $0.id.hasPrefix("new-") }
             let synced = items.map {
                 ChatSessionSummary(id: $0.id, title: $0.title, subtitle: $0.time ?? "", serverName: $0.serverName)
             }
             sessions = local + synced
             serverSessionIDs = Set(items.map(\.id))
+            sessions.insert(contentsOf: started, at: local.count)
+            serverSessionIDs.formUnion(started.map(\.id))
             for session in sessions where transcripts[session.id] == nil { transcripts[session.id] = [] }
             let ids = Set(sessions.map(\.id))
             openSessionIDs.removeAll { !ids.contains($0) }
