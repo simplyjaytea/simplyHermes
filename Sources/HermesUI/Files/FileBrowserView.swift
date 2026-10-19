@@ -1,5 +1,6 @@
 #if canImport(UIKit)
     import HermesKit
+    import QuickLook
     import SwiftUI
 
     /// The read-only file browser in the preview rail: folders first, then text files (WP-37).
@@ -32,11 +33,20 @@
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    // QuickLook has no Add to chat, so every file offers it here.
+                    .contextMenu {
+                        if !entry.isDirectory {
+                            Button("Add to chat") { onAddToChat(entry.path) }
+                        }
+                    }
                     .accessibilityIdentifier("file.\(entry.id)")
                 }
                 .listStyle(.plain)
             }
             .task(id: browser.loadKey) { await browser.load() }
+            .quickLookPreview(
+                Binding(get: { browser.quickLookURL }, set: { if $0 == nil { browser.closeQuickLook() } })
+            )
             .sheet(isPresented: Binding(get: { browser.preview != nil }, set: { if !$0 { browser.closePreview() } })) {
                 if let file = browser.preview {
                     FilePreviewSheet(file: file) {
@@ -65,7 +75,7 @@
         }
     }
 
-    /// A text file from the server, with Add to chat. Binary files show their type until QuickLook lands (WP-37).
+    /// A text file from the server, with Add to chat. Binary files open in QuickLook instead (WP-37).
     private struct FilePreviewSheet: View {
         let file: FsText
         let onAddToChat: () -> Void
@@ -106,10 +116,7 @@
 
         /// The start of the text, or why there is none.
         private var shownText: String {
-            guard let text = file.text else {
-                let type = file.mimeType ?? String(localized: "unknown type")
-                return String(localized: "This file is binary (\(type)). Preview is not available yet.")
-            }
+            guard let text = file.text else { return String(localized: "This file has no text to show.") }
             return String(text.prefix(Self.characterLimit))
         }
 
