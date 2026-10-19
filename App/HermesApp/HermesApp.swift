@@ -31,6 +31,8 @@ struct HermesApp: App {
                 .onOpenURL { url in
                     if let id = HermesURL.chatID(from: url), model.session(id: id) != nil {
                         model.open(id)
+                    } else if let reference = HermesURL.sessionReference(from: url) {
+                        model.pendingSessionReference = reference
                     }
                 }
         }

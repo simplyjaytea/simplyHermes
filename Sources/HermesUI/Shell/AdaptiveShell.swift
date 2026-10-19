@@ -51,15 +51,34 @@
                     .hermesPostureSource(postureMonitor)
                     .environment(\.hermesPosture, posture)
                     .task(id: forcedPosture) { applyForcedPosture() }
-                    .task(id: connections?.active?.id) { await attachSessions() }
+                    .task(id: sessionScopeKey) { await attachSessions() }
+                    .task(id: model.pendingSessionReference) { await openPendingSession() }
             }
         }
 
-        /// Lists the active server's chats in the shell (WP-40), again when the active server changes.
+        /// Changes when the active server or the profile chosen on it changes. The chat list follows it (WP-40, WP-41).
+        private var sessionScopeKey: String {
+            "\(connections?.active?.id.uuidString ?? "")|\(profiles?.selection.chosen ?? "")"
+        }
+
+        /// Lists the active profile's chats in the shell (WP-40), again when the server or the profile changes.
         private func attachSessions() async {
             guard let sessionsList else { return }
             sessionsList.observeItems { model.syncSessions($0) }
-            await sessionsList.attach()
+            await sessionsList.attach(profile: profiles?.selection.chosen)
+        }
+
+        /// Opens the chat an `@session:` link names, and shows a calm message when it cannot (WP-40).
+        private func openPendingSession() async {
+            guard let reference = model.pendingSessionReference else { return }
+            defer { model.pendingSessionReference = nil }
+            guard let sessionsList, let profiles else {
+                model.sessionNotice = "Connect to a server first."
+                return
+            }
+            if let notice = await sessionsList.open(reference, in: model, profiles: profiles) {
+                model.sessionNotice = notice
+            }
         }
 
         private func applyForcedPosture() {
@@ -121,6 +140,16 @@
             }
             .sheet(isPresented: $model.isPalettePresented, onDismiss: openPendingBugReport) {
                 CommandPalette(model: model)
+            }
+            .alert(
+                "Chat not opened",
+                isPresented: Binding(
+                    get: { model.sessionNotice != nil },
+                    set: { if !$0 { model.sessionNotice = nil } })
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(model.sessionNotice ?? "")
             }
         }
 
