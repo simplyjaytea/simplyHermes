@@ -1,0 +1,26 @@
+{
+  "skills": [
+    {
+      "name": "arxiv",
+      "description": "Search and summarize arXiv papers.",
+      "source": "official",
+      "identifier": "official/research/arxiv",
+      "trust_level": "builtin",
+      "repo": null,
+      "tags": ["research", "papers"],
+      "category": "research",
+      "installed": false
+    },
+    {
+      "name": "docker-management",
+      "description": "Inspect and manage local containers.",
+      "source": "official",
+      "identifier": "official/devops/docker-management",
+      "trust_level": "builtin",
+      "repo": null,
+      "tags": [],
+      "category": "devops",
+      "installed": true
+    }
+  ]
+}

@@ -365,7 +365,7 @@
             } else if section == .automations, let connections {
                 AutomationsScreen(connections: connections)
             } else if section == .tools {
-                TerminalToolsHome(connections: connections, terminals: terminals, addToChat: addToChat)
+                ToolsView(connections: connections, terminals: terminals, addToChat: addToChat)
             } else {
                 SectionPlaceholder(section: section)
             }
