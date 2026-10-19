@@ -9,6 +9,8 @@ struct HermesApp: App {
     @State private var sessionsList: SessionsListModel
     private let launch: LaunchOptions
     private let integration: AppIntegration
+    private let entry: EntryIntegration
+    @AppStorage(OnDeviceSettings.key) private var onDeviceEnabled = true
 
     init() {
         let launch = LaunchOptions(defaults: .standard)
@@ -19,7 +21,10 @@ struct HermesApp: App {
         let model = ShellModel()
         _model = State(initialValue: model)
         // Set up before any scene: a Live Activity or widget button can launch the app in the background.
-        integration = AppIntegration(model: model)
+        let integration = AppIntegration(model: model)
+        self.integration = integration
+        // Intents, Quick Entry, shared items and Spotlight results all arrive through this one object.
+        entry = EntryIntegration(model: model, connections: connections, integration: integration)
         // UI tests set -HermesOnboarding; a tip popover would cover the controls they tap.
         HermesTips.configure(enabled: launch.onboarding == nil)
     }
@@ -27,16 +32,22 @@ struct HermesApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(model: model, connections: connections, sessionsList: sessionsList, launch: launch)
+                .integrationHost(entry)
                 .tint(HermesColor.accent)
+                .environment(\.onDeviceModels, OnDeviceModelServices.shared.model)
+                .onDeviceModelsSheet(OnDeviceModelServices.shared.model, isEnabled: $onDeviceEnabled)
                 .onOpenURL { url in
                     if let id = HermesURL.chatID(from: url), model.session(id: id) != nil {
                         model.open(id)
+                    } else if let reference = HermesURL.sessionReference(from: url) {
+                        model.pendingSessionReference = reference
                     }
                 }
         }
         WindowGroup(id: ShellWindow.chat, for: String.self) { $sessionID in
             ChatWindow(model: model, sessionID: sessionID)
                 .tint(HermesColor.accent)
+                .environment(\.onDeviceModels, OnDeviceModelServices.shared.model)
         }
     }
 
@@ -44,8 +55,15 @@ struct HermesApp: App {
     @MainActor
     private static func makeSessionsList(_ saved: ConnectionsModel, _ launch: LaunchOptions) -> SessionsListModel {
         let url = launch.onboarding == nil ? Self.cacheFileURL() : nil
-        let cache = url.flatMap { try? HermesCache(url: $0) } ?? (try? HermesCache())
+        let file = url.flatMap { try? HermesCache(url: $0) }
+        let cache = file ?? (try? HermesCache())
         guard let cache else { preconditionFailure("The in-memory cache cannot fail to open") }
+        // WP-65b: offline chats are kept in the same cache file as the chat list. They exist nowhere else, so they stay
+        // off when the file would not open and the cache fell back to memory. UI tests keep it in memory on purpose.
+        if file != nil || launch.onboarding != nil {
+            OfflineChatServices.install(cache: cache, executor: OnDeviceModelServices.shared.executor)
+            OfflineChatServices.shared?.onGetBetterModel = { OnDeviceModelServices.shared.presentModelList() }
+        }
         return SessionsListModel(connections: saved, cache: cache)
     }
 
@@ -78,11 +96,13 @@ struct LaunchOptions {
     var posture: DevicePosture?
     /// Shows the layout switcher used by the fold UI test.
     var showsDebugLayoutSwitcher: Bool
-    /// "stream" starts a long demo reply in the first chat; "liveActivity" starts one long enough
-    /// for CI to screenshot the Dynamic Island from another app.
+    /// "stream" starts a demo reply that lasts about three minutes, so the fold UI test can change layout mid-stream
+    /// even on a slow CI run. "liveActivity" starts one long enough for CI to screenshot the Dynamic Island.
     var demo: String?
     /// "skip" opens the shell even with no saved server; "fresh" starts with no servers, in memory.
     var onboarding: Onboarding?
+    /// Opens this section first, so a UI test can start on it without tapping the tab bar.
+    var section: AppSection?
 
     enum Onboarding: String {
         case skip
@@ -95,6 +115,7 @@ struct LaunchOptions {
         showsDebugLayoutSwitcher = defaults.bool(forKey: "HermesDebugLayoutSwitcher")
         demo = defaults.string(forKey: "HermesDemo")
         onboarding = defaults.string(forKey: "HermesOnboarding").flatMap(Onboarding.init(rawValue:))
+        section = defaults.string(forKey: "HermesSection").flatMap(AppSection.init(rawValue:))
     }
 }
 
@@ -122,8 +143,11 @@ struct RootView: View {
             if let layout = launch.layout {
                 model.layoutOverride = layout
             }
+            if let section = launch.section {
+                model.selectedSection = section
+            }
             if launch.demo == "stream", let id = model.selectedSessionID {
-                model.startDemoStream(in: id, words: 400)
+                model.startDemoStream(in: id, words: 1500)
             }
             if launch.demo == "liveActivity", let id = model.selectedSessionID {
                 model.startDemoStream(in: id, words: 1500)

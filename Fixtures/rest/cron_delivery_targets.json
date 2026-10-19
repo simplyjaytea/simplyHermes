@@ -1,0 +1,7 @@
+{
+  "_note": "Shaped from the pinned backend (web_routers/cron.py delivery targets); not recorded from the testbed.",
+  "targets": [
+    {"id": "local", "name": "Local (save only)", "home_target_set": true, "home_env_var": null},
+    {"id": "telegram:12345", "name": "Telegram chat 12345", "home_target_set": true, "home_env_var": null}
+  ]
+}

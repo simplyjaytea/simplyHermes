@@ -59,6 +59,8 @@ import Testing
             "/auth/password-login",
             // Profile export and import name the profile in the path or body and take no `profile` query.
             "/api/profiles/", "/api/profiles/import",
+            // Sessions across every profile: the spec's `profile` query defaults to all, so the active one would narrow it.
+            "/api/profiles/sessions",
         ]
         let sources = FixtureFiles.directory.deletingLastPathComponent().appendingPathComponent(
             "Sources/HermesKit/REST")

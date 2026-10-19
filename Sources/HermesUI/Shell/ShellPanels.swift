@@ -91,7 +91,7 @@
                 case .output:
                     output
                 case .files:
-                    ContentUnavailableView("No files yet", systemImage: "doc", description: Text("Coming in WP-32."))
+                    files
                 case .web:
                     ContentUnavailableView("No pages yet", systemImage: "globe", description: Text("Coming in WP-55."))
                 }
@@ -99,6 +99,19 @@
             }
             .padding(12)
             .accessibilityIdentifier("previewRail")
+        }
+
+        @ViewBuilder
+        private var files: some View {
+            if let browser = model.workspaceBrowser {
+                FileBrowserView(browser: browser) { addToChat($0) }
+            } else {
+                ContentUnavailableView(
+                    "No files yet",
+                    systemImage: "doc",
+                    description: Text("Connect to a server to browse its files.")
+                )
+            }
         }
 
         @ViewBuilder
@@ -296,6 +309,11 @@
                                 .fill(HermesColor.accent)
                                 .frame(width: 6, height: 6)
                                 .accessibilityHidden(true)
+                        }
+                        if model.isBranch(session.id) {
+                            Image(systemName: "arrow.triangle.branch")
+                                .font(HermesFont.caption)
+                                .accessibilityLabel("Branch")
                         }
                         Text(session.title)
                             .font(HermesFont.subheadline.weight(isSelected ? .semibold : .regular))
