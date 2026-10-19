@@ -65,6 +65,8 @@
         public var transcripts: [String: [ShellMessage]] = [:]
         /// Chats with a turn streaming right now.
         public private(set) var streamingSessionIDs: Set<String> = []
+        /// Chats forked with Branch chat. Their tabs show a branch icon (Q28).
+        public private(set) var branchSessionIDs: Set<String> = []
         @ObservationIgnored private var streamTasks: [String: Task<Void, Never>] = [:]
         /// Chats read from the connected server (WP-30). Nil when there is no server connection to read from.
         @ObservationIgnored public var liveChats: LiveChatStore?
@@ -208,6 +210,19 @@
                 get: { self.attachments[id, default: []] },
                 set: { self.attachments[id] = $0 }
             )
+        }
+
+        public func isBranch(_ id: String) -> Bool {
+            branchSessionIDs.contains(id)
+        }
+
+        /// Opens a chat forked with Branch chat in a new tab (Q28).
+        public func openBranch(_ result: SessionBranchResult, serverName: String) {
+            branchSessionIDs.insert(result.storedSessionID)
+            show(
+                SessionListItem(
+                    id: result.storedSessionID, title: result.title ?? "Branch", time: nil, isPinned: false,
+                    serverName: serverName))
         }
 
         public func isStreaming(_ id: String) -> Bool {

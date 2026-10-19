@@ -310,6 +310,11 @@
                                 .frame(width: 6, height: 6)
                                 .accessibilityHidden(true)
                         }
+                        if model.isBranch(session.id) {
+                            Image(systemName: "arrow.triangle.branch")
+                                .font(HermesFont.caption)
+                                .accessibilityLabel("Branch")
+                        }
                         Text(session.title)
                             .font(HermesFont.subheadline.weight(isSelected ? .semibold : .regular))
                             .lineLimit(1)
