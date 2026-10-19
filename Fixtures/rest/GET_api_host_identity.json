@@ -1,0 +1,18 @@
+{
+  "body": {
+    "ok": true,
+    "pid": 1,
+    "protocolVersion": 1,
+    "role": "serve",
+    "servesSpa": false
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/host/identity",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

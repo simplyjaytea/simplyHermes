@@ -1,0 +1,64 @@
+{
+  "body": {
+    "active": "local",
+    "backends": [
+      {
+        "active": true,
+        "description": "Run commands directly on this machine. No isolation.",
+        "detail": "",
+        "label": "Local",
+        "name": "local",
+        "status": "ready"
+      },
+      {
+        "active": false,
+        "description": "Run commands in an isolated Docker or Podman container with a persistent workspace.",
+        "detail": "Docker CLI not found — install Docker Desktop, docker-ce, or Podman.",
+        "label": "Docker / Podman",
+        "name": "docker",
+        "status": "needs_setup"
+      },
+      {
+        "active": false,
+        "description": "Run commands in a Singularity/Apptainer container (HPC-friendly, rootless).",
+        "detail": "Neither singularity nor apptainer found on PATH.",
+        "label": "Singularity / Apptainer",
+        "name": "singularity",
+        "status": "needs_setup"
+      },
+      {
+        "active": false,
+        "description": "Run commands in a Modal cloud sandbox.",
+        "detail": "Modal credentials not found — set MODAL_TOKEN_ID and MODAL_TOKEN_SECRET (or run `modal setup`).",
+        "label": "Modal",
+        "name": "modal",
+        "status": "needs_setup"
+      },
+      {
+        "active": false,
+        "description": "Run commands in a Daytona cloud sandbox.",
+        "detail": "Set DAYTONA_API_KEY to use the Daytona backend.",
+        "label": "Daytona",
+        "name": "daytona",
+        "status": "needs_setup"
+      },
+      {
+        "active": false,
+        "description": "Run commands on a remote host over SSH.",
+        "detail": "Set terminal.ssh_host and terminal.ssh_user in config.yaml (or the matching TERMINAL_SSH_* env vars).",
+        "label": "SSH",
+        "name": "ssh",
+        "status": "needs_setup"
+      }
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/tools/terminal/backends",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

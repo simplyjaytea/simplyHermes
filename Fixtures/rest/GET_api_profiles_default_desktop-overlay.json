@@ -1,0 +1,15 @@
+{
+  "body": {
+    "desktop": null,
+    "exists": false
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/profiles/default/desktop-overlay",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

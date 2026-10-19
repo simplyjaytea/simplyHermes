@@ -1,0 +1,16 @@
+{
+  "body": {
+    "base_url": "http://localhost:8644",
+    "enabled": false,
+    "subscriptions": []
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/webhooks",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

@@ -1,0 +1,24 @@
+{
+  "body": {
+    "profiles": [
+      {
+        "description": "",
+        "description_auto": false,
+        "is_default": true,
+        "model": "fake-model",
+        "name": "default",
+        "provider": "custom",
+        "skill_count": 58
+      }
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/plugins/kanban/profiles",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

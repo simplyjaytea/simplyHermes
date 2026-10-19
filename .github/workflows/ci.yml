@@ -38,6 +38,8 @@ jobs:
           python3 -m venv .venv
           .venv/bin/pip install websockets
           .venv/bin/python testbed/smoke_test.py
+      - name: Record REST answers for list shapes (WP-53/54/55)
+        run: python3 testbed/tools/record_rest.py --base http://127.0.0.1:9119 --out build/rest-fixtures
       - name: SSH transport integration (WP-14)
         run: |
           docker run --rm --network host -v "$PWD:/src" -w /src \
@@ -48,7 +50,14 @@ jobs:
           docker run --rm --network host -v "$PWD:/src" -w /src \
             -e HERMES_TESTBED_URL=http://127.0.0.1:9119 \
             -e HERMES_TESTBED_OIDC_URL=http://127.0.0.1:9120 \
-            swift:6.1 bash -c 'apt-get update -qq && apt-get install -y -qq libsqlite3-dev && swift test --filter "RESTLiveTests|GatewayLiveTests|GatewayConnectionTesterLiveTests|NativeAuthLiveTests|OIDCSignInLiveTests|ConnectionManagerLiveTests"'
+            swift:6.1 bash -c 'apt-get update -qq && apt-get install -y -qq libsqlite3-dev && swift test --filter "RESTLiveTests|GatewayLiveTests|GatewayConnectionTesterLiveTests|NativeAuthLiveTests|OIDCSignInLiveTests|ConnectionManagerLiveTests|TerminalLiveTests"'
+      - name: Upload REST answers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rest-fixtures
+          path: build/rest-fixtures
+          if-no-files-found: warn
       - name: Logs on failure
         if: failure()
         run: docker compose -f testbed/docker-compose.yml logs --tail=200
@@ -74,6 +83,8 @@ jobs:
       - name: Get iOS 27.1 simulator runtime (best effort)
         continue-on-error: true
         run: xcodebuild -downloadPlatform iOS -buildVersion 27.1 || xcodebuild -downloadPlatform iOS
+      - name: Get Metal toolchain (SwiftTerm shaders)
+        run: xcodebuild -downloadComponent MetalToolchain
       - name: Pick simulator
         id: sim
         run: |
@@ -137,6 +148,7 @@ jobs:
           echo "Simulator: ${{ steps.sim.outputs.name }} (iOS ${{ steps.sim.outputs.os }})"
           # If only an older runtime exists, lower the deployment target so the app still runs in CI.
           xcodebuild test \
+            -skipPackagePluginValidation \
             -project simplyHermes.xcodeproj \
             -scheme simplyHermes \
             -destination "id=${{ steps.sim.outputs.udid }}" \
@@ -153,6 +165,7 @@ jobs:
           xcrun simctl boot "$udid" || true
           xcrun simctl bootstatus "$udid" -b
           xcodebuild build \
+            -skipPackagePluginValidation \
             -project simplyHermes.xcodeproj \
             -scheme simplyHermes \
             -destination "id=$udid" \
@@ -190,6 +203,7 @@ jobs:
         run: |
           set -eo pipefail
           xcodebuild build \
+            -skipPackagePluginValidation \
             -project simplyHermes.xcodeproj \
             -scheme simplyHermes \
             -sdk iphoneos \

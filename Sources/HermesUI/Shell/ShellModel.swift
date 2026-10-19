@@ -82,6 +82,10 @@
         public var showsPreviewRail = true
         /// Forces a layout, for UI tests and the debug menu. `nil` follows the screen and posture.
         public var layoutOverride: DisplayLayout?
+        /// A session link to open, set by the URL handler. The shell opens it, then clears this (WP-40).
+        public var pendingSessionReference: SessionReference?
+        /// A calm message the shell shows when a session link cannot be opened.
+        public var sessionNotice: String?
 
         public init(sessions: [ChatSessionSummary] = ShellModel.sampleSessions, selectedSessionID: String? = nil) {
             self.sessions = sessions

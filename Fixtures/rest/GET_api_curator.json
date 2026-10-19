@@ -1,0 +1,20 @@
+{
+  "body": {
+    "archive_after_days": 30,
+    "enabled": true,
+    "interval_hours": 168,
+    "last_run_at": null,
+    "min_idle_hours": 2.0,
+    "paused": false,
+    "stale_after_days": 14
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/curator",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

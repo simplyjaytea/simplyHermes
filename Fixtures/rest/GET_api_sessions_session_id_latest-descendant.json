@@ -1,0 +1,19 @@
+{
+  "body": {
+    "changed": false,
+    "path": [
+      "20261018_045102_598cc4"
+    ],
+    "requested_session_id": "20261018_045102_598cc4",
+    "session_id": "20261018_045102_598cc4"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/sessions/20261018_045102_598cc4/latest-descendant",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

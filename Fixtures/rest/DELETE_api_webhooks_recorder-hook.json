@@ -1,0 +1,14 @@
+{
+  "body": {
+    "detail": "No subscription named 'recorder-hook'"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "DELETE",
+    "path": "/api/webhooks/recorder-hook",
+    "query": {}
+  },
+  "status": 404,
+  "step": "webhooks.delete"
+}
