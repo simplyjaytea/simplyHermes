@@ -74,6 +74,21 @@ jobs:
         run: |
           sudo xcode-select -s /Applications/Xcode_27.1.app
           xcodebuild -version
+      - name: Metal toolchain for MLX (best effort)
+        continue-on-error: true
+        run: |
+          # mlx-swift compiles .metal sources during the build (WP-65c) and the hosted image may ship without the
+          # toolchain. -showComponent exits 0 and prints "Status: uninstalled" when it is missing, so read Status.
+          component_status() {
+            xcodebuild -showComponent MetalToolchain 2>&1 | awk -F': *' '/^Status:/ { print tolower($2); exit }'
+          }
+          if [ "$(component_status)" = "installed" ]; then
+            echo "MetalToolchain installed."
+          else
+            echo "MetalToolchain reports '$(component_status)'; downloading."
+            xcodebuild -downloadComponent MetalToolchain
+            echo "MetalToolchain now reports '$(component_status)'."
+          fi
       - name: Install tools
         run: brew install xcodegen swiftlint xcbeautify
       - name: Lint
