@@ -26,7 +26,7 @@
                 posture: posture?.rawValue,
                 logLines: logLines)
             if let connections, let active = connections.active {
-                diagnostics.connectionKind = active.isSSH ? "ssh" : "gateway"
+                diagnostics.connectionKind = active.isSSH ? "ssh" : (active.isCloud ? "cloud" : "gateway")
                 let phase = connections.phase(of: active.id)
                 diagnostics.connectionState = describe(phase)
                 if case .connected(let summary) = phase {
@@ -47,6 +47,9 @@
                 switch connection.kind {
                 case .gateway(let settings):
                     if let host = settings.endpoint.baseURL.host { values.append(host) }
+                    if let cloud = settings.cloud {
+                        values += [cloud.organizationName, cloud.agentName, cloud.organizationID, cloud.agentID]
+                    }
                 case .ssh(let settings):
                     values += [settings.host, settings.username]
                 }
