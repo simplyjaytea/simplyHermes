@@ -1,0 +1,25 @@
+{
+  "body": {
+    "accessibility": null,
+    "can_grant": false,
+    "checks": [],
+    "error": null,
+    "installed": false,
+    "platform": "linux",
+    "platform_supported": true,
+    "ready": null,
+    "screen_recording": null,
+    "screen_recording_capturable": null,
+    "source": null,
+    "version": null
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/tools/computer-use/status",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

@@ -1,0 +1,21 @@
+{
+  "body": {
+    "current": "default",
+    "result": {
+      "action": "deleted",
+      "new_path": "",
+      "slug": "recorder"
+    }
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "DELETE",
+    "path": "/api/plugins/kanban/boards/recorder",
+    "query": {
+      "delete": "true"
+    }
+  },
+  "status": 200,
+  "step": "kanban.board-delete"
+}

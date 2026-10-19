@@ -1,0 +1,32 @@
+{
+  "body": {
+    "board": {
+      "archived": false,
+      "color": "",
+      "created_at": 1792299095,
+      "db_path": "/data/hermes/kanban/boards/recorder/kanban.db",
+      "default_workdir": null,
+      "default_workspace_kind": "scratch",
+      "description": "",
+      "icon": "",
+      "name": "recorder",
+      "project_id": null,
+      "project_name": null,
+      "slug": "recorder"
+    },
+    "current": "default"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": {
+      "name": "recorder",
+      "slug": "recorder",
+      "switch": false
+    },
+    "method": "POST",
+    "path": "/api/plugins/kanban/boards",
+    "query": {}
+  },
+  "status": 200,
+  "step": "kanban.board-create"
+}

@@ -31,6 +31,8 @@ struct HermesApp: App {
                 .onOpenURL { url in
                     if let id = HermesURL.chatID(from: url), model.session(id: id) != nil {
                         model.open(id)
+                    } else if let reference = HermesURL.sessionReference(from: url) {
+                        model.pendingSessionReference = reference
                     }
                 }
         }
@@ -44,8 +46,12 @@ struct HermesApp: App {
     @MainActor
     private static func makeSessionsList(_ saved: ConnectionsModel, _ launch: LaunchOptions) -> SessionsListModel {
         let url = launch.onboarding == nil ? Self.cacheFileURL() : nil
-        let cache = url.flatMap { try? HermesCache(url: $0) } ?? (try? HermesCache())
+        let file = url.flatMap { try? HermesCache(url: $0) }
+        let cache = file ?? (try? HermesCache())
         guard let cache else { preconditionFailure("The in-memory cache cannot fail to open") }
+        // WP-65b: offline chats are kept in the same cache file as the chat list. They exist nowhere else, so they stay
+        // off when the file would not open and the cache fell back to memory. UI tests keep it in memory on purpose.
+        if file != nil || launch.onboarding != nil { OfflineChatServices.install(cache: cache) }
         return SessionsListModel(connections: saved, cache: cache)
     }
 
@@ -83,6 +89,8 @@ struct LaunchOptions {
     var demo: String?
     /// "skip" opens the shell even with no saved server; "fresh" starts with no servers, in memory.
     var onboarding: Onboarding?
+    /// Opens this section first, so a UI test can start on it without tapping the tab bar.
+    var section: AppSection?
 
     enum Onboarding: String {
         case skip
@@ -95,6 +103,7 @@ struct LaunchOptions {
         showsDebugLayoutSwitcher = defaults.bool(forKey: "HermesDebugLayoutSwitcher")
         demo = defaults.string(forKey: "HermesDemo")
         onboarding = defaults.string(forKey: "HermesOnboarding").flatMap(Onboarding.init(rawValue:))
+        section = defaults.string(forKey: "HermesSection").flatMap(AppSection.init(rawValue:))
     }
 }
 
@@ -121,6 +130,9 @@ struct RootView: View {
         .task {
             if let layout = launch.layout {
                 model.layoutOverride = layout
+            }
+            if let section = launch.section {
+                model.selectedSection = section
             }
             if launch.demo == "stream", let id = model.selectedSessionID {
                 model.startDemoStream(in: id, words: 400)

@@ -47,24 +47,30 @@ public protocol SessionsBackend: Sendable {
     func updateSession(id: String, _ update: SessionUpdate) async throws
     /// `DELETE /api/sessions/{id}`.
     func deleteSession(id: String) async throws
-    /// `GET /api/sessions/{id}/export`: the session as JSON, ready to save or share.
-    func exportSession(id: String) async throws -> Data
+    /// `GET /api/sessions/{id}?profile=`: one session, for a link. A `404` means it is gone.
+    func session(id: String, profile: String) async throws -> SessionRecord
+    /// `GET /api/sessions/{id}/export`: the session as the server sent it. `profile` is sent only when it is not the
+    /// client's own profile.
+    func exportSession(id: String, profile: String?) async throws -> Data
     /// `POST /api/sessions/prune`. The answer is left raw: the contract does not describe it.
     func pruneSessions(_ filter: SessionPruneFilter) async throws -> JSONValue
 }
 
-extension RESTClient: SessionsBackend {
-    /// `GET /api/sessions/{id}/export`.
-    public func exportSession(id: String) async throws -> Data {
-        var allowed = CharacterSet.urlPathAllowed
-        allowed.remove(charactersIn: "/")
-        let encoded = id.addingPercentEncoding(withAllowedCharacters: allowed) ?? id
-        return try await sendRaw("GET", "/api/sessions/\(encoded)/export").body
-    }
+extension RESTClient: SessionsBackend {}
 
-    /// `POST /api/sessions/prune`.
-    public func pruneSessions(_ filter: SessionPruneFilter) async throws -> JSONValue {
-        try await send("POST", "/api/sessions/prune", body: filter)
+/// The count a prune answer reports for the sessions it removed. The contract does not describe the answer, so only a
+/// count under a known key is read. Nil means the answer carries none, and the app says "Done" instead.
+public enum SessionPruneReport {
+    /// The removed count, when the answer has one. A list under one of the keys counts its items.
+    public static func removedCount(in answer: JSONValue) -> Int? {
+        for key in ["removed", "removed_count", "deleted", "deleted_count", "pruned", "pruned_count"] {
+            switch answer[key] {
+            case .int(let count)? where count >= 0: return count
+            case .array(let items)?: return items.count
+            default: continue
+            }
+        }
+        return nil
     }
 }
 
@@ -160,13 +166,27 @@ public actor SessionLibrary {
     /// Deletes ended sessions matching `filter`, then refreshes. Cannot be undone.
     public func prune(_ filter: SessionPruneFilter) async throws -> JSONValue {
         let answer = try await backend.pruneSessions(filter)
-        _ = try await refresh()
+        // The server has already removed the sessions, so a failed refresh must not report the prune as failed.
+        _ = try? await refresh()
         return answer
     }
 
-    /// The session as JSON, for saving or sharing.
-    public func export(_ id: String) async throws -> Data {
-        try await backend.exportSession(id: id)
+    /// The session as JSON, for saving or sharing. `profile` is the session's owner and `activeProfile` the profile
+    /// this list reads: the owner is sent only when it differs. Throws ``SessionExportError/notJSON`` when the answer
+    /// does not parse.
+    public func export(_ id: String, profile: String?, activeProfile: String?) async throws -> Data {
+        let other = profile == activeProfile ? nil : profile
+        let data = try await backend.exportSession(id: id, profile: other)
+        guard SessionExport.isJSON(data) else { throw SessionExportError.notJSON }
+        return data
+    }
+
+    /// Fetches one session, such as one an `@session:` link names, and keeps it in the cache so the list shows it.
+    /// Throws ``RESTError/http(status:detail:)`` with `404` when the server no longer has it.
+    public func fetch(_ reference: SessionReference) async throws -> SessionRecord {
+        let record = try await backend.session(id: reference.sessionID, profile: reference.profile)
+        try await cache.saveSessions([record], connection: connection)
+        return record
     }
 
     // MARK: - Search
