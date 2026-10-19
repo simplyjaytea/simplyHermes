@@ -8,6 +8,7 @@ name: Alpha release
 on:
   push:
     tags: ["v*.*.*-alpha.*"]
+    branches: ["claude/alpha-release-workflow-kgw6c8"] # TEMP verification
   workflow_dispatch:
     inputs:
       version:
@@ -36,7 +37,7 @@ jobs:
       - name: Resolve version
         id: version
         env:
-          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_VERSION: ${{ inputs.version || '0.1.0-alpha.1' }} # TEMP verification
         run: |
           set -euo pipefail
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
