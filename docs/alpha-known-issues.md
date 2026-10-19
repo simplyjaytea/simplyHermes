@@ -14,8 +14,8 @@ This lists what is not done, what is decided by default, and what has not been c
 |---|---|
 | Routines pane (WP-44) | Not built. |
 | On-device MLX models (#71) | Device only. Waits for the wiring follow-up after #70. |
-| Skills, toolsets and MCP (#54, #76) | Held. Both PRs define toolset types, so the app would show two toolset layers. |
-| Profile import (part of #72) | Held until the import path is checked on a live server. |
+| Skills, toolsets and MCP (#54, #76) | Deferred until after alpha. Both PRs define toolset types, so they would show two toolset layers. |
+| Profile import (#72) | Hidden in this build. The import path has not been checked on a live server. The applies-to selector and scope guard ship. |
 | Hermes Cloud sign-in (#74) | Built, but hidden until a live check. |
 | Action button (WP-63) | Not built. |
 | Translations (WP-71) | English only. The VoiceOver pass is not done. |
@@ -58,6 +58,7 @@ These are built as the recommended option. Each can change.
 | #68 | Memory journey | Minor layout and reload items. |
 | #69 | New chat | Command palette with the server down. Empty chat cleanup after 20 s. A server switch during chat creation is not handled. |
 | #70 | Offline chat | Transcript-text repeat check and cache-file protection not built. |
+| #72 | Profiles | Import row hidden before merge. The import path has not been checked against a live server. |
 | #73 | Siri, Spotlight, Control Center, Share | Spotlight on the Lock Screen and the Share extension need a device. "Stop all turns" needs an authentication decision. |
 | #77 | Messaging, pairing, webhooks | One tap sends one request (simulator check). Telegram QR needs a real channel. |
 | #79 | Server control, logs, usage | Gateway status scoping. Baseline window is 60 s here and 120 s in the protocol note. Restart and update need a live server. A `user:password` in a log URL still shows. |
@@ -69,5 +70,5 @@ These are built as the recommended option. Each can change.
 - Chat over the gateway and over SSH, including approvals and a long turn with the phone locked.
 - Live Activity and the Bots widget on a sideloaded build. The widget shows "Open simplyHermes" if the App Group is dropped.
 - Keep bots live (Settings) with the app in the background.
-- Settings sections that change server state: providers, toolsets (after the decision), messaging, server restart and update.
+- Settings sections that change server state: providers, messaging, server restart and update.
 - Kanban Done, room history with the app closed, and the posture debug view on each fold posture.
