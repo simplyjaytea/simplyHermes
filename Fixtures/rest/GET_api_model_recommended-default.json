@@ -1,0 +1,16 @@
+{
+  "body": {
+    "free_tier": null,
+    "model": "",
+    "provider": ""
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/model/recommended-default",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

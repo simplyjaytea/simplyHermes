@@ -49,6 +49,7 @@ targets:
       - package: SwiftTransformers
         product: Tokenizers
       - target: simplyHermesWidgets
+      - target: simplyHermesShare
     entitlements:
       path: App/HermesApp/simplyHermes.entitlements
       properties:
@@ -93,7 +94,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.simplyjaytea.simplyhermes
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-  # The only extension besides the planned Share extension: free signing allows few App IDs.
+  # One of two extensions, with simplyHermesShare below: free signing allows few App IDs.
   simplyHermesWidgets:
     type: app-extension
     platform: iOS
@@ -119,6 +120,43 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.simplyjaytea.simplyhermes.widgets
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
+  # "Send to Hermes" in the share sheet (WP-63). It never opens a connection: it writes the share to the outbox in the
+  # App Group and opens simplyHermes, which sends it.
+  simplyHermesShare:
+    type: app-extension
+    platform: iOS
+    sources: [App/HermesShare]
+    dependencies:
+      - package: simplyHermes
+        product: HermesKit
+      - package: simplyHermes
+        product: HermesUI
+      - sdk: SwiftUI.framework
+      - sdk: UniformTypeIdentifiers.framework
+    entitlements:
+      path: App/HermesShare/simplyHermesShare.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.simplyjaytea.simplyhermes
+    info:
+      path: App/HermesShare/Info.plist
+      properties:
+        CFBundleDisplayName: simplyHermes
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            # Text, one web link, up to 5 photos and up to 5 files. Any one of these is enough.
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsImageWithMaxCount: 5
+              NSExtensionActivationSupportsFileWithMaxCount: 5
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.simplyjaytea.simplyhermes.share
         TARGETED_DEVICE_FAMILY: "1"
         SKIP_INSTALL: YES
   simplyHermesTests:

@@ -20,4 +20,23 @@ public enum HermesURL {
         let id = url.pathComponents.dropFirst().first ?? ""
         return id.isEmpty ? nil : id
     }
+
+    /// `simplyhermes://session/<profile>/<session id>`: a session in one profile, opened from an `@session:` link (WP-40).
+    public static func session(_ reference: SessionReference) -> URL {
+        var components = URLComponents()
+        components.scheme = scheme
+        components.host = "session"
+        components.path = "/" + reference.profile + "/" + reference.sessionID
+        return components.url ?? URL(string: "\(scheme)://session")!
+    }
+
+    /// The profile and session in a session URL, or `nil` for any other URL.
+    public static func sessionReference(from url: URL) -> SessionReference? {
+        guard url.scheme == scheme, url.host == "session" else { return nil }
+        let parts = url.pathComponents.dropFirst()
+        guard parts.count == 2, let profile = parts.first, let sessionID = parts.last,
+            SessionLink.isName(profile), SessionLink.isName(sessionID)
+        else { return nil }
+        return SessionReference(profile: profile, sessionID: sessionID)
+    }
 }

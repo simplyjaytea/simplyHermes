@@ -1,0 +1,21 @@
+{
+  "body": {
+    "behind": -1,
+    "can_apply": true,
+    "commits": [],
+    "current_version": "git.d97007c",
+    "install_method": "git",
+    "message": null,
+    "update_available": true,
+    "update_command": "hermes update"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/hermes/update/check",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

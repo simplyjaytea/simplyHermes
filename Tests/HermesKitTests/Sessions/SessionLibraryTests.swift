@@ -18,9 +18,15 @@ private final class FakeBackend: SessionsBackend, @unchecked Sendable {
     private(set) var deleted: [String] = []
     private(set) var pruned: [SessionPruneFilter] = []
     private(set) var requestedOffsets: [Int] = []
+    var failListing = false
+    var exportAnswer = Data(#"{"id":"a"}"#.utf8)
+    private(set) var exported: [(id: String, profile: String?)] = []
+    var sessionsByID: [String: SessionRecord] = [:]
+    private(set) var lookedUp: [(id: String, profile: String)] = []
 
     func sessions(limit: Int, offset: Int, archived: Bool) async throws -> SessionList {
-        try lock.withLock {
+        if failListing { throw RESTError.transport("offline") }
+        return try lock.withLock {
             requestedOffsets.append(offset)
             if archived, let archivedPage { return archivedPage }
             return pages.isEmpty ? try SessionList.make([], total: 0) : pages.removeFirst()
@@ -40,7 +46,17 @@ private final class FakeBackend: SessionsBackend, @unchecked Sendable {
     }
 
     func deleteSession(id: String) async throws { lock.withLock { deleted.append(id) } }
-    func exportSession(id: String) async throws -> Data { Data("{\"id\":\"\(id)\"}".utf8) }
+
+    func session(id: String, profile: String) async throws -> SessionRecord {
+        lock.withLock { lookedUp.append((id, profile)) }
+        guard let record = sessionsByID[id] else { throw RESTError.http(status: 404, detail: "Session not found") }
+        return record
+    }
+
+    func exportSession(id: String, profile: String?) async throws -> Data {
+        lock.withLock { exported.append((id, profile)) }
+        return exportAnswer
+    }
 
     func pruneSessions(_ filter: SessionPruneFilter) async throws -> JSONValue {
         lock.withLock { pruned.append(filter) }
@@ -213,7 +229,62 @@ private func library(_ backend: FakeBackend) throws -> SessionLibrary {
     }
 
     @Test func exportReturnsTheServersJSON() async throws {
+        let backend = FakeBackend()
+        let lib = try library(backend)
+        let data = try await lib.export("a", profile: "default", activeProfile: "default")
+        #expect(String(bytes: data, encoding: .utf8) == #"{"id":"a"}"#)
+        #expect(backend.exported.first?.profile == nil, "the active profile is the client's own: no profile sent")
+    }
+
+    @Test func exportNamesTheOwnerOnlyWhenItIsAnotherProfile() async throws {
+        let backend = FakeBackend()
+        let lib = try library(backend)
+        _ = try await lib.export("a", profile: "ops", activeProfile: "default")
+        _ = try await lib.export("b", profile: nil, activeProfile: "default")
+        #expect(backend.exported.map(\.profile) == ["ops", nil])
+    }
+
+    @Test func exportRefusesAnAnswerThatIsNotJSON() async throws {
+        let backend = FakeBackend()
+        backend.exportAnswer = Data("<html>Sign in</html>".utf8)
+        let lib = try library(backend)
+        await #expect(throws: SessionExportError.notJSON) {
+            try await lib.export("a", profile: nil, activeProfile: nil)
+        }
+    }
+
+    @Test func fetchKeepsTheSessionInTheCache() async throws {
+        let backend = FakeBackend()
+        backend.sessionsByID["ops-1"] = try record("ops-1", 5, title: "Deploy")
+        let lib = try library(backend)
+        let fetched = try await lib.fetch(SessionReference(profile: "ops", sessionID: "ops-1"))
+        #expect(fetched.title == "Deploy")
+        #expect(backend.lookedUp.first?.profile == "ops")
+        #expect(try await lib.cached().map(\.id) == ["ops-1"])
+    }
+
+    @Test func fetchOfAGoneSessionReportsNotFound() async throws {
         let lib = try library(FakeBackend())
-        #expect(String(bytes: try await lib.export("a"), encoding: .utf8) == #"{"id":"a"}"#)
+        await #expect(throws: RESTError.http(status: 404, detail: "Session not found")) {
+            try await lib.fetch(SessionReference(profile: "ops", sessionID: "gone"))
+        }
+    }
+
+    @Test func aPruneThatRemovedSessionsStillSucceedsWhenTheRefreshFails() async throws {
+        let backend = FakeBackend()
+        let lib = try library(backend)
+        backend.failListing = true
+        let answer = try await lib.prune(SessionPruneFilter(olderThanDays: 90, profile: "default"))
+        #expect(answer == .object(["deleted": .int(2)]))
+        #expect(backend.pruned.first?.profile == "default")
+    }
+
+    @Test func pruneReportReadsOnlyAKnownCount() {
+        #expect(SessionPruneReport.removedCount(in: .object(["deleted": .int(2)])) == 2)
+        #expect(SessionPruneReport.removedCount(in: .object(["removed_count": .int(0)])) == 0)
+        #expect(SessionPruneReport.removedCount(in: .object(["removed": .array([.string("a")])])) == 1)
+        #expect(SessionPruneReport.removedCount(in: .object(["ok": .bool(true)])) == nil)
+        #expect(SessionPruneReport.removedCount(in: .object(["deleted": .int(-1)])) == nil)
+        #expect(SessionPruneReport.removedCount(in: .null) == nil)
     }
 }
