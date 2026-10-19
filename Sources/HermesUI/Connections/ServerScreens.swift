@@ -433,6 +433,7 @@
                     }
                     .accessibilityIdentifier("settings.models.keys")
                 }
+                SettingsMessagingSection(connections: connections)
                 SettingsAssistantSection(connections: connections)
                 Section("Support") {
                     NavigationLink {
