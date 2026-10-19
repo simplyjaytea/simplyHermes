@@ -1,0 +1,8 @@
+{
+ "_source": "Hand-written for WP-52 from the shape in upstream agent/learning_mutations.py. Not recorded from a server.",
+ "content": "---\nname: backup-cron-fix\ndescription: Repair a backup job that stopped running.\n---\n\n# Backup cron fix\n\n1. Check the crontab and the last run time.\n2. Run the job by hand and read the error.\n3. Fix it and watch one scheduled run.\n",
+ "id": "backup-cron-fix",
+ "kind": "skill",
+ "label": "backup-cron-fix",
+ "ok": true
+}
