@@ -18,6 +18,9 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
     var storedHistory: [JSONValue] = []
     var refuseImages = false
     var fileReference = "@file:notes.txt"
+    /// Directive to answer with, by command name. A name with no entry fails, as an unknown command does.
+    var dispatchReplies: [String: CommandDispatchResult] = [:]
+    private(set) var dispatched: [CommandDispatchParams] = []
 
     init(history: [JSONValue] = []) throws {
         let object: JSONValue = [
@@ -65,6 +68,14 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
     func sessionHistory(_ params: SessionHistoryParams) async throws -> SessionHistoryResult {
         let object: JSONValue = ["count": .int(storedHistory.count), "messages": .array(storedHistory)]
         return try object.decode(SessionHistoryResult.self)
+    }
+
+    func dispatchCommand(_ params: CommandDispatchParams) async throws -> CommandDispatchResult {
+        lock.withLock { dispatched.append(params) }
+        guard let reply = dispatchReplies[params.name] else {
+            throw RPCError(code: 4000, message: "unknown command", data: nil)
+        }
+        return reply
     }
 }
 
@@ -345,5 +356,64 @@ private func lines(_ state: TranscriptState) -> [String] {
         let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
         #expect(await controller.edit(text: "new", fromRowID: 3) == nil)
         #expect(transport.submitted.isEmpty)
+    }
+
+    @Test func skillDirectiveSendsItsPromptAndShowsItsDisplay() async throws {
+        let transport = try FakeChatTransport()
+        transport.dispatchReplies["review"] = CommandDispatchResult(
+            type: .skill, message: "Review the staged diff.", display: "Review skill")
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        await controller.send("/review staged")
+        #expect(transport.dispatched == [CommandDispatchParams(name: "review", arg: "staged", sessionID: "abcd1234")])
+        #expect(transport.submitted.map(\.text) == ["Review the staged diff."])
+        let state = await controller.current
+        guard case .user(let entry) = state.items.last?.content else {
+            Issue.record("no user row")
+            return
+        }
+        #expect(entry.text == "Review skill")
+    }
+
+    @Test func prefillDirectiveGivesTheComposerItsTextAndSendsNothing() async throws {
+        let transport = try FakeChatTransport()
+        transport.dispatchReplies["summarize"] = CommandDispatchResult(type: .prefill, message: "Summarize this: ")
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        let composerText = await controller.send("/summarize")
+        #expect(composerText == "Summarize this: ")
+        #expect(transport.submitted.isEmpty)
+    }
+
+    @Test func execDirectivePrintsItsOutputAndSendsNothing() async throws {
+        let transport = try FakeChatTransport()
+        transport.dispatchReplies["usage"] = CommandDispatchResult(type: .exec, output: "12 tokens today")
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        await controller.send("/usage")
+        let state = await controller.current
+        #expect(transport.submitted.isEmpty)
+        #expect(state.items.last?.content == TranscriptItem.Content.other(role: "system", text: "12 tokens today"))
+    }
+
+    @Test func commandTheServerDoesNotKnowGoesOutAsTyped() async throws {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        await controller.send("/src/main.swift is slow")
+        #expect(transport.dispatched.map(\.name) == ["src/main.swift"])
+        #expect(transport.submitted.map(\.text) == ["/src/main.swift is slow"])
+    }
+
+    @Test func aliasRunsItsTargetWithTheTypedArguments() async throws {
+        let transport = try FakeChatTransport()
+        transport.dispatchReplies["q"] = CommandDispatchResult(type: .alias, target: "quit")
+        transport.dispatchReplies["quit"] = CommandDispatchResult(type: .prefill, message: "Goodbye")
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        let composerText = await controller.send("/q now")
+        #expect(transport.dispatched.map(\.name) == ["q", "quit"])
+        #expect(transport.dispatched.last?.arg == "now")
+        #expect(composerText == "Goodbye")
     }
 }

@@ -1,0 +1,18 @@
+{
+  "body": {
+    "current": null,
+    "default": null,
+    "has_models": false,
+    "models": [],
+    "name": "web"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/tools/toolsets/web/models",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

@@ -1,0 +1,8 @@
+{
+  "_note": "Hand-written to the shape NousPortalClient guesses. Not recorded from a live portal.",
+  "organizations": [
+    {"id": "org_acme", "name": "Acme Research", "role": "admin"},
+    {"id": "org_home", "display_name": "Home lab", "slug": "home-lab"},
+    {"id": "org_acme", "name": "Acme Research (repeat)"}
+  ]
+}

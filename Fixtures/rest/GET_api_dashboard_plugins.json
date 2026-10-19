@@ -1,0 +1,45 @@
+{
+  "body": [
+    {
+      "css": "dist/style.css",
+      "description": "Steam-style achievements for vibe coding and agentic Hermes workflows.",
+      "entry": "dist/index.js",
+      "has_api": true,
+      "icon": "Star",
+      "label": "Achievements",
+      "name": "hermes-achievements",
+      "slots": [],
+      "source": "bundled",
+      "tab": {
+        "path": "/achievements",
+        "position": "after:analytics"
+      },
+      "version": "0.4.0"
+    },
+    {
+      "css": "dist/style.css",
+      "description": "Multi-agent collaboration board — drag-drop cards across columns, read comment threads, see which profile is running what",
+      "entry": "dist/index.js",
+      "has_api": true,
+      "icon": "Package",
+      "label": "Kanban",
+      "name": "kanban",
+      "slots": [],
+      "source": "bundled",
+      "tab": {
+        "path": "/kanban",
+        "position": "after:skills"
+      },
+      "version": "1.0.0"
+    }
+  ],
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/dashboard/plugins",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

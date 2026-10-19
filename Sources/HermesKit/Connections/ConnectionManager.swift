@@ -165,6 +165,18 @@ public actor ConnectionManager {
         live[id]?.checked?.rest
     }
 
+    /// A terminal connector for a connection, connecting first when needed. It uses the endpoint and credentials
+    /// that the chat socket uses.
+    public func terminalConnector(
+        for connection: ServerConnection, transport: any TerminalSocketTransport
+    ) async throws -> TerminalConnector {
+        _ = try await client(for: connection)
+        guard let checked = live[connection.id]?.checked else {
+            throw ConnectionUnavailable(phase: phase(of: connection.id))
+        }
+        return TerminalConnector(endpoint: checked.endpoint, credentials: checked.credentials, transport: transport)
+    }
+
     /// Feeds `info.desktop_contract` from a session result into the compatibility check.
     public func reportSessionInfo(_ info: SessionInfo?, for id: UUID) {
         apply(.contractReported(info?.desktopContract), to: id)

@@ -16,6 +16,7 @@
         @State private var query = ""
         @State private var currentMatch: String?
         @FocusState private var findFocused: Bool
+        @State private var showsWorkspaces = false
 
         var body: some View {
             VStack(spacing: 0) {
@@ -25,15 +26,17 @@
                 if !chat.queue.isEmpty {
                     QueuedMessagesView(chat: chat)
                 }
+                OfflineBar(chat: chat)
                 ChatStatusBar(strip: chat.strip)
                 if chat.isRunning, let tasks = TaskProgress(chat.state.todos?.todos ?? []) {
                     TaskProgressPill(progress: tasks)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                ComposerPills(info: chat.state.info)
+                ComposerPills(info: chat.state.info, workspace: chat.workspaceCwd) { showsWorkspaces = true }
                 Composer(
                     text: model.draftBinding(for: sessionID),
                     attachments: model.attachmentsBinding(for: sessionID),
+                    completer: Self.completer(for: chat),
                     onSend: { send() },
                     // Files cannot be steered into the running reply, so they wait for the queue.
                     onSteer: chat.isRunning && model.attachments[sessionID, default: []].isEmpty ? { steer() } : nil
@@ -58,9 +61,21 @@
                 actions: { Button("OK", role: .cancel) {} },
                 message: { Text(chat.cutError ?? "") }
             )
+            .onChange(of: chat.prefill, initial: true) { _, text in
+                guard let text else { return }
+                model.drafts[sessionID] = text
+                chat.clearPrefill()
+            }
             .sheet(item: Binding(get: { chat.valueRequests.first }, set: { _ in })) { item in
                 SecureValueSheet(
                     item: item, onSend: { chat.answerValue(item, $0) }, onCancel: { chat.dismissValue(item) })
+            }
+            .sheet(isPresented: $showsWorkspaces) {
+                if let browser = model.workspaceBrowser {
+                    WorkspacePickerSheet(browser: browser, current: workspaceFolder) { folder in
+                        await chat.moveWorkspace(to: folder)
+                    }
+                }
             }
         }
 
@@ -69,6 +84,10 @@
             switch chat.phase {
             case .loading where chat.state.items.isEmpty:
                 TranscriptSkeleton()
+            case .failed where chat.offline.notice != nil || chat.offline.offer != nil:
+                // Offline chat (WP-65b): while the server is out of reach, and while its "Send to Hermes" offer waits
+                // for an answer, it takes the place of the error.
+                transcript
             case .failed(let message):
                 ContentUnavailableView {
                     Label("Could not open this chat", systemImage: "exclamationmark.triangle")
@@ -118,6 +137,7 @@
                     if chat.isRunning, chat.state.items.last.map(Self.isStreamingAssistant) != true {
                         TypingIndicator().bubbleRow(.leading)
                     }
+                    OfflineChatSection(model: chat.offline, showsHint: chat.state.items.isEmpty)
                     Color.clear.frame(height: 1).id("bottom")
                 }
                 .scrollTargetLayout()
@@ -263,6 +283,9 @@
             withAnimation(HermesMotion.snappy) { position.scrollTo(id: currentMatch, anchor: .center) }
         }
 
+        /// The folder this chat runs in: the one it moved to this run, else the one the server reported.
+        private var workspaceFolder: String? { chat.workspaceCwd ?? chat.state.info?.cwd }
+
         @ViewBuilder
         private var header: some View {
             if let session = model.session(id: sessionID) {
@@ -282,6 +305,7 @@
             var hasher = Hasher()
             hasher.combine(chat.state.items.count)
             hasher.combine(chat.approvals.count)
+            hasher.combine(chat.offline.messages.count)
             if case .assistant(let entry)? = chat.state.items.last?.content { hasher.combine(entry.text.count) }
             return hasher.finalize()
         }
@@ -314,6 +338,11 @@
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             model.drafts[sessionID] = ""
             chat.steer(text)
+        }
+
+        /// Looks up completions on the chat. The closure captures only the chat, not the view.
+        private static func completer(for chat: LiveChatModel) -> CompletionLookup {
+            { trigger in await chat.complete(trigger) }
         }
 
         private func send() {

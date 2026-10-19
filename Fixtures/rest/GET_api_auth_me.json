@@ -1,0 +1,19 @@
+{
+  "body": {
+    "display_name": "tester",
+    "email": "",
+    "expires_at": 1792342269,
+    "org_id": "",
+    "provider": "basic",
+    "user_id": "tester"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/auth/me",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

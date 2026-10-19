@@ -1,0 +1,52 @@
+{
+  "body": {
+    "current": {
+      "base_url": "http://fake-llm:8700/v1",
+      "model": "fake-model",
+      "provider": "custom"
+    },
+    "endpoints": [
+      {
+        "api_key_preview": "<redacted>",
+        "api_mode": "",
+        "base_url": "http://fake-llm:8700/v1",
+        "context_length": null,
+        "discover_models": true,
+        "has_api_key": true,
+        "id": "custom",
+        "is_current": true,
+        "model": "fake-model",
+        "models": [
+          "fake-model"
+        ],
+        "name": "Custom",
+        "source": "direct-config"
+      },
+      {
+        "api_key_preview": null,
+        "api_mode": "",
+        "base_url": "http://fake-llm:8700/v1",
+        "context_length": null,
+        "discover_models": false,
+        "has_api_key": false,
+        "id": "recorder-endpoint",
+        "is_current": false,
+        "model": "fake-model",
+        "models": [
+          "fake-model"
+        ],
+        "name": "recorder-endpoint",
+        "source": "providers"
+      }
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/providers/custom-endpoints",
+    "query": {}
+  },
+  "status": 200,
+  "step": "custom-endpoint.seeded"
+}
