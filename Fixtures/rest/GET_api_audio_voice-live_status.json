@@ -1,0 +1,19 @@
+{
+  "body": {
+    "available": false,
+    "mode": "chained",
+    "model": "gpt-live-1",
+    "ok": true,
+    "reason": "no OpenAI API key (set OPENAI_API_KEY or voice.gpt_live.api_key)",
+    "voice": "marin"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/audio/voice-live/status",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

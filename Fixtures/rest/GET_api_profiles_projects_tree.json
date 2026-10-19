@@ -1,0 +1,85 @@
+{
+  "body": {
+    "active_id": null,
+    "errors": [],
+    "projects": [
+      {
+        "color": null,
+        "icon": null,
+        "id": "/opt/hermes",
+        "isAuto": true,
+        "isNoProject": false,
+        "label": "hermes",
+        "lastActive": 1792299067.978378,
+        "path": "/opt/hermes",
+        "previewSessions": [
+          {
+            "_branched_from": null,
+            "_lineage_ids": null,
+            "_lineage_root_id": null,
+            "_reset_from": null,
+            "actual_cost_usd": null,
+            "archived": false,
+            "cwd": "/opt/hermes",
+            "ended_at": null,
+            "estimated_cost_usd": 0.0,
+            "git_branch": "d97007c3",
+            "git_repo_root": "/opt/hermes",
+            "id": "20261018_045102_598cc4",
+            "input_tokens": 100,
+            "is_active": false,
+            "is_default_profile": true,
+            "last_active": 1792299067.978378,
+            "message_count": 2,
+            "model": "fake-model",
+            "output_tokens": 12,
+            "parent_session_id": null,
+            "preview": "hello [[scenario:text]]",
+            "profile": "default",
+            "source": "tui",
+            "started_at": 1792299062.1441207,
+            "title": "Hello from the fake LLM. This reply is scripted",
+            "tool_call_count": 0
+          }
+        ],
+        "repos": [
+          {
+            "groups": [
+              {
+                "id": "/opt/hermes::branch::d97007c3",
+                "isGit": true,
+                "isKanban": false,
+                "isMain": true,
+                "label": "d97007c3",
+                "path": "/opt/hermes",
+                "sessions": []
+              }
+            ],
+            "id": "/opt/hermes",
+            "label": "hermes",
+            "path": "/opt/hermes",
+            "sessionCount": 1
+          }
+        ],
+        "sessionCount": 1,
+        "sessionIds": [
+          "20261018_045102_598cc4"
+        ],
+        "totalCostUsd": 0.0,
+        "totalTokens": 112
+      }
+    ],
+    "scoped_session_ids": [
+      "20261018_045102_598cc4"
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/profiles/projects/tree",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

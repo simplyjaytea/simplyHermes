@@ -1,0 +1,20 @@
+{
+  "body": {
+    "assignees": [
+      {
+        "counts": {},
+        "name": "default",
+        "on_disk": true
+      }
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/plugins/kanban/assignees",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

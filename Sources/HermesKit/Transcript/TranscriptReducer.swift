@@ -19,6 +19,8 @@ extension TranscriptState {
         case .submitFailed(let localID, let message):
             pendingTruncations[localID] = nil
             updateUser(id: Self.localUserID(localID)) { $0.delivery = .failed(message) }
+        case .notice(let localID, let text):
+            items.append(TranscriptItem(id: "notice-\(localID)", content: .other(role: "system", text: text)))
         case .serverRequest(let request):
             addRequest(request, replayed: false)
         case .openRequestReplayed(let entry):

@@ -61,6 +61,7 @@
                 BotsSettingsSection()
                 SoundsSettingsSection()
                 TipsSettingsSection()
+                OnDeviceSettingsSection()
                 Section("Support") {
                     NavigationLink {
                         BugReportScreen(connections: nil)

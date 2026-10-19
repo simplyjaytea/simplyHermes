@@ -37,8 +37,12 @@ public struct ManagedSessionsBackend: SessionsBackend {
         try await rest().deleteSession(id: id)
     }
 
-    public func exportSession(id: String) async throws -> Data {
-        try await rest().exportSession(id: id)
+    public func session(id: String, profile: String) async throws -> SessionRecord {
+        try await rest().session(id: id, profile: profile)
+    }
+
+    public func exportSession(id: String, profile: String?) async throws -> Data {
+        try await rest().exportSession(id: id, profile: profile)
     }
 
     public func pruneSessions(_ filter: SessionPruneFilter) async throws -> JSONValue {

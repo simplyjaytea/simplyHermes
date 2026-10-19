@@ -1,0 +1,28 @@
+{
+  "body": {
+    "servers": [
+      {
+        "args": [],
+        "auth": null,
+        "command": "true",
+        "enabled": true,
+        "env": {},
+        "name": "recorder-mcp",
+        "plugin": null,
+        "source": "config",
+        "tools": null,
+        "transport": "stdio",
+        "url": null
+      }
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/mcp/servers",
+    "query": {}
+  },
+  "status": 200,
+  "step": "mcp.seeded"
+}

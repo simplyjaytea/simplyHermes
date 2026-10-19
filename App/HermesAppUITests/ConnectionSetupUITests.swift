@@ -62,6 +62,7 @@ final class ConnectionSetupUITests: XCTestCase {
         XCTAssertTrue(element(app, "welcome.addGateway").waitForExistence(timeout: 10))
         XCTAssertTrue(element(app, "welcome.addSSH").exists)
         XCTAssertTrue(element(app, "welcome.scan").exists)
+        XCTAssertFalse(element(app, "welcome.cloud").exists, "Hermes Cloud stays hidden until a live check")
 
         element(app, "welcome.addGateway").tap()
         let field = element(app, "connection.url")
