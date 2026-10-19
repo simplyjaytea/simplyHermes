@@ -11,6 +11,8 @@
     @Observable
     public final class ProfilesModel {
         public private(set) var selection = ProfileSelection()
+        /// The "Applies to" choice, with the server and active profile it was made under (WP-41). Its rules live in HermesKit.
+        public private(set) var appliesToState = AppliesToState()
         @ObservationIgnored private let connections: ConnectionsModel
         @ObservationIgnored private let defaults: UserDefaults
 
@@ -32,6 +34,7 @@
             if resolved.chosen != stored { defaults.removeObject(forKey: Self.key(connection.id)) }
             await manager.setProfile(resolved.chosen, for: connection.id)
             selection = resolved
+            noteActiveProfile()
         }
 
         /// Works as `name` from now on, on the active server.
@@ -40,12 +43,26 @@
             else { return }
             defaults.set(name, forKey: Self.key(connection.id))
             selection.chosen = name
+            noteActiveProfile()
             if let manager = connections.manager {
                 Task { await manager.setProfile(name, for: connection.id) }
             }
         }
 
+        /// The profile the settings pages edit, as it applies now (WP-41). Following the active profile is the default.
+        public var appliesTo: AppliesTo { appliesToState.choice(in: selection.profiles) }
+
+        /// Picks the profile the settings pages edit. Picking the active profile means following it.
+        public func setAppliesTo(_ choice: AppliesTo) {
+            appliesToState.pick(choice, in: selection.profiles)
+        }
+
         private static func key(_ id: UUID) -> String { "profile.\(id.uuidString)" }
+
+        /// Tells the "Applies to" state which server and active profile are now in effect, so a change resets the choice.
+        private func noteActiveProfile() {
+            appliesToState.observe(server: connections.active?.id, active: selection.current?.name)
+        }
 
         /// A model with fixed profiles, for previews and snapshots.
         public static func preview(_ selection: ProfileSelection) -> ProfilesModel {
