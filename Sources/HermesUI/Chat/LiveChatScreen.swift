@@ -17,6 +17,7 @@
         @State private var currentMatch: String?
         @FocusState private var findFocused: Bool
         @State private var showsWorkspaces = false
+        @State private var showsArtifacts = false
 
         var body: some View {
             VStack(spacing: 0) {
@@ -56,7 +57,7 @@
                 Text(Self.cutMessage(chat.pendingCut?.confirmation))
             }
             .alert(
-                "Couldn't edit this message",
+                "Hermes couldn't do that",
                 isPresented: Binding(get: { chat.cutError != nil }, set: { if !$0 { chat.clearCutError() } }),
                 actions: { Button("OK", role: .cancel) {} },
                 message: { Text(chat.cutError ?? "") }
@@ -69,6 +70,15 @@
             .sheet(item: Binding(get: { chat.valueRequests.first }, set: { _ in })) { item in
                 SecureValueSheet(
                     item: item, onSend: { chat.answerValue(item, $0) }, onCancel: { chat.dismissValue(item) })
+            }
+            .sheet(isPresented: $showsArtifacts) {
+                if let browser = model.workspaceBrowser {
+                    ArtifactsSheet(
+                        artifacts: ChatArtifacts.all(in: chat.state.items),
+                        media: { await browser.mediaData($0) },
+                        onJump: jumpToRow
+                    )
+                }
             }
             .sheet(isPresented: $showsWorkspaces) {
                 if let browser = model.workspaceBrowser {
@@ -106,16 +116,21 @@
             ScrollView {
                 LazyVStack(spacing: HermesMetrics.bubbleSpacing) {
                     ForEach(chat.state.items) { item in
-                        TranscriptRow(item: item, isLast: item.id == chat.state.items.last?.id, chat: chat)
-                            .overlay {
-                                if isFinding, item.id == currentMatch {
-                                    RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
-                                        .strokeBorder(HermesColor.accent, lineWidth: 2)
-                                        .padding(.horizontal, 6)
-                                }
+                        TranscriptRow(
+                            item: item, isLast: item.id == chat.state.items.last?.id, chat: chat,
+                            onBranch: {
+                                model.openBranch($0, serverName: model.session(id: sessionID)?.serverName ?? "")
                             }
-                            .id(item.id)
-                            .accessibilityIdentifier("message.\(item.id)")
+                        )
+                        .overlay {
+                            if isFinding, item.id == currentMatch {
+                                RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
+                                    .strokeBorder(HermesColor.accent, lineWidth: 2)
+                                    .padding(.horizontal, 6)
+                            }
+                        }
+                        .id(item.id)
+                        .accessibilityIdentifier("message.\(item.id)")
                     }
                     if let failure = chat.state.lastError, !chat.isRunning, !Self.lastRowShowsError(chat.state) {
                         ErrorCard(error: ChatError.classify(failure), isLast: true, chat: chat)
@@ -277,6 +292,12 @@
             jump()
         }
 
+        /// Scrolls the transcript to a row and stops the follow, as find does.
+        private func jumpToRow(_ id: String) {
+            isFollowing = false
+            withAnimation(HermesMotion.snappy) { position.scrollTo(id: id, anchor: .center) }
+        }
+
         private func jump() {
             guard let currentMatch else { return }
             isFollowing = false
@@ -289,14 +310,18 @@
         @ViewBuilder
         private var header: some View {
             if let session = model.session(id: sessionID) {
-                StatusStrip(
-                    connection: .connected,
-                    serverName: session.serverName,
-                    runningTurn: chat.isRunning ? "Hermes is replying" : nil,
-                    onStop: chat.isRunning ? { chat.stop() } : nil
-                )
-                .padding(.horizontal, 12)
-                .padding(.top, 4)
+                VStack(alignment: .leading, spacing: 6) {
+                    StatusStrip(
+                        connection: .connected,
+                        serverName: session.serverName,
+                        runningTurn: chat.isRunning ? "Hermes is replying" : nil,
+                        onStop: chat.isRunning ? { chat.stop() } : nil
+                    )
+                    .padding(.horizontal, 12)
+                    .padding(.top, 4)
+                    ArtifactsButton { showsArtifacts = true }
+                        .padding(.horizontal, 12)
+                }
             }
         }
 
