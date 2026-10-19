@@ -154,6 +154,34 @@ private func state(_ items: [TranscriptItem]) -> TranscriptState {
         #expect(session.submitted.isEmpty)
     }
 
+    @Test func yesToTheEmptyingQuestionAlsoCoversTheDeepCut() async throws {
+        // The first message of a chat with two turns is an emptying cut and a deep cut at once.
+        let items = [user("a", row: 1), assistant("b", row: 2), user("c", row: 3), assistant("d", row: 4)]
+        let impact = RewindImpact.of(state(items), fromRowID: 1)
+        #expect(impact == RewindImpact(archivedItems: 4, archivedUserTurns: 2, emptiesTranscript: true))
+        let session = FakeSession([])
+        let first = await editor(session).edit(text: "x", fromRowID: 1, impact: impact)
+        guard case .needsConfirmation(let confirmation) = first else {
+            Issue.record("expected a question, got \(first)")
+            return
+        }
+        #expect(confirmation == .emptiesTranscript)
+        let second = await editor(session).edit(text: "x", fromRowID: 1, impact: impact, consent: confirmation.consent)
+        guard case .done = second else {
+            Issue.record("a second question would never end, got \(second)")
+            return
+        }
+        let json = try JSONValue(encoding: try #require(session.submitted.first))
+        #expect(json["confirm_empty_truncate"] == .bool(true))
+        #expect(json["confirm_deep_truncate"] == .bool(true))
+    }
+
+    @Test func yesToTheDeepCutQuestionDoesNotCoverErasingTheChat() {
+        let deep = TurnEditConfirmation.deepCut(archivedMessages: 4, archivedUserTurns: 2)
+        #expect(deep.consent == .deepCut)
+        #expect(TurnEditConfirmation.emptiesTranscript.consent == [.emptiesTranscript, .deepCut])
+    }
+
     @Test func impactIgnoresGatewayStartedTurnsAndUnknownRows() {
         let items = [user("a", row: 1), user("cron", row: 2, kind: "cron"), assistant("b", row: 3)]
         #expect(RewindImpact.of(state(items), fromRowID: 2)?.archivedUserTurns == 0)

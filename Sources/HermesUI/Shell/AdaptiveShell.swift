@@ -344,6 +344,8 @@
                 SettingsHome(connections: connections)
             } else if section == .bots, let bots {
                 BotsHomeView(model: bots)
+            } else if section == .automations, let connections {
+                AutomationsScreen(connections: connections)
             } else if section == .tools {
                 TerminalToolsHome(connections: connections, terminals: terminals, addToChat: addToChat)
             } else {
