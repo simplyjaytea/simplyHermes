@@ -1,0 +1,33 @@
+{
+  "body": {
+    "boards": [
+      {
+        "archived": false,
+        "color": "",
+        "counts": {},
+        "created_at": null,
+        "db_path": "/data/hermes/kanban.db",
+        "default_workdir": null,
+        "default_workspace_kind": "scratch",
+        "description": "",
+        "icon": "",
+        "is_current": true,
+        "name": "Default",
+        "project_id": null,
+        "project_name": null,
+        "slug": "default",
+        "total": 0
+      }
+    ],
+    "current": "default"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/plugins/kanban/boards",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

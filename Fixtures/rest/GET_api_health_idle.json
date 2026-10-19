@@ -1,0 +1,16 @@
+{
+  "body": {
+    "idle": true,
+    "ok": true,
+    "reason": null
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/health/idle",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

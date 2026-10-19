@@ -38,6 +38,8 @@ jobs:
           python3 -m venv .venv
           .venv/bin/pip install websockets
           .venv/bin/python testbed/smoke_test.py
+      - name: Record REST answers for list shapes (WP-53/54/55)
+        run: python3 testbed/tools/record_rest.py --base http://127.0.0.1:9119 --out build/rest-fixtures
       - name: SSH transport integration (WP-14)
         run: |
           docker run --rm --network host -v "$PWD:/src" -w /src \
@@ -49,6 +51,13 @@ jobs:
             -e HERMES_TESTBED_URL=http://127.0.0.1:9119 \
             -e HERMES_TESTBED_OIDC_URL=http://127.0.0.1:9120 \
             swift:6.1 bash -c 'apt-get update -qq && apt-get install -y -qq libsqlite3-dev && swift test --filter "RESTLiveTests|GatewayLiveTests|GatewayConnectionTesterLiveTests|NativeAuthLiveTests|OIDCSignInLiveTests|ConnectionManagerLiveTests|ProfileTransferLiveTests"'
+      - name: Upload REST answers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rest-fixtures
+          path: build/rest-fixtures
+          if-no-files-found: warn
       - name: Logs on failure
         if: failure()
         run: docker compose -f testbed/docker-compose.yml logs --tail=200

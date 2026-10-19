@@ -1,0 +1,12 @@
+{
+  "body": [],
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/plugins/hermes-achievements/recent-unlocks",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

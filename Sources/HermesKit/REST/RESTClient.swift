@@ -114,12 +114,13 @@ public actor RESTClient {
         return response
     }
 
-    /// Like ``send(_:_:query:body:scoped:)`` but accepts any content type.
+    /// Like ``send(_:_:query:body:scoped:)`` but accepts any content type. A `json` body is sent as it is, which
+    /// skips the snake_case encoder; use it for camelCase keys.
     public func sendRaw(
         _ method: String, _ path: String, query: [URLQueryItem] = [], body: (any Encodable & Sendable)? = nil,
-        scoped: Bool = true
+        json: Data? = nil, scoped: Bool = true
     ) async throws -> HTTPResponse {
-        let encoded: Data? = try body.map { try Self.encoder.encode(AnyEncodable($0)) }
+        let encoded: Data? = try json ?? body.map { try Self.encoder.encode(AnyEncodable($0)) }
         var retriedAuth = false
         var rateLimitRetries = 0
         while true {
