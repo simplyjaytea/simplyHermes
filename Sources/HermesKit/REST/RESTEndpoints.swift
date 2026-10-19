@@ -4,21 +4,6 @@ private struct Ack: Decodable, Sendable {}
 
 private struct ActiveProfileBody: Encodable, Sendable { var name: String }
 
-private struct ProfileExportBody: Encodable, Sendable {
-    var output: String
-    var extraFiles: [String: String]
-
-    enum CodingKeys: String, CodingKey {
-        case output
-        case extraFiles = "extra_files"
-    }
-}
-
-private struct ProfileImportBody: Encodable, Sendable {
-    var archive: String
-    var name: String?
-}
-
 private struct CommentBody: Encodable, Sendable {
     var body: String
     var author: String?
@@ -60,6 +45,13 @@ extension RESTClient {
         ]
         if archived { query.append(URLQueryItem(name: "archived", value: "true")) }
         return try await get("/api/sessions", query: query)
+    }
+
+    /// `GET /api/profiles/sessions`: recent sessions of every profile, each row tagged with its profile. Never scoped:
+    /// the spec's `profile` query defaults to `all`, so the active profile would narrow the list. The contract gives no
+    /// response schema, so the answer comes back as JSON.
+    public func sessionsAcrossProfiles() async throws -> JSONValue {
+        try await get("/api/profiles/sessions", scoped: false)
     }
 
     /// `GET /api/sessions/{id}`.
@@ -114,25 +106,6 @@ extension RESTClient {
     /// ``RESTClient/setProfile(_:)`` to scope only this client.
     public func setActiveProfile(_ name: String) async throws {
         let _: Ack = try await send("POST", "/api/profiles/active", body: ActiveProfileBody(name: name), scoped: false)
-    }
-
-    /// `POST /api/profiles/{name}/export`: writes an archive of a profile to `output`, a path on the server's own disk.
-    ///
-    /// The phone does not receive the file. The server's answer is returned as it came, because the API contract does
-    /// not describe it.
-    public func exportProfile(
-        name: String, to output: String, extraFiles: [String: String] = [:]
-    ) async throws -> JSONValue {
-        try await send(
-            "POST", "/api/profiles/" + path(name, "export"),
-            body: ProfileExportBody(output: output, extraFiles: extraFiles), scoped: false)
-    }
-
-    /// `POST /api/profiles/import`: creates a profile from an archive at `archive`, a path on the server's own disk.
-    /// `name` renames it on import. The server's answer is returned as it came.
-    public func importProfile(archive: String, name: String? = nil) async throws -> JSONValue {
-        try await send(
-            "POST", "/api/profiles/import", body: ProfileImportBody(archive: archive, name: name), scoped: false)
     }
 
     /// `GET /api/model/info`.

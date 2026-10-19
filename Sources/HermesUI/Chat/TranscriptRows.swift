@@ -7,13 +7,14 @@
         let item: TranscriptItem
         var isLast = false
         @Bindable var chat: LiveChatModel
+        var onBranch: (SessionBranchResult) -> Void = { _ in }
 
         var body: some View {
             switch item.content {
             case .user(let entry):
-                UserRow(entry: entry)
+                UserRow(entry: entry, chat: chat)
             case .assistant(let entry):
-                AssistantRow(entry: entry, isLast: isLast, chat: chat)
+                AssistantRow(entry: entry, isLast: isLast, chat: chat, onBranch: onBranch)
             case .tool(let entry):
                 ToolCallRow(entry: entry)
             case .other(let role, let text):
@@ -27,6 +28,9 @@
 
     private struct UserRow: View {
         let entry: UserEntry
+        @Bindable var chat: LiveChatModel
+        @State private var isEditing = false
+        @State private var draft = ""
 
         var body: some View {
             if let kind = entry.displayKind {
@@ -40,6 +44,16 @@
             } else {
                 VStack(alignment: .trailing, spacing: 2) {
                     MessageBubble(role: .user, text: entry.text, rendersMarkdown: true)
+                        .contextMenu {
+                            if let rowID = entry.rowID {
+                                Button("Edit", systemImage: "pencil") {
+                                    // An edit that did not go through comes back as the user typed it.
+                                    draft = chat.unsentEdits[rowID] ?? entry.text
+                                    isEditing = true
+                                }
+                                .disabled(chat.isRunning)
+                            }
+                        }
                     if let note = Self.note(for: entry.delivery) {
                         Text(note.text)
                             .font(HermesFont.caption2)
@@ -47,6 +61,31 @@
                             .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
                     }
                 }
+                .sheet(isPresented: $isEditing) { editSheet }
+            }
+        }
+
+        /// Edit sends the changed turn and cuts the chat after it (WP-34). Empty text is not sent.
+        private var editSheet: some View {
+            let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+            return NavigationStack {
+                TextEditor(text: $draft)
+                    .font(HermesFont.body)
+                    .padding()
+                    .navigationTitle("Edit message")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { isEditing = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Send") {
+                                if let rowID = entry.rowID { chat.edit(rowID: rowID, text: trimmed) }
+                                isEditing = false
+                            }
+                            .disabled(trimmed.isEmpty)
+                        }
+                    }
             }
         }
 
@@ -72,6 +111,7 @@
         let entry: AssistantEntry
         let isLast: Bool
         @Bindable var chat: LiveChatModel
+        let onBranch: (SessionBranchResult) -> Void
         @State private var showsReasoning = false
 
         var body: some View {
@@ -105,6 +145,20 @@
                         .foregroundStyle(HermesColor.secondaryText)
                         .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
                 }
+            }
+            // Regenerate runs the last user turn again, so it lives on the last reply (WP-34).
+            .contextMenu {
+                if isLast {
+                    Button("Regenerate", systemImage: "arrow.clockwise") { chat.regenerate() }
+                        .disabled(chat.isRunning || entry.isStreaming)
+                }
+                // Forks the chat so far into a new tab with a branch icon (Q28).
+                Button("Branch chat", systemImage: "arrow.triangle.branch") {
+                    Task {
+                        if let result = await chat.branch() { onBranch(result) }
+                    }
+                }
+                .disabled(chat.isRunning || entry.isStreaming)
             }
         }
     }

@@ -1,0 +1,78 @@
+{
+  "body": {
+    "by_model": [
+      {
+        "api_calls": 2,
+        "aux_tasks": [
+          {
+            "api_calls": 1,
+            "estimated_cost": 0,
+            "input_tokens": 100,
+            "output_tokens": 12,
+            "task": "title_generation"
+          }
+        ],
+        "estimated_cost": 0,
+        "input_tokens": 200,
+        "model": "fake-model",
+        "output_tokens": 24,
+        "sessions": 1
+      }
+    ],
+    "by_task": [
+      {
+        "api_calls": 1,
+        "estimated_cost": 0,
+        "input_tokens": 100,
+        "models": [
+          "fake-model"
+        ],
+        "output_tokens": 12,
+        "task": "title_generation"
+      }
+    ],
+    "daily": [
+      {
+        "actual_cost": 0,
+        "api_calls": 1,
+        "cache_read_tokens": 0,
+        "day": "2026-10-18",
+        "estimated_cost": 0.0,
+        "input_tokens": 100,
+        "output_tokens": 12,
+        "reasoning_tokens": 0,
+        "sessions": 1
+      }
+    ],
+    "period_days": 30,
+    "skills": {
+      "summary": {
+        "distinct_skills_used": 0,
+        "total_skill_actions": 0,
+        "total_skill_edits": 0,
+        "total_skill_loads": 0
+      },
+      "top_skills": []
+    },
+    "tools": [],
+    "totals": {
+      "total_actual_cost": 0,
+      "total_api_calls": 1,
+      "total_cache_read": 0,
+      "total_estimated_cost": 0.0,
+      "total_input": 100,
+      "total_output": 12,
+      "total_reasoning": 0,
+      "total_sessions": 1
+    }
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/analytics/usage",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

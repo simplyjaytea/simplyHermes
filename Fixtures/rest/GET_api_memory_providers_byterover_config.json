@@ -1,0 +1,73 @@
+{
+  "body": {
+    "fields": [
+      {
+        "description": "ByteRover API key (optional, for cloud sync)",
+        "is_set": false,
+        "key": "api_key",
+        "kind": "secret",
+        "label": "Api Key",
+        "maximum": null,
+        "minimum": null,
+        "options": [],
+        "placeholder": "",
+        "required": false,
+        "step": null,
+        "url": "https://app.byterover.dev",
+        "value": "",
+        "when": null
+      },
+      {
+        "description": "Automatically curate completed turns and compression/memory hooks",
+        "is_set": true,
+        "key": "auto_extract",
+        "kind": "select",
+        "label": "Auto Extract",
+        "maximum": null,
+        "minimum": null,
+        "options": [
+          {
+            "description": "",
+            "label": "true",
+            "value": "true"
+          },
+          {
+            "description": "",
+            "label": "false",
+            "value": "false"
+          }
+        ],
+        "placeholder": "",
+        "required": false,
+        "step": null,
+        "url": "",
+        "value": "true",
+        "when": null
+      }
+    ],
+    "label": "Byterover",
+    "name": "byterover",
+    "setup": {
+      "dependencies_installed": false,
+      "external_dependencies": [
+        {
+          "check": "brv --version",
+          "install": "curl -fsSL https://byterover.dev/install.sh | sh",
+          "name": "brv"
+        }
+      ],
+      "pip_dependencies": [],
+      "python_dependencies_declared": false,
+      "required_env": []
+    }
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/memory/providers/byterover/config",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

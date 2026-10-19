@@ -17,6 +17,8 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.81.0"),
         .package(url: "https://github.com/apple/swift-crypto.git", from: "3.12.3"),
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0"),
+        // Terminal emulator for the Tools tab (WP-61). Apple platforms only, so Linux builds skip it.
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.2.0"),
     ],
     targets: [
         // Pure Swift. No UIKit, no Combine. Must build on Linux.
@@ -40,7 +42,13 @@ let package = Package(
             ]
         ),
         // SwiftUI design system and feature views. Apple platforms only.
-        .target(name: "HermesUI", dependencies: ["HermesKit", "HermesSSH"]),
+        .target(
+            name: "HermesUI",
+            dependencies: [
+                "HermesKit",
+                "HermesSSH",
+                .product(name: "SwiftTerm", package: "SwiftTerm", condition: .when(platforms: [.iOS, .macOS])),
+            ]),
         .testTarget(
             name: "HermesKitTests",
             dependencies: [

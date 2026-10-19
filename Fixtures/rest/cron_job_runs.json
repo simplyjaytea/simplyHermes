@@ -1,0 +1,26 @@
+{
+  "_note": "Shaped from the pinned backend (web_routers/cron.py run rows); not recorded from the testbed.",
+  "runs": [
+    {
+      "id": "cron_9c1f0a2e5b7d_20261016_090001",
+      "title": "COMPLETED · Summary",
+      "preview": "Summary: 4 chats, 1 approval open.",
+      "source": "cron",
+      "started_at": 1792141201.0,
+      "ended_at": 1792141242.0,
+      "is_active": false,
+      "archived": false
+    },
+    {
+      "id": "cron_output:9c1f0a2e5b7d:exec:1",
+      "title": "FAILED · provider timeout",
+      "preview": null,
+      "source": "cron_output",
+      "started_at": 1792054800.0,
+      "ended_at": 1792054805.0,
+      "is_active": false,
+      "archived": false
+    }
+  ],
+  "limit": 5
+}

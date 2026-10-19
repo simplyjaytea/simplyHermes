@@ -25,11 +25,11 @@ final class AppIntegration {
             switch action {
             case .stop:
                 monitor.markStopped(sessionID)
-                model.stop(in: sessionID)
+                model.stopTurn(in: sessionID)
             case .deny:
-                model.resolveApproval(in: sessionID, approved: false)
+                model.answerApproval(in: sessionID, approved: false)
             case .approve:
-                model.resolveApproval(in: sessionID, approved: true)
+                model.answerApproval(in: sessionID, approved: true)
             }
         }
 
@@ -38,5 +38,10 @@ final class AppIntegration {
             await activities.endLeftovers()
             monitor.start()
         }
+    }
+
+    /// Reads the Keep bots live switch again. The Control Center toggle changes it from another process.
+    func settingsMayHaveChanged() {
+        keepAlive.reevaluate()
     }
 }

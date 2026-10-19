@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+    import HermesKit
     import SwiftUI
 
     /// A row in the chat list.
@@ -67,7 +68,7 @@
         }
     }
 
-    /// The inner-landscape preview rail: latest tool output, files and web pages (plan Q4).
+    /// The inner-landscape preview rail: tool output, files and web pages (plan Q4).
     struct PreviewRail: View {
         enum Tab: String, CaseIterable, Identifiable {
             case output = "Output"
@@ -90,7 +91,7 @@
                 case .output:
                     output
                 case .files:
-                    ContentUnavailableView("No files yet", systemImage: "doc", description: Text("Coming in WP-32."))
+                    files
                 case .web:
                     ContentUnavailableView("No pages yet", systemImage: "globe", description: Text("Coming in WP-55."))
                 }
@@ -101,47 +102,124 @@
         }
 
         @ViewBuilder
-        private var output: some View {
-            if let latest = latestToolOutput {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(latest.command)
-                        .font(HermesFont.code.weight(.semibold))
-                    ScrollView {
-                        Text(latest.output)
-                            .font(HermesFont.code)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(10)
-                    .background(HermesColor.fill, in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius))
-                    HStack(spacing: 8) {
-                        Button("Copy") { UIPasteboard.general.string = latest.output }
-                            .buttonStyle(HermesButtonStyle(.tinted))
-                        Button("Add to chat") {
-                            guard let sessionID else { return }
-                            let draft = model.drafts[sessionID, default: ""]
-                            model.drafts[sessionID] = draft.isEmpty ? latest.output : draft + "\n" + latest.output
-                        }
-                        .buttonStyle(HermesButtonStyle(.tinted))
-                    }
-                }
+        private var files: some View {
+            if let browser = model.workspaceBrowser {
+                FileBrowserView(browser: browser) { addToChat($0) }
             } else {
+                ContentUnavailableView(
+                    "No files yet",
+                    systemImage: "doc",
+                    description: Text("Connect to a server to browse its files.")
+                )
+            }
+        }
+
+        @ViewBuilder
+        private var output: some View {
+            if outputs.isEmpty {
                 ContentUnavailableView(
                     "No output yet",
                     systemImage: "terminal",
                     description: Text("Tool output from this chat shows here.")
                 )
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 14) {
+                        ForEach(outputs) { output in
+                            ToolOutputCard(output: output) { addToChat(output.text) }
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
             }
         }
 
-        private var latestToolOutput: (command: String, output: String)? {
-            guard let sessionID, let messages = model.transcripts[sessionID] else { return nil }
-            for message in messages.reversed() {
-                if case .tool(let command) = message.kind {
-                    return (command, message.text)
-                }
+        /// Every tool call in the chat, newest first. Live chats carry their output; placeholder chats keep it in the transcript.
+        private var outputs: [ToolOutput] {
+            guard let sessionID else { return [] }
+            if let chat = model.liveChat(for: sessionID) {
+                return chat.state.items.reversed().compactMap(ToolOutput.init(item:))
             }
-            return nil
+            return (model.transcripts[sessionID] ?? []).reversed().compactMap(ToolOutput.init(message:))
+        }
+
+        private func addToChat(_ text: String) {
+            guard let sessionID else { return }
+            let draft = model.drafts[sessionID, default: ""]
+            model.drafts[sessionID] = draft.isEmpty ? text : draft + "\n" + text
+        }
+    }
+
+    /// One tool call's output in the preview rail (WP-36).
+    struct ToolOutput: Identifiable, Equatable {
+        let id: String
+        let command: String
+        let isDone: Bool
+        let text: String
+
+        init(id: String, command: String, isDone: Bool, text: String) {
+            self.id = id
+            self.command = command
+            self.isDone = isDone
+            self.text = text
+        }
+
+        init?(item: TranscriptItem) {
+            guard case .tool(let entry) = item.content else { return nil }
+            self.init(
+                id: item.id,
+                command: entry.context ?? entry.name,
+                isDone: entry.phase == .completed,
+                text: entry.resultText ?? entry.result?["output"]?.stringValue ?? entry.summary ?? entry.preview ?? ""
+            )
+        }
+
+        init?(message: ShellMessage) {
+            guard case .tool(let command) = message.kind else { return nil }
+            self.init(id: message.id, command: command, isDone: true, text: message.text)
+        }
+    }
+
+    /// The command, the output and the two actions for one tool call (WP-36).
+    private struct ToolOutputCard: View {
+        let output: ToolOutput
+        let onAddToChat: () -> Void
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Text(output.command)
+                        .font(HermesFont.code.weight(.semibold))
+                        .lineLimit(1)
+                    if !output.isDone {
+                        ProgressView().controlSize(.small)
+                    }
+                }
+                Text(shownText)
+                    .font(HermesFont.code)
+                    .foregroundStyle(output.text.isEmpty ? HermesColor.secondaryText : HermesColor.primaryText)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(HermesColor.fill, in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius))
+                HStack(spacing: 8) {
+                    Button("Copy") { UIPasteboard.general.string = output.text }
+                        .buttonStyle(HermesButtonStyle(.tinted))
+                    Button("Add to chat", action: onAddToChat)
+                        .buttonStyle(HermesButtonStyle(.tinted))
+                }
+                .disabled(output.text.isEmpty)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("toolOutput.\(output.id)")
+        }
+
+        /// The first 4000 characters, as the inline tool card shows them. Empty output says why.
+        private var shownText: String {
+            if output.text.isEmpty {
+                return output.isDone ? String(localized: "No output") : String(localized: "Running")
+            }
+            return String(output.text.prefix(4000))
         }
     }
 
@@ -231,6 +309,11 @@
                                 .fill(HermesColor.accent)
                                 .frame(width: 6, height: 6)
                                 .accessibilityHidden(true)
+                        }
+                        if model.isBranch(session.id) {
+                            Image(systemName: "arrow.triangle.branch")
+                                .font(HermesFont.caption)
+                                .accessibilityLabel("Branch")
                         }
                         Text(session.title)
                             .font(HermesFont.subheadline.weight(isSelected ? .semibold : .regular))

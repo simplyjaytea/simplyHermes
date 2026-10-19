@@ -136,26 +136,37 @@ import Testing
         #expect(request.url.query == "path=/opt/hermes")
     }
 
-    @Test func profileExportAndImportSendServerPaths() async throws {
+    @Test func sessionExportLookupAndPruneCarryTheProfile() async throws {
         let http = FakeHTTP()
-        http.enqueue(200, #"{"ok":true,"path":"/tmp/ops.tar.gz"}"#)
-        http.enqueue(200, #"{"ok":true,"name":"ops2"}"#)
+        http.enqueue(200, #"{"id":"a/b c","messages":[]}"#)
+        http.enqueue(200, #"{"id":"s1"}"#)
+        http.enqueue(404, #"{"detail":"Session not found"}"#)
+        http.enqueue(200, #"{"deleted":2}"#)
+        let client = makeClient(http, profile: "default")
+        let bytes = try await client.exportSession(id: "a/b c", profile: "ops")
+        #expect(String(bytes: bytes, encoding: .utf8) == #"{"id":"a/b c","messages":[]}"#)
+        _ = try await client.session(id: "s1", profile: "ops")
+        await #expect(throws: RESTError.http(status: 404, detail: "Session not found")) {
+            try await client.session(id: "gone", profile: "ops")
+        }
+        let answer = try await client.pruneSessions(SessionPruneFilter(olderThanDays: 90, profile: "ops"))
+        #expect(answer == .object(["deleted": .int(2)]))
+        let requests = http.requests
+        #expect(requests[0].method == "GET" && requests[0].url.path == "/api/sessions/a%2Fb%20c/export")
+        #expect(requests[0].url.query == "profile=ops", "an explicit owner replaces the client's scope")
+        #expect(requests[1].url.path == "/api/sessions/s1" && requests[1].url.query == "profile=ops")
+        let prune = try #require(requests.last)
+        #expect(prune.method == "POST" && prune.url.path == "/api/sessions/prune")
+        let body = try #require(prune.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })
+        #expect(body["older_than_days"] as? Int == 90 && body["profile"] as? String == "ops")
+        #expect(body["include_archived"] == nil, "archived sessions stay out unless asked for")
+    }
+
+    @Test func exportWithoutAnOwnerUsesTheClientsScope() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, #"{"id":"s1"}"#)
         let client = makeClient(http, profile: "ops")
-        let exported = try await client.exportProfile(name: "ops team", to: "/tmp/ops.tar.gz")
-        let imported = try await client.importProfile(archive: "/tmp/ops.tar.gz", name: "ops2")
-        #expect(exported == .object(["ok": true, "path": "/tmp/ops.tar.gz"]))
-        #expect(imported == .object(["ok": true, "name": "ops2"]))
-        let export = try #require(http.requests.first)
-        #expect(export.method == "POST" && export.url.path == "/api/profiles/ops%20team/export")
-        #expect(export.url.query == nil)
-        let exportBody = try #require(
-            export.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })
-        #expect(exportBody["output"] as? String == "/tmp/ops.tar.gz")
-        #expect((exportBody["extra_files"] as? [String: String])?.isEmpty == true)
-        let importRequest = try #require(http.requests.last)
-        #expect(importRequest.url.path == "/api/profiles/import" && importRequest.url.query == nil)
-        let importBody = try #require(
-            importRequest.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })
-        #expect(importBody["archive"] as? String == "/tmp/ops.tar.gz" && importBody["name"] as? String == "ops2")
+        _ = try await client.exportSession(id: "s1", profile: nil)
+        #expect(http.requests.first?.url.query == "profile=ops")
     }
 }

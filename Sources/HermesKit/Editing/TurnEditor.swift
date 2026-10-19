@@ -60,6 +60,15 @@ public enum TurnEditConfirmation: Sendable, Equatable {
     /// More than one user turn would be archived. The counts come from the server when it sent them, else from
     /// the local transcript.
     case deepCut(archivedMessages: Int?, archivedUserTurns: Int?)
+
+    /// What a yes to this question allows. Erasing the transcript archives every turn, so a yes to it covers a deep
+    /// cut too. Granting only one of the two would make the editor ask for the other, and the dialog would never end.
+    public var consent: TurnEditConsent {
+        switch self {
+        case .emptiesTranscript: [.emptiesTranscript, .deepCut]
+        case .deepCut: .deepCut
+        }
+    }
 }
 
 /// Confirmations the user has already given.

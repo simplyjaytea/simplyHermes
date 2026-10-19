@@ -47,7 +47,8 @@ public struct ProfileSelection: Sendable, Equatable {
         public var id: String { name }
     }
 
-    private static func title(of profile: HermesProfile?) -> String? {
+    /// The name to show for a profile: its display name, else its name. Nil when there is no profile.
+    static func title(of profile: HermesProfile?) -> String? {
         guard let profile else { return nil }
         if let display = profile.displayName?.trimmingCharacters(in: .whitespaces), !display.isEmpty { return display }
         return profile.name
