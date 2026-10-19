@@ -1,0 +1,13 @@
+{
+  "_note": "Shaped from the pinned backend (cron/jobs.py job record, read by GET /api/cron/jobs/{id}); not recorded from the testbed.",
+  "id": "9c1f0a2e5b7d",
+  "name": "Morning summary",
+  "prompt": "Summarise yesterday's chats and list open approvals.",
+  "schedule": {"kind": "cron", "expr": "0 9 * * 1-5", "display": "0 9 * * 1-5"},
+  "schedule_display": "0 9 * * 1-5",
+  "deliver": "local",
+  "enabled": true,
+  "next_run_at": "2026-10-19T09:00:00+00:00",
+  "last_run_at": "2026-10-16T09:00:00+00:00",
+  "last_status": "ok"
+}

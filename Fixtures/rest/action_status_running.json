@@ -1,0 +1,11 @@
+{
+  "name": "skills-install-arxiv-1a2b3c4d",
+  "running": true,
+  "exit_code": null,
+  "pid": 4242,
+  "lines": [
+    "",
+    "=== skills-install-arxiv-1a2b3c4d started 2026-10-18 09:00:00 ===",
+    "Downloading official/research/arxiv"
+  ]
+}

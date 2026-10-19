@@ -1,0 +1,15 @@
+{
+  "body": {
+    "badges": [],
+    "session_id": "20261018_045102_598cc4"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/plugins/hermes-achievements/sessions/20261018_045102_598cc4/badges",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "plugin_name": "example-tools",
+  "warnings": [],
+  "python_dependencies": [],
+  "missing_env": ["EXAMPLE_TOKEN"],
+  "enabled": true,
+  "gateway_reloaded": true,
+  "activation": {"live": true},
+  "restart_required": false,
+  "known_issues": []
+}

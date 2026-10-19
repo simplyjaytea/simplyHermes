@@ -70,23 +70,25 @@
     }
 
     /// The settings of the chat, as pills above the composer's field (plan Q19): model, reasoning and workspace.
-    /// The model pill is a popup menu (plan Q22). The other pills only show what the server reported.
+    /// The model pill is a popup menu (plan Q22). The other pills only show what the server reported. The workspace
+    /// pill opens the folder picker (plan Q31).
     struct ComposerPills: View {
         let chat: LiveChatModel
+        /// Opens the folder picker. Without it the workspace pill only shows the folder.
+        var onWorkspace: (() -> Void)?
 
         var body: some View {
             if chat.state.info != nil {
                 let pills = entries
+                let folder = folderName
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         ModelPicker(chat: chat)
                         ForEach(pills, id: \.label) { pill in
-                            Label(pill.label, systemImage: pill.symbol)
-                                .font(HermesFont.caption)
-                                .lineLimit(1)
-                                .padding(.horizontal, 10)
-                                .frame(minHeight: 28)
-                                .background(HermesColor.fill, in: Capsule())
+                            pillLabel(pill.label, symbol: pill.symbol)
+                        }
+                        if let folder {
+                            workspacePill(folder)
                         }
                     }
                     .padding(.horizontal, 12)
@@ -95,15 +97,40 @@
             }
         }
 
+        private func pillLabel(_ label: String, symbol: String) -> some View {
+            Label(label, systemImage: symbol)
+                .font(HermesFont.caption)
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .frame(minHeight: 28)
+                .background(HermesColor.fill, in: Capsule())
+        }
+
+        @ViewBuilder
+        private func workspacePill(_ name: String) -> some View {
+            if let onWorkspace {
+                Button(action: onWorkspace) {
+                    pillLabel(name, symbol: "folder")
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("chat.workspace")
+                .accessibilityHint(Text("Chooses the folder this chat runs in"))
+            } else {
+                pillLabel(name, symbol: "folder")
+            }
+        }
+
         private var entries: [(label: String, symbol: String)] {
             let info = chat.state.info
             var result: [(String, String)] = []
             if let effort = info?.reasoningEffort, !effort.isEmpty { result.append((effort.capitalized, "brain")) }
-            if let cwd = info?.cwd, !cwd.isEmpty {
-                let name = cwd.split(separator: "/").last.map(String.init) ?? cwd
-                result.append((name, "folder"))
-            }
             return result
+        }
+
+        /// The last part of the folder's path, which is what the pill has room for.
+        private var folderName: String? {
+            guard let cwd = chat.workspaceCwd ?? chat.state.info?.cwd, !cwd.isEmpty else { return nil }
+            return cwd.split(separator: "/").last.map(String.init) ?? cwd
         }
     }
 #endif

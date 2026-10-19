@@ -1,0 +1,15 @@
+{
+  "body": {
+    "count": 2,
+    "ok": true
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/dashboard/plugins/rescan",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

@@ -2,15 +2,23 @@
     import HermesKit
     import SwiftUI
 
-    /// The Chats list: time sections with pinned chats first, swipe to pin, archive or delete, pull to refresh,
-    /// and search (WP-40).
+    /// The Chats list: time sections with pinned chats first, swipe and menu actions for each chat, pull to refresh,
+    /// search (WP-40), and a menu that prunes old sessions.
     public struct SessionsListView: View {
         @Bindable private var model: SessionsListModel
         private let onOpen: (SessionListItem) -> Void
+        /// Whether a chat waits on an approval, by session id. Marks its row with a dot.
+        private let needsApproval: (String) -> Bool
         @State private var pendingDelete: SessionListItem?
+        @State private var isPruneSheetPresented = false
 
-        public init(model: SessionsListModel, onOpen: @escaping (SessionListItem) -> Void) {
+        public init(
+            model: SessionsListModel,
+            needsApproval: @escaping (String) -> Bool = { _ in false },
+            onOpen: @escaping (SessionListItem) -> Void
+        ) {
             self.model = model
+            self.needsApproval = needsApproval
             self.onOpen = onOpen
         }
 
@@ -21,6 +29,12 @@
                         .font(HermesFont.footnote)
                         .foregroundStyle(HermesColor.secondaryText)
                         .accessibilityIdentifier("sessions.error")
+                }
+                if let noticeText = model.noticeText {
+                    Label(noticeText, systemImage: "checkmark.circle")
+                        .font(HermesFont.footnote)
+                        .foregroundStyle(HermesColor.secondaryText)
+                        .accessibilityIdentifier("sessions.notice")
                 }
                 if model.isSearching {
                     searchResults
@@ -41,6 +55,26 @@
                         "No chats yet", systemImage: "bubble.left.and.bubble.right",
                         description: Text("Start a chat and it shows up here."))
                 }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button("Prune old sessions…", systemImage: "trash.slash") {
+                            isPruneSheetPresented = true
+                        }
+                        .accessibilityIdentifier("sessions.prune")
+                    } label: {
+                        Label("More", systemImage: "ellipsis.circle")
+                    }
+                    .accessibilityLabel("Chat list options")
+                    .accessibilityIdentifier("sessions.menu")
+                }
+            }
+            .sheet(isPresented: $isPruneSheetPresented) {
+                PruneSessionsSheet(model: model)
+            }
+            .sheet(item: $model.exportedChat) { chat in
+                ExportedChatSheet(chat: chat)
             }
             .confirmationDialog(
                 "Delete this chat?",
@@ -95,6 +129,9 @@
                             .foregroundStyle(HermesColor.secondaryText)
                             .lineLimit(1)
                     }
+                    if needsApproval(item.id) {
+                        ApprovalDot()
+                    }
                     Spacer(minLength: 8)
                     if item.isPinned {
                         Image(systemName: "pin.fill")
@@ -113,6 +150,17 @@
                 .accessibilityIdentifier("session.\(item.id)")
             }
             .tint(HermesColor.primaryText)
+            .contextMenu {
+                Button(item.isPinned ? "Unpin" : "Pin", systemImage: item.isPinned ? "pin.slash" : "pin") {
+                    Task { await model.togglePin(item.id) }
+                }
+                if item.link != nil {
+                    Button("Copy link", systemImage: "link") { model.copyLink(item) }
+                }
+                Button("Export", systemImage: "square.and.arrow.up") { Task { await model.export(item) } }
+                Button("Archive", systemImage: "archivebox") { Task { await model.archive(item.id) } }
+                Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = item }
+            }
             .swipeActions(edge: .leading) {
                 Button(item.isPinned ? "Unpin" : "Pin", systemImage: item.isPinned ? "pin.slash" : "pin") {
                     Task { await model.togglePin(item.id) }
@@ -123,6 +171,8 @@
                 Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = item }
                 Button("Archive", systemImage: "archivebox") { Task { await model.archive(item.id) } }
                     .tint(HermesColor.statusWarning)
+                Button("Export", systemImage: "square.and.arrow.up") { Task { await model.export(item) } }
+                    .tint(HermesColor.accent)
             }
         }
     }

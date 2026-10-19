@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "name": "browser",
+  "platform": "cli",
+  "enabled": true,
+  "post_setup_started": "playwright"
+}
