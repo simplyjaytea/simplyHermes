@@ -42,6 +42,8 @@
         public var browserSignIn: any BrowserSigningIn
         /// Connects saved servers on demand (WP-15). Nil keeps everything offline (previews, snapshots).
         public var connectionDriver: (any ConnectionDriver)?
+        /// Lists the Hermes Cloud organizations and agents behind a sign-in (WP-17).
+        public var cloudPortal: any CloudPortalClient
 
         public init(
             credentials: any CredentialStore,
@@ -50,7 +52,8 @@
             unlocker: any DeviceUnlocking = SystemDeviceUnlocker(),
             probe: (@Sendable (HermesEndpoint) async -> ServerProbe?)? = nil,
             browserSignIn: any BrowserSigningIn = SystemBrowserSignIn(),
-            connectionDriver: (any ConnectionDriver)? = nil, offline: Bool = false
+            connectionDriver: (any ConnectionDriver)? = nil, offline: Bool = false,
+            cloudPortal: any CloudPortalClient = NousPortalClient()
         ) {
             self.credentials = credentials
             self.gatewayTester = gatewayTester
@@ -58,6 +61,7 @@
             self.unlocker = unlocker
             self.probe = probe ?? { await GatewayConnectionTester().probe($0) }
             self.browserSignIn = browserSignIn
+            self.cloudPortal = cloudPortal
             self.connectionDriver =
                 offline
                 ? nil
@@ -322,7 +326,7 @@
             let services = ConnectionServices(
                 credentials: InMemoryCredentialStore(), gatewayTester: PreviewTester(), sshTester: PreviewTester(),
                 unlocker: AlwaysUnlocked(), probe: { _ in ServerProbe(authRequired: true, authProviders: ["basic"]) },
-                browserSignIn: PreviewBrowserSignIn(), offline: true)
+                browserSignIn: PreviewBrowserSignIn(), offline: true, cloudPortal: PreviewCloudPortal())
             return ConnectionsModel(store: nil, services: services, initial: saved)
         }
 

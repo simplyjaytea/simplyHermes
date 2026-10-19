@@ -4,13 +4,14 @@
 
     extension ConnectionFormModel: Identifiable {}
 
-    /// First launch with no saved server: pick a gateway URL, SSH or a QR code (WP-22).
+    /// First launch with no saved server: pick a gateway URL, SSH, a QR code or Hermes Cloud (WP-22, WP-17).
     public struct WelcomeView: View {
         @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 40
         @ScaledMetric(relativeTo: .largeTitle) private var iconBox: CGFloat = 88
         private let connections: ConnectionsModel
         @State private var form: ConnectionFormModel?
         @State private var showsScanner = false
+        @State private var showsCloud = false
 
         public init(connections: ConnectionsModel) {
             self.connections = connections
@@ -42,6 +43,15 @@
                         }
                         .buttonStyle(HermesButtonStyle(.tinted))
                         .accessibilityIdentifier("welcome.scan")
+                        if HermesCloud.isOfferedInApp {
+                            Button {
+                                showsCloud = true
+                            } label: {
+                                Label("Hermes Cloud", systemImage: "cloud")
+                            }
+                            .buttonStyle(HermesButtonStyle(.secondary))
+                            .accessibilityIdentifier("welcome.cloud")
+                        }
                     }
                     .frame(maxWidth: 420)
                     HermesCard {
@@ -49,6 +59,9 @@
                         Text(
                             "Gateway URL: Hermes runs hermes serve on your network, over Tailscale or behind a proxy.\n"
                                 + "SSH: the app logs in to a computer and starts Hermes itself."
+                                + (HermesCloud.isOfferedInApp
+                                    ? "\nHermes Cloud: sign in and pick one of your hosted agents. No address to type."
+                                    : "")
                         )
                         .font(HermesFont.footnote)
                         .foregroundStyle(HermesColor.secondaryText)
@@ -68,6 +81,9 @@
                     showsScanner = false
                     form = ConnectionFormModel(scanned: code)
                 }
+            }
+            .sheet(isPresented: $showsCloud) {
+                CloudConnectView(connections: connections) { _ in showsCloud = false }
             }
         }
 
@@ -95,6 +111,7 @@
         private let connections: ConnectionsModel
         @State private var form: ConnectionFormModel?
         @State private var showsScanner = false
+        @State private var showsCloud = false
         @State private var pendingDelete: ServerConnection?
 
         public init(connections: ConnectionsModel) {
@@ -137,7 +154,8 @@
             .navigationTitle("Servers")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    AddServerMenu(onPick: { form = $0 }, onScan: { showsScanner = true })
+                    AddServerMenu(
+                        onPick: { form = $0 }, onScan: { showsScanner = true }, onCloud: { showsCloud = true })
                 }
             }
             .overlay {
@@ -155,6 +173,9 @@
                     showsScanner = false
                     form = ConnectionFormModel(scanned: code)
                 }
+            }
+            .sheet(isPresented: $showsCloud) {
+                CloudConnectView(connections: connections) { _ in showsCloud = false }
             }
             .confirmationDialog(
                 "Delete \(pendingDelete?.name ?? "server")?", isPresented: deleteBinding, titleVisibility: .visible,
@@ -202,16 +223,20 @@
         }
     }
 
-    /// The + menu: gateway, SSH or QR code.
+    /// The + menu: gateway, SSH, QR code or Hermes Cloud.
     struct AddServerMenu: View {
         let onPick: (ConnectionFormModel) -> Void
         let onScan: () -> Void
+        let onCloud: () -> Void
 
         var body: some View {
             Menu {
                 Button("Gateway URL", systemImage: "globe") { onPick(ConnectionFormModel(mode: .gateway)) }
                 Button("SSH server", systemImage: "terminal") { onPick(ConnectionFormModel(mode: .ssh)) }
                 Button("Scan QR code", systemImage: "qrcode.viewfinder", action: onScan)
+                if HermesCloud.isOfferedInApp {
+                    Button("Hermes Cloud", systemImage: "cloud", action: onCloud)
+                }
             } label: {
                 Label("Add server", systemImage: "plus")
             }
@@ -228,7 +253,7 @@
 
         var body: some View {
             HStack(spacing: 12) {
-                Image(systemName: connection.isSSH ? "terminal" : "globe")
+                Image(systemName: connection.isSSH ? "terminal" : (connection.isCloud ? "cloud" : "globe"))
                     .foregroundStyle(HermesColor.accent)
                     .frame(width: 28)
                 VStack(alignment: .leading, spacing: 2) {
@@ -248,10 +273,10 @@
                         }
                     }
                     Text(connection.address)
-                        .font(HermesFont.codeSmall)
+                        .font(connection.isCloud ? HermesFont.caption : HermesFont.codeSmall)
                         .foregroundStyle(HermesColor.secondaryText)
                         .lineLimit(1)
-                    if let status = ConnectionStatusText(phase: phase) {
+                    if let status = ConnectionStatusText(phase: phase, isCloud: connection.isCloud) {
                         status
                     }
                 }
@@ -272,13 +297,14 @@
         let title: String
         let color: Color
 
-        init?(phase: ConnectionPhase) {
-            guard let style = Self.style(for: phase) else { return nil }
+        /// `isCloud` words an outdated server for a Hermes Cloud agent, which the user cannot update.
+        init?(phase: ConnectionPhase, isCloud: Bool = false) {
+            guard let style = Self.style(for: phase, isCloud: isCloud) else { return nil }
             title = style.title
             color = style.color
         }
 
-        private static func style(for phase: ConnectionPhase) -> (title: String, color: Color)? {
+        private static func style(for phase: ConnectionPhase, isCloud: Bool) -> (title: String, color: Color)? {
             switch phase {
             case .idle:
                 return nil
@@ -295,6 +321,7 @@
             case .signInRequired:
                 return ("Sign in again", HermesColor.statusWarning)
             case .updateRequired:
+                if isCloud { return ("Waiting for Hermes Cloud to update this agent", HermesColor.statusWarning) }
                 return ("Update your Hermes", HermesColor.destructive)
             case .failed(let failure):
                 return (failure.message, HermesColor.destructive)
@@ -374,26 +401,39 @@
                     }
                     .accessibilityIdentifier("settings.servers")
                 }
-                Section("Server") {
+                Section("Models") {
                     NavigationLink {
-                        ServerControlScreen(connections: connections)
+                        ProvidersKeysScreen(connections: connections)
                     } label: {
-                        Label("Gateway", systemImage: "antenna.radiowaves.left.and.right")
+                        Label("Providers & keys", systemImage: "key.horizontal")
                     }
-                    .accessibilityIdentifier("settings.gateway")
+                    .accessibilityIdentifier("settings.models.providers")
                     NavigationLink {
-                        HermesUpdateScreen(connections: connections)
+                        ModelDefaultsScreen(connections: connections)
                     } label: {
-                        Label("Hermes update", systemImage: "arrow.down.circle")
+                        Label("Model defaults", systemImage: "cpu")
                     }
-                    .accessibilityIdentifier("settings.hermesUpdate")
+                    .accessibilityIdentifier("settings.models.defaults")
                     NavigationLink {
-                        FleetUpdateScreen(connections: connections)
+                        ModelDefaultsAuxiliaryScreen(connections: connections)
                     } label: {
-                        Label("Update all servers", systemImage: "arrow.triangle.2.circlepath")
+                        Label("Auxiliary models", systemImage: "slider.horizontal.3")
                     }
-                    .accessibilityIdentifier("settings.updateAll")
+                    .accessibilityIdentifier("settings.models.auxiliary")
+                    NavigationLink {
+                        CredentialPoolScreen(connections: connections)
+                    } label: {
+                        Label("Credentials pool", systemImage: "key.fill")
+                    }
+                    .accessibilityIdentifier("settings.models.pool")
+                    NavigationLink {
+                        ApiKeyScreen(connections: connections)
+                    } label: {
+                        Label("API keys", systemImage: "lock.fill")
+                    }
+                    .accessibilityIdentifier("settings.models.keys")
                 }
+                SettingsServerSection(connections: connections)
                 Section("Support") {
                     NavigationLink {
                         BugReportScreen(connections: connections)
