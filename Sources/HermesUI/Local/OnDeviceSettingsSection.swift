@@ -13,6 +13,10 @@
             Section {
                 Toggle("On-device features", isOn: $enabled)
                     .accessibilityIdentifier("settings.onDevice")
+                NavigationLink("On-device models") {
+                    OnDeviceModelsScreen(isEnabled: $enabled)
+                }
+                .accessibilityIdentifier("settings.onDeviceModels")
             } header: {
                 Text("On-device")
             } footer: {

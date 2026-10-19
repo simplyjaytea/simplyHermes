@@ -7,13 +7,14 @@
         let item: TranscriptItem
         var isLast = false
         @Bindable var chat: LiveChatModel
+        var onBranch: (SessionBranchResult) -> Void = { _ in }
 
         var body: some View {
             switch item.content {
             case .user(let entry):
                 UserRow(entry: entry, chat: chat)
             case .assistant(let entry):
-                AssistantRow(entry: entry, isLast: isLast, chat: chat)
+                AssistantRow(entry: entry, isLast: isLast, chat: chat, onBranch: onBranch)
             case .tool(let entry):
                 ToolCallRow(entry: entry)
             case .other(let role, let text):
@@ -110,6 +111,7 @@
         let entry: AssistantEntry
         let isLast: Bool
         @Bindable var chat: LiveChatModel
+        let onBranch: (SessionBranchResult) -> Void
         @State private var showsReasoning = false
 
         var body: some View {
@@ -150,6 +152,13 @@
                     Button("Regenerate", systemImage: "arrow.clockwise") { chat.regenerate() }
                         .disabled(chat.isRunning || entry.isStreaming)
                 }
+                // Forks the chat so far into a new tab with a branch icon (Q28).
+                Button("Branch chat", systemImage: "arrow.triangle.branch") {
+                    Task {
+                        if let result = await chat.branch() { onBranch(result) }
+                    }
+                }
+                .disabled(chat.isRunning || entry.isStreaming)
             }
         }
     }

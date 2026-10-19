@@ -65,6 +65,8 @@
         public var transcripts: [String: [ShellMessage]] = [:]
         /// Chats with a turn streaming right now.
         public private(set) var streamingSessionIDs: Set<String> = []
+        /// Chats forked with Branch chat. Their tabs show a branch icon (Q28).
+        public private(set) var branchSessionIDs: Set<String> = []
         @ObservationIgnored private var streamTasks: [String: Task<Void, Never>] = [:]
         /// Chats read from the connected server (WP-30). Nil when there is no server connection to read from.
         @ObservationIgnored public var liveChats: LiveChatStore?
@@ -72,6 +74,8 @@
         @ObservationIgnored public var workspaceBrowser: WorkspaceBrowserModel?
         /// Ids of the chats the server listed. These open as live chats; the rest stay placeholders.
         public private(set) var serverSessionIDs: Set<String> = []
+        /// Bot Chats opened from the Bots screen (WP-42). They are hidden, so the sessions list never lists them.
+        public private(set) var botChatIDs: Set<String> = []
         /// Chats made on the server from outside the chat list, which the server does not list yet.
         @ObservationIgnored var startedChats = StartedChats()
         public var isPalettePresented = false
@@ -147,12 +151,12 @@
         /// WP-30, so a synced chat opens empty for now.
         public func syncSessions(_ items: [SessionListItem]) {
             let started = startedChatsToKeep(listed: Set(items.map(\.id)))
-            let local = sessions.filter { $0.id.hasPrefix("new-") }
+            let local = sessions.filter { $0.id.hasPrefix("new-") || botChatIDs.contains($0.id) }
             let synced = items.map {
                 ChatSessionSummary(id: $0.id, title: $0.title, subtitle: $0.time ?? "", serverName: $0.serverName)
             }
             sessions = local + synced
-            serverSessionIDs = Set(items.map(\.id))
+            serverSessionIDs = Set(items.map(\.id)).union(botChatIDs)
             sessions.insert(contentsOf: started, at: local.count)
             serverSessionIDs.formUnion(started.map(\.id))
             for session in sessions where transcripts[session.id] == nil { transcripts[session.id] = [] }
@@ -171,6 +175,12 @@
             }
             serverSessionIDs.insert(item.id)
             open(item.id)
+        }
+
+        /// Opens a bot's Bot Chat from the Bots screen (WP-42). The chat is hidden, so it is kept across list syncs.
+        public func openBotChat(_ item: SessionListItem) {
+            botChatIDs.insert(item.id)
+            show(item)
         }
 
         /// Starts a new local chat. WP-40 replaces this with a server-side session.
@@ -200,6 +210,19 @@
                 get: { self.attachments[id, default: []] },
                 set: { self.attachments[id] = $0 }
             )
+        }
+
+        public func isBranch(_ id: String) -> Bool {
+            branchSessionIDs.contains(id)
+        }
+
+        /// Opens a chat forked with Branch chat in a new tab (Q28).
+        public func openBranch(_ result: SessionBranchResult, serverName: String) {
+            branchSessionIDs.insert(result.storedSessionID)
+            show(
+                SessionListItem(
+                    id: result.storedSessionID, title: result.title ?? "Branch", time: nil, isPinned: false,
+                    serverName: serverName))
         }
 
         public func isStreaming(_ id: String) -> Bool {

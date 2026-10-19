@@ -15,6 +15,7 @@
         @Environment(\.hermesReduceMotion) private var reduceMotionOverride
         @State private var postureMonitor = DevicePostureMonitor()
         @State private var profiles: ProfilesModel?
+        @State private var bots: BotsModel?
         @State private var terminals = TerminalModel()
         @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -30,7 +31,10 @@
             model.liveChats = connections.map(LiveChatStore.init)
             // Kept across re-renders: a new one would lose the folder on screen and leave views holding the old one.
             if model.workspaceBrowser == nil { model.workspaceBrowser = connections.map(WorkspaceBrowserModel.init) }
-            _profiles = State(initialValue: connections.map { ProfilesModel(connections: $0) })
+            let profileList = connections.map { ProfilesModel(connections: $0) }
+            _profiles = State(initialValue: profileList)
+            _bots = State(
+                initialValue: connections.map { BotsModel(connections: $0, profiles: profileList, shell: model) })
             self.showsDebugLayoutMenu = showsDebugLayoutMenu
         }
 
@@ -57,6 +61,7 @@
                     .environment(\.hermesPosture, posture)
                     .task(id: forcedPosture) { applyForcedPosture() }
                     .task(id: sessionScopeKey) { await attachSessions() }
+                    .task(id: connections?.active?.id) { await bots?.reload() }
                     .task(id: model.pendingSessionReference) { await openPendingSession() }
             }
         }
@@ -337,6 +342,8 @@
         private func sectionContent(_ section: AppSection) -> some View {
             if section == .settings, let connections {
                 SettingsHome(connections: connections)
+            } else if section == .bots, let bots {
+                BotsHomeView(model: bots)
             } else if section == .automations, let connections {
                 AutomationsScreen(connections: connections)
             } else if section == .tools {

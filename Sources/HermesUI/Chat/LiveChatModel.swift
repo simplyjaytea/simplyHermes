@@ -242,6 +242,17 @@
             cutError = nil
         }
 
+        /// Forks this chat into a new stored chat that shares the history so far (Q28). Nil when the fork fails.
+        public func branch() async -> SessionBranchResult? {
+            guard let client, let live = state.liveSessionID else { return nil }
+            do {
+                return try await client.branchSession(SessionBranchParams(sessionID: live))
+            } catch {
+                cutError = Self.describe(error)
+                return nil
+            }
+        }
+
         /// The last user turn the server stored. Regenerate runs it again.
         private var lastUserTurn: (rowID: Int, text: String)? {
             for item in state.items.reversed() {

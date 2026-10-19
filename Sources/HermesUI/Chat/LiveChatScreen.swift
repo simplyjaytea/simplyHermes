@@ -57,7 +57,7 @@
                 Text(Self.cutMessage(chat.pendingCut?.confirmation))
             }
             .alert(
-                "Couldn't edit this message",
+                "Hermes couldn't do that",
                 isPresented: Binding(get: { chat.cutError != nil }, set: { if !$0 { chat.clearCutError() } }),
                 actions: { Button("OK", role: .cancel) {} },
                 message: { Text(chat.cutError ?? "") }
@@ -116,16 +116,21 @@
             ScrollView {
                 LazyVStack(spacing: HermesMetrics.bubbleSpacing) {
                     ForEach(chat.state.items) { item in
-                        TranscriptRow(item: item, isLast: item.id == chat.state.items.last?.id, chat: chat)
-                            .overlay {
-                                if isFinding, item.id == currentMatch {
-                                    RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
-                                        .strokeBorder(HermesColor.accent, lineWidth: 2)
-                                        .padding(.horizontal, 6)
-                                }
+                        TranscriptRow(
+                            item: item, isLast: item.id == chat.state.items.last?.id, chat: chat,
+                            onBranch: {
+                                model.openBranch($0, serverName: model.session(id: sessionID)?.serverName ?? "")
                             }
-                            .id(item.id)
-                            .accessibilityIdentifier("message.\(item.id)")
+                        )
+                        .overlay {
+                            if isFinding, item.id == currentMatch {
+                                RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
+                                    .strokeBorder(HermesColor.accent, lineWidth: 2)
+                                    .padding(.horizontal, 6)
+                            }
+                        }
+                        .id(item.id)
+                        .accessibilityIdentifier("message.\(item.id)")
                     }
                     if let failure = chat.state.lastError, !chat.isRunning, !Self.lastRowShowsError(chat.state) {
                         ErrorCard(error: ChatError.classify(failure), isLast: true, chat: chat)
