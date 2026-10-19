@@ -42,6 +42,13 @@ final class ToolsUITests: XCTestCase {
     private func openRow(_ app: XCUIApplication, _ identifier: String, title: String) {
         let row = element(app, identifier)
         XCTAssertTrue(row.waitForExistence(timeout: 5), "Missing Tools row \(identifier)")
+        // A row can exist before the list lays it out. Wait until it can be tapped.
+        let hittable = NSPredicate(format: "isHittable == true")
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hittable, object: row)], timeout: 10),
+            .completed,
+            "Tools row \(identifier) should be tappable"
+        )
         row.tap()
         XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5), "Expected the \(title) screen")
     }
