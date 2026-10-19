@@ -54,6 +54,9 @@ public struct ServerStatus: Sendable, Equatable, Codable {
     public var overall: String?
     /// Profile names.
     public var profiles: [String]?
+    /// Identity of the install: the same install behind two connections lists its bots once (`install_id`).
+    /// REST decodes snake case, so the name is `installId`.
+    public var installId: String?
 }
 
 /// `GET /api/auth/me`.
@@ -90,6 +93,8 @@ public struct HermesProfile: Sendable, Equatable, Codable, Identifiable {
     public var description: String?
     /// Name to show, possibly empty.
     public var displayName: String?
+    /// Bot Mode title (`bot_title`), possibly empty. Present on REST rows so other gateways can show it.
+    public var botTitle: String?
     /// Identity for lists.
     public var id: String { name }
 }
