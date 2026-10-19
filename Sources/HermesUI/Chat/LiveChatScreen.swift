@@ -45,6 +45,23 @@
                 .background(HermesColor.background)
             }
             .task(id: sessionID) { await chat.attach() }
+            // A cut that erases or archives more than one turn waits here for the user's yes (WP-34).
+            .confirmationDialog(
+                "Cut the chat here?",
+                isPresented: Binding(get: { chat.pendingCut != nil }, set: { if !$0 { chat.dismissPendingCut() } }),
+                titleVisibility: .visible
+            ) {
+                Button("Cut and send", role: .destructive) { chat.confirmPendingCut() }
+                Button("Cancel", role: .cancel) { chat.dismissPendingCut() }
+            } message: {
+                Text(Self.cutMessage(chat.pendingCut?.confirmation))
+            }
+            .alert(
+                "Couldn't edit this message",
+                isPresented: Binding(get: { chat.cutError != nil }, set: { if !$0 { chat.clearCutError() } }),
+                actions: { Button("OK", role: .cancel) {} },
+                message: { Text(chat.cutError ?? "") }
+            )
             .onChange(of: chat.prefill, initial: true) { _, text in
                 guard let text else { return }
                 model.drafts[sessionID] = text
@@ -317,6 +334,18 @@
         private static func lastRowShowsError(_ state: TranscriptState) -> Bool {
             if case .assistant(let entry)? = state.items.last?.content { return entry.error?.isEmpty == false }
             return false
+        }
+
+        /// Says what a cut would archive, from the server's counts when it sent them (WP-34).
+        private static func cutMessage(_ confirmation: TurnEditConfirmation?) -> String {
+            switch confirmation {
+            case .deepCut(let messages, let turns)?:
+                "This moves \(messages ?? 0) items and \(turns ?? 0) of your turns to the archive."
+            case .emptiesTranscript?:
+                "This moves every message in this chat to the archive."
+            case nil:
+                ""
+            }
         }
 
         private static func isStreamingAssistant(_ item: TranscriptItem) -> Bool {

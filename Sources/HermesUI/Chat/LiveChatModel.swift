@@ -30,6 +30,20 @@
             public let reason: String?
         }
 
+        /// A cut (edit or regenerate) that waits for the user's yes: a deep cut or one that erases the chat (WP-34).
+        public private(set) var pendingCut: PendingCut?
+        /// Why the last edit or regenerate did not go through. Nil when it did or none ran.
+        public private(set) var cutError: String?
+        /// What the user typed for an edit the server has not taken, by the row it was for. The Edit sheet offers it
+        /// again, so a failed edit or a cancelled question does not lose the text.
+        public private(set) var unsentEdits: [Int: String] = [:]
+
+        public struct PendingCut: Equatable {
+            public let rowID: Int
+            public let text: String
+            public let confirmation: TurnEditConfirmation
+        }
+
         /// Clarify questions of this chat that wait for an answer.
         public private(set) var clarifies: [PendingClarify] = []
         /// A sudo password or secret value the server asks for. The sheet opens for the first one.
@@ -199,6 +213,69 @@
         public func steer(_ text: String) {
             guard let controller else { return }
             Task { if await !controller.steer(text) { await controller.send(text) } }
+        }
+
+        /// Replaces the user turn at `rowID` and everything after it with `text`, then sends it (WP-34).
+        public func edit(rowID: Int, text: String) {
+            unsentEdits[rowID] = text
+            runCut(fromRowID: rowID, text: text, consent: [])
+        }
+
+        /// Runs the last user turn again (WP-34).
+        public func regenerate() {
+            guard let last = lastUserTurn else { return }
+            runCut(fromRowID: last.rowID, text: last.text, consent: [])
+        }
+
+        /// Answers the pending cut with the user's yes and runs it (WP-34).
+        public func confirmPendingCut() {
+            guard let cut = pendingCut else { return }
+            pendingCut = nil
+            runCut(fromRowID: cut.rowID, text: cut.text, consent: cut.confirmation.consent)
+        }
+
+        public func dismissPendingCut() {
+            pendingCut = nil
+        }
+
+        public func clearCutError() {
+            cutError = nil
+        }
+
+        /// The last user turn the server stored. Regenerate runs it again.
+        private var lastUserTurn: (rowID: Int, text: String)? {
+            for item in state.items.reversed() {
+                if case .user(let entry) = item.content, let rowID = entry.rowID, entry.displayKind == nil {
+                    return (rowID, entry.text)
+                }
+            }
+            return nil
+        }
+
+        /// Runs the cut through the controller, so the transcript is cut and the reply lands under the edited message.
+        private func runCut(fromRowID rowID: Int, text: String, consent: TurnEditConsent) {
+            guard let controller else { return }
+            Task { [weak self] in
+                let outcome = await controller.edit(text: text, fromRowID: rowID, consent: consent)
+                if let outcome { self?.noteCut(outcome, rowID: rowID, text: text) }
+            }
+        }
+
+        private func noteCut(_ outcome: TurnEditOutcome, rowID: Int, text: String) {
+            switch outcome {
+            case .done:
+                cutError = nil
+                unsentEdits[rowID] = nil
+            case .needsConfirmation(let confirmation):
+                pendingCut = PendingCut(rowID: rowID, text: text, confirmation: confirmation)
+            case .stale:
+                // The controller has read the history again by now.
+                cutError = "That message is no longer in this chat. Check the chat and try again."
+            case .busy:
+                cutError = "Hermes is still replying. Try again when it finishes."
+            case .failed(let error):
+                cutError = Self.describe(error)
+            }
         }
 
         public func editQueued(_ id: Int, to text: String) {
