@@ -1,0 +1,27 @@
+{
+  "body": {
+    "targets": [
+      {
+        "home_env_var": null,
+        "home_target_set": true,
+        "id": "local",
+        "name": "Local (save only)"
+      },
+      {
+        "home_env_var": null,
+        "home_target_set": true,
+        "id": "bot-chat:default",
+        "name": "Bot Chat (default)"
+      }
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/cron/delivery-targets",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

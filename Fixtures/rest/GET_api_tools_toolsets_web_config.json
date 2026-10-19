@@ -1,0 +1,345 @@
+{
+  "body": {
+    "active_extract_backend": "parallel",
+    "active_provider": null,
+    "active_search_backend": "parallel",
+    "extract_via_nous": false,
+    "has_category": true,
+    "name": "web",
+    "providers": [
+      {
+        "badge": "subscription",
+        "capabilities": [
+          "search",
+          "extract"
+        ],
+        "env_vars": [],
+        "is_active": false,
+        "managed_nous_feature": "web",
+        "name": "Nous Subscription",
+        "post_setup": null,
+        "requires_nous_auth": true,
+        "status": "needs_auth",
+        "tag": "Managed web search and extract billed to your subscription",
+        "web_backend": "firecrawl"
+      },
+      {
+        "badge": "free · self-hosted",
+        "capabilities": [
+          "search",
+          "extract"
+        ],
+        "env_vars": [
+          {
+            "default": null,
+            "is_set": false,
+            "key": "FIRECRAWL_API_URL",
+            "prompt": "Your Firecrawl instance URL (e.g., http://localhost:3002)",
+            "url": null
+          }
+        ],
+        "is_active": false,
+        "managed_nous_feature": null,
+        "name": "Firecrawl Self-Hosted",
+        "post_setup": null,
+        "requires_nous_auth": false,
+        "status": "needs_keys",
+        "tag": "Run your own Firecrawl instance (Docker)",
+        "web_backend": "firecrawl"
+      },
+      {
+        "badge": "free",
+        "capabilities": [
+          "search"
+        ],
+        "env_vars": [
+          {
+            "default": null,
+            "is_set": false,
+            "key": "BRAVE_SEARCH_API_KEY",
+            "prompt": "Brave Search API key (free tier)",
+            "url": "https://brave.com/search/api/"
+          }
+        ],
+        "is_active": false,
+        "managed_nous_feature": null,
+        "name": "Brave Search (Free)",
+        "post_setup": null,
+        "requires_nous_auth": false,
+        "status": "needs_keys",
+        "tag": "Free-tier API key — 2k queries/mo, search only.",
+        "web_backend": "brave-free"
+      },
+      {
+        "badge": "free · no key · search only",
+        "capabilities": [
+          "search"
+        ],
+        "env_vars": [],
+        "is_active": false,
+        "managed_nous_feature": null,
+        "name": "DuckDuckGo (ddgs)",
+        "post_setup": "ddgs",
+        "requires_nous_auth": false,
+        "status": "needs_setup",
+        "tag": "Search via the ddgs Python package — no API key (pair with any extract provider)",
+        "web_backend": "ddgs"
+      },
+      {
+        "badge": "free · no key",
+        "capabilities": [
+          "search",
+          "extract"
+        ],
+        "env_vars": [],
+        "is_active": false,
+        "managed_nous_feature": null,
+        "name": "Exa · Free (keyless)",
+        "post_setup": null,
+        "requires_nous_auth": false,
+        "status": "ready",
+        "tag": "Semantic + neural web search with content extraction on Exa's anonymous free tier. Rate-limited under burst load.",
+        "web_backend": "exa"
+      },
+      {
+        "badge": "paid",
+        "capabilities": [
+          "search",
+          "extract"
+        ],
+        "env_vars": [
+          {
+            "default": null,
+            "is_set": false,
+            "key": "EXA_API_KEY",
+            "prompt": "Exa API key",
+            "url": "https://exa.ai"
+          }
+        ],
+        "is_active": false,
+        "managed_nous_feature": null,
+        "name": "Exa · Paid (API key)",
+        "post_setup": null,
+        "requires_nous_auth": false,
+        "status": "needs_keys",
+        "tag": "Semantic + neural web search with content extraction via the Exa SDK. Unthrottled, guaranteed service.",
+        "web_backend": "exa"
+      },
+      {
+        "badge": "keyless/paid · optional gateway",
+        "capabilities": [
+          "search",
+          "extract"
+        ],
+        "env_vars": [
+          {
+            "default": null,
+            "is_set": false,
+            "key": "FIRECRAWL_API_KEY",
+            "prompt": "Firecrawl API key (optional; blank = keyless cloud or self-hosted)",
+            "url": "https://docs.firecrawl.dev/introduction"
+          }
+        ],
+        "is_active": false,
+        "managed_nous_feature": null,
+        "name": "Firecrawl",
+        "post_setup": null,
+        "requires_nous_auth": false,
+        "status": "needs_keys",
+        "tag": "Full search + extract; supports keyless cloud, direct API, and Nous tool-gateway routing.",
+        "web_backend": "firecrawl"
+      },
+      {
+        "badge": "free · no key",
+        "capabilities": [
+          "search",
+          "extract"
+        ],
+        "env_vars": [],
+        "is_active": false,
+        "managed_nous_feature": null,
+        "name": "Keenable · Free (keyless)",
+        "post_setup": null,
+        "requires_nous_auth": false,
+        "status": "ready",
+        "tag": "Independent web index for AI apps — fast search + page fetch on Keenable's anonymous free tier.",
+        "web_backend": "keenable"
+      },
+      {
+        "badge": "paid",
+        "capabilities": [
+          "search",
+          "extract"
+        ],
+        "env_vars": [
+          {
+            "default": null,
+            "is_set": false,
+            "key": "KEENABLE_API_KEY",
+            "prompt": "Keenable API key",
+            "url": "https://keenable.ai"
+          }
+        ],
+        "is_active": false,
+        "managed_nous_feature": null,
+        "name": "Keenable · Paid (API key)",
+        "post_setup": null,
+        "requires_nous_auth": false,
+        "status": "needs_keys",
+        "tag": "Independent web index for AI apps. Keyed access with higher limits and guaranteed service.",
+        "web_backend": "keenable"
+      },
+      {
+        "badge": "native",
+        "capabilities": [
+          "search"
+        ],
+        "env_vars": [],
+        "is_active": false,
+        "managed_nous_feature": null,
+        "name": "OpenAI Native Web Search (Codex Responses)",
+        "post_setup": null,
+        "requires_nous_auth": false,
+        "status": "needs_auth",
+        "tag": "Search runs on the provider side (needs the Codex Responses transport + an openai-codex login); search only, extraction still uses another backend",
+        "web_backend": "openai-native"
+      },
+      {
+        "badge": "free · no key",
+        "capabilities": [
+          "search",
+          "extract"
+        ],
+        "env_vars": [],
+        "is_active": false,
+        "managed_nous_feature": null,
+        "name": "Parallel · Free (keyless)",
+        "post_setup": null,
+        "requires_nous_auth": false,
+        "status": "ready",
+        "tag": "Objective-tuned search + page extraction on Parallel's anonymous free tier. Rate-limited under burst load.",
+        "web_backend": "parallel"
+      },
+      {
+        "badge": "paid",
+        "capabilities": [
+          "search",
+          "extract"
+        ],
+        "env_vars": [
+          {
+            "default": null,
+            "is_set": false,
+            "key": "PARALLEL_API_KEY",
+            "prompt": "Parallel API key",
+            "url": "https://parallel.ai"
+          }
+        ],
+        "is_active": false,
+        "managed_nous_feature": null,
+        "name": "Parallel · Paid (API key)",
+        "post_setup": null,
+        "requires_nous_auth": false,
+        "status": "needs_keys",
+        "tag": "Objective-tuned search + parallel page extraction via the Parallel SDK. Unthrottled, guaranteed service.",
+        "web_backend": "parallel"
+      },
+      {
+        "badge": "paid",
+        "capabilities": [
+          "search",
+          "extract"
+        ],
+        "env_vars": [
+          {
+            "default": null,
+            "is_set": false,
+            "key": "PERPLEXITY_API_KEY",
+            "prompt": "Perplexity API key",
+            "url": "https://www.perplexity.ai/account/api"
+          }
+        ],
+        "is_active": false,
+        "managed_nous_feature": null,
+        "name": "Perplexity",
+        "post_setup": null,
+        "requires_nous_auth": false,
+        "status": "needs_keys",
+        "tag": "Perplexity Search API — ranked, date-stamped web results plus query-relevant page snippets for extract.",
+        "web_backend": "perplexity"
+      },
+      {
+        "badge": "free · self-hosted",
+        "capabilities": [
+          "search"
+        ],
+        "env_vars": [
+          {
+            "default": null,
+            "is_set": false,
+            "key": "SEARXNG_URL",
+            "prompt": "SearXNG instance URL (e.g. http://localhost:8080)",
+            "url": "https://searx.space/"
+          }
+        ],
+        "is_active": false,
+        "managed_nous_feature": null,
+        "name": "SearXNG",
+        "post_setup": null,
+        "requires_nous_auth": false,
+        "status": "needs_keys",
+        "tag": "Free, privacy-respecting metasearch. Point SEARXNG_URL at your instance.",
+        "web_backend": "searxng"
+      },
+      {
+        "badge": "free · key optional",
+        "capabilities": [
+          "search",
+          "extract"
+        ],
+        "env_vars": [
+          {
+            "default": null,
+            "is_set": false,
+            "key": "TAVILY_API_KEY",
+            "prompt": "Tavily API key (optional — keyless works when Tavily is selected)",
+            "url": "https://app.tavily.com/home"
+          }
+        ],
+        "is_active": false,
+        "managed_nous_feature": null,
+        "name": "Tavily",
+        "post_setup": null,
+        "requires_nous_auth": false,
+        "status": "needs_keys",
+        "tag": "Search + extract. Opt-in keyless; set TAVILY_API_KEY for higher limits.",
+        "web_backend": "tavily"
+      },
+      {
+        "badge": "paid",
+        "capabilities": [
+          "search"
+        ],
+        "env_vars": [],
+        "is_active": false,
+        "managed_nous_feature": null,
+        "name": "xAI Web Search (Grok)",
+        "post_setup": "xai_grok",
+        "requires_nous_auth": false,
+        "status": "needs_auth",
+        "tag": "Agentic web search via Grok's web_search tool — uses xAI Grok OAuth or XAI_API_KEY.",
+        "web_backend": "xai"
+      }
+    ],
+    "search_via_nous": false
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/tools/toolsets/web/config",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

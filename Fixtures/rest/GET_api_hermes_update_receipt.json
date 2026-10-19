@@ -1,0 +1,14 @@
+{
+  "body": {
+    "detail": "No update receipt found (no `hermes update` run recorded)."
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/hermes/update/receipt",
+    "query": {}
+  },
+  "status": 404,
+  "step": "enumerate"
+}

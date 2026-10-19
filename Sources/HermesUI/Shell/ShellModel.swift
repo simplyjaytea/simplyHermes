@@ -68,8 +68,14 @@
         @ObservationIgnored private var streamTasks: [String: Task<Void, Never>] = [:]
         /// Chats read from the connected server (WP-30). Nil when there is no server connection to read from.
         @ObservationIgnored public var liveChats: LiveChatStore?
+        /// Browses the active server's files for the preview rail (WP-37). Nil when there is no server connection.
+        @ObservationIgnored public var workspaceBrowser: WorkspaceBrowserModel?
         /// Ids of the chats the server listed. These open as live chats; the rest stay placeholders.
         public private(set) var serverSessionIDs: Set<String> = []
+        /// Bot Chats opened from the Bots screen (WP-42). They are hidden, so the sessions list never lists them.
+        public private(set) var botChatIDs: Set<String> = []
+        /// Chats made on the server from outside the chat list, which the server does not list yet.
+        @ObservationIgnored var startedChats = StartedChats()
         public var isPalettePresented = false
         /// Report a bug, opened from the command palette.
         public var isBugReportPresented = false
@@ -80,6 +86,10 @@
         public var showsPreviewRail = true
         /// Forces a layout, for UI tests and the debug menu. `nil` follows the screen and posture.
         public var layoutOverride: DisplayLayout?
+        /// A session link to open, set by the URL handler. The shell opens it, then clears this (WP-40).
+        public var pendingSessionReference: SessionReference?
+        /// A calm message the shell shows when a session link cannot be opened.
+        public var sessionNotice: String?
 
         public init(sessions: [ChatSessionSummary] = ShellModel.sampleSessions, selectedSessionID: String? = nil) {
             self.sessions = sessions
@@ -138,14 +148,15 @@
         /// Replaces the listed chats with the server's (WP-40). Chats started here stay. Their transcripts arrive with
         /// WP-30, so a synced chat opens empty for now.
         public func syncSessions(_ items: [SessionListItem]) {
-            let listed = Set(items.map(\.id))
-            startedServerIDs.subtract(listed)
-            let local = sessions.filter { $0.id.hasPrefix("new-") || startedServerIDs.contains($0.id) }
+            let started = startedChatsToKeep(listed: Set(items.map(\.id)))
+            let local = sessions.filter { $0.id.hasPrefix("new-") || botChatIDs.contains($0.id) }
             let synced = items.map {
                 ChatSessionSummary(id: $0.id, title: $0.title, subtitle: $0.time ?? "", serverName: $0.serverName)
             }
             sessions = local + synced
-            serverSessionIDs = listed.union(startedServerIDs)
+            serverSessionIDs = Set(items.map(\.id)).union(botChatIDs)
+            sessions.insert(contentsOf: started, at: local.count)
+            serverSessionIDs.formUnion(started.map(\.id))
             for session in sessions where transcripts[session.id] == nil { transcripts[session.id] = [] }
             let ids = Set(sessions.map(\.id))
             openSessionIDs.removeAll { !ids.contains($0) }
@@ -164,13 +175,24 @@
             open(item.id)
         }
 
+        /// Opens a bot's Bot Chat from the Bots screen (WP-42). The chat is hidden, so it is kept across list syncs.
+        public func openBotChat(_ item: SessionListItem) {
+            botChatIDs.insert(item.id)
+            show(item)
+        }
+
+        /// Forgets the Bot Chats and the new chats of the server that was active. A server switch calls this.
+        /// A profile change does not, because opening a bot switches the profile (WP-42).
+        public func forgetServerChats() {
+            botChatIDs = []
+            startedChats = StartedChats()
+        }
+
         /// Creates the server chat for a New chat's first message. Nil when no server is saved: New chats then stay
         /// placeholders.
         @ObservationIgnored public var startServerChat: (@MainActor () async throws -> SessionListItem?)?
         /// Hands a New chat's first message and its files to the chat's live model, which sends them on attach.
         @ObservationIgnored public var handOffFirstMessage: (@MainActor (String, String, [ComposerAttachment]) -> Void)?
-        /// Server chats created in this run. A list sync keeps each until the server lists it, which may take a moment.
-        @ObservationIgnored private var startedServerIDs: Set<String> = []
         /// New chats whose server chat is created by their first message. Until then they are placeholders.
         @ObservationIgnored private var unstartedChatIDs: Set<String> = []
         /// The first message being sent in each New chat. A repeat send there joins it, so a double tap sends once.
@@ -225,7 +247,7 @@
         /// Gives a New chat its server id. The sidebar row, tab, transcript, draft and files move to the server chat.
         private func adopt(_ item: SessionListItem, replacing placeholderID: String) {
             unstartedChatIDs.remove(placeholderID)
-            startedServerIDs.insert(item.id)
+            startedChats.note(item.id)
             serverSessionIDs.insert(item.id)
             let summary = ChatSessionSummary(
                 id: item.id, title: item.title, subtitle: item.time ?? "", serverName: item.serverName)

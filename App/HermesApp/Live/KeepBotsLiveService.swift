@@ -10,9 +10,11 @@ import OSLog
 final class KeepBotsLiveService {
     private var engine: AVAudioEngine?
     private let defaults: UserDefaults
+    private var lastRunningTurns = 0
     private let logger = Logger(subsystem: "com.simplyjaytea.simplyhermes", category: "KeepBotsLive")
 
-    init(defaults: UserDefaults = .standard) {
+    /// The switch lives in the App Group when there is one, so Control Center can flip it.
+    init(defaults: UserDefaults = KeepBotsLiveSetting.store()) {
         self.defaults = defaults
     }
 
@@ -21,11 +23,17 @@ final class KeepBotsLiveService {
 
     /// Holds or releases the audio session for the number of turns running now.
     func update(runningTurns: Int) {
+        lastRunningTurns = runningTurns
         if isEnabled && runningTurns > 0 {
             hold()
         } else {
             release()
         }
+    }
+
+    /// Applies the switch again for the turns counted last. Control Center changes it from another process.
+    func reevaluate() {
+        update(runningTurns: lastRunningTurns)
     }
 
     private func hold() {
