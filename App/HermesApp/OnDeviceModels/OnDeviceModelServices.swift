@@ -24,10 +24,10 @@ final class OnDeviceModelServices {
 
     private var observers: [any NSObjectProtocol] = []
 
-    /// `isEnabled` is the Settings switch for on-device features (plan WP-65b); on until that switch is wired in.
+    /// `isEnabled` is the Settings switch for on-device features (plan WP-65b). It reads the switch in `UserDefaults`.
     init(
         apple: any LocalModelExecutor = AppleLocalModel(),
-        isEnabled: @escaping @Sendable () -> Bool = { true }
+        isEnabled: @escaping @Sendable () -> Bool = { OnDeviceSettings().isEnabled }
     ) {
         let storage = OnDeviceModelStorage(root: OnDeviceModelStorage.defaultRoot())
         let manager = OnDeviceModelManager(storage: storage, downloader: URLSessionModelFileDownloader())

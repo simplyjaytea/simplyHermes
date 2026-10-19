@@ -10,6 +10,7 @@ struct HermesApp: App {
     private let launch: LaunchOptions
     private let integration: AppIntegration
     private let entry: EntryIntegration
+    @AppStorage(OnDeviceSettings.key) private var onDeviceEnabled = true
 
     init() {
         let launch = LaunchOptions(defaults: .standard)
@@ -34,6 +35,7 @@ struct HermesApp: App {
                 .integrationHost(entry)
                 .tint(HermesColor.accent)
                 .environment(\.onDeviceModels, OnDeviceModelServices.shared.model)
+                .onDeviceModelsSheet(OnDeviceModelServices.shared.model, isEnabled: $onDeviceEnabled)
                 .onOpenURL { url in
                     if let id = HermesURL.chatID(from: url), model.session(id: id) != nil {
                         model.open(id)
@@ -58,7 +60,10 @@ struct HermesApp: App {
         guard let cache else { preconditionFailure("The in-memory cache cannot fail to open") }
         // WP-65b: offline chats are kept in the same cache file as the chat list. They exist nowhere else, so they stay
         // off when the file would not open and the cache fell back to memory. UI tests keep it in memory on purpose.
-        if file != nil || launch.onboarding != nil { OfflineChatServices.install(cache: cache) }
+        if file != nil || launch.onboarding != nil {
+            OfflineChatServices.install(cache: cache, executor: OnDeviceModelServices.shared.executor)
+            OfflineChatServices.shared?.onGetBetterModel = { OnDeviceModelServices.shared.presentModelList() }
+        }
         return SessionsListModel(connections: saved, cache: cache)
     }
 
