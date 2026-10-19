@@ -1,0 +1,22 @@
+{
+  "body": {
+    "detail": "Webhook platform is not enabled. Enable it from the Webhooks page first."
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": {
+      "deliver": "log",
+      "deliver_only": false,
+      "description": "recorder fixture",
+      "events": [],
+      "name": "recorder-hook",
+      "prompt": "recorder fixture",
+      "skills": []
+    },
+    "method": "POST",
+    "path": "/api/webhooks",
+    "query": {}
+  },
+  "status": 400,
+  "step": "webhooks.create"
+}

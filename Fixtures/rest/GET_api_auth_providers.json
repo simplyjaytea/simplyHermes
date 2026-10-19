@@ -1,0 +1,20 @@
+{
+  "body": {
+    "providers": [
+      {
+        "display_name": "Username & Password",
+        "name": "basic",
+        "supports_password": true
+      }
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/auth/providers",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

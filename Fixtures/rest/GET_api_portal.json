@@ -1,0 +1,50 @@
+{
+  "body": {
+    "account_tier": null,
+    "features": [
+      {
+        "label": "Web tools",
+        "state": "not configured"
+      },
+      {
+        "label": "Image generation",
+        "state": "not configured"
+      },
+      {
+        "label": "Video generation",
+        "state": "not configured"
+      },
+      {
+        "label": "OpenAI TTS",
+        "state": "Edge TTS"
+      },
+      {
+        "label": "Speech-to-text",
+        "state": "not configured"
+      },
+      {
+        "label": "Browser automation",
+        "state": "not configured"
+      },
+      {
+        "label": "Modal execution",
+        "state": "local"
+      }
+    ],
+    "free_tier": false,
+    "inference_url": null,
+    "logged_in": false,
+    "portal_url": null,
+    "provider": "custom",
+    "subscription_url": "https://portal.nousresearch.com/manage-subscription"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/portal",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

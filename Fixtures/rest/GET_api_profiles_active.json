@@ -1,0 +1,15 @@
+{
+  "body": {
+    "active": "default",
+    "current": "default"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/profiles/active",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

@@ -1,0 +1,20 @@
+{
+  "body": {
+    "active_store": 1,
+    "archived": 0,
+    "by_source": {
+      "tui": 1
+    },
+    "messages": 2,
+    "total": 1
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/sessions/stats",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

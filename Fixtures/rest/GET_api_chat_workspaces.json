@@ -1,0 +1,25 @@
+{
+  "body": {
+    "default_cwd": "/opt/hermes",
+    "home": "/root",
+    "projects": [],
+    "repos": [
+      {
+        "label": "hermes",
+        "last_active": 1792299062.1441207,
+        "root": "/opt/hermes",
+        "sessions": 1
+      }
+    ],
+    "scan_enabled": true
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/chat/workspaces",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

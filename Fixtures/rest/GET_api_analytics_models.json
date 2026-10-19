@@ -1,0 +1,43 @@
+{
+  "body": {
+    "models": [
+      {
+        "actual_cost": 0.0,
+        "api_calls": 2,
+        "avg_tokens_per_session": 224.0,
+        "cache_read_tokens": 0,
+        "capabilities": {},
+        "estimated_cost": 0,
+        "input_tokens": 200,
+        "last_used_at": 1792299068.2275763,
+        "model": "fake-model",
+        "output_tokens": 24,
+        "provider": "custom",
+        "reasoning_tokens": 0,
+        "sessions": 1,
+        "tool_calls": 0
+      }
+    ],
+    "period_days": 30,
+    "totals": {
+      "distinct_models": 1,
+      "total_actual_cost": 0,
+      "total_api_calls": 1,
+      "total_cache_read": 0,
+      "total_estimated_cost": 0.0,
+      "total_input": 100,
+      "total_output": 12,
+      "total_reasoning": 0,
+      "total_sessions": 1
+    }
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/analytics/models",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}
