@@ -1,0 +1,156 @@
+{
+  "body": {
+    "providers": [
+      {
+        "cli_command": "hermes auth add nous",
+        "disconnect_command": null,
+        "disconnect_hint": null,
+        "disconnectable": true,
+        "docs_url": "https://portal.nousresearch.com",
+        "flow": "device_code",
+        "id": "nous",
+        "name": "Nous Portal",
+        "status": {
+          "account_tier": null,
+          "expires_at": null,
+          "free_tier": false,
+          "has_refresh_token": false,
+          "logged_in": false,
+          "source": "nous_portal",
+          "source_label": "Nous Portal",
+          "token_preview": ""
+        }
+      },
+      {
+        "cli_command": "hermes auth add openai-codex",
+        "disconnect_command": null,
+        "disconnect_hint": null,
+        "disconnectable": true,
+        "docs_url": "https://platform.openai.com/docs",
+        "flow": "device_code",
+        "id": "openai-codex",
+        "name": "ChatGPT or Codex Subscription",
+        "status": {
+          "expires_at": null,
+          "has_refresh_token": false,
+          "last_refresh": null,
+          "logged_in": false,
+          "source": "openai_codex",
+          "source_label": "OpenAI Codex",
+          "token_preview": ""
+        }
+      },
+      {
+        "cli_command": "hermes auth add qwen-oauth",
+        "disconnect_command": null,
+        "disconnect_hint": "Managed by that provider's CLI; remove it there.",
+        "disconnectable": false,
+        "docs_url": "https://github.com/QwenLM/qwen-code",
+        "flow": "external",
+        "id": "qwen-oauth",
+        "name": "Qwen (via Qwen CLI)",
+        "status": {
+          "expires_at": null,
+          "has_refresh_token": false,
+          "logged_in": false,
+          "source": "qwen_cli",
+          "source_label": "/root/.qwen/oauth_creds.json",
+          "token_preview": ""
+        }
+      },
+      {
+        "cli_command": "hermes auth add minimax-oauth",
+        "disconnect_command": null,
+        "disconnect_hint": null,
+        "disconnectable": true,
+        "docs_url": "https://www.minimax.io",
+        "flow": "device_code",
+        "id": "minimax-oauth",
+        "name": "MiniMax (OAuth)",
+        "status": {
+          "expires_at": null,
+          "has_refresh_token": true,
+          "logged_in": false,
+          "source": "minimax_oauth",
+          "source_label": "MiniMax (global)",
+          "token_preview": null
+        }
+      },
+      {
+        "cli_command": "hermes auth add xai-oauth",
+        "disconnect_command": null,
+        "disconnect_hint": null,
+        "disconnectable": true,
+        "docs_url": "https://hermes-agent.nousresearch.com/docs/guides/xai-grok-oauth",
+        "flow": "device_code",
+        "id": "xai-oauth",
+        "name": "xAI Grok OAuth (SuperGrok / Premium+)",
+        "status": {
+          "expires_at": null,
+          "has_refresh_token": true,
+          "last_refresh": null,
+          "logged_in": false,
+          "source": "xai_oauth",
+          "source_label": "/data/hermes/auth.json",
+          "token_preview": ""
+        }
+      },
+      {
+        "cli_command": "copilot login",
+        "disconnect_command": null,
+        "disconnect_hint": "Managed by that provider's CLI; remove it there.",
+        "disconnectable": false,
+        "docs_url": "https://docs.github.com/en/copilot",
+        "flow": "external",
+        "id": "copilot-acp",
+        "name": "GitHub Copilot (ACP)",
+        "status": {
+          "configured": false,
+          "expires_at": null,
+          "has_refresh_token": false,
+          "logged_in": false,
+          "source": "copilot_cli",
+          "source_label": "GitHub Copilot CLI not found on PATH",
+          "token_preview": null
+        }
+      },
+      {
+        "cli_command": "hermes auth add anthropic",
+        "disconnect_command": null,
+        "disconnect_hint": null,
+        "disconnectable": true,
+        "docs_url": "https://docs.claude.com/en/api/getting-started",
+        "flow": "external",
+        "id": "anthropic",
+        "name": "Anthropic Account",
+        "status": {
+          "logged_in": false,
+          "source": null
+        }
+      },
+      {
+        "cli_command": "claude setup-token",
+        "disconnect_command": "rm -f ~/.claude/.credentials.json",
+        "disconnect_hint": "Managed outside Hermes — run the disconnect command to remove it.",
+        "disconnectable": false,
+        "docs_url": "https://docs.claude.com/en/docs/claude-code",
+        "flow": "external",
+        "id": "claude-code",
+        "name": "Anthropic OAuth: Required Extra Usage Credits to Use Subscription",
+        "status": {
+          "logged_in": false,
+          "source": null
+        }
+      }
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/providers/oauth",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

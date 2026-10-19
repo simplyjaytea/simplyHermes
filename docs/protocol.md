@@ -182,6 +182,8 @@ Upstream Desktop uses the system `ssh` binary with ControlMaster and a spawned `
 - A Bot is a profile. `profiles.list` → `{profiles:[{name, path, is_default, model, provider, description, display_name, skill_count, last_session, ui_meta?, ...}], bot_mode_protocol: true, install_id}` [V]. `bot_mode_protocol: true` means this backend injects the teammate-messaging protocol.
 - Create: `profiles.create {name, description?, clone_from?, clone_all?, soul?, model?, provider?, ...}`; details: `profiles.describe`; edit: `profiles.configure` (carries `ui_meta` with compare-and-swap); assets: `profiles.get_asset/set_asset`.
 - `ui_meta` (look, title, model pin, sections, hidden, memberships) travels inside `profiles.list` rows and `profiles.configure`. Contract schemas `ProfileRow`, `ProfilesConfigureParams`.
+- Export and import (REST, WP-41, UNTESTED LIVE): `POST /api/profiles/{name}/export` takes `{output, extra_files}`; `POST /api/profiles/import` takes `{archive, name?}`, and the phone sends `archive` as base64. Neither takes `?profile=`. The spec gives no response schema and the archive format is not documented, so the phone reads the export answer as raw bytes or a base64 `archive`/`data`/`base64`/`content` field, and reports a bare `path` as "saved on the server". An import counts as done only when the answer has `ok: true` or a `name`. `ProfileTransferShapeTests` pin these shapes; `ProfileTransferLiveTests` is the live probe that CI's testbed job runs. Until that job passes, both stay untested live.
+- `GET /api/status` takes `?profile=` in the spec, but the phone keeps that call unscoped: it is the public probe run before a profile is chosen. `GET /api/profiles/sessions` takes `?profile=` (default `all`) and lists every profile, so the phone never sends the active profile to it. `ProfileRESTScopeTests` lists both as the documented exceptions.
 - Rooms (same gateway): `groups.capabilities` → `{protocol_version, driver: bool, persistent_process, authority_gateway_id, room_link, features[], methods[], max_log_limit}`; `groups.create {room_id, name, members:[{member_id, profile, handle}], authority_gateway_id?}` (idempotent); `groups.send {room_id, event_id?, payload:{text, thread_id?}}` (`event_id` makes it idempotent; same id with a different payload → `4111`); `groups.log {room_id, since_seq?, limit?}`; `groups.state`; `groups.stop {room_id}` → `{cancelled}`; `groups.list`, `groups.rename`, `groups.disband`.
 - The gateway runs the turns (`driver: true`); closing the client does not stop a room. A room whose authority is another gateway rejects sends with `4111`.
 - `groups.promote/demote/replicate/replica_state/peer.*` are replication and split-brain recovery. Never call automatically (plan 2.5).
@@ -204,3 +206,40 @@ CI gate: `Tests/HermesKitTests/FixtureLintTests.swift` checks every line is vali
 - **Native PKCE / OIDC / `nous`** untested.
 - **Kanban and git** endpoints are known only from OpenAPI, not exercised.
 - Upstream moves fast (contract `version: "1"`, `desktop_contract: 8`). Pin `HERMES_REF`; re-record and diff the OpenRPC file on each bump.
+
+## 13. Terminal `/api/pty` and git review `/api/git/*` (WP-61, WP-62)
+
+Source for this section: the `hermes_cli/web_server.py`, `pty_session.py` and `web_git.py` files of PyPI `hermes-agent` 0.19.0. That is older than the testbed pin (section 0), so every claim here is **[S]**. Only the testbed run in CI (`TerminalLiveTests`, plus the REST live tests) checks them against the pinned commit.
+
+### 13.1 `WS /api/pty` (terminal)
+
+- **What it runs.** Each socket spawns `hermes --tui` on a POSIX PTY, the same binary the CLI runs. No plain shell is offered, so a terminal here is a Hermes TUI session. [S]
+- **Auth.** Same as `/api/ws`: `?ticket=` on a gated server (single-use, from `POST /api/auth/ws-ticket`), `?token=` on loopback. Refusals close with `4401` (credential), `4403` (host or origin), `4408` (peer), `4404` (embedded chat disabled). The upgrade itself answers `403` for a bad or reused ticket. [S]
+- **Query.**
+  - `attach=<name>`: keeps the PTY alive after the socket closes. A socket with the same name reattaches to it and gets the buffered output (1 MiB). A detached PTY is reaped after 30 min. At most 16 PTYs. The app gives each tab its own name and reattaches when the tab is shown again. [S]
+  - `profile=<name>`: the profile scope, as in REST. `resume=<session id>` and `fresh=1` pick the chat. `channel=<id>` links the dashboard sidebar; the app leaves it out. [S]
+- **Frames.** Server to client: binary frames are raw PTY bytes. A UTF-8 sequence may split across frames, so decode the bytes, not the frames. Text frames come only before the PTY starts, for errors such as "Chat unavailable". When the child exits, the server closes with `4410`. Client to server: keystrokes as binary frames. A frame that is exactly `ESC [ RESIZE : cols ; rows ]` is a window size and is never written to the PTY. Send one before the first output. [S]
+- **App behavior.** Closing the socket leaves the PTY running. Reattaching with the same `attach` name shows the TUI again. Tabs cannot kill a PTY from the client; the server reaps it after 30 min. [S]
+
+### 13.2 `/api/git/*` (git review)
+
+Request bodies come from `docs/protocol/dashboard-openapi.json`. Response shapes are untyped there, so they come from `web_git.py`. [S]
+
+| Route | Request | Response |
+|---|---|---|
+| `GET /api/git/status?path` | | `GitStatus` (WP-12) |
+| `GET /api/git/review/list?path&scope&base` | `scope`: `uncommitted` (default), `branch`, `lastTurn` | `{files: [{path, added, removed, status, staged}], base}` |
+| `GET /api/git/review/diff?path&file&scope&base&staged` | | `{diff}` (unified text) |
+| `GET /api/git/file-diff?path&file` | | `{diff}`, working tree against HEAD |
+| `GET /api/git/review/commit-context?path` | | `{diff, recent}`: the diff that will commit and the last 10 subjects |
+| `POST /api/git/review/stage` · `unstage` · `revert` | `{path, file?}` (no `file` = all) | `{ok}`. `revert` restores tracked files and removes untracked ones |
+| `POST /api/git/review/commit` | `{path, message, push}` | `{ok}`. Stages everything when nothing is staged |
+| `POST /api/git/review/push` | `{path}` | `{ok}` |
+| `GET /api/git/review/ship-info?path` | | `{ghReady, pr: {url, state, number} \| null}` |
+| `POST /api/git/review/create-pr` | `{path}` | `{url}`. Pushes first, then `gh pr create --fill` |
+| `GET /api/git/worktrees?path` · `branches?path` · `base-branches?path` | | `{worktrees: [...]}`, `{branches: [...]}` |
+| `POST /api/git/worktree/add` | `{path, name?, branch?, base?, existingBranch?}` | `{path, branch, repoRoot}` |
+| `POST /api/git/worktree/remove` | `{path, worktreePath, force}` | `{removed}` |
+| `POST /api/git/branch/switch` | `{path, branch}` | `{branch}` |
+
+A failed mutation answers `400` with `detail` set to git's message. `path` is a directory on the server, not on the phone.

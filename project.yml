@@ -16,6 +16,16 @@ packages:
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
+  # WP-65c, downloaded on-device models. Declared here and not in Package.swift, so Linux CI never fetches them.
+  MLXSwiftLM:
+    url: https://github.com/ml-explore/mlx-swift-lm
+    exactVersion: 3.32.3
+  MLXSwift:
+    url: https://github.com/ml-explore/mlx-swift
+    minorVersion: 0.32.3
+  SwiftTransformers:
+    url: https://github.com/huggingface/swift-transformers
+    exactVersion: 1.3.5
 targets:
   simplyHermes:
     type: application
@@ -28,7 +38,18 @@ targets:
         product: HermesSSH
       - package: simplyHermes
         product: HermesUI
+      - package: MLXSwiftLM
+        product: MLXLLM
+      - package: MLXSwiftLM
+        product: MLXLMCommon
+      - package: MLXSwiftLM
+        product: MLXFoundationModels
+      - package: MLXSwift
+        product: MLX
+      - package: SwiftTransformers
+        product: Tokenizers
       - target: simplyHermesWidgets
+      - target: simplyHermesShare
     entitlements:
       path: App/HermesApp/simplyHermes.entitlements
       properties:
@@ -36,6 +57,8 @@ targets:
           - group.com.simplyjaytea.simplyhermes
         keychain-access-groups:
           - $(AppIdentifierPrefix)com.simplyjaytea.simplyhermes.shared
+        # WP-65c: downloaded models need more memory than the default app limit. Not available on every device.
+        com.apple.developer.kernel.increased-memory-limit: true
     info:
       path: App/HermesApp/Info.plist
       properties:
@@ -52,6 +75,7 @@ targets:
         NSLocalNetworkUsageDescription: simplyHermes connects to a Hermes server on your local network.
         NSCameraUsageDescription: simplyHermes scans server QR codes to add a connection.
         NSFaceIDUsageDescription: simplyHermes asks for Face ID before it uses your saved server keys.
+        NSMicrophoneUsageDescription: simplyHermes records your voice for dictation and voice conversations and sends it to your Hermes server to turn it into text.
         # Plan Q14: plain HTTP is allowed for local, private and Tailscale hosts (100.x and *.ts.net, which
         # NSAllowsLocalNetworking does not cover). The app refuses http:// to public hosts itself (ConnectionAddress).
         NSAppTransportSecurity:
@@ -71,7 +95,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.simplyjaytea.simplyhermes
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-  # The only extension besides the planned Share extension: free signing allows few App IDs.
+  # One of two extensions, with simplyHermesShare below: free signing allows few App IDs.
   simplyHermesWidgets:
     type: app-extension
     platform: iOS
@@ -97,6 +121,43 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.simplyjaytea.simplyhermes.widgets
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
+  # "Send to Hermes" in the share sheet (WP-63). It never opens a connection: it writes the share to the outbox in the
+  # App Group and opens simplyHermes, which sends it.
+  simplyHermesShare:
+    type: app-extension
+    platform: iOS
+    sources: [App/HermesShare]
+    dependencies:
+      - package: simplyHermes
+        product: HermesKit
+      - package: simplyHermes
+        product: HermesUI
+      - sdk: SwiftUI.framework
+      - sdk: UniformTypeIdentifiers.framework
+    entitlements:
+      path: App/HermesShare/simplyHermesShare.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.simplyjaytea.simplyhermes
+    info:
+      path: App/HermesShare/Info.plist
+      properties:
+        CFBundleDisplayName: simplyHermes
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            # Text, one web link, up to 5 photos and up to 5 files. Any one of these is enough.
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsImageWithMaxCount: 5
+              NSExtensionActivationSupportsFileWithMaxCount: 5
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.simplyjaytea.simplyhermes.share
         TARGETED_DEVICE_FAMILY: "1"
         SKIP_INSTALL: YES
   simplyHermesTests:

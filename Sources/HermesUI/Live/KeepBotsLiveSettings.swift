@@ -1,18 +1,43 @@
 #if canImport(UIKit)
+    import Foundation
+    import HermesKit
     import SwiftUI
 
     /// "Keep bots live" (plan decision D1, option B): while a bot works, the app holds a silent audio
     /// session so iOS keeps it running and the Live Activity stays current. Off by default.
     public enum KeepBotsLiveSetting {
-        /// `UserDefaults.standard` key for the switch.
+        /// The key for the switch, in ``store()``.
         public static let key = "keepBotsLive"
         /// Set once the battery note has been shown.
         public static let noteShownKey = "keepBotsLiveNoteShown"
+
+        /// The App Group this install is signed with, if any. Looked up at run time because SideStore renames it.
+        private static let groupID: String? = {
+            let resolution = SharedContainer.resolve(
+                infoDictionary: Bundle.main.infoDictionary,
+                containerURL: { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) }
+            )
+            if case .appGroup(let id, _) = resolution { return id }
+            return nil
+        }()
+
+        /// True when the switch lives in the App Group, so Control Center and the app see the same value.
+        public static var isShared: Bool { groupID != nil }
+
+        /// Where the switch is kept: the App Group when there is one, else this app's own defaults. A value set before
+        /// the switch moved to the App Group is copied over once.
+        public static func store() -> UserDefaults {
+            guard let groupID, let shared = UserDefaults(suiteName: groupID) else { return .standard }
+            if shared.object(forKey: key) == nil, let earlier = UserDefaults.standard.object(forKey: key) as? Bool {
+                shared.set(earlier, forKey: key)
+            }
+            return shared
+        }
     }
 
     /// Settings > Bots: the switch, and a one-time battery note when it is first turned on.
     public struct BotsSettingsSection: View {
-        @AppStorage(KeepBotsLiveSetting.key) private var keepBotsLive = false
+        @AppStorage(KeepBotsLiveSetting.key, store: KeepBotsLiveSetting.store()) private var keepBotsLive = false
         @AppStorage(KeepBotsLiveSetting.noteShownKey) private var noteShown = false
         @State private var showsNote = false
 
@@ -61,6 +86,7 @@
                 BotsSettingsSection()
                 SoundsSettingsSection()
                 TipsSettingsSection()
+                OnDeviceSettingsSection()
                 Section("Support") {
                     NavigationLink {
                         BugReportScreen(connections: nil)

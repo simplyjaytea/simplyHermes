@@ -95,6 +95,27 @@ first `session.create` or `session.activate` gives `info.desktop_contract` (8; h
 simplyHermes" note). The Test button runs the same HTTP check plus a WebSocket leg: open `/api/ws` with a fresh
 ticket (SSH: the tunnel token), wait for the handshake, call `gateway.capabilities`.
 
+## Downloaded on-device models (WP-65c)
+
+Plan Q17: the Apple on-device model is the default, and the user can also download an MLX model. Plan Q45: the list is
+Settings > On-device models, also opened from "Get a better model" in offline chat.
+
+- `HermesKit/OnDeviceModels`: the catalog (three models pinned to a Hugging Face commit, with exact file names and
+  sizes, so the size shows before a download), the download manager (one download at a time, file by file into
+  `<id>.partial`, pause and resume with URLSession resume data, a free-space check first), the storage under
+  Application Support/simplyHermes/OnDeviceModels (excluded from backup), and `OnDeviceModelSelection`. The selection
+  is itself a `LocalModelExecutor`: it answers with the Apple model unless the user picked a downloaded model, and
+  falls back to Apple after a memory warning, when the files are gone, or when the device cannot run the model. The
+  model runtime is a protocol (`OnDeviceModelRuntime`), so HermesKit never imports MLX and the logic is tested on Linux
+  with mocks.
+- `App/HermesApp/OnDeviceModels`: the MLX side. `MLXLanguageModel` (mlx-swift-lm, product `MLXFoundationModels`, iOS 27)
+  runs the model folder, a small tokenizer bridge uses swift-transformers, and `OnDeviceModelServices` wires it up and
+  listens for `UIApplication.didReceiveMemoryWarningNotification`. The MLX packages are declared in `project.yml`, not
+  in `Package.swift`, so Linux CI does not fetch them. The Simulator has no runtime: the Apple model answers there.
+- `HermesUI/OnDeviceModels`: `OnDeviceModelsView` (the switch for on-device features is a `Binding<Bool>` from the
+  caller), its model, and the `onDeviceModels` environment value.
+- The app asks for `com.apple.developer.kernel.increased-memory-limit` (`project.yml`). See `docs/sideloading.md`.
+
 ## Networking permissions
 
 LAN gateways need `NSLocalNetworkUsageDescription` (set); the app explains the prompt once before the first Test of a

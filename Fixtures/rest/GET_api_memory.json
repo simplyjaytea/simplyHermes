@@ -1,0 +1,56 @@
+{
+  "body": {
+    "active": "",
+    "builtin_files": {
+      "memory": 0,
+      "user": 0
+    },
+    "providers": [
+      {
+        "available": false,
+        "configured": true,
+        "description": "ByteRover — persistent knowledge tree with tiered retrieval via the brv CLI.",
+        "name": "byterover",
+        "setup": {
+          "dependencies_installed": false,
+          "external_dependencies": [
+            {
+              "check": "brv --version",
+              "install": "curl -fsSL https://byterover.dev/install.sh | sh",
+              "name": "brv"
+            }
+          ],
+          "pip_dependencies": [],
+          "python_dependencies_declared": false,
+          "required_env": []
+        },
+        "status": "unavailable"
+      },
+      {
+        "available": false,
+        "configured": false,
+        "description": "RetainDB — cloud memory API with hybrid search and 7 memory types.",
+        "name": "retaindb",
+        "setup": {
+          "dependencies_installed": true,
+          "external_dependencies": [],
+          "pip_dependencies": [],
+          "python_dependencies_declared": false,
+          "required_env": [
+            "RETAINDB_API_KEY"
+          ]
+        },
+        "status": "needs_config"
+      }
+    ]
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/memory",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

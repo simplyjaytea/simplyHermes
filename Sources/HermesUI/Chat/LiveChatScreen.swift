@@ -15,7 +15,12 @@
         @State private var isFinding = false
         @State private var query = ""
         @State private var currentMatch: String?
+        @State private var voice: VoiceInputModel?
+        @State private var announcedReplyID: String?
         @FocusState private var findFocused: Bool
+        @Environment(\.scenePhase) private var scenePhase
+        @State private var showsWorkspaces = false
+        @State private var showsArtifacts = false
 
         var body: some View {
             VStack(spacing: 0) {
@@ -25,12 +30,13 @@
                 if !chat.queue.isEmpty {
                     QueuedMessagesView(chat: chat)
                 }
+                OfflineBar(chat: chat)
                 ChatStatusBar(strip: chat.strip)
                 if chat.isRunning, let tasks = TaskProgress(chat.state.todos?.todos ?? []) {
                     TaskProgressPill(progress: tasks)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                ComposerPills(info: chat.state.info)
+                ComposerPills(info: chat.state.info, workspace: chat.workspaceCwd) { showsWorkspaces = true }
                 Composer(
                     text: model.draftBinding(for: sessionID),
                     attachments: model.attachmentsBinding(for: sessionID),
@@ -38,11 +44,49 @@
                     history: model.historyBinding(for: sessionID),
                     onSend: { send() },
                     // Files cannot be steered into the running reply, so they wait for the queue.
-                    onSteer: chat.isRunning && model.attachments[sessionID, default: []].isEmpty ? { steer() } : nil
+                    onSteer: chat.isRunning && model.attachments[sessionID, default: []].isEmpty ? { steer() } : nil,
+                    voice: voice
                 )
                 .background(HermesColor.background)
             }
             .task(id: sessionID) { await chat.attach() }
+            .task(id: sessionID) {
+                // Voice (WP-60) dictates into this chat's draft and sends spoken messages through it. A chat change
+                // stops the previous chat's voice first, so its microphone and conversation do not keep running.
+                voice?.cancel()
+                let draft = model.draftBinding(for: sessionID)
+                voice = chat.makeVoice { spoken in
+                    draft.wrappedValue = DictationText.appending(spoken, to: draft.wrappedValue)
+                }
+            }
+            .onChange(of: chat.isRunning) { _, running in
+                // A finished reply is spoken once: the id stops a reply from being read twice.
+                guard !running, let reply = chat.newestFinishedReply, reply.id != announcedReplyID else { return }
+                announcedReplyID = reply.id
+                voice?.replyFinished(reply.text)
+            }
+            .onDisappear { voice?.cancel() }
+            // Locking the phone or leaving the app ends voice. Inactive is not used: the microphone prompt sets it too.
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background { voice?.cancel() }
+            }
+            // A cut that erases or archives more than one turn waits here for the user's yes (WP-34).
+            .confirmationDialog(
+                "Cut the chat here?",
+                isPresented: Binding(get: { chat.pendingCut != nil }, set: { if !$0 { chat.dismissPendingCut() } }),
+                titleVisibility: .visible
+            ) {
+                Button("Cut and send", role: .destructive) { chat.confirmPendingCut() }
+                Button("Cancel", role: .cancel) { chat.dismissPendingCut() }
+            } message: {
+                Text(Self.cutMessage(chat.pendingCut?.confirmation))
+            }
+            .alert(
+                "Hermes couldn't do that",
+                isPresented: Binding(get: { chat.cutError != nil }, set: { if !$0 { chat.clearCutError() } }),
+                actions: { Button("OK", role: .cancel) {} },
+                message: { Text(chat.cutError ?? "") }
+            )
             .onChange(of: chat.prefill, initial: true) { _, text in
                 guard let text else { return }
                 model.drafts[sessionID] = text
@@ -52,6 +96,22 @@
                 SecureValueSheet(
                     item: item, onSend: { chat.answerValue(item, $0) }, onCancel: { chat.dismissValue(item) })
             }
+            .sheet(isPresented: $showsArtifacts) {
+                if let browser = model.workspaceBrowser {
+                    ArtifactsSheet(
+                        artifacts: ChatArtifacts.all(in: chat.state.items),
+                        media: { await browser.mediaData($0) },
+                        onJump: jumpToRow
+                    )
+                }
+            }
+            .sheet(isPresented: $showsWorkspaces) {
+                if let browser = model.workspaceBrowser {
+                    WorkspacePickerSheet(browser: browser, current: workspaceFolder) { folder in
+                        await chat.moveWorkspace(to: folder)
+                    }
+                }
+            }
         }
 
         @ViewBuilder
@@ -59,6 +119,10 @@
             switch chat.phase {
             case .loading where chat.state.items.isEmpty:
                 TranscriptSkeleton()
+            case .failed where chat.offline.notice != nil || chat.offline.offer != nil:
+                // Offline chat (WP-65b): while the server is out of reach, and while its "Send to Hermes" offer waits
+                // for an answer, it takes the place of the error.
+                transcript
             case .failed(let message):
                 ContentUnavailableView {
                     Label("Could not open this chat", systemImage: "exclamationmark.triangle")
@@ -77,16 +141,21 @@
             ScrollView {
                 LazyVStack(spacing: HermesMetrics.bubbleSpacing) {
                     ForEach(chat.state.items) { item in
-                        TranscriptRow(item: item, isLast: item.id == chat.state.items.last?.id, chat: chat)
-                            .overlay {
-                                if isFinding, item.id == currentMatch {
-                                    RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
-                                        .strokeBorder(HermesColor.accent, lineWidth: 2)
-                                        .padding(.horizontal, 6)
-                                }
+                        TranscriptRow(
+                            item: item, isLast: item.id == chat.state.items.last?.id, chat: chat,
+                            onBranch: {
+                                model.openBranch($0, serverName: model.session(id: sessionID)?.serverName ?? "")
                             }
-                            .id(item.id)
-                            .accessibilityIdentifier("message.\(item.id)")
+                        )
+                        .overlay {
+                            if isFinding, item.id == currentMatch {
+                                RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
+                                    .strokeBorder(HermesColor.accent, lineWidth: 2)
+                                    .padding(.horizontal, 6)
+                            }
+                        }
+                        .id(item.id)
+                        .accessibilityIdentifier("message.\(item.id)")
                     }
                     if let failure = chat.state.lastError, !chat.isRunning, !Self.lastRowShowsError(chat.state) {
                         ErrorCard(error: ChatError.classify(failure), isLast: true, chat: chat)
@@ -108,6 +177,7 @@
                     if chat.isRunning, chat.state.items.last.map(Self.isStreamingAssistant) != true {
                         TypingIndicator().bubbleRow(.leading)
                     }
+                    OfflineChatSection(model: chat.offline, showsHint: chat.state.items.isEmpty)
                     Color.clear.frame(height: 1).id("bottom")
                 }
                 .scrollTargetLayout()
@@ -247,23 +317,36 @@
             jump()
         }
 
+        /// Scrolls the transcript to a row and stops the follow, as find does.
+        private func jumpToRow(_ id: String) {
+            isFollowing = false
+            withAnimation(HermesMotion.snappy) { position.scrollTo(id: id, anchor: .center) }
+        }
+
         private func jump() {
             guard let currentMatch else { return }
             isFollowing = false
             withAnimation(HermesMotion.snappy) { position.scrollTo(id: currentMatch, anchor: .center) }
         }
 
+        /// The folder this chat runs in: the one it moved to this run, else the one the server reported.
+        private var workspaceFolder: String? { chat.workspaceCwd ?? chat.state.info?.cwd }
+
         @ViewBuilder
         private var header: some View {
             if let session = model.session(id: sessionID) {
-                StatusStrip(
-                    connection: .connected,
-                    serverName: session.serverName,
-                    runningTurn: chat.isRunning ? "Hermes is replying" : nil,
-                    onStop: chat.isRunning ? { chat.stop() } : nil
-                )
-                .padding(.horizontal, 12)
-                .padding(.top, 4)
+                VStack(alignment: .leading, spacing: 6) {
+                    StatusStrip(
+                        connection: .connected,
+                        serverName: session.serverName,
+                        runningTurn: chat.isRunning ? "Hermes is replying" : nil,
+                        onStop: chat.isRunning ? { chat.stop() } : nil
+                    )
+                    .padding(.horizontal, 12)
+                    .padding(.top, 4)
+                    ArtifactsButton { showsArtifacts = true }
+                        .padding(.horizontal, 12)
+                }
             }
         }
 
@@ -272,6 +355,7 @@
             var hasher = Hasher()
             hasher.combine(chat.state.items.count)
             hasher.combine(chat.approvals.count)
+            hasher.combine(chat.offline.messages.count)
             if case .assistant(let entry)? = chat.state.items.last?.content { hasher.combine(entry.text.count) }
             return hasher.finalize()
         }
@@ -280,6 +364,18 @@
         private static func lastRowShowsError(_ state: TranscriptState) -> Bool {
             if case .assistant(let entry)? = state.items.last?.content { return entry.error?.isEmpty == false }
             return false
+        }
+
+        /// Says what a cut would archive, from the server's counts when it sent them (WP-34).
+        private static func cutMessage(_ confirmation: TurnEditConfirmation?) -> String {
+            switch confirmation {
+            case .deepCut(let messages, let turns)?:
+                "This moves \(messages ?? 0) items and \(turns ?? 0) of your turns to the archive."
+            case .emptiesTranscript?:
+                "This moves every message in this chat to the archive."
+            case nil:
+                ""
+            }
         }
 
         private static func isStreamingAssistant(_ item: TranscriptItem) -> Bool {

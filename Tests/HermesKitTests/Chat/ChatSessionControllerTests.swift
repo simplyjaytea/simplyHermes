@@ -12,6 +12,10 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
     private(set) var steered: [String] = []
     private(set) var uploads: [String] = []
     var failSubmit: RPCError?
+    /// Runs inside `prompt.submit`, before it answers. Tests use it to deliver events ahead of the answer.
+    var duringSubmit: (@Sendable () async throws -> Void)?
+    /// What `session.history` answers with.
+    var storedHistory: [JSONValue] = []
     var refuseImages = false
     var fileReference = "@file:notes.txt"
     /// Directive to answer with, by command name. A name with no entry fails, as an unknown command does.
@@ -36,6 +40,7 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
 
     func submitPrompt(_ params: PromptSubmitParams) async throws -> PromptSubmitResult {
         lock.withLock { submitted.append(params) }
+        try await duringSubmit?()
         if let failSubmit { throw failSubmit }
         return try JSONDecoder().decode(
             PromptSubmitResult.self, from: Data(#"{"status":"streaming","user_row_id":9}"#.utf8))
@@ -60,6 +65,11 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
         return FileAttachResult(attached: true, name: params.name, refText: fileReference)
     }
 
+    func sessionHistory(_ params: SessionHistoryParams) async throws -> SessionHistoryResult {
+        let object: JSONValue = ["count": .int(storedHistory.count), "messages": .array(storedHistory)]
+        return try object.decode(SessionHistoryResult.self)
+    }
+
     func dispatchCommand(_ params: CommandDispatchParams) async throws -> CommandDispatchResult {
         lock.withLock { dispatched.append(params) }
         guard let reply = dispatchReplies[params.name] else {
@@ -72,6 +82,32 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
 private func envelope(_ type: String, _ payload: JSONValue, seq: Int) throws -> GatewayClientEvent {
     let object: JSONValue = ["type": .string(type), "session_id": "abcd1234", "payload": payload, "seq": .int(seq)]
     return .event(try object.decode(GatewayEventEnvelope.self), replayed: false)
+}
+
+/// Two user turns, each with a reply: row ids 1 to 4.
+private let twoTurns: [JSONValue] = [
+    ["role": "user", "text": "first", "row_id": 1], ["role": "assistant", "text": "one", "row_id": 2],
+    ["role": "user", "text": "second", "row_id": 3], ["role": "assistant", "text": "two", "row_id": 4],
+]
+
+/// Runs an edit and unwraps the outcome. Nil would mean the controller did nothing, which these tests do not expect.
+private func edited(
+    _ controller: ChatSessionController, text: String = "new", fromRowID rowID: Int, consent: TurnEditConsent = []
+) async throws -> TurnEditOutcome {
+    let outcome = await controller.edit(text: text, fromRowID: rowID, consent: consent)
+    return try #require(outcome)
+}
+
+/// One line per row, such as `user: first`, so a test can compare the whole transcript.
+private func lines(_ state: TranscriptState) -> [String] {
+    state.items.map { item -> String in
+        switch item.content {
+        case .user(let entry): "user: \(entry.text)"
+        case .assistant(let entry): "assistant: \(entry.text)"
+        case .tool(let entry): "tool: \(entry.name)"
+        case .other(let role, let text): "\(role): \(text)"
+        }
+    }
 }
 
 @Suite struct ChatSessionControllerTests {
@@ -232,6 +268,94 @@ private func envelope(_ type: String, _ payload: JSONValue, seq: Int) throws -> 
         await controller.handle(try envelope("message.complete", ["text": "done", "status": "complete"], seq: 2))
         #expect(transport.uploads == ["image:IMG_1.jpg"])
         #expect(transport.submitted.map(\.text) == ["later"])
+    }
+
+    @Test func editCutsTheOldTurnAndKeepsTheReplyBelowTheEditedMessage() async throws {
+        let transport = try FakeChatTransport(history: twoTurns)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        // The server starts the new turn before its answer reaches the app.
+        transport.duringSubmit = {
+            await controller.handle(try envelope("message.start", [:], seq: 1))
+            await controller.handle(try envelope("message.delta", ["text": "Hi"], seq: 2))
+        }
+        let outcome = try await edited(controller, fromRowID: 3)
+        guard case .done = outcome else {
+            Issue.record("expected done, got \(outcome)")
+            return
+        }
+        #expect(transport.submitted.first?.truncate?.truncateBeforeRowID == 3)
+        let state = await controller.current
+        #expect(lines(state) == ["user: first", "assistant: one", "user: new", "assistant: Hi"])
+        #expect(state.userEntries.last?.rowID == 9)
+        #expect(state.userEntries.last?.delivery == .sent)
+        #expect(state.turn != nil)
+    }
+
+    @Test func editThatNeedsAYesChangesNothingUntilItGetsOne() async throws {
+        let transport = try FakeChatTransport(history: twoTurns)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        let first = try await edited(controller, fromRowID: 1)
+        guard case .needsConfirmation(let question) = first else {
+            Issue.record("expected a question, got \(first)")
+            return
+        }
+        #expect(question == .emptiesTranscript)
+        #expect(transport.submitted.isEmpty)
+        let untouched = await controller.current
+        #expect(lines(untouched).count == 4)
+        // One yes to this question is enough: it also covers the deep cut, so the question does not come back.
+        let second = try await edited(controller, fromRowID: 1, consent: question.consent)
+        guard case .done = second else {
+            Issue.record("expected done, got \(second)")
+            return
+        }
+        #expect(transport.submitted.count == 1)
+        #expect(transport.submitted.first?.truncate?.confirmEmptyTruncate == true)
+        #expect(transport.submitted.first?.truncate?.confirmDeepTruncate == true)
+        let cut = await controller.current
+        #expect(lines(cut) == ["user: new"])
+    }
+
+    @Test func refusedEditChangesNothingAndFreesTheChat() async throws {
+        let transport = try FakeChatTransport(history: twoTurns)
+        transport.failSubmit = RPCError(code: 5000, message: "boom", data: nil)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        let outcome = try await edited(controller, fromRowID: 3)
+        guard case .failed(let error) = outcome else {
+            Issue.record("expected failed, got \(outcome)")
+            return
+        }
+        #expect(error.message == "boom")
+        let untouched = await controller.current
+        #expect(lines(untouched) == ["user: first", "assistant: one", "user: second", "assistant: two"])
+        // The chat is free again: a new message goes out at once and does not wait in the queue.
+        transport.failSubmit = nil
+        await controller.send("again")
+        #expect(transport.submitted.map(\.text) == ["new", "again"])
+        #expect(await controller.pendingMessages.isEmpty)
+    }
+
+    @Test func staleRowReadsTheHistoryAgain() async throws {
+        let transport = try FakeChatTransport(history: twoTurns)
+        let gone: JSONValue = .object(["user_turn_count": .int(1)])
+        transport.failSubmit = RPCError(code: HermesErrorCode.targetTurnMissing, message: "gone", data: gone)
+        transport.storedHistory = [["role": "user", "text": "only", "row_id": 5]]
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        let outcome = try await edited(controller, fromRowID: 3)
+        #expect(outcome == .stale(userTurnCount: 1))
+        let reloaded = await controller.current
+        #expect(lines(reloaded) == ["user: only"])
+    }
+
+    @Test func editNeedsAnAttachedSession() async throws {
+        let transport = try FakeChatTransport(history: twoTurns)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        #expect(await controller.edit(text: "new", fromRowID: 3) == nil)
+        #expect(transport.submitted.isEmpty)
     }
 
     @Test func skillDirectiveSendsItsPromptAndShowsItsDisplay() async throws {

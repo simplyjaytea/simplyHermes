@@ -1,0 +1,30 @@
+{
+  "body": {
+    "entries": [
+      {
+        "preview": "hello [[scenario:text]]",
+        "row_id": 1,
+        "timestamp": 1792299062.1478784
+      }
+    ],
+    "pagination": {
+      "after_row_id": 0,
+      "has_more": false,
+      "limit": 500,
+      "next_cursor": null,
+      "returned": 1,
+      "total": 1
+    },
+    "profile": "default",
+    "session_id": "20261018_045102_598cc4"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/sessions/20261018_045102_598cc4/timeline",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

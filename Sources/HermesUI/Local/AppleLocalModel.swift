@@ -6,8 +6,9 @@
     public struct AppleLocalModel: LocalModelExecutor {
         private let isEnabled: @Sendable () -> Bool
 
-        /// `isEnabled` reads the Settings switch for on-device features (plan WP-65b).
-        public init(isEnabled: @escaping @Sendable () -> Bool = { true }) {
+        /// `isEnabled` reads the Settings switch for on-device features (plan WP-65b). By default it is
+        /// ``OnDeviceSettings``, so turning the switch off in Settings stops the model at once.
+        public init(isEnabled: @escaping @Sendable () -> Bool = { OnDeviceSettings().isEnabled }) {
             self.isEnabled = isEnabled
         }
 
