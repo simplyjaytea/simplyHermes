@@ -1,0 +1,14 @@
+{
+  "body": {
+    "text": "Egress proxy status\n\nEnabled: no\nBinary: (missing)\nBinary version: (unknown)\nConfig: (not generated)\nCA cert: (not generated)\nTunnel port: 9090\nProcess: (stopped)\nListening: no\nCredential src: env\nDocker enforce: yes\nScope: Docker backend only in this release"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/egress/status",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}

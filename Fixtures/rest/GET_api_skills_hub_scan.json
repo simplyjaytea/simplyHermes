@@ -1,0 +1,14 @@
+{
+  "body": {
+    "detail": "identifier is required"
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/skills/hub/scan",
+    "query": {}
+  },
+  "status": 400,
+  "step": "enumerate"
+}

@@ -85,6 +85,9 @@
         private var browserResult: BrowserSignInResult?
         /// The server the browser sign-in belongs to. Tokens for another address are not used.
         private var browserServer: URL?
+        /// Set when the entry came from Hermes Cloud (WP-17). The form keeps it, so editing never turns the agent into
+        /// a plain gateway, and shows the address as read-only.
+        public private(set) var cloudOrigin: CloudOrigin?
 
         // SSH
         public var host = ""
@@ -124,6 +127,7 @@
                 mode = .gateway
                 urlText = settings.endpoint.baseURL.absoluteString
                 remembersPassword = settings.remembersPassword
+                cloudOrigin = settings.cloud
                 switch settings.signIn {
                 case .none: signInMethod = .none
                 case .password(let user):
@@ -349,7 +353,9 @@
                     case .token: .sessionToken
                     }
                 kind = .gateway(
-                    GatewaySettings(endpoint: parsed.endpoint, signIn: signIn, remembersPassword: remembersPassword))
+                    GatewaySettings(
+                        endpoint: parsed.endpoint, signIn: signIn, remembersPassword: remembersPassword,
+                        cloud: cloudOrigin))
             case .ssh:
                 kind = .ssh(
                     SSHSettings(

@@ -1,0 +1,95 @@
+{
+  "body": {
+    "attachments": [],
+    "child_results": [],
+    "comments": [],
+    "events": [
+      {
+        "created_at": 1792299095,
+        "id": 1,
+        "kind": "created",
+        "payload": {
+          "assignee": null,
+          "branch_name": null,
+          "creator_task_id": null,
+          "goal_mode": null,
+          "model_override": null,
+          "parents": [],
+          "project_id": null,
+          "provider_override": null,
+          "skills": null,
+          "status": "ready",
+          "tenant": null,
+          "workspace_kind": "scratch",
+          "workspace_path": null
+        },
+        "run_id": null,
+        "task_id": "t_3848a8c2"
+      }
+    ],
+    "link_tasks": [],
+    "links": {
+      "children": [],
+      "parents": []
+    },
+    "runs": [],
+    "task": {
+      "age": {
+        "created_age_seconds": 0,
+        "started_age_seconds": null,
+        "time_to_complete_seconds": null
+      },
+      "assignee": null,
+      "block_kind": null,
+      "block_recurrences": 0,
+      "body": "recorder fixture",
+      "branch_name": null,
+      "claim_expires": null,
+      "claim_lock": null,
+      "completed_at": null,
+      "completion_contract": "local-only",
+      "consecutive_failures": 0,
+      "created_at": 1792299095,
+      "created_by": "dashboard",
+      "current_run_id": null,
+      "current_run_started_at": null,
+      "current_step_key": null,
+      "goal_max_turns": null,
+      "goal_mode": false,
+      "id": "t_3848a8c2",
+      "idempotency_key": null,
+      "last_failure_error": null,
+      "last_heartbeat_at": null,
+      "latest_summary": null,
+      "max_retries": null,
+      "max_runtime_seconds": null,
+      "model_override": null,
+      "priority": 0,
+      "project_id": null,
+      "provider_override": null,
+      "reasoning_effort": null,
+      "result": null,
+      "session_id": null,
+      "skills": null,
+      "started_at": null,
+      "status": "ready",
+      "tenant": null,
+      "title": "recorder task",
+      "worker_pid": null,
+      "workflow_template_id": null,
+      "workspace_kind": "scratch",
+      "workspace_path": null
+    }
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/plugins/kanban/tasks/t_3848a8c2",
+    "query": {
+      "board": "recorder"
+    }
+  },
+  "status": 200,
+  "step": "kanban.task.seeded"
+}

@@ -1,0 +1,14 @@
+{
+  "body": {
+    "ok": true
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "DELETE",
+    "path": "/api/mcp/servers/recorder-mcp",
+    "query": {}
+  },
+  "status": 200,
+  "step": "mcp.delete"
+}

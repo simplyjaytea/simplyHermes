@@ -204,3 +204,40 @@ CI gate: `Tests/HermesKitTests/FixtureLintTests.swift` checks every line is vali
 - **Native PKCE / OIDC / `nous`** untested.
 - **Kanban and git** endpoints are known only from OpenAPI, not exercised.
 - Upstream moves fast (contract `version: "1"`, `desktop_contract: 8`). Pin `HERMES_REF`; re-record and diff the OpenRPC file on each bump.
+
+## 13. Terminal `/api/pty` and git review `/api/git/*` (WP-61, WP-62)
+
+Source for this section: the `hermes_cli/web_server.py`, `pty_session.py` and `web_git.py` files of PyPI `hermes-agent` 0.19.0. That is older than the testbed pin (section 0), so every claim here is **[S]**. Only the testbed run in CI (`TerminalLiveTests`, plus the REST live tests) checks them against the pinned commit.
+
+### 13.1 `WS /api/pty` (terminal)
+
+- **What it runs.** Each socket spawns `hermes --tui` on a POSIX PTY, the same binary the CLI runs. No plain shell is offered, so a terminal here is a Hermes TUI session. [S]
+- **Auth.** Same as `/api/ws`: `?ticket=` on a gated server (single-use, from `POST /api/auth/ws-ticket`), `?token=` on loopback. Refusals close with `4401` (credential), `4403` (host or origin), `4408` (peer), `4404` (embedded chat disabled). The upgrade itself answers `403` for a bad or reused ticket. [S]
+- **Query.**
+  - `attach=<name>`: keeps the PTY alive after the socket closes. A socket with the same name reattaches to it and gets the buffered output (1 MiB). A detached PTY is reaped after 30 min. At most 16 PTYs. The app gives each tab its own name and reattaches when the tab is shown again. [S]
+  - `profile=<name>`: the profile scope, as in REST. `resume=<session id>` and `fresh=1` pick the chat. `channel=<id>` links the dashboard sidebar; the app leaves it out. [S]
+- **Frames.** Server to client: binary frames are raw PTY bytes. A UTF-8 sequence may split across frames, so decode the bytes, not the frames. Text frames come only before the PTY starts, for errors such as "Chat unavailable". When the child exits, the server closes with `4410`. Client to server: keystrokes as binary frames. A frame that is exactly `ESC [ RESIZE : cols ; rows ]` is a window size and is never written to the PTY. Send one before the first output. [S]
+- **App behavior.** Closing the socket leaves the PTY running. Reattaching with the same `attach` name shows the TUI again. Tabs cannot kill a PTY from the client; the server reaps it after 30 min. [S]
+
+### 13.2 `/api/git/*` (git review)
+
+Request bodies come from `docs/protocol/dashboard-openapi.json`. Response shapes are untyped there, so they come from `web_git.py`. [S]
+
+| Route | Request | Response |
+|---|---|---|
+| `GET /api/git/status?path` | | `GitStatus` (WP-12) |
+| `GET /api/git/review/list?path&scope&base` | `scope`: `uncommitted` (default), `branch`, `lastTurn` | `{files: [{path, added, removed, status, staged}], base}` |
+| `GET /api/git/review/diff?path&file&scope&base&staged` | | `{diff}` (unified text) |
+| `GET /api/git/file-diff?path&file` | | `{diff}`, working tree against HEAD |
+| `GET /api/git/review/commit-context?path` | | `{diff, recent}`: the diff that will commit and the last 10 subjects |
+| `POST /api/git/review/stage` · `unstage` · `revert` | `{path, file?}` (no `file` = all) | `{ok}`. `revert` restores tracked files and removes untracked ones |
+| `POST /api/git/review/commit` | `{path, message, push}` | `{ok}`. Stages everything when nothing is staged |
+| `POST /api/git/review/push` | `{path}` | `{ok}` |
+| `GET /api/git/review/ship-info?path` | | `{ghReady, pr: {url, state, number} \| null}` |
+| `POST /api/git/review/create-pr` | `{path}` | `{url}`. Pushes first, then `gh pr create --fill` |
+| `GET /api/git/worktrees?path` · `branches?path` · `base-branches?path` | | `{worktrees: [...]}`, `{branches: [...]}` |
+| `POST /api/git/worktree/add` | `{path, name?, branch?, base?, existingBranch?}` | `{path, branch, repoRoot}` |
+| `POST /api/git/worktree/remove` | `{path, worktreePath, force}` | `{removed}` |
+| `POST /api/git/branch/switch` | `{path, branch}` | `{branch}` |
+
+A failed mutation answers `400` with `detail` set to git's message. `path` is a directory on the server, not on the phone.

@@ -1,0 +1,23 @@
+{
+  "body": {
+    "finished_at": 1792299078,
+    "last_duration_ms": 0,
+    "last_error": null,
+    "run_count": 1,
+    "snapshot_age_seconds": 0,
+    "snapshot_generated_at": 1792299078,
+    "snapshot_stale": false,
+    "started_at": 1792299078,
+    "state": "idle",
+    "ttl_seconds": 120
+  },
+  "contentType": "application/json",
+  "request": {
+    "body": null,
+    "method": "GET",
+    "path": "/api/plugins/hermes-achievements/scan-status",
+    "query": {}
+  },
+  "status": 200,
+  "step": "enumerate"
+}
