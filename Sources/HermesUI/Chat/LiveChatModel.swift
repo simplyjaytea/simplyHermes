@@ -91,6 +91,8 @@
         @ObservationIgnored private var firstSeen: [String: Date] = [:]
         @ObservationIgnored private var wasRunning = false
         @ObservationIgnored private var tasks: [Task<Void, Never>] = []
+        /// A New chat's first message, held until the chat attaches. ``attach()`` sends it.
+        @ObservationIgnored private var firstMessage: (text: String, attachments: [ComposerAttachment])?
         @ObservationIgnored private var isMovingWorkspace = false
 
         init(connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String) {
@@ -149,6 +151,10 @@
                         for await list in pending { self?.setApprovals(list) }
                     },
                 ]
+                if let first = firstMessage {
+                    firstMessage = nil
+                    send(first.text, attachments: first.attachments)
+                }
             } catch {
                 phase = .failed(Self.describe(error))
             }
@@ -163,6 +169,11 @@
             let controller = controller
             self.controller = nil
             Task { await controller?.detach() }
+        }
+
+        /// Holds a New chat's first message until the chat attaches, and ``attach()`` sends it then.
+        public func queueFirstMessage(_ text: String, attachments: [ComposerAttachment]) {
+            firstMessage = (text, attachments)
         }
 
         /// Completions for a `/` command or an `@` mention, ranked by the server. Empty while the chat is not attached.

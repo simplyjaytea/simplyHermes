@@ -28,9 +28,16 @@
             self.model = model
             self.connections = connections
             self.sessionsList = sessionsList
-            model.liveChats = connections.map(LiveChatStore.init)
+            let liveChats = connections.map(LiveChatStore.init)
+            model.liveChats = liveChats
             // Kept across re-renders: a new one would lose the folder on screen and leave views holding the old one.
             if model.workspaceBrowser == nil { model.workspaceBrowser = connections.map(WorkspaceBrowserModel.init) }
+            if let connections {
+                model.startServerChat = { try await connections.startChat() }
+                model.handOffFirstMessage = { id, text, files in
+                    liveChats?.chat(for: id)?.queueFirstMessage(text, attachments: files)
+                }
+            }
             let profileList = connections.map { ProfilesModel(connections: $0) }
             _profiles = State(initialValue: profileList)
             _bots = State(
@@ -62,6 +69,7 @@
                     .task(id: forcedPosture) { applyForcedPosture() }
                     .task(id: sessionScopeKey) { await attachSessions() }
                     .task(id: connections?.active?.id) { await bots?.reload() }
+                    .onChange(of: connections?.active?.id) { _, _ in model.forgetServerChats() }
                     .task(id: model.pendingSessionReference) { await openPendingSession() }
             }
         }
@@ -143,6 +151,16 @@
                     )
             }
             .background { KeyboardShortcuts(model: model) }
+            .alert(
+                "Chat not started",
+                isPresented: Binding(
+                    get: { model.newChatError != nil },
+                    set: { if !$0 { model.newChatError = nil } })
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(model.newChatError ?? "")
+            }
             .onDeviceShake { screenshot in
                 guard !model.isBugReportPresented, !model.isPalettePresented else { return }
                 model.bugReportScreenshot = screenshot
