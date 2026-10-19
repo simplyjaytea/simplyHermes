@@ -41,6 +41,7 @@
                     text: model.draftBinding(for: sessionID),
                     attachments: model.attachmentsBinding(for: sessionID),
                     completer: Self.completer(for: chat),
+                    history: model.historyBinding(for: sessionID),
                     onSend: { send() },
                     // Files cannot be steered into the running reply, so they wait for the queue.
                     onSteer: chat.isRunning && model.attachments[sessionID, default: []].isEmpty ? { steer() } : nil,
@@ -385,7 +386,7 @@
         private func steer() {
             let text = model.drafts[sessionID, default: ""]
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            model.drafts[sessionID] = ""
+            model.clearDraft(in: sessionID)
             chat.steer(text)
         }
 
@@ -398,8 +399,11 @@
             let text = model.drafts[sessionID, default: ""]
             let files = model.attachments[sessionID, default: []]
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !files.isEmpty else { return }
-            model.drafts[sessionID] = ""
+            model.clearDraft(in: sessionID)
             model.attachments[sessionID] = []
+            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                model.rememberSent(text, in: sessionID)
+            }
             isFollowing = true
             chat.send(text, attachments: files)
         }

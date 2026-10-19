@@ -18,7 +18,8 @@ struct HermesApp: App {
         let connections = Self.makeConnections(launch)
         _connections = State(initialValue: connections)
         _sessionsList = State(initialValue: Self.makeSessionsList(connections, launch))
-        let model = ShellModel()
+        // UI tests keep drafts in memory, so a draft typed in one run is not in the field at the start of the next.
+        let model = ShellModel(draftDefaults: launch.onboarding == nil ? UserDefaults.standard : nil)
         _model = State(initialValue: model)
         // Set up before any scene: a Live Activity or widget button can launch the app in the background.
         let integration = AppIntegration(model: model)
