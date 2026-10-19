@@ -35,6 +35,7 @@
                 Composer(
                     text: model.draftBinding(for: sessionID),
                     attachments: model.attachmentsBinding(for: sessionID),
+                    completer: Self.completer(for: chat),
                     onSend: { send() },
                     // Files cannot be steered into the running reply, so they wait for the queue.
                     onSteer: chat.isRunning && model.attachments[sessionID, default: []].isEmpty ? { steer() } : nil
@@ -42,6 +43,11 @@
                 .background(HermesColor.background)
             }
             .task(id: sessionID) { await chat.attach() }
+            .onChange(of: chat.prefill, initial: true) { _, text in
+                guard let text else { return }
+                model.drafts[sessionID] = text
+                chat.clearPrefill()
+            }
             .sheet(item: Binding(get: { chat.valueRequests.first }, set: { _ in })) { item in
                 SecureValueSheet(
                     item: item, onSend: { chat.answerValue(item, $0) }, onCancel: { chat.dismissValue(item) })
@@ -296,6 +302,11 @@
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             model.drafts[sessionID] = ""
             chat.steer(text)
+        }
+
+        /// Looks up completions on the chat. The closure captures only the chat, not the view.
+        private static func completer(for chat: LiveChatModel) -> CompletionLookup {
+            { trigger in await chat.complete(trigger) }
         }
 
         private func send() {

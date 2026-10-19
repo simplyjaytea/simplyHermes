@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+    import Foundation
     import HermesKit
     import PhotosUI
     import SwiftUI
@@ -10,55 +11,63 @@
         @Binding private var text: String
         private let placeholder: String
         private let attachments: Binding<[ComposerAttachment]>?
+        private let completer: CompletionLookup?
         private let onSend: () -> Void
         private let onSteer: (() -> Void)?
 
         @State private var sendCount = 0
+        @State private var selection = NSRange(location: 0, length: 0)
+        @State private var completions = ComposerCompletions()
         @State private var isPhotosPresented = false
         @State private var photoItems: [PhotosPickerItem] = []
         @State private var isFilesPresented = false
         @State private var isCameraPresented = false
         @State private var problem: String?
 
+        /// - Parameters:
+        ///   - attachments: The files waiting in the composer. Nil hides the attach menu.
+        ///   - completer: Looks up the completions of a `/` command or an `@` mention. Nil turns completions off.
         public init(
             text: Binding<String>,
             placeholder: String = "Message Hermes",
             attachments: Binding<[ComposerAttachment]>? = nil,
+            completer: CompletionLookup? = nil,
             onSend: @escaping () -> Void,
             onSteer: (() -> Void)? = nil
         ) {
             _text = text
             self.placeholder = placeholder
             self.attachments = attachments
+            self.completer = completer
             self.onSend = onSend
             self.onSteer = onSteer
         }
 
         public var body: some View {
-            HStack(alignment: .bottom, spacing: 8) {
-                if let attachments {
-                    attachMenu(attachments)
+            VStack(alignment: .leading, spacing: 6) {
+                if !completions.items.isEmpty {
+                    CompletionPopover(items: completions.items, onPick: pick)
                 }
-                VStack(alignment: .leading, spacing: 6) {
-                    if let attachments, !attachments.wrappedValue.isEmpty {
-                        AttachmentStrip(attachments: attachments)
-                            .padding(.top, 8)
-                            .padding(.horizontal, 8)
+                HStack(alignment: .bottom, spacing: 8) {
+                    if let attachments {
+                        attachMenu(attachments)
                     }
-                    HStack(alignment: .bottom, spacing: 4) {
-                        TextField(placeholder, text: $text, axis: .vertical)
-                            .accessibilityIdentifier("composer.field")
-                            .font(HermesFont.body)
-                            .lineLimit(1...6)
-                            .padding(.vertical, 11)
-                            .padding(.leading, 14)
-                        sendButton
+                    VStack(alignment: .leading, spacing: 6) {
+                        if let attachments, !attachments.wrappedValue.isEmpty {
+                            AttachmentStrip(attachments: attachments)
+                                .padding(.top, 8)
+                                .padding(.horizontal, 8)
+                        }
+                        HStack(alignment: .bottom, spacing: 4) {
+                            field
+                            sendButton
+                        }
                     }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .strokeBorder(HermesColor.separator)
+                    )
                 }
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(HermesColor.separator)
-                )
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
@@ -71,6 +80,36 @@
             } message: {
                 Text(problem ?? "")
             }
+            .onChange(of: text) { _, _ in refreshCompletions() }
+            .onChange(of: selection) { _, _ in refreshCompletions() }
+        }
+
+        /// The text view, with the placeholder shown while it is empty.
+        private var field: some View {
+            ZStack(alignment: .topLeading) {
+                ComposerTextView(text: $text, selection: $selection)
+                if text.isEmpty {
+                    Text(placeholder)
+                        .font(HermesFont.body)
+                        .foregroundStyle(HermesColor.secondaryText)
+                        .padding(.vertical, 11)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.leading, 14)
+        }
+
+        private func refreshCompletions() {
+            guard let completer else { return }
+            completions.update(text: text, caret: selection.location, using: completer)
+        }
+
+        /// Puts a picked completion into the text and moves the caret after it.
+        private func pick(_ item: CompletionItem) {
+            guard let result = completions.accept(item, in: text) else { return }
+            text = result.text
+            selection = NSRange(location: result.caret, length: 0)
         }
 
         /// Photos, Files, Camera and Paste. Each adds to the attachments; nothing uploads until the message is sent.

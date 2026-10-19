@@ -14,6 +14,8 @@ public protocol ChatTransport: PromptSession {
     func attachPDF(_ params: PdfAttachParams) async throws -> PdfAttachResult
     /// Calls `file.attach`: stages a file in the session workspace.
     func attachFile(_ params: FileAttachParams) async throws -> FileAttachResult
+    /// Calls `command.dispatch`: runs a slash command on the server and answers with its directive.
+    func dispatchCommand(_ params: CommandDispatchParams) async throws -> CommandDispatchResult
 }
 
 extension GatewayClient: ChatTransport {
@@ -46,6 +48,11 @@ extension GatewayClient: ChatTransport {
     public func attachFile(_ params: FileAttachParams) async throws -> FileAttachResult {
         try await call("file.attach", params: params)
     }
+
+    /// Calls `command.dispatch`.
+    public func dispatchCommand(_ params: CommandDispatchParams) async throws -> CommandDispatchResult {
+        try await call("command.dispatch", params: params)
+    }
 }
 
 /// The server refused an attachment, so the message was not sent.
@@ -70,6 +77,7 @@ public actor ChatSessionController {
     private var state: TranscriptState
     private var queue = MessageQueue()
     private var submitCount = 0
+    private var noticeCount = 0
     private var isSubmitting = false
     /// True from an accepted prompt until its turn shows up in the events, so a queued message cannot overtake it.
     private var awaitingTurn = false
@@ -126,18 +134,37 @@ public actor ChatSessionController {
         eventTask = nil
     }
 
-    /// Sends a prompt with its files. While Hermes is busy the message waits in the queue and goes out when the turn
-    /// ends, with its files.
-    public func send(_ text: String, attachments: [ComposerAttachment] = []) async {
+    /// Sends a prompt with its files. A slash command runs on the server first, and its directive decides what goes
+    /// out: a prompt, text for the composer, or a line in the transcript. While Hermes is busy the message waits in the
+    /// queue and goes out when the turn ends, with its files. Returns the text the composer should take back, if any.
+    @discardableResult
+    public func send(_ text: String, attachments: [ComposerAttachment] = []) async -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty || !attachments.isEmpty, state.liveSessionID != nil else { return }
-        if !isIdle || !queue.isEmpty {
-            queue.enqueue(trimmed, attachments: attachments)
-            publish()
-            return
+        guard !trimmed.isEmpty || !attachments.isEmpty, let live = state.liveSessionID else { return nil }
+        var prompt = trimmed
+        var shownAs: String?
+        if attachments.isEmpty, let command = SlashCommand(trimmed) {
+            switch await run(command, typed: trimmed, live: live) {
+            case .prompt(let message, let display):
+                prompt = message
+                shownAs = display
+            case .prefill(let composerText):
+                return composerText
+            case .printed(let line):
+                if let line { addNotice(line) }
+                return nil
+            case .unknown:
+                break
+            }
         }
-        await submit(trimmed, attachments: attachments)
+        if !isIdle || !queue.isEmpty {
+            queue.enqueue(prompt, attachments: attachments)
+            publish()
+            return nil
+        }
+        await submit(prompt, attachments: attachments, shownAs: shownAs)
         await drainIfIdle()
+        return nil
     }
 
     /// Injects text into the running turn (`session.steer`) without interrupting it. Returns false when nothing
@@ -191,7 +218,56 @@ public actor ChatSessionController {
         if !paused { await drainIfIdle() }
     }
 
-    private func submit(_ text: String, attachments: [ComposerAttachment] = []) async {
+    /// What a slash command did, once the server answered it.
+    private enum CommandOutcome: Equatable {
+        /// Goes out as a prompt. The transcript shows `display` in its place.
+        case prompt(String, display: String)
+        /// Goes back to the composer, unsent.
+        case prefill(String)
+        /// Printed text for the transcript. Nil when the command printed nothing.
+        case printed(String?)
+        /// The server does not know the command, so the text goes out as typed.
+        case unknown
+    }
+
+    /// Runs a slash command on the server and maps its directive to what the chat does with it.
+    private func run(_ command: SlashCommand, typed: String, live: String) async -> CommandOutcome {
+        guard let answer = try? await dispatch(command, live: live) else { return .unknown }
+        var directive = answer
+        if directive.type == .alias {
+            // An alias runs its target once, with the arguments typed after the alias.
+            let target = directive.target ?? ""
+            let name = target.hasPrefix("/") ? target : "/" + target
+            let line = command.arg.map { "\(name) \($0)" } ?? name
+            guard let next = SlashCommand(line), let aliased = try? await dispatch(next, live: live) else {
+                return .unknown
+            }
+            directive = aliased
+        }
+        switch directive.type {
+        case .send, .skill:
+            guard let message = directive.message, !message.isEmpty else { return .unknown }
+            return .prompt(message, display: directive.display ?? typed)
+        case .prefill:
+            return .prefill(directive.message ?? "")
+        case .exec, .plugin, .alias:
+            return .printed(directive.output ?? directive.notice)
+        }
+    }
+
+    private func dispatch(_ command: SlashCommand, live: String) async throws -> CommandDispatchResult {
+        try await transport.dispatchCommand(
+            CommandDispatchParams(name: command.name, arg: command.arg, sessionID: live, profile: profile))
+    }
+
+    /// Adds a line the server printed, such as a command's output. The model does not see it.
+    private func addNotice(_ text: String) {
+        noticeCount += 1
+        state.apply(.notice(localID: "\(noticeCount)", text: text))
+        publish()
+    }
+
+    private func submit(_ text: String, attachments: [ComposerAttachment] = [], shownAs: String? = nil) async {
         guard let live = state.liveSessionID else { return }
         isSubmitting = true
         defer { isSubmitting = false }
@@ -207,7 +283,7 @@ public actor ChatSessionController {
             publish()
             return
         }
-        state.apply(.userSubmitted(localID: localID, text: outgoing))
+        state.apply(.userSubmitted(localID: localID, text: shownAs ?? outgoing))
         publish()
         do {
             let result = try await transport.submitPrompt(
