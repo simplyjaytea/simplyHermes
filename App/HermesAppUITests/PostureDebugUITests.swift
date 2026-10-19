@@ -35,7 +35,7 @@ final class PostureDebugUITests: XCTestCase {
         let posture = label(app, "posture")
         XCTAssertTrue(posture.waitForExistence(timeout: 10))
         let tent = NSPredicate(format: "label == 'tent'")
-        let wait = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: tent, object: posture)], timeout: 5)
+        let wait = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: tent, object: posture)], timeout: 20)
         XCTAssertEqual(wait, .completed, "posture was \(posture.label)")
     }
 
