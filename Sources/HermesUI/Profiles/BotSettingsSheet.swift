@@ -1,15 +1,13 @@
 #if canImport(UIKit)
     import HermesKit
     import SwiftUI
-    import UniformTypeIdentifiers
 
-    /// Bot settings (WP-41), opened from the profile switcher: the "Applies to" choice, and export and import of the bot
+    /// Bot settings (WP-41), opened from the profile switcher: the "Applies to" choice, and export of the bot
     /// it points at.
     public struct BotSettingsSheet: View {
         private let profiles: ProfilesModel
         @State private var model: BotSettingsModel
         @State private var shareFile: ShareFile?
-        @State private var showsImporter = false
         @Environment(\.dismiss) private var dismiss
 
         /// Creates the sheet over the profiles and servers the app already holds.
@@ -28,18 +26,14 @@
                         ) { choice in
                             profiles.setAppliesTo(choice)
                         }
-                        transferCard
+                        if BotExport.isOfferedInApp {
+                            transferCard
+                        }
                         if let problem = model.problem {
                             Text(problem)
                                 .font(HermesFont.footnote)
                                 .foregroundStyle(HermesColor.destructive)
                                 .accessibilityIdentifier("botSettings.problem")
-                        }
-                        if let notice = model.notice {
-                            Text(notice)
-                                .font(HermesFont.footnote)
-                                .foregroundStyle(HermesColor.secondaryText)
-                                .accessibilityIdentifier("botSettings.notice")
                         }
                     }
                     .padding(16)
@@ -53,10 +47,6 @@
                         Button("Done") { dismiss() }
                     }
                 }
-                .fileImporter(isPresented: $showsImporter, allowedContentTypes: [.data]) { result in
-                    guard case .success(let url) = result else { return }
-                    Task { await model.importArchive(from: url) }
-                }
                 .sheet(item: $shareFile) { file in
                     ActivitySheet(items: [file.url])
                 }
@@ -65,44 +55,24 @@
 
         private var transferCard: some View {
             HermesCard {
-                Text(BotExport.isOfferedInApp ? "Export and import" : "Import")
+                Text("Export")
                     .font(HermesFont.headline)
                     .accessibilityAddTraits(.isHeader)
-                Text(transferNotice)
+                Text("Export saves this bot as an archive you can keep or share.")
                     .font(HermesFont.footnote)
                     .foregroundStyle(HermesColor.secondaryText)
-                if BotExport.isOfferedInApp {
-                    Button {
-                        Task {
-                            if let url = await model.exportTarget() { shareFile = ShareFile(url: url) }
-                        }
-                    } label: {
-                        Label("Export this bot", systemImage: "square.and.arrow.up")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(HermesButtonStyle(.primary))
-                    .disabled(model.target == nil || model.isWorking)
-                    .accessibilityIdentifier("botSettings.export")
-                }
                 Button {
-                    showsImporter = true
+                    Task {
+                        if let url = await model.exportTarget() { shareFile = ShareFile(url: url) }
+                    }
                 } label: {
-                    Label("Import a bot", systemImage: "square.and.arrow.down")
+                    Label("Export this bot", systemImage: "square.and.arrow.up")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(HermesButtonStyle(.tinted))
-                .disabled(model.isWorking)
-                .accessibilityHint("Creates a new bot from an exported archive")
-                .accessibilityIdentifier("botSettings.import")
+                .buttonStyle(HermesButtonStyle(.primary))
+                .disabled(model.target == nil || model.isWorking)
+                .accessibilityIdentifier("botSettings.export")
             }
-        }
-
-        /// What the transfer card says. It names export only while the app offers it.
-        private var transferNotice: String {
-            if BotExport.isOfferedInApp {
-                return "Export saves this bot as an archive you can keep or share. Import creates a bot from one."
-            }
-            return "Import creates a bot from an archive file."
         }
     }
 

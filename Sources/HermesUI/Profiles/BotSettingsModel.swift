@@ -3,16 +3,14 @@
     import HermesKit
     import Observation
 
-    /// The state of Bot settings (WP-41): the export and import of the bot the "Applies to" choice points at.
+    /// The state of Bot settings (WP-41): the export of the bot the "Applies to" choice points at.
     @MainActor
     @Observable
     public final class BotSettingsModel {
-        /// True while an export or an import runs.
+        /// True while an export runs.
         public private(set) var isWorking = false
         /// What went wrong last, as a sentence to show. Nil when nothing did.
         public private(set) var problem: String?
-        /// What the last import created, as a sentence to show.
-        public private(set) var notice: String?
 
         @ObservationIgnored private let profiles: ProfilesModel
         @ObservationIgnored private let connections: ConnectionsModel
@@ -37,7 +35,6 @@
             await discardExport()
             isWorking = true
             defer { isWorking = false }
-            notice = nil
             do {
                 let rest = try await restClient(for: connection, manager: manager)
                 let archive = try await rest.exportProfileArchive(name: name)
@@ -57,40 +54,6 @@
         private func discardExport() async {
             await Task.detached {
                 _ = try? ProfileArchive.removeExportFolder()
-            }.value
-        }
-
-        /// Creates a bot from an archive the user picked, then refreshes the switcher. The file is read off the main actor.
-        public func importArchive(from url: URL) async {
-            guard let connection = connections.active, let manager = connections.manager else { return }
-            isWorking = true
-            defer { isWorking = false }
-            problem = nil
-            notice = nil
-            let archive: Data
-            do {
-                archive = try await Self.readArchive(at: url)
-            } catch {
-                problem = "The file could not be read."
-                return
-            }
-            do {
-                let rest = try await restClient(for: connection, manager: manager)
-                let result = try await rest.importProfileArchive(archive)
-                notice = result.name.map { "Created \($0)." } ?? "Created the bot from the archive."
-            } catch {
-                problem = ProfileTransferError.describe(error)
-                return
-            }
-            await profiles.refresh()
-        }
-
-        /// Reads the picked file on a background task, inside the file's security scope.
-        private static func readArchive(at url: URL) async throws -> Data {
-            try await Task.detached {
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                return try Data(contentsOf: url)
             }.value
         }
 
