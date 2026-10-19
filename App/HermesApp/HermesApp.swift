@@ -46,8 +46,12 @@ struct HermesApp: App {
     @MainActor
     private static func makeSessionsList(_ saved: ConnectionsModel, _ launch: LaunchOptions) -> SessionsListModel {
         let url = launch.onboarding == nil ? Self.cacheFileURL() : nil
-        let cache = url.flatMap { try? HermesCache(url: $0) } ?? (try? HermesCache())
+        let file = url.flatMap { try? HermesCache(url: $0) }
+        let cache = file ?? (try? HermesCache())
         guard let cache else { preconditionFailure("The in-memory cache cannot fail to open") }
+        // WP-65b: offline chats are kept in the same cache file as the chat list. They exist nowhere else, so they stay
+        // off when the file would not open and the cache fell back to memory. UI tests keep it in memory on purpose.
+        if file != nil || launch.onboarding != nil { OfflineChatServices.install(cache: cache) }
         return SessionsListModel(connections: saved, cache: cache)
     }
 

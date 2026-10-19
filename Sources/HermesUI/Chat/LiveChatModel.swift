@@ -48,6 +48,9 @@
 
         public var isRunning: Bool { state.turn != nil }
 
+        /// The on-device side of this chat: where messages go while the server is out of reach (WP-65b).
+        public let offline: OfflineChatModel
+
         /// The status strip readings for this chat: context fill, cache, speed and the connection.
         public var strip: ChatStatusStrip {
             let phase = connections.active.flatMap { connections.phases[$0.id] }
@@ -68,6 +71,8 @@
         public private(set) var prefill: String?
         @ObservationIgnored private var retryTask: Task<Void, Never>?
         @ObservationIgnored private var controller: ChatSessionController?
+        /// The attempt to connect and resume that is under way, if any. Calls to ``attach()`` share it.
+        @ObservationIgnored private var attaching: Task<Void, Never>?
         @ObservationIgnored private var client: GatewayClient?
         @ObservationIgnored private var firstSeen: [String: Date] = [:]
         @ObservationIgnored private var wasRunning = false
@@ -79,11 +84,28 @@
             self.broker = broker
             self.storedSessionID = storedSessionID
             state = TranscriptState(storedSessionID: storedSessionID)
+            offline = OfflineChatModel(
+                services: OfflineChatServices.shared, connections: connections, storedSessionID: storedSessionID)
         }
 
-        /// Connects, resumes the session and starts following it. Safe to call again after a failure.
+        /// Connects, resumes the session and starts following it. Safe to call again after a failure. A call made
+        /// while another is still connecting waits for that one, so the session is never opened twice at once.
         public func attach() async {
+            offline.start()
+            if let attempt = attaching {
+                await attempt.value
+                return
+            }
             guard controller == nil else { return }
+            let attempt = Task { [weak self] in
+                await self?.connectAndFollow()
+                self?.attaching = nil
+            }
+            attaching = attempt
+            await attempt.value
+        }
+
+        private func connectAndFollow() async {
             guard let connection = connections.active, let manager = connections.manager else {
                 phase = .failed("No server is selected.")
                 return
@@ -122,6 +144,7 @@
         public func detach() {
             for task in tasks { task.cancel() }
             retryTask?.cancel()
+            offline.stop()
             tasks = []
             let controller = controller
             self.controller = nil
@@ -143,6 +166,8 @@
         }
 
         public func send(_ text: String, attachments: [ComposerAttachment] = []) {
+            // Plan Q44: while the server is out of reach, text goes to the on-device model. Files need Hermes.
+            if attachments.isEmpty, offline.send(text) { return }
             guard let controller else { return }
             HermesSounds.play(.send)
             Task {
@@ -153,6 +178,21 @@
         /// Clears ``prefill`` once the composer has taken its text.
         public func clearPrefill() {
             prefill = nil
+        }
+
+        /// "Send to Hermes" (plan Q44): sends the prompt of `offer`, written offline, to this chat once the server is
+        /// back, then closes the offline chat. Opens the chat first when it never opened. While one send is under way
+        /// a second tap does nothing, so the prompt reaches Hermes once. When the chat cannot open, nothing is sent and
+        /// the offer stays.
+        public func sendToHermes(_ offer: SendToHermesOffer) async {
+            guard offline.beginSending(offer) else { return }
+            if controller == nil { await attach() }
+            guard controller != nil else {
+                offline.sendFailed()
+                return
+            }
+            send(offer.prompt)
+            offline.resolveOffer(offer, as: .sent)
         }
 
         /// Sends the text into the running reply instead of queueing it. Falls back to sending normally.

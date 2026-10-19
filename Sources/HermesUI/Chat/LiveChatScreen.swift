@@ -26,6 +26,7 @@
                 if !chat.queue.isEmpty {
                     QueuedMessagesView(chat: chat)
                 }
+                OfflineBar(chat: chat)
                 ChatStatusBar(strip: chat.strip)
                 if chat.isRunning, let tasks = TaskProgress(chat.state.todos?.todos ?? []) {
                     TaskProgressPill(progress: tasks)
@@ -66,6 +67,10 @@
             switch chat.phase {
             case .loading where chat.state.items.isEmpty:
                 TranscriptSkeleton()
+            case .failed where chat.offline.notice != nil || chat.offline.offer != nil:
+                // Offline chat (WP-65b): while the server is out of reach, and while its "Send to Hermes" offer waits
+                // for an answer, it takes the place of the error.
+                transcript
             case .failed(let message):
                 ContentUnavailableView {
                     Label("Could not open this chat", systemImage: "exclamationmark.triangle")
@@ -115,6 +120,7 @@
                     if chat.isRunning, chat.state.items.last.map(Self.isStreamingAssistant) != true {
                         TypingIndicator().bubbleRow(.leading)
                     }
+                    OfflineChatSection(model: chat.offline, showsHint: chat.state.items.isEmpty)
                     Color.clear.frame(height: 1).id("bottom")
                 }
                 .scrollTargetLayout()
@@ -282,6 +288,7 @@
             var hasher = Hasher()
             hasher.combine(chat.state.items.count)
             hasher.combine(chat.approvals.count)
+            hasher.combine(chat.offline.messages.count)
             if case .assistant(let entry)? = chat.state.items.last?.content { hasher.combine(entry.text.count) }
             return hasher.finalize()
         }
