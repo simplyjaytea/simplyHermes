@@ -16,6 +16,7 @@
         @State private var query = ""
         @State private var currentMatch: String?
         @FocusState private var findFocused: Bool
+        @State private var showsWorkspaces = false
 
         var body: some View {
             VStack(spacing: 0) {
@@ -30,7 +31,7 @@
                     TaskProgressPill(progress: tasks)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                ComposerPills(info: chat.state.info)
+                ComposerPills(info: chat.state.info, workspace: chat.workspaceCwd) { showsWorkspaces = true }
                 Composer(
                     text: model.draftBinding(for: sessionID),
                     attachments: model.attachmentsBinding(for: sessionID),
@@ -44,6 +45,13 @@
             .sheet(item: Binding(get: { chat.valueRequests.first }, set: { _ in })) { item in
                 SecureValueSheet(
                     item: item, onSend: { chat.answerValue(item, $0) }, onCancel: { chat.dismissValue(item) })
+            }
+            .sheet(isPresented: $showsWorkspaces) {
+                if let browser = model.workspaceBrowser {
+                    WorkspacePickerSheet(browser: browser, current: workspaceFolder) { folder in
+                        await chat.moveWorkspace(to: folder)
+                    }
+                }
             }
         }
 
@@ -245,6 +253,9 @@
             isFollowing = false
             withAnimation(HermesMotion.snappy) { position.scrollTo(id: currentMatch, anchor: .center) }
         }
+
+        /// The folder this chat runs in: the one it moved to this run, else the one the server reported.
+        private var workspaceFolder: String? { chat.workspaceCwd ?? chat.state.info?.cwd }
 
         @ViewBuilder
         private var header: some View {
