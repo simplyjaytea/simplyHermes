@@ -1,0 +1,9 @@
+{
+  "ok": false,
+  "consent_required": true,
+  "error": "example-tools now asks for more: registers tool(s): example_upload.",
+  "name": "example-tools",
+  "sha": "2222222222222222222222222222222222222222",
+  "delta": {"provides_tools": ["example_upload"]},
+  "delta_lines": ["registers tool(s): example_upload"]
+}
