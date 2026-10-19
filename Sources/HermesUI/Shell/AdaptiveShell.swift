@@ -16,6 +16,7 @@
         @State private var postureMonitor = DevicePostureMonitor()
         @State private var profiles: ProfilesModel?
         @State private var bots: BotsModel?
+        @State private var terminals = TerminalModel()
         @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
         /// `connections` fills Settings > Servers and the server switcher (WP-22). Nil shows placeholders.
@@ -28,6 +29,8 @@
             self.connections = connections
             self.sessionsList = sessionsList
             model.liveChats = connections.map(LiveChatStore.init)
+            // Kept across re-renders: a new one would lose the folder on screen and leave views holding the old one.
+            if model.workspaceBrowser == nil { model.workspaceBrowser = connections.map(WorkspaceBrowserModel.init) }
             let profileList = connections.map { ProfilesModel(connections: $0) }
             _profiles = State(initialValue: profileList)
             _bots = State(
@@ -47,21 +50,45 @@
                 NavigationStack { PostureDebugView(monitor: postureMonitor) }
                     .hermesPostureSource(postureMonitor)
                     .task(id: forcedPosture) { applyForcedPosture() }
+            } else if UserDefaults.standard.string(forKey: "HermesScreen") == "memory" {
+                MemoryJourneyRoute(connections: connections, layoutOverride: model.layoutOverride)
+                    .hermesPostureSource(postureMonitor)
+                    .environment(\.hermesPosture, posture)
+                    .task(id: forcedPosture) { applyForcedPosture() }
             } else {
                 shell
                     .hermesPostureSource(postureMonitor)
                     .environment(\.hermesPosture, posture)
                     .task(id: forcedPosture) { applyForcedPosture() }
-                    .task(id: connections?.active?.id) { await attachSessions() }
+                    .task(id: sessionScopeKey) { await attachSessions() }
                     .task(id: connections?.active?.id) { await bots?.reload() }
+                    .task(id: model.pendingSessionReference) { await openPendingSession() }
             }
         }
 
-        /// Lists the active server's chats in the shell (WP-40), again when the active server changes.
+        /// Changes when the active server or the profile chosen on it changes. The chat list follows it (WP-40, WP-41).
+        private var sessionScopeKey: String {
+            "\(connections?.active?.id.uuidString ?? "")|\(profiles?.selection.chosen ?? "")"
+        }
+
+        /// Lists the active profile's chats in the shell (WP-40), again when the server or the profile changes.
         private func attachSessions() async {
             guard let sessionsList else { return }
             sessionsList.observeItems { model.syncSessions($0) }
-            await sessionsList.attach()
+            await sessionsList.attach(profile: profiles?.selection.chosen)
+        }
+
+        /// Opens the chat an `@session:` link names, and shows a calm message when it cannot (WP-40).
+        private func openPendingSession() async {
+            guard let reference = model.pendingSessionReference else { return }
+            defer { model.pendingSessionReference = nil }
+            guard let sessionsList, let profiles else {
+                model.sessionNotice = "Connect to a server first."
+                return
+            }
+            if let notice = await sessionsList.open(reference, in: model, profiles: profiles) {
+                model.sessionNotice = notice
+            }
         }
 
         private func applyForcedPosture() {
@@ -123,6 +150,16 @@
             }
             .sheet(isPresented: $model.isPalettePresented, onDismiss: openPendingBugReport) {
                 CommandPalette(model: model)
+            }
+            .alert(
+                "Chat not opened",
+                isPresented: Binding(
+                    get: { model.sessionNotice != nil },
+                    set: { if !$0 { model.sessionNotice = nil } })
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(model.sessionNotice ?? "")
             }
         }
 
@@ -307,9 +344,18 @@
                 SettingsHome(connections: connections)
             } else if section == .bots, let bots {
                 BotsHomeView(model: bots)
+            } else if section == .tools {
+                TerminalToolsHome(connections: connections, terminals: terminals, addToChat: addToChat)
             } else {
                 SectionPlaceholder(section: section)
             }
+        }
+
+        /// Appends a block to the selected chat's draft, as the Tools tab's "Add to chat" does.
+        private func addToChat(_ text: String) {
+            guard let id = model.selectedSessionID else { return }
+            let draft = model.drafts[id, default: ""]
+            model.drafts[id] = draft.isEmpty ? text : draft + "\n" + text
         }
 
         @ToolbarContentBuilder

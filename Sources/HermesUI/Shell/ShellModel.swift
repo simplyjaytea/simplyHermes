@@ -68,10 +68,14 @@
         @ObservationIgnored private var streamTasks: [String: Task<Void, Never>] = [:]
         /// Chats read from the connected server (WP-30). Nil when there is no server connection to read from.
         @ObservationIgnored public var liveChats: LiveChatStore?
+        /// Browses the active server's files for the preview rail (WP-37). Nil when there is no server connection.
+        @ObservationIgnored public var workspaceBrowser: WorkspaceBrowserModel?
         /// Ids of the chats the server listed. These open as live chats; the rest stay placeholders.
         public private(set) var serverSessionIDs: Set<String> = []
         /// Bot Chats opened from the Bots screen (WP-42). They are hidden, so the sessions list never lists them.
         public private(set) var botChatIDs: Set<String> = []
+        /// Chats made on the server from outside the chat list, which the server does not list yet.
+        @ObservationIgnored var startedChats = StartedChats()
         public var isPalettePresented = false
         /// Report a bug, opened from the command palette.
         public var isBugReportPresented = false
@@ -82,6 +86,10 @@
         public var showsPreviewRail = true
         /// Forces a layout, for UI tests and the debug menu. `nil` follows the screen and posture.
         public var layoutOverride: DisplayLayout?
+        /// A session link to open, set by the URL handler. The shell opens it, then clears this (WP-40).
+        public var pendingSessionReference: SessionReference?
+        /// A calm message the shell shows when a session link cannot be opened.
+        public var sessionNotice: String?
 
         public init(sessions: [ChatSessionSummary] = ShellModel.sampleSessions, selectedSessionID: String? = nil) {
             self.sessions = sessions
@@ -140,12 +148,15 @@
         /// Replaces the listed chats with the server's (WP-40). Chats started here stay. Their transcripts arrive with
         /// WP-30, so a synced chat opens empty for now.
         public func syncSessions(_ items: [SessionListItem]) {
+            let started = startedChatsToKeep(listed: Set(items.map(\.id)))
             let local = sessions.filter { $0.id.hasPrefix("new-") || botChatIDs.contains($0.id) }
             let synced = items.map {
                 ChatSessionSummary(id: $0.id, title: $0.title, subtitle: $0.time ?? "", serverName: $0.serverName)
             }
             sessions = local + synced
             serverSessionIDs = Set(items.map(\.id)).union(botChatIDs)
+            sessions.insert(contentsOf: started, at: local.count)
+            serverSessionIDs.formUnion(started.map(\.id))
             for session in sessions where transcripts[session.id] == nil { transcripts[session.id] = [] }
             let ids = Set(sessions.map(\.id))
             openSessionIDs.removeAll { !ids.contains($0) }
