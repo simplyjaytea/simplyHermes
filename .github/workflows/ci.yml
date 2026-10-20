@@ -166,7 +166,7 @@ jobs:
             -skipPackagePluginValidation \
             -project simplyHermes.xcodeproj \
             -scheme simplyHermes \
-            -only-testing:HermesAppUITests/HermesAppUITests/testFoldMidStreamKeepsSessionScrollAndDraft \
+            -only-testing:simplyHermesUITests/HermesAppUITests/testFoldMidStreamKeepsSessionScrollAndDraft \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -resultBundlePath build/test.xcresult \
             -retry-tests-on-failure -test-iterations 2 \
