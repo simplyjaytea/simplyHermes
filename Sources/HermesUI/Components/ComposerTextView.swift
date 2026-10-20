@@ -3,6 +3,23 @@
     import SwiftUI
     import UIKit
 
+    /// The text view behind the composer. Up and Down go to `onRecall` first, which steps through sent messages.
+    /// Returning false leaves the key to the text view, so the caret still moves between lines.
+    final class ComposerUITextView: UITextView {
+        var onRecall: ((ComposerRecallDirection) -> Bool)?
+
+        override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+            let key = presses.first?.key?.keyCode
+            var handled = false
+            if key == .keyboardUpArrow {
+                handled = onRecall?(.older) ?? false
+            } else if key == .keyboardDownArrow {
+                handled = onRecall?(.newer) ?? false
+            }
+            if !handled { super.pressesBegan(presses, with: event) }
+        }
+    }
+
     /// The composer's text view. It is UIKit so that mention words can be blue and the caret can move after a
     /// completion, which a SwiftUI text field cannot do. It grows with its text up to six lines.
     struct ComposerTextView: UIViewRepresentable {
@@ -13,13 +30,14 @@
         @Binding var text: String
         /// The caret, or the selected range, in UTF-16 units.
         @Binding var selection: NSRange
+        var onRecall: ((ComposerRecallDirection) -> Bool)?
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)
         }
 
-        func makeUIView(context: Context) -> UITextView {
-            let view = UITextView()
+        func makeUIView(context: Context) -> ComposerUITextView {
+            let view = ComposerUITextView()
             view.delegate = context.coordinator
             view.backgroundColor = .clear
             view.font = UIFont.preferredFont(forTextStyle: .body)
@@ -33,8 +51,9 @@
             return view
         }
 
-        func updateUIView(_ view: UITextView, context: Context) {
+        func updateUIView(_ view: ComposerUITextView, context: Context) {
             context.coordinator.parent = self
+            view.onRecall = onRecall
             // Only a change from outside, such as a cleared draft or a picked completion, rewrites the view.
             if view.text != text {
                 view.text = text
@@ -45,7 +64,7 @@
             context.coordinator.highlightMentions(in: view)
         }
 
-        func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        func sizeThatFits(_ proposal: ProposedViewSize, uiView: ComposerUITextView, context: Context) -> CGSize? {
             guard let width = proposal.width, width > 0 else { return nil }
             let fitting = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
             let lineHeight = ceil((uiView.font?.lineHeight ?? 20))

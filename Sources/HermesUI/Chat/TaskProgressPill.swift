@@ -70,21 +70,20 @@
     }
 
     /// The settings of the chat, as pills above the composer's field (plan Q19): model, reasoning and workspace.
-    /// They only show what the server reported; the model pill becomes a picker menu with WP-31c. The workspace pill
-    /// opens the folder picker (plan Q31).
+    /// The model pill is a popup menu (plan Q22). The other pills only show what the server reported. The workspace
+    /// pill opens the folder picker (plan Q31).
     struct ComposerPills: View {
-        let info: SessionInfo?
-        /// The folder the chat runs in now. After a move it is newer than what `info` reports.
-        var workspace: String?
+        let chat: LiveChatModel
         /// Opens the folder picker. Without it the workspace pill only shows the folder.
         var onWorkspace: (() -> Void)?
 
         var body: some View {
-            let pills = entries
-            let folder = folderName
-            if !pills.isEmpty || folder != nil {
+            if chat.state.info != nil {
+                let pills = entries
+                let folder = folderName
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
+                        ModelPicker(chat: chat)
                         ForEach(pills, id: \.label) { pill in
                             pillLabel(pill.label, symbol: pill.symbol)
                         }
@@ -122,15 +121,15 @@
         }
 
         private var entries: [(label: String, symbol: String)] {
+            let info = chat.state.info
             var result: [(String, String)] = []
-            if let model = info?.model, !model.isEmpty { result.append((model, "cpu")) }
             if let effort = info?.reasoningEffort, !effort.isEmpty { result.append((effort.capitalized, "brain")) }
             return result
         }
 
         /// The last part of the folder's path, which is what the pill has room for.
         private var folderName: String? {
-            guard let cwd = workspace ?? info?.cwd, !cwd.isEmpty else { return nil }
+            guard let cwd = chat.workspaceCwd ?? chat.state.info?.cwd, !cwd.isEmpty else { return nil }
             return cwd.split(separator: "/").last.map(String.init) ?? cwd
         }
     }
