@@ -8,12 +8,14 @@
         private let connections: ConnectionsModel?
         private let terminals: TerminalModel
         private let addToChat: (String) -> Void
+        @State private var kanban: KanbanModel?
 
         /// `connections` is nil when the shell has none. The screens then say that no server is connected.
         init(connections: ConnectionsModel?, terminals: TerminalModel, addToChat: @escaping (String) -> Void) {
             self.connections = connections
             self.terminals = terminals
             self.addToChat = addToChat
+            _kanban = State(initialValue: connections.map { KanbanModel(connections: $0) })
         }
 
         public var body: some View {
@@ -24,8 +26,12 @@
                 if let connections {
                     serverSection(connections)
                 }
+                if let kanban, kanban.isAvailable {
+                    kanbanSection(kanban)
+                }
             }
             .navigationTitle("Tools")
+            .task { await kanban?.checkPresence() }
         }
 
         private var capabilitiesSection: some View {
@@ -89,6 +95,18 @@
                     Label("Usage", systemImage: "chart.bar.xaxis")
                 }
                 .accessibilityIdentifier("tools.usage")
+            }
+        }
+
+        /// Kanban (WP-55): the server's boards. Shown only when the server runs the kanban plugin.
+        private func kanbanSection(_ kanban: KanbanModel) -> some View {
+            Section {
+                NavigationLink {
+                    KanbanBoardScreen(model: kanban)
+                } label: {
+                    Label("Kanban", systemImage: "rectangle.3.group")
+                }
+                .accessibilityIdentifier("tools.kanban")
             }
         }
     }
