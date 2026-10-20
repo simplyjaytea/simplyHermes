@@ -36,7 +36,7 @@
                     TaskProgressPill(progress: tasks)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                ComposerPills(info: chat.state.info, workspace: chat.workspaceCwd) { showsWorkspaces = true }
+                ComposerPills(chat: chat) { showsWorkspaces = true }
                 Composer(
                     text: model.draftBinding(for: sessionID),
                     attachments: model.attachmentsBinding(for: sessionID),
