@@ -14,7 +14,7 @@ This lists what is not done, what is decided by default, and what has not been c
 |---|---|
 | Routines pane (WP-44) | Not built. |
 | On-device MLX models (#71) | Device only. Waits for the wiring follow-up after #70. |
-| Skills, toolsets and MCP (#54, #76) | Deferred until after alpha. Both PRs define toolset types, so they would show two toolset layers. |
+| MCP, toolset and capability settings (#76) | Held. #76 defines toolset types that #54 also defines, so the app would show two toolset layers if both shipped. Decision pending. |
 | Profile import (#72) | Hidden in this build. The import path has not been checked on a live server. The applies-to selector and scope guard ship. |
 | Hermes Cloud sign-in (#74) | Built, but hidden until a live check. |
 | Action button (WP-63) | Not built. |
@@ -45,6 +45,7 @@ These are built as the recommended option. Each can change.
 | #51 | Terminal | Close-tab confirmation, global tabs, key-row labels. |
 | #52 | Composer history and drafts | Undo pill visibility after send. Draft debounce and pruning. |
 | #53 | Model picker | Reasoning values and the `provider:model` syntax against a live server. Pill height on device. |
+| #54 | Skills, toolsets, plugins | Three minor review items are open. A name with a space or "/" may be double-encoded and return 404. The /update and /activate request bodies are not recorded against a server. The tests use hand-written fixtures. The install prompt says the catalog review does not cover a git URL. That claim is not checked. |
 | #58 | Rewind | If `session.history` lags behind `session.undo`, Rewind may never complete. |
 | #59 | Export, prune, @session links | Confirmation text. Export file handling. |
 | #60 | Tool output preview | Inline transcript card has the same fallback gap. |
@@ -58,7 +59,7 @@ These are built as the recommended option. Each can change.
 | #68 | Memory journey | Minor layout and reload items. |
 | #69 | New chat | Command palette with the server down. Empty chat cleanup after 20 s. A server switch during chat creation is not handled. |
 | #70 | Offline chat | Transcript-text repeat check and cache-file protection not built. |
-| #72 | Profiles | Import row hidden before merge. The import path has not been checked against a live server. |
+| #72 | Profiles | Import row hidden in this build. The import path has not been checked against a live server. |
 | #73 | Siri, Spotlight, Control Center, Share | Spotlight on the Lock Screen and the Share extension need a device. "Stop all turns" needs an authentication decision. |
 | #77 | Messaging, pairing, webhooks | One tap sends one request (simulator check). Telegram QR needs a real channel. |
 | #79 | Server control, logs, usage | Gateway status scoping. Baseline window is 60 s here and 120 s in the protocol note. Restart and update need a live server. A `user:password` in a log URL still shows. |
@@ -71,4 +72,5 @@ These are built as the recommended option. Each can change.
 - Live Activity and the Bots widget on a sideloaded build. The widget shows "Open simplyHermes" if the App Group is dropped.
 - Keep bots live (Settings) with the app in the background.
 - Settings sections that change server state: providers, messaging, server restart and update.
+- Tools tab actions that change server state: skill and plugin install, update and remove, toolset setup, and the skill hub.
 - Kanban Done, room history with the app closed, and the posture debug view on each fold posture.
