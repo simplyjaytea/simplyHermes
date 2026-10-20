@@ -21,6 +21,9 @@
                 capabilitiesSection
                 memorySection
                 terminalSection
+                if let connections {
+                    serverSection(connections)
+                }
             }
             .navigationTitle("Tools")
         }
@@ -68,6 +71,24 @@
                 } label: {
                     Label("Terminal", systemImage: "terminal")
                 }
+            }
+        }
+
+        /// Logs and Usage (WP-54): the server's own logs and usage. They need a connected server.
+        private func serverSection(_ connections: ConnectionsModel) -> some View {
+            Section {
+                NavigationLink {
+                    ServerLogsScreen(connections: connections)
+                } label: {
+                    Label("Logs", systemImage: "doc.text")
+                }
+                .accessibilityIdentifier("tools.logs")
+                NavigationLink {
+                    ServerAnalyticsScreen(connections: connections)
+                } label: {
+                    Label("Usage", systemImage: "chart.bar.xaxis")
+                }
+                .accessibilityIdentifier("tools.usage")
             }
         }
     }
