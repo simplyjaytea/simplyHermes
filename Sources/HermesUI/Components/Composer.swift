@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+    import Foundation
     import HermesKit
     import PhotosUI
     import SwiftUI
@@ -10,55 +11,86 @@
         @Binding private var text: String
         private let placeholder: String
         private let attachments: Binding<[ComposerAttachment]>?
+        private let completer: CompletionLookup?
+        private let history: Binding<ComposerHistory>?
         private let onSend: () -> Void
         private let onSteer: (() -> Void)?
+        private let voice: VoiceInputModel?
 
         @State private var sendCount = 0
+        @State private var selection = NSRange(location: 0, length: 0)
+        @State private var completions = ComposerCompletions()
         @State private var isPhotosPresented = false
         @State private var photoItems: [PhotosPickerItem] = []
         @State private var isFilesPresented = false
         @State private var isCameraPresented = false
         @State private var problem: String?
 
+        /// - Parameters:
+        ///   - attachments: The files waiting in the composer. Nil hides the attach menu.
+        ///   - completer: Looks up the completions of a `/` command or an `@` mention. Nil turns completions off.
+        ///   - history: The chat's sent messages and Undo text. Nil turns Up, Down and Undo off.
         public init(
             text: Binding<String>,
             placeholder: String = "Message Hermes",
             attachments: Binding<[ComposerAttachment]>? = nil,
+            completer: CompletionLookup? = nil,
+            history: Binding<ComposerHistory>? = nil,
             onSend: @escaping () -> Void,
-            onSteer: (() -> Void)? = nil
+            onSteer: (() -> Void)? = nil,
+            voice: VoiceInputModel? = nil
         ) {
             _text = text
             self.placeholder = placeholder
             self.attachments = attachments
+            self.completer = completer
+            self.history = history
             self.onSend = onSend
             self.onSteer = onSteer
+            self.voice = voice
         }
 
         public var body: some View {
-            HStack(alignment: .bottom, spacing: 8) {
-                if let attachments {
-                    attachMenu(attachments)
+            VStack(alignment: .leading, spacing: 6) {
+                if !completions.items.isEmpty {
+                    CompletionPopover(items: completions.items, onPick: pick)
                 }
-                VStack(alignment: .leading, spacing: 6) {
-                    if let attachments, !attachments.wrappedValue.isEmpty {
-                        AttachmentStrip(attachments: attachments)
-                            .padding(.top, 8)
-                            .padding(.horizontal, 8)
-                    }
-                    HStack(alignment: .bottom, spacing: 4) {
-                        TextField(placeholder, text: $text, axis: .vertical)
-                            .accessibilityIdentifier("composer.field")
-                            .font(HermesFont.body)
-                            .lineLimit(1...6)
-                            .padding(.vertical, 11)
-                            .padding(.leading, 14)
-                        sendButton
-                    }
+                if let history, history.wrappedValue.cleared != nil {
+                    undoButton
                 }
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(HermesColor.separator)
-                )
+                HStack(alignment: .bottom, spacing: 8) {
+                    if let attachments {
+                        attachMenu(attachments)
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        if let attachments, !attachments.wrappedValue.isEmpty {
+                            AttachmentStrip(attachments: attachments)
+                                .padding(.top, 8)
+                                .padding(.horizontal, 8)
+                        }
+                        HStack(alignment: .bottom, spacing: 4) {
+                            // Voice turns the field into a waveform bar while the microphone is open (plan Q41).
+                            if let voice, voice.isActive {
+                                VoiceWaveBar(voice: voice)
+                                    .padding(.vertical, 6)
+                                    .padding(.leading, 14)
+                            } else {
+                                field
+                                if let voice {
+                                    VoiceMicButton(voice: voice)
+                                }
+                            }
+                            sendButton
+                        }
+                        if let voice, !voice.isActive, let problem = voice.problem {
+                            VoiceProblemLine(problem: problem)
+                        }
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .strokeBorder(HermesColor.separator)
+                    )
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
@@ -71,6 +103,79 @@
             } message: {
                 Text(problem ?? "")
             }
+            .onChange(of: text) { _, newText in
+                history?.wrappedValue.noteEdit(newText)
+                refreshCompletions()
+            }
+            .onChange(of: selection) { _, _ in refreshCompletions() }
+        }
+
+        /// A small glass button above the field. It puts back the text that the last send or clear removed.
+        /// It waits while the field holds text, so Undo never writes over what the user is typing.
+        private var undoButton: some View {
+            HStack {
+                Button(action: undo) {
+                    Label("Undo", systemImage: "arrow.uturn.backward")
+                        .font(HermesFont.caption.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 32)
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular, in: Capsule())
+                .disabled(!text.isEmpty)
+                .opacity(text.isEmpty ? 1 : 0.4)
+                .accessibilityIdentifier("composer.undo")
+                .accessibilityHint(Text("Puts back the text that was just sent or cleared"))
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 4)
+        }
+
+        /// Puts the removed text back into the field, once. Only an empty field takes it.
+        private func undo() {
+            guard text.isEmpty, let restored = history?.wrappedValue.takeCleared() else { return }
+            setText(restored)
+        }
+
+        /// Up and Down step through the sent messages. Returns false when the key should go to the text view.
+        private func recall(_ direction: ComposerRecallDirection) -> Bool {
+            guard let history, let shown = history.wrappedValue.step(direction, current: text) else { return false }
+            setText(shown)
+            return true
+        }
+
+        /// Replaces the field's text and puts the caret at its end.
+        private func setText(_ newText: String) {
+            text = newText
+            selection = NSRange(location: newText.utf16.count, length: 0)
+        }
+
+        /// The text view, with the placeholder shown while it is empty.
+        private var field: some View {
+            ZStack(alignment: .topLeading) {
+                ComposerTextView(text: $text, selection: $selection, onRecall: recall)
+                if text.isEmpty {
+                    Text(placeholder)
+                        .font(HermesFont.body)
+                        .foregroundStyle(HermesColor.secondaryText)
+                        .padding(.vertical, 11)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.leading, 14)
+        }
+
+        private func refreshCompletions() {
+            guard let completer else { return }
+            completions.update(text: text, caret: selection.location, using: completer)
+        }
+
+        /// Puts a picked completion into the text and moves the caret after it.
+        private func pick(_ item: CompletionItem) {
+            guard let result = completions.accept(item, in: text) else { return }
+            text = result.text
+            selection = NSRange(location: result.caret, length: 0)
         }
 
         /// Photos, Files, Camera and Paste. Each adds to the attachments; nothing uploads until the message is sent.

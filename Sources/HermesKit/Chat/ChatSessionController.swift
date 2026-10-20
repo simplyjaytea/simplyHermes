@@ -14,6 +14,10 @@ public protocol ChatTransport: PromptSession {
     func attachPDF(_ params: PdfAttachParams) async throws -> PdfAttachResult
     /// Calls `file.attach`: stages a file in the session workspace.
     func attachFile(_ params: FileAttachParams) async throws -> FileAttachResult
+    /// Calls `session.history`: the stored rows with their row ids.
+    func sessionHistory(_ params: SessionHistoryParams) async throws -> SessionHistoryResult
+    /// Calls `command.dispatch`: runs a slash command on the server and answers with its directive.
+    func dispatchCommand(_ params: CommandDispatchParams) async throws -> CommandDispatchResult
 }
 
 extension GatewayClient: ChatTransport {
@@ -46,6 +50,16 @@ extension GatewayClient: ChatTransport {
     public func attachFile(_ params: FileAttachParams) async throws -> FileAttachResult {
         try await call("file.attach", params: params)
     }
+
+    /// Calls `session.history`.
+    public func sessionHistory(_ params: SessionHistoryParams) async throws -> SessionHistoryResult {
+        try await call("session.history", params: params)
+    }
+
+    /// Calls `command.dispatch`.
+    public func dispatchCommand(_ params: CommandDispatchParams) async throws -> CommandDispatchResult {
+        try await call("command.dispatch", params: params)
+    }
 }
 
 /// The server refused an attachment, so the message was not sent.
@@ -70,9 +84,12 @@ public actor ChatSessionController {
     private var state: TranscriptState
     private var queue = MessageQueue()
     private var submitCount = 0
+    private var noticeCount = 0
     private var isSubmitting = false
     /// True from an accepted prompt until its turn shows up in the events, so a queued message cannot overtake it.
     private var awaitingTurn = false
+    /// Events that came in while an edit waited for the server. Nil when no edit waits. They are applied after the cut.
+    private var heldEvents: [GatewayClientEvent]?
 
     private var isIdle: Bool { state.turn == nil && !isSubmitting && !awaitingTurn }
     private var eventTask: Task<Void, Never>?
@@ -126,18 +143,37 @@ public actor ChatSessionController {
         eventTask = nil
     }
 
-    /// Sends a prompt with its files. While Hermes is busy the message waits in the queue and goes out when the turn
-    /// ends, with its files.
-    public func send(_ text: String, attachments: [ComposerAttachment] = []) async {
+    /// Sends a prompt with its files. A slash command runs on the server first, and its directive decides what goes
+    /// out: a prompt, text for the composer, or a line in the transcript. While Hermes is busy the message waits in the
+    /// queue and goes out when the turn ends, with its files. Returns the text the composer should take back, if any.
+    @discardableResult
+    public func send(_ text: String, attachments: [ComposerAttachment] = []) async -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty || !attachments.isEmpty, state.liveSessionID != nil else { return }
-        if !isIdle || !queue.isEmpty {
-            queue.enqueue(trimmed, attachments: attachments)
-            publish()
-            return
+        guard !trimmed.isEmpty || !attachments.isEmpty, let live = state.liveSessionID else { return nil }
+        var prompt = trimmed
+        var shownAs: String?
+        if attachments.isEmpty, let command = SlashCommand(trimmed) {
+            switch await run(command, typed: trimmed, live: live) {
+            case .prompt(let message, let display):
+                prompt = message
+                shownAs = display
+            case .prefill(let composerText):
+                return composerText
+            case .printed(let line):
+                if let line { addNotice(line) }
+                return nil
+            case .unknown:
+                break
+            }
         }
-        await submit(trimmed, attachments: attachments)
+        if !isIdle || !queue.isEmpty {
+            queue.enqueue(prompt, attachments: attachments)
+            publish()
+            return nil
+        }
+        await submit(prompt, attachments: attachments, shownAs: shownAs)
         await drainIfIdle()
+        return nil
     }
 
     /// Injects text into the running turn (`session.steer`) without interrupting it. Returns false when nothing
@@ -166,6 +202,50 @@ public actor ChatSessionController {
         await drainIfIdle()
     }
 
+    /// Replaces the user turn at `rowID`, and every row after it, with `text` (edit and regenerate, WP-34). The old
+    /// rows leave the transcript only when the server accepts the edit; until then nothing changes on screen. When the
+    /// outcome asks a question, put it to the user and call again with ``TurnEditConfirmation/consent``. A stale row
+    /// (`4018`) means this transcript is out of date, so the history is read again. Nil when no session is attached
+    /// or another edit still waits for the server.
+    public func edit(text: String, fromRowID rowID: Int, consent: TurnEditConsent = []) async -> TurnEditOutcome? {
+        guard heldEvents == nil, let live = state.liveSessionID else { return nil }
+        let editor = TurnEditor(session: transport, sessionID: live, profile: profile)
+        let impact = RewindImpact.of(state, fromRowID: rowID)
+        isSubmitting = true
+        // The server can start the new turn before its answer reaches us. Holding the events back keeps the new reply
+        // below the edited message, so the cut cannot take it away with the old rows.
+        heldEvents = []
+        let outcome = await editor.edit(text: text, fromRowID: rowID, impact: impact, consent: consent)
+        switch outcome {
+        case .done(let result):
+            submitCount += 1
+            let localID = "\(submitCount)"
+            state.apply(.userSubmitted(localID: localID, text: text, truncateBeforeRowID: rowID))
+            state.apply(.submitAcknowledged(localID: localID, result))
+            awaitingTurn = result.status != .queued && state.turn == nil
+            publish()
+        case .stale:
+            await reloadHistory()
+        case .needsConfirmation, .busy, .failed:
+            break
+        }
+        isSubmitting = false
+        let held = heldEvents ?? []
+        heldEvents = nil
+        for event in held { await handle(event) }
+        await drainIfIdle()
+        return outcome
+    }
+
+    /// Reads the stored history again and shows it. Does nothing while a turn runs, since its text is not stored yet.
+    private func reloadHistory() async {
+        guard let live = state.liveSessionID, state.turn == nil else { return }
+        let params = SessionHistoryParams(sessionID: live, profile: profile)
+        guard let history = try? await transport.sessionHistory(params) else { return }
+        state.apply(.history(history.messages))
+        publish()
+    }
+
     /// Changes the text of a waiting message. Blank text removes it.
     public func editQueued(_ id: Int, to text: String) {
         queue.edit(id, to: text)
@@ -191,7 +271,56 @@ public actor ChatSessionController {
         if !paused { await drainIfIdle() }
     }
 
-    private func submit(_ text: String, attachments: [ComposerAttachment] = []) async {
+    /// What a slash command did, once the server answered it.
+    private enum CommandOutcome: Equatable {
+        /// Goes out as a prompt. The transcript shows `display` in its place.
+        case prompt(String, display: String)
+        /// Goes back to the composer, unsent.
+        case prefill(String)
+        /// Printed text for the transcript. Nil when the command printed nothing.
+        case printed(String?)
+        /// The server does not know the command, so the text goes out as typed.
+        case unknown
+    }
+
+    /// Runs a slash command on the server and maps its directive to what the chat does with it.
+    private func run(_ command: SlashCommand, typed: String, live: String) async -> CommandOutcome {
+        guard let answer = try? await dispatch(command, live: live) else { return .unknown }
+        var directive = answer
+        if directive.type == .alias {
+            // An alias runs its target once, with the arguments typed after the alias.
+            let target = directive.target ?? ""
+            let name = target.hasPrefix("/") ? target : "/" + target
+            let line = command.arg.map { "\(name) \($0)" } ?? name
+            guard let next = SlashCommand(line), let aliased = try? await dispatch(next, live: live) else {
+                return .unknown
+            }
+            directive = aliased
+        }
+        switch directive.type {
+        case .send, .skill:
+            guard let message = directive.message, !message.isEmpty else { return .unknown }
+            return .prompt(message, display: directive.display ?? typed)
+        case .prefill:
+            return .prefill(directive.message ?? "")
+        case .exec, .plugin, .alias:
+            return .printed(directive.output ?? directive.notice)
+        }
+    }
+
+    private func dispatch(_ command: SlashCommand, live: String) async throws -> CommandDispatchResult {
+        try await transport.dispatchCommand(
+            CommandDispatchParams(name: command.name, arg: command.arg, sessionID: live, profile: profile))
+    }
+
+    /// Adds a line the server printed, such as a command's output. The model does not see it.
+    private func addNotice(_ text: String) {
+        noticeCount += 1
+        state.apply(.notice(localID: "\(noticeCount)", text: text))
+        publish()
+    }
+
+    private func submit(_ text: String, attachments: [ComposerAttachment] = [], shownAs: String? = nil) async {
         guard let live = state.liveSessionID else { return }
         isSubmitting = true
         defer { isSubmitting = false }
@@ -207,7 +336,7 @@ public actor ChatSessionController {
             publish()
             return
         }
-        state.apply(.userSubmitted(localID: localID, text: outgoing))
+        state.apply(.userSubmitted(localID: localID, text: shownAs ?? outgoing))
         publish()
         do {
             let result = try await transport.submitPrompt(
@@ -271,6 +400,11 @@ public actor ChatSessionController {
 
     /// Feeds one client event to the transcript. Public so tests and replays can drive it.
     public func handle(_ event: GatewayClientEvent) async {
+        // An edit that waits for the server keeps the events back until its cut is in.
+        if heldEvents != nil {
+            heldEvents?.append(event)
+            return
+        }
         guard let action = TranscriptAction(event) else { return }
         state.apply(action)
         if state.turn != nil { awaitingTurn = false }

@@ -119,6 +119,7 @@ final class LiveTurnMonitor {
             try widgetStore.save(snapshot)
             lastWidgetSnapshot = snapshot
             WidgetCenter.shared.reloadAllTimelines()
+            ControlCenter.shared.reloadControls(ofKind: ControlKind.stopAll)
         } catch {
             logger.error("Widget snapshot write failed: \(error.localizedDescription, privacy: .public)")
         }

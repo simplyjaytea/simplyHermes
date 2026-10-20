@@ -14,7 +14,7 @@ public struct ServerConnection: Sendable, Hashable, Codable, Identifiable {
     /// When the connection was added.
     public var createdAt: Date
 
-    /// The two connection kinds of v1. Hermes Cloud comes later.
+    /// The two connection kinds. A Hermes Cloud agent is a gateway that carries a ``GatewaySettings/cloud`` origin.
     public enum Kind: Sendable, Hashable, Codable {
         case gateway(GatewaySettings)
         case ssh(SSHSettings)
@@ -40,10 +40,11 @@ public struct ServerConnection: Sendable, Hashable, Codable, Identifiable {
     /// Two connections with the same key reach the same server, so the app refuses to save a duplicate.
     ///
     /// Gateways compare by ``HermesEndpoint/normalizedKey``. SSH compares by normalized `user@host:port` plus the
-    /// remote profile (plan 2.4).
+    /// remote profile (plan 2.4). Hermes Cloud agents compare by organization id plus agent id (WP-17).
     public var dedupeKey: String {
         switch kind {
         case .gateway(let settings):
+            if let cloud = settings.cloud { return cloud.dedupeKey }
             return "gateway " + settings.endpoint.normalizedKey
         case .ssh(let settings):
             let host = settings.host.trimmingCharacters(in: .whitespaces).lowercased()
@@ -52,10 +53,12 @@ public struct ServerConnection: Sendable, Hashable, Codable, Identifiable {
         }
     }
 
-    /// One line describing where the server is, for list rows: the URL, or `user@host:port`.
+    /// One line describing where the server is, for list rows: the URL, `user@host:port`, or for Hermes Cloud the
+    /// organization and agent (nobody typed that address).
     public var address: String {
         switch kind {
         case .gateway(let settings):
+            if let cloud = settings.cloud { return cloud.summary }
             return settings.endpoint.baseURL.absoluteString
         case .ssh(let settings):
             let port = settings.port == 22 ? "" : ":\(settings.port)"
@@ -79,12 +82,19 @@ public struct GatewaySettings: Sendable, Hashable, Codable {
     /// Keep the password in the Keychain and sign in again silently when the server forgets the session
     /// (plan 2.3, opt-in).
     public var remembersPassword: Bool
+    /// Set when the address came from Hermes Cloud sign-in and discovery instead of being typed (WP-17). Files
+    /// saved before WP-17 have no such key and read as nil.
+    public var cloud: CloudOrigin?
 
     /// Creates gateway settings.
-    public init(endpoint: HermesEndpoint, signIn: GatewaySignIn = .none, remembersPassword: Bool = false) {
+    public init(
+        endpoint: HermesEndpoint, signIn: GatewaySignIn = .none, remembersPassword: Bool = false,
+        cloud: CloudOrigin? = nil
+    ) {
         self.endpoint = endpoint
         self.signIn = signIn
         self.remembersPassword = remembersPassword
+        self.cloud = cloud
     }
 }
 

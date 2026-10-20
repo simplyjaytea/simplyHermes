@@ -1,0 +1,5 @@
+{
+  "name": "claude-code",
+  "content": "---\nname: claude-code\ndescription: Delegate coding to Claude Code CLI (features, PRs).\n---\n\n# Claude Code\n\nUse the Claude Code CLI for larger coding tasks.\n",
+  "path": "/opt/hermes/skills/autonomous-ai-agents/claude-code/SKILL.md"
+}
