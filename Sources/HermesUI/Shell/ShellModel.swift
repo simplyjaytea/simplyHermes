@@ -58,7 +58,15 @@
         public private(set) var openSessionIDs: [String] = []
         /// Closed chats, most recent last, for "Reopen closed chat".
         public private(set) var closedSessionIDs: [String] = []
-        public var drafts: [String: String] = [:]
+        /// Unsent text per chat. Kept across launches, so a draft is still there after the app closes.
+        public var drafts: [String: String] = [:] {
+            didSet { Self.saveDrafts(drafts, to: draftDefaults) }
+        }
+        /// Where drafts are kept across launches. Nil keeps them in memory only, as UI tests need: a draft typed in one
+        /// run must not be in the field at the start of the next.
+        @ObservationIgnored private let draftDefaults: UserDefaults?
+        /// Sent messages and Undo text per chat. The composer steps through the history with Up and Down.
+        public var histories: [String: ComposerHistory] = [:]
         /// Files attached in each chat's composer. They go out with the next message of that chat.
         public var attachments: [String: [ComposerAttachment]] = [:]
         public var scrollAnchors: [String: String] = [:]
@@ -93,8 +101,14 @@
         /// A calm message the shell shows when a session link cannot be opened.
         public var sessionNotice: String?
 
-        public init(sessions: [ChatSessionSummary] = ShellModel.sampleSessions, selectedSessionID: String? = nil) {
+        public init(
+            sessions: [ChatSessionSummary] = ShellModel.sampleSessions,
+            selectedSessionID: String? = nil,
+            draftDefaults: UserDefaults? = .standard
+        ) {
             self.sessions = sessions
+            self.draftDefaults = draftDefaults
+            drafts = Self.loadDrafts(from: draftDefaults)
             let initial = selectedSessionID ?? sessions.first?.id
             self.selectedSessionID = initial
             for session in sessions {
@@ -295,6 +309,44 @@
             return liveChats?.chat(for: id)
         }
 
+        /// Empties a chat's field. The text stays one Undo away.
+        public func clearDraft(in id: String) {
+            let text = drafts[id, default: ""]
+            drafts[id] = ""
+            histories[id, default: ComposerHistory()].keepCleared(text)
+        }
+
+        /// Adds a sent message to the chat's history.
+        public func rememberSent(_ text: String, in id: String) {
+            histories[id, default: ComposerHistory()].remember(text)
+        }
+
+        public func historyBinding(for id: String) -> Binding<ComposerHistory> {
+            Binding(
+                get: { self.histories[id, default: ComposerHistory()] },
+                set: { self.histories[id] = $0 }
+            )
+        }
+
+        private static let draftsKey = "composer.drafts"
+
+        private static func loadDrafts(from defaults: UserDefaults?) -> [String: String] {
+            guard let data = defaults?.data(forKey: draftsKey) else { return [:] }
+            return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
+        }
+
+        private static func saveDrafts(_ drafts: [String: String], to defaults: UserDefaults?) {
+            guard let defaults else { return }
+            // Placeholder chats ("new-N") are gone after a relaunch and their ids come round again, so a saved draft
+            // would turn up in an unrelated chat.
+            let kept = drafts.filter { !$0.value.isEmpty && !$0.key.hasPrefix("new-") }
+            guard !kept.isEmpty, let data = try? JSONEncoder().encode(kept) else {
+                defaults.removeObject(forKey: draftsKey)
+                return
+            }
+            defaults.set(data, forKey: draftsKey)
+        }
+
         public func draftBinding(for id: String) -> Binding<String> {
             Binding(
                 get: { self.drafts[id, default: ""] },
@@ -340,16 +392,19 @@
         }
 
         /// Streams a canned reply into a chat, a few words at a time, so fold changes can be tested mid-stream.
+        /// Words arrive five at a time, every 600 ms: the same pace, with a fifth of the view updates.
         public func startDemoStream(in id: String, words: Int = 60) {
             guard !streamingSessionIDs.contains(id) else { return }
             streamingSessionIDs.insert(id)
             let messageID = UUID().uuidString
             append(ShellMessage(id: messageID, kind: .assistant, text: ""), to: id)
             streamTasks[id] = Task { [weak self] in
-                for index in 0..<words {
-                    try? await Task.sleep(for: .milliseconds(120))
+                for start in stride(from: 0, to: words, by: 5) {
+                    try? await Task.sleep(for: .milliseconds(600))
                     if Task.isCancelled { break }
-                    self?.appendWord("word\(index)", to: messageID, in: id)
+                    for index in start..<min(start + 5, words) {
+                        self?.appendWord("word\(index)", to: messageID, in: id)
+                    }
                 }
                 self?.streamingSessionIDs.remove(id)
                 self?.streamTasks[id] = nil
