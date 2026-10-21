@@ -14,13 +14,18 @@ public struct HTTPRequest: Sendable, Equatable {
     public var headers: [String: String]
     /// The body, if any.
     public var body: Data?
+    /// How long to wait, in seconds. Nil keeps the transport's default.
+    public var timeout: TimeInterval?
 
     /// Creates a request.
-    public init(method: String, url: URL, headers: [String: String] = [:], body: Data? = nil) {
+    public init(
+        method: String, url: URL, headers: [String: String] = [:], body: Data? = nil, timeout: TimeInterval? = nil
+    ) {
         self.method = method
         self.url = url
         self.headers = headers
         self.body = body
+        self.timeout = timeout
     }
 }
 
@@ -87,6 +92,7 @@ public final class URLSessionHTTPTransport: HTTPTransport, CookieImporting, @unc
         var urlRequest = URLRequest(url: request.url)
         urlRequest.httpMethod = request.method
         urlRequest.httpBody = request.body
+        if let timeout = request.timeout { urlRequest.timeoutInterval = timeout }
         for (name, value) in request.headers { urlRequest.setValue(value, forHTTPHeaderField: name) }
         #if !canImport(Darwin)
             for (name, value) in HTTPCookie.requestHeaderFields(with: cookies.cookies(for: request.url)) {

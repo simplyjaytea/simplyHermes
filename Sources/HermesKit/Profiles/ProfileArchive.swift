@@ -56,6 +56,10 @@ public enum BotExport {
 /// `archive`, `data`, `base64` or `content`. A JSON answer with only a `path`, or with a path under `archive`,
 /// means the server kept the file on its own disk, which the phone cannot fetch yet.
 public struct ProfileArchive: Sendable, Equatable {
+    /// How long an export may take, in seconds. The server builds the archive before it answers, so the default
+    /// request timeout is too short for it.
+    public static let exportTimeout: TimeInterval = 120
+
     /// The archive bytes.
     public var data: Data
     /// The extension to save under, from the bytes: `zip` for a zip file, `tar.gz` otherwise.

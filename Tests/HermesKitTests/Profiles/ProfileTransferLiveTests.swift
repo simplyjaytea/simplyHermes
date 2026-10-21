@@ -49,7 +49,7 @@ private func describeValue(_ value: Any) -> String {
 /// If the server starts answering with bytes, the probe fails on purpose, so the bytes check can return.
 /// Without the variable the test passes without doing anything.
 @Suite struct ProfileTransferLiveTests {
-    @Test func exportDefaultProfileAnswersWithAServerPath() async throws {
+    @Test(.timeLimit(.minutes(3))) func exportDefaultProfileAnswersWithAServerPath() async throws {
         guard let base = ProcessInfo.processInfo.environment["HERMES_TESTBED_URL"],
             let endpoint = HermesEndpoint(string: base)
         else { return }
@@ -57,7 +57,8 @@ private func describeValue(_ value: Any) -> String {
         try await client.passwordLogin(username: "tester", password: "testbed-password")
 
         let answer = try await client.sendRaw(
-            "POST", "/api/profiles/default/export", body: ExportBody(), scoped: false)
+            "POST", "/api/profiles/default/export", body: ExportBody(), scoped: false,
+            timeout: ProfileArchive.exportTimeout)
         #expect(answer.status == 200)
         #expect(answer.headers["content-type"]?.lowercased().contains("text/html") != true, "a login page is no export")
         do {

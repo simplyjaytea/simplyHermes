@@ -30,7 +30,8 @@ extension RESTClient {
     /// ``ProfileArchive/from(answer:)`` reads the shapes the server might send.
     public func exportProfileArchive(name: String) async throws -> ProfileArchive {
         let answer: HTTPResponse = try await send(
-            "POST", "/api/profiles/" + encodedPath(name, "export"), body: ProfileExportRequest(), scoped: false)
+            "POST", "/api/profiles/" + encodedPath(name, "export"), body: ProfileExportRequest(), scoped: false,
+            timeout: ProfileArchive.exportTimeout)
         return try ProfileArchive.from(answer: answer)
     }
 
