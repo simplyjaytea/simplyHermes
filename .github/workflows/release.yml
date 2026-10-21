@@ -70,10 +70,14 @@ jobs:
       - name: Generate project
         run: xcodegen generate
 
+      - name: Get Metal toolchain (MLX and SwiftTerm shaders)
+        run: xcodebuild -downloadComponent MetalToolchain
+
       - name: Archive unsigned device build
         run: |
           set -o pipefail
           xcodebuild archive \
+            -skipPackagePluginValidation \
             -project simplyHermes.xcodeproj \
             -scheme simplyHermes \
             -destination "generic/platform=iOS" \
@@ -140,6 +144,7 @@ jobs:
           xcrun simctl boot "$udid" || true
           xcrun simctl bootstatus "$udid" -b
           xcodebuild build \
+            -skipPackagePluginValidation \
             -project simplyHermes.xcodeproj \
             -scheme simplyHermes \
             -destination "id=$udid" \
