@@ -70,6 +70,9 @@ jobs:
       - name: Generate project
         run: xcodegen generate
 
+      - name: Get Metal toolchain (MLX and SwiftTerm shaders)
+        run: xcodebuild -downloadComponent MetalToolchain
+
       - name: Archive unsigned device build
         run: |
           set -o pipefail
