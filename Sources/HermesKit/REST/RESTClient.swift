@@ -105,9 +105,9 @@ public actor RESTClient {
     /// for endpoints that return files.
     public func send(
         _ method: String, _ path: String, query: [URLQueryItem] = [], body: (any Encodable & Sendable)? = nil,
-        scoped: Bool = true
+        scoped: Bool = true, timeout: TimeInterval? = nil
     ) async throws -> HTTPResponse {
-        let response = try await sendRaw(method, path, query: query, body: body, scoped: scoped)
+        let response = try await sendRaw(method, path, query: query, body: body, scoped: scoped, timeout: timeout)
         if let type = response.headers["content-type"]?.lowercased(), type.contains("text/html") {
             throw RESTError.unexpectedContent(contentType: type)
         }
@@ -118,13 +118,13 @@ public actor RESTClient {
     /// skips the snake_case encoder; use it for camelCase keys.
     public func sendRaw(
         _ method: String, _ path: String, query: [URLQueryItem] = [], body: (any Encodable & Sendable)? = nil,
-        json: Data? = nil, scoped: Bool = true
+        json: Data? = nil, scoped: Bool = true, timeout: TimeInterval? = nil
     ) async throws -> HTTPResponse {
         let encoded: Data? = try json ?? body.map { try Self.encoder.encode(AnyEncodable($0)) }
         var retriedAuth = false
         var rateLimitRetries = 0
         while true {
-            let request = makeRequest(method, path, scopedQuery(query, scoped), encoded)
+            let request = makeRequest(method, path, scopedQuery(query, scoped), encoded, timeout: timeout)
             let response: HTTPResponse
             do {
                 response = try await transport.send(request)
@@ -163,7 +163,9 @@ public actor RESTClient {
         return query + [URLQueryItem(name: "profile", value: profile)]
     }
 
-    private func makeRequest(_ method: String, _ path: String, _ items: [URLQueryItem], _ body: Data?) -> HTTPRequest {
+    private func makeRequest(
+        _ method: String, _ path: String, _ items: [URLQueryItem], _ body: Data?, timeout: TimeInterval?
+    ) -> HTTPRequest {
         let url = endpoint.url(forPath: Self.pathWithQuery(path, items))
         var headers = endpoint.headers
         headers["Accept"] = "application/json"
@@ -173,7 +175,7 @@ public actor RESTClient {
         case .sessionToken(let token): headers["X-Hermes-Session-Token"] = token
         case .bearer(let token): headers["Authorization"] = "Bearer \(token)"
         }
-        return HTTPRequest(method: method, url: url, headers: headers, body: body)
+        return HTTPRequest(method: method, url: url, headers: headers, body: body, timeout: timeout)
     }
 
     private static func pathWithQuery(_ path: String, _ items: [URLQueryItem]) -> String {

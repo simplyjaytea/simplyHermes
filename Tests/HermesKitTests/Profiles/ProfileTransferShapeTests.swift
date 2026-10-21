@@ -25,6 +25,7 @@ private func sentBody(_ request: HTTPRequest?) throws -> [String: Any] {
         let request = try #require(http.requests.first)
         #expect(request.method == "POST" && request.url.path == "/api/profiles/ops%20team/export")
         #expect(request.url.query == nil, "the profile is in the path, so the active profile does not scope it")
+        #expect(request.timeout == ProfileArchive.exportTimeout, "an export waits longer than the default timeout")
         let body = try sentBody(request)
         #expect(body["output"] as? String == "")
         #expect((body["extra_files"] as? [String: String])?.isEmpty == true)
