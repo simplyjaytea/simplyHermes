@@ -1,0 +1,35 @@
+{
+  "name": "web",
+  "has_category": true,
+  "providers": [
+    {
+      "name": "Firecrawl",
+      "badge": "Recommended",
+      "tag": "Search and extract",
+      "env_vars": [
+        {"key": "FIRECRAWL_API_KEY", "prompt": "Firecrawl API key", "url": "https://firecrawl.example/keys", "default": null, "is_set": true}
+      ],
+      "post_setup": null,
+      "requires_nous_auth": false,
+      "managed_nous_feature": null,
+      "is_active": true,
+      "status": "ready"
+    },
+    {
+      "name": "Nous Subscription",
+      "badge": "",
+      "tag": "Managed by Nous",
+      "env_vars": [],
+      "post_setup": null,
+      "requires_nous_auth": true,
+      "managed_nous_feature": "web",
+      "is_active": false,
+      "status": "needs_login"
+    }
+  ],
+  "active_provider": "Firecrawl",
+  "active_search_backend": "firecrawl",
+  "active_extract_backend": "firecrawl",
+  "search_via_nous": false,
+  "extract_via_nous": false
+}

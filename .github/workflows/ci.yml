@@ -50,7 +50,7 @@ jobs:
           docker run --rm --network host -v "$PWD:/src" -w /src \
             -e HERMES_TESTBED_URL=http://127.0.0.1:9119 \
             -e HERMES_TESTBED_OIDC_URL=http://127.0.0.1:9120 \
-            swift:6.1 bash -c 'apt-get update -qq && apt-get install -y -qq libsqlite3-dev && swift test --filter "RESTLiveTests|GatewayLiveTests|GatewayConnectionTesterLiveTests|NativeAuthLiveTests|OIDCSignInLiveTests|ConnectionManagerLiveTests"'
+            swift:6.1 bash -c 'apt-get update -qq && apt-get install -y -qq libsqlite3-dev && swift test --filter "RESTLiveTests|GatewayLiveTests|GatewayConnectionTesterLiveTests|NativeAuthLiveTests|OIDCSignInLiveTests|ConnectionManagerLiveTests|ProfileTransferLiveTests|TerminalLiveTests"'
       - name: Upload REST answers
         if: always()
         uses: actions/upload-artifact@v4
@@ -74,6 +74,21 @@ jobs:
         run: |
           sudo xcode-select -s /Applications/Xcode_27.1.app
           xcodebuild -version
+      - name: Metal toolchain for MLX (best effort)
+        continue-on-error: true
+        run: |
+          # mlx-swift compiles .metal sources during the build (WP-65c) and the hosted image may ship without the
+          # toolchain. -showComponent exits 0 and prints "Status: uninstalled" when it is missing, so read Status.
+          component_status() {
+            xcodebuild -showComponent MetalToolchain 2>&1 | awk -F': *' '/^Status:/ { print tolower($2); exit }'
+          }
+          if [ "$(component_status)" = "installed" ]; then
+            echo "MetalToolchain installed."
+          else
+            echo "MetalToolchain reports '$(component_status)'; downloading."
+            xcodebuild -downloadComponent MetalToolchain
+            echo "MetalToolchain now reports '$(component_status)'."
+          fi
       - name: Install tools
         run: brew install xcodegen swiftlint xcbeautify
       - name: Lint
@@ -83,6 +98,8 @@ jobs:
       - name: Get iOS 27.1 simulator runtime (best effort)
         continue-on-error: true
         run: xcodebuild -downloadPlatform iOS -buildVersion 27.1 || xcodebuild -downloadPlatform iOS
+      - name: Get Metal toolchain (SwiftTerm shaders)
+        run: xcodebuild -downloadComponent MetalToolchain
       - name: Pick simulator
         id: sim
         run: |
@@ -146,6 +163,7 @@ jobs:
           echo "Simulator: ${{ steps.sim.outputs.name }} (iOS ${{ steps.sim.outputs.os }})"
           # If only an older runtime exists, lower the deployment target so the app still runs in CI.
           xcodebuild test \
+            -skipPackagePluginValidation \
             -project simplyHermes.xcodeproj \
             -scheme simplyHermes \
             -destination "id=${{ steps.sim.outputs.udid }}" \
@@ -162,6 +180,7 @@ jobs:
           xcrun simctl boot "$udid" || true
           xcrun simctl bootstatus "$udid" -b
           xcodebuild build \
+            -skipPackagePluginValidation \
             -project simplyHermes.xcodeproj \
             -scheme simplyHermes \
             -destination "id=$udid" \
@@ -199,6 +218,7 @@ jobs:
         run: |
           set -eo pipefail
           xcodebuild build \
+            -skipPackagePluginValidation \
             -project simplyHermes.xcodeproj \
             -scheme simplyHermes \
             -sdk iphoneos \

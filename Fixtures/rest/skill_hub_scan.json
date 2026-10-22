@@ -1,0 +1,21 @@
+{
+  "name": "paper-notes",
+  "identifier": "github/example-org/paper-notes",
+  "source": "github",
+  "trust_level": "community",
+  "verdict": "caution",
+  "summary": "1 finding: network access in a script.",
+  "policy": "ask",
+  "policy_reason": "Community skill with a finding needs confirmation.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "network",
+      "file": "scripts/fetch.py",
+      "line": 12,
+      "description": "Opens an outbound HTTP connection."
+    }
+  ],
+  "severity_counts": {"critical": 0, "high": 0, "medium": 1, "low": 0},
+  "tier1": null
+}

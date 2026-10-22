@@ -2,7 +2,7 @@
     import HermesKit
     import SwiftUI
 
-    /// The Tools & MCP section of Settings: MCP servers, toolsets and capability status (WP-53b).
+    /// The Tools & MCP section of Settings: MCP servers and capability status (WP-53b). Toolsets live on the Tools tab.
     struct SettingsToolsSection: View {
         let connections: ConnectionsModel
 
@@ -14,12 +14,6 @@
                     Label("MCP servers", systemImage: "puzzlepiece.extension")
                 }
                 .accessibilityIdentifier("settings.mcpServers")
-                NavigationLink {
-                    ToolsetsView(connections: connections)
-                } label: {
-                    Label("Toolsets", systemImage: "wrench.and.screwdriver")
-                }
-                .accessibilityIdentifier("settings.toolsets")
                 NavigationLink {
                     CapabilityStatusView(connections: connections)
                 } label: {

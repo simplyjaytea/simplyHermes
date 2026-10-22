@@ -54,6 +54,9 @@ public struct ServerStatus: Sendable, Equatable, Codable {
     public var overall: String?
     /// Profile names.
     public var profiles: [String]?
+    /// Identity of the install: the same install behind two connections lists its bots once (`install_id`).
+    /// REST decodes snake case, so the name is `installId`.
+    public var installId: String?
 }
 
 /// `GET /api/auth/me`.
@@ -90,6 +93,8 @@ public struct HermesProfile: Sendable, Equatable, Codable, Identifiable {
     public var description: String?
     /// Name to show, possibly empty.
     public var displayName: String?
+    /// Bot Mode title (`bot_title`), possibly empty. Present on REST rows so other gateways can show it.
+    public var botTitle: String?
     /// Identity for lists.
     public var id: String { name }
 }
@@ -164,8 +169,7 @@ public struct SkillInfo: Sendable, Equatable, Codable, Identifiable {
     public var id: String { name }
 }
 
-/// One toolset from `GET /api/tools/toolsets`. Typed from `Fixtures/rest/GET_api_tools_toolsets.json`. `platform` and
-/// `platform_label` are also in `toolsets.json`.
+/// One toolset from `GET /api/tools/toolsets`.
 public struct ToolsetInfo: Sendable, Equatable, Codable, Identifiable {
     /// Toolset name.
     public var name: String
@@ -181,10 +185,6 @@ public struct ToolsetInfo: Sendable, Equatable, Codable, Identifiable {
     public var configured: Bool?
     /// Tool names inside.
     public var tools: [String]?
-    /// Platform the switch applies to, such as `cli`.
-    public var platform: String?
-    /// Name of the platform to show, such as `CLI`.
-    public var platformLabel: String?
     /// Identity for lists.
     public var id: String { name }
 }

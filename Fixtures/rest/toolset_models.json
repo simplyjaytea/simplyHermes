@@ -1,0 +1,12 @@
+{
+  "name": "image_gen",
+  "has_models": true,
+  "provider": "Example Images",
+  "plugin": "example-images",
+  "models": [
+    {"id": "fast-model", "display": "Fast", "speed": "fast", "strengths": "Quick drafts", "price": "$"},
+    {"id": "best-model", "display": "Best", "speed": "slow", "strengths": "Detail", "price": "$$$"}
+  ],
+  "current": "fast-model",
+  "default": "fast-model"
+}

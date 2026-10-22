@@ -58,18 +58,34 @@
         public private(set) var openSessionIDs: [String] = []
         /// Closed chats, most recent last, for "Reopen closed chat".
         public private(set) var closedSessionIDs: [String] = []
-        public var drafts: [String: String] = [:]
+        /// Unsent text per chat. Kept across launches, so a draft is still there after the app closes.
+        public var drafts: [String: String] = [:] {
+            didSet { Self.saveDrafts(drafts, to: draftDefaults) }
+        }
+        /// Where drafts are kept across launches. Nil keeps them in memory only, as UI tests need: a draft typed in one
+        /// run must not be in the field at the start of the next.
+        @ObservationIgnored private let draftDefaults: UserDefaults?
+        /// Sent messages and Undo text per chat. The composer steps through the history with Up and Down.
+        public var histories: [String: ComposerHistory] = [:]
         /// Files attached in each chat's composer. They go out with the next message of that chat.
         public var attachments: [String: [ComposerAttachment]] = [:]
         public var scrollAnchors: [String: String] = [:]
         public var transcripts: [String: [ShellMessage]] = [:]
         /// Chats with a turn streaming right now.
         public private(set) var streamingSessionIDs: Set<String> = []
+        /// Chats forked with Branch chat. Their tabs show a branch icon (Q28).
+        public private(set) var branchSessionIDs: Set<String> = []
         @ObservationIgnored private var streamTasks: [String: Task<Void, Never>] = [:]
         /// Chats read from the connected server (WP-30). Nil when there is no server connection to read from.
         @ObservationIgnored public var liveChats: LiveChatStore?
+        /// Browses the active server's files for the preview rail (WP-37). Nil when there is no server connection.
+        @ObservationIgnored public var workspaceBrowser: WorkspaceBrowserModel?
         /// Ids of the chats the server listed. These open as live chats; the rest stay placeholders.
         public private(set) var serverSessionIDs: Set<String> = []
+        /// Bot Chats opened from the Bots screen (WP-42). They are hidden, so the sessions list never lists them.
+        public private(set) var botChatIDs: Set<String> = []
+        /// Chats made on the server from outside the chat list, which the server does not list yet.
+        @ObservationIgnored var startedChats = StartedChats()
         public var isPalettePresented = false
         /// Report a bug, opened from the command palette.
         public var isBugReportPresented = false
@@ -80,9 +96,19 @@
         public var showsPreviewRail = true
         /// Forces a layout, for UI tests and the debug menu. `nil` follows the screen and posture.
         public var layoutOverride: DisplayLayout?
+        /// A session link to open, set by the URL handler. The shell opens it, then clears this (WP-40).
+        public var pendingSessionReference: SessionReference?
+        /// A calm message the shell shows when a session link cannot be opened.
+        public var sessionNotice: String?
 
-        public init(sessions: [ChatSessionSummary] = ShellModel.sampleSessions, selectedSessionID: String? = nil) {
+        public init(
+            sessions: [ChatSessionSummary] = ShellModel.sampleSessions,
+            selectedSessionID: String? = nil,
+            draftDefaults: UserDefaults? = .standard
+        ) {
             self.sessions = sessions
+            self.draftDefaults = draftDefaults
+            drafts = Self.loadDrafts(from: draftDefaults)
             let initial = selectedSessionID ?? sessions.first?.id
             self.selectedSessionID = initial
             for session in sessions {
@@ -138,12 +164,15 @@
         /// Replaces the listed chats with the server's (WP-40). Chats started here stay. Their transcripts arrive with
         /// WP-30, so a synced chat opens empty for now.
         public func syncSessions(_ items: [SessionListItem]) {
-            let local = sessions.filter { $0.id.hasPrefix("new-") }
+            let started = startedChatsToKeep(listed: Set(items.map(\.id)))
+            let local = sessions.filter { $0.id.hasPrefix("new-") || botChatIDs.contains($0.id) }
             let synced = items.map {
                 ChatSessionSummary(id: $0.id, title: $0.title, subtitle: $0.time ?? "", serverName: $0.serverName)
             }
             sessions = local + synced
-            serverSessionIDs = Set(items.map(\.id))
+            serverSessionIDs = Set(items.map(\.id)).union(botChatIDs)
+            sessions.insert(contentsOf: started, at: local.count)
+            serverSessionIDs.formUnion(started.map(\.id))
             for session in sessions where transcripts[session.id] == nil { transcripts[session.id] = [] }
             let ids = Set(sessions.map(\.id))
             openSessionIDs.removeAll { !ids.contains($0) }
@@ -162,19 +191,160 @@
             open(item.id)
         }
 
-        /// Starts a new local chat. WP-40 replaces this with a server-side session.
+        /// Opens a bot's Bot Chat from the Bots screen (WP-42). The chat is hidden, so it is kept across list syncs.
+        public func openBotChat(_ item: SessionListItem) {
+            botChatIDs.insert(item.id)
+            show(item)
+        }
+
+        /// Forgets the Bot Chats and the new chats of the server that was active. A server switch calls this.
+        /// A profile change does not, because opening a bot switches the profile (WP-42).
+        public func forgetServerChats() {
+            botChatIDs = []
+            startedChats = StartedChats()
+        }
+
+        /// Creates the server chat for a New chat's first message. Nil when no server is saved: New chats then stay
+        /// placeholders.
+        @ObservationIgnored public var startServerChat: (@MainActor () async throws -> SessionListItem?)?
+        /// Hands a New chat's first message and its files to the chat's live model, which sends them on attach.
+        @ObservationIgnored public var handOffFirstMessage: (@MainActor (String, String, [ComposerAttachment]) -> Void)?
+        /// New chats whose server chat is created by their first message. Until then they are placeholders.
+        @ObservationIgnored private var unstartedChatIDs: Set<String> = []
+        /// The first message being sent in each New chat. A repeat send there joins it, so a double tap sends once.
+        @ObservationIgnored private var startingChats: [String: Task<Void, Never>] = [:]
+        /// Counts placeholder ids, so a new placeholder never reuses the id of one still open.
+        @ObservationIgnored private var placeholderCount = 0
+        /// Why the last first message failed, in words. The shell shows it in an alert, which clears it.
+        public var newChatError: String?
+
+        /// Starts a chat. With a server saved it is a placeholder until its first message creates the server chat, so
+        /// New chat never waits on the network. An empty chat not yet started is shown again, so repeat taps make one.
         public func newChat() {
-            let id = "new-\(sessions.count + 1)"
+            if let empty = sessions.first(where: { session in
+                unstartedChatIDs.contains(session.id) && drafts[session.id, default: ""].isEmpty
+                    && attachments[session.id, default: []].isEmpty && transcripts[session.id, default: []].isEmpty
+            }) {
+                open(empty.id)
+                return
+            }
+            let id = addPlaceholderChat()
+            if startServerChat != nil { unstartedChatIDs.insert(id) }
+        }
+
+        /// Creates the server chat for a first message and sends the message there. A send in the same chat while that
+        /// runs joins it. A failure keeps the text and the files in the composer and sets ``newChatError``.
+        private func startFirstMessage(in id: String) -> Task<Void, Never>? {
+            if let running = startingChats[id] { return running }
+            guard let startServerChat else { return nil }
+            let typed = drafts[id, default: ""]
+            let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty || !attachments[id, default: []].isEmpty else { return nil }
+            newChatError = nil
+            let task: Task<Void, Never> = Task {
+                defer { self.startingChats[id] = nil }
+                do {
+                    guard let item = try await startServerChat() else {
+                        self.newChatError = Self.newChatMessage(for: nil)
+                        return
+                    }
+                    self.adopt(item, replacing: id)
+                    let files = self.attachments.removeValue(forKey: item.id) ?? []
+                    self.handOffFirstMessage?(item.id, text, files)
+                    if self.drafts[item.id] == typed { self.drafts[item.id] = nil }
+                } catch {
+                    self.newChatError = Self.newChatMessage(for: error)
+                }
+            }
+            startingChats[id] = task
+            return task
+        }
+
+        /// Gives a New chat its server id. The sidebar row, tab, transcript, draft and files move to the server chat.
+        private func adopt(_ item: SessionListItem, replacing placeholderID: String) {
+            unstartedChatIDs.remove(placeholderID)
+            startedChats.note(item.id)
+            serverSessionIDs.insert(item.id)
+            let summary = ChatSessionSummary(
+                id: item.id, title: item.title, subtitle: item.time ?? "", serverName: item.serverName)
+            if let index = sessions.firstIndex(where: { $0.id == placeholderID }) {
+                sessions[index] = summary
+            } else {
+                sessions.insert(summary, at: 0)
+            }
+            transcripts[item.id] = transcripts.removeValue(forKey: placeholderID) ?? []
+            drafts[item.id] = drafts.removeValue(forKey: placeholderID)
+            attachments[item.id] = attachments.removeValue(forKey: placeholderID)
+            scrollAnchors[item.id] = scrollAnchors.removeValue(forKey: placeholderID)
+            openSessionIDs = openSessionIDs.map { $0 == placeholderID ? item.id : $0 }
+            closedSessionIDs = closedSessionIDs.map { $0 == placeholderID ? item.id : $0 }
+            if selectedSessionID == placeholderID { selectedSessionID = item.id }
+        }
+
+        /// The words the user reads when a first message does not start its chat. A nil error means no chat came back.
+        static func newChatMessage(for error: Error?) -> String {
+            if let offline = error as? ServerNotConnectedError {
+                return offline.isConnecting
+                    ? "\(offline.serverName) is still connecting. Try again in a moment."
+                    : "\(offline.serverName) is not connected. Connect to it, then try again."
+            }
+            return "Could not start a new chat. Try again."
+        }
+
+        /// Adds an empty chat at the top of the list and opens it. Ids count up: a count of chats can repeat after a
+        /// list sync and reuse an id that is still open.
+        private func addPlaceholderChat() -> String {
+            placeholderCount += 1
+            let id = "new-\(placeholderCount)"
             sessions.insert(
                 ChatSessionSummary(id: id, title: "New chat", subtitle: "Now", serverName: "home-server"), at: 0)
             transcripts[id] = []
             open(id)
+            return id
         }
 
         /// The live chat for a listed server session, or nil for a placeholder chat.
         func liveChat(for id: String) -> LiveChatModel? {
             guard serverSessionIDs.contains(id) else { return nil }
             return liveChats?.chat(for: id)
+        }
+
+        /// Empties a chat's field. The text stays one Undo away.
+        public func clearDraft(in id: String) {
+            let text = drafts[id, default: ""]
+            drafts[id] = ""
+            histories[id, default: ComposerHistory()].keepCleared(text)
+        }
+
+        /// Adds a sent message to the chat's history.
+        public func rememberSent(_ text: String, in id: String) {
+            histories[id, default: ComposerHistory()].remember(text)
+        }
+
+        public func historyBinding(for id: String) -> Binding<ComposerHistory> {
+            Binding(
+                get: { self.histories[id, default: ComposerHistory()] },
+                set: { self.histories[id] = $0 }
+            )
+        }
+
+        private static let draftsKey = "composer.drafts"
+
+        private static func loadDrafts(from defaults: UserDefaults?) -> [String: String] {
+            guard let data = defaults?.data(forKey: draftsKey) else { return [:] }
+            return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
+        }
+
+        private static func saveDrafts(_ drafts: [String: String], to defaults: UserDefaults?) {
+            guard let defaults else { return }
+            // Placeholder chats ("new-N") are gone after a relaunch and their ids come round again, so a saved draft
+            // would turn up in an unrelated chat.
+            let kept = drafts.filter { !$0.value.isEmpty && !$0.key.hasPrefix("new-") }
+            guard !kept.isEmpty, let data = try? JSONEncoder().encode(kept) else {
+                defaults.removeObject(forKey: draftsKey)
+                return
+            }
+            defaults.set(data, forKey: draftsKey)
         }
 
         public func draftBinding(for id: String) -> Binding<String> {
@@ -191,30 +361,50 @@
             )
         }
 
+        public func isBranch(_ id: String) -> Bool {
+            branchSessionIDs.contains(id)
+        }
+
+        /// Opens a chat forked with Branch chat in a new tab (Q28).
+        public func openBranch(_ result: SessionBranchResult, serverName: String) {
+            branchSessionIDs.insert(result.storedSessionID)
+            show(
+                SessionListItem(
+                    id: result.storedSessionID, title: result.title ?? "Branch", time: nil, isPinned: false,
+                    serverName: serverName))
+        }
+
         public func isStreaming(_ id: String) -> Bool {
             streamingSessionIDs.contains(id)
         }
 
-        /// Sends the draft as a user message. The demo reply streams in word by word.
-        public func send(in id: String) {
+        /// Sends the draft as a user message. The demo reply streams in word by word. A New chat's first message
+        /// creates its server chat instead, and the returned task ends once that message is sent or has failed.
+        @discardableResult
+        public func send(in id: String) -> Task<Void, Never>? {
+            if unstartedChatIDs.contains(id) { return startFirstMessage(in: id) }
             let text = drafts[id, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { return }
+            guard !text.isEmpty else { return nil }
             drafts[id] = ""
             append(ShellMessage(id: UUID().uuidString, kind: .user, text: text), to: id)
             startDemoStream(in: id)
+            return nil
         }
 
         /// Streams a canned reply into a chat, a few words at a time, so fold changes can be tested mid-stream.
+        /// Words arrive five at a time, every 600 ms: the same pace, with a fifth of the view updates.
         public func startDemoStream(in id: String, words: Int = 60) {
             guard !streamingSessionIDs.contains(id) else { return }
             streamingSessionIDs.insert(id)
             let messageID = UUID().uuidString
             append(ShellMessage(id: messageID, kind: .assistant, text: ""), to: id)
             streamTasks[id] = Task { [weak self] in
-                for index in 0..<words {
-                    try? await Task.sleep(for: .milliseconds(120))
+                for start in stride(from: 0, to: words, by: 5) {
+                    try? await Task.sleep(for: .milliseconds(600))
                     if Task.isCancelled { break }
-                    self?.appendWord("word\(index)", to: messageID, in: id)
+                    for index in start..<min(start + 5, words) {
+                        self?.appendWord("word\(index)", to: messageID, in: id)
+                    }
                 }
                 self?.streamingSessionIDs.remove(id)
                 self?.streamTasks[id] = nil

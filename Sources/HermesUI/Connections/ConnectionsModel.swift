@@ -93,6 +93,13 @@
         }
     }
 
+    /// New chat needs a connected server. Thrown at once, instead of waiting on a server that is down or coming up.
+    struct ServerNotConnectedError: Error, Equatable, Sendable {
+        var serverName: String
+        /// True while the server is connecting or reconnecting, so trying again in a moment may work.
+        var isConnecting: Bool
+    }
+
     /// Saved servers, which one is active, and their secrets (WP-22).
     @MainActor
     @Observable
@@ -104,7 +111,30 @@
         @ObservationIgnored public let services: ConnectionServices
         /// Connects on demand. Nil when ``ConnectionServices/connectionDriver`` is nil.
         @ObservationIgnored public private(set) var manager: ConnectionManager?
+        /// False while a fleet update connects the saved servers, so those connects leave the last used server alone.
+        @ObservationIgnored var recordsLastUsed = true
         @ObservationIgnored private var phaseWatcher: Task<Void, Never>?
+        @ObservationIgnored private var fleetRun: FleetUpdateModel?
+        @ObservationIgnored private weak var singleRun: HermesUpdateModel?
+
+        /// The fleet update model, made on first use. The run lives here, not in the screen, so a reopened screen
+        /// re-attaches to a run that goes on, and "Update all servers" cannot start a second run.
+        public var fleetUpdate: FleetUpdateModel {
+            if let fleetRun { return fleetRun }
+            let model = FleetUpdateModel(connections: self)
+            fleetRun = model
+            return model
+        }
+
+        /// The single-server update model, made on first use. Weak here: HermesUpdateModel holds ConnectionsModel,
+        /// so a strong reference would be a cycle. A running update keeps its model alive through its task, so
+        /// "Update all servers" still sees it.
+        public var singleUpdate: HermesUpdateModel {
+            if let singleRun { return singleRun }
+            let model = HermesUpdateModel(connections: self)
+            singleRun = model
+            return model
+        }
 
         /// Loads saved connections from `store`. Nil keeps them in memory only (previews, UI tests).
         public init(store: ConnectionStore?, services: ConnectionServices, initial: SavedConnections? = nil) {
@@ -181,7 +211,22 @@
             Task { await manager.disconnect(id) }
         }
 
+        /// Creates an empty chat on the active server and returns it as a chat row. Nil when no server is saved. Throws
+        /// ``ServerNotConnectedError`` unless the server is connected: `client(for:)` waits on a connect or a reconnect
+        /// with no timeout, and a chat that opens minutes later pulls the user away from what they are doing.
+        public func startChat() async throws -> SessionListItem? {
+            guard let connection = active, let manager else { return nil }
+            let phase = await manager.phase(of: connection.id)
+            guard case .connected = phase else {
+                throw ServerNotConnectedError(serverName: connection.name, isConnecting: phase.isBusy)
+            }
+            let client = try await manager.client(for: connection)
+            let id = try await client.createEmptySession()
+            return SessionListItem(id: id, title: "New chat", time: "Now", isPinned: false, serverName: connection.name)
+        }
+
         private func markConnected(_ id: UUID) {
+            guard recordsLastUsed else { return }
             saved.markConnected(id)
             persist()
         }

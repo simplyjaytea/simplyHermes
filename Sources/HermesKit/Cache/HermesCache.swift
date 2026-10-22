@@ -5,7 +5,8 @@ import GRDB
 ///
 /// Everything is scoped by a `connection` key (the saved connection's id), so two servers never mix. The cache
 /// only ever mirrors the server: when the server and the cache disagree the server wins and the cache is rewritten.
-/// The file lives in the App Group container, so widgets and intents can read it. It is safe to delete.
+/// The file lives in the App Group container, so widgets and intents can read it. It is safe to delete, except for
+/// the offline chats (``offlineChats``), which exist nowhere else.
 public final class HermesCache: Sendable {
     private let database: any DatabaseWriter
 
@@ -51,6 +52,35 @@ public final class HermesCache: Sendable {
                         session_id TEXT NOT NULL,
                         json BLOB NOT NULL,
                         PRIMARY KEY (connection, session_id)
+                    ) WITHOUT ROWID;
+                    """)
+        }
+        // Offline chats (WP-65b) are not a copy of the server: they live in their own tables and never join `session`
+        // or `message`. At most one chat per server chat is open (`resolution` is null) at a time.
+        migrator.registerMigration("offline-chat-v1") { handle in
+            try handle.execute(
+                sql: """
+                    CREATE TABLE offline_chat (
+                        connection TEXT NOT NULL,
+                        chat_id TEXT NOT NULL,
+                        session_id TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        created_at REAL NOT NULL,
+                        updated_at REAL NOT NULL,
+                        resolution TEXT,
+                        PRIMARY KEY (connection, chat_id)
+                    ) WITHOUT ROWID;
+                    CREATE UNIQUE INDEX offline_chat_open ON offline_chat (connection, session_id)
+                        WHERE resolution IS NULL;
+                    CREATE INDEX offline_chat_recent ON offline_chat (connection, updated_at DESC);
+                    CREATE TABLE offline_message (
+                        connection TEXT NOT NULL,
+                        chat_id TEXT NOT NULL,
+                        message_id INTEGER NOT NULL,
+                        role TEXT NOT NULL,
+                        text TEXT NOT NULL,
+                        created_at REAL NOT NULL,
+                        PRIMARY KEY (connection, chat_id, message_id)
                     ) WITHOUT ROWID;
                     """)
         }
@@ -185,14 +215,19 @@ public final class HermesCache: Sendable {
 
     // MARK: - Maintenance
 
-    /// Forgets everything about one connection (when it is deleted or the user signs out).
+    /// Forgets everything about one connection (when it is deleted or the user signs out), offline chats included.
     public func purge(connection: String) async throws {
         try await database.write { handle in
-            for table in ["session", "message", "reading_position"] {
+            for table in ["session", "message", "reading_position", "offline_message", "offline_chat"] {
                 try handle.execute(sql: "DELETE FROM \(table) WHERE connection = ?", arguments: [connection])
             }
         }
     }
+
+    // MARK: - Offline chats
+
+    /// The offline chats kept in this database (WP-65b). They share the file but not the rows of the server's data.
+    public var offlineChats: GRDBOfflineChatStore { GRDBOfflineChatStore(database: database) }
 
     private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()

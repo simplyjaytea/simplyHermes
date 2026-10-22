@@ -8,7 +8,7 @@
         case noServer
     }
 
-    /// The signed-in REST client of the active server, for the MCP and toolset screens, and the sentences those
+    /// The signed-in REST client of the active server, for the MCP and capability screens, and the sentences those
     /// screens show for errors (WP-53b).
     public enum ToolsetAdminClient {
         /// The client of the active server. Connects first when needed; throws when the server cannot be reached.
@@ -46,17 +46,6 @@
     /// Sample answers for previews. They are decoded the way the app decodes the server's answers, so a preview never
     /// reaches a server. Secret values are never part of a sample.
     enum ToolsetAdminSamples {
-        static var toolsets: [ToolsetInfo] {
-            decode(
-                [ToolsetInfo].self,
-                #"""
-                [{"name":"web","label":"Web Search & Scraping","description":"web_search, web_extract","enabled":true,
-                  "available":true,"configured":false,"tools":["web_search","web_extract"]},
-                 {"name":"image_gen","label":"Image Generation","description":"image_generate","enabled":false,
-                  "available":false,"configured":true,"tools":["image_generate"]}]
-                """#) ?? []
-        }
-
         static var mcpServers: [MCPServerInfo] {
             decode(
                 [MCPServerInfo].self,
@@ -77,22 +66,6 @@
                  {"name":"notes","description":"Search your notes folder.","transport":"http",
                   "url":"https://notes.example/mcp","auth_type":"oauth","installed":true,"enabled":true,
                   "needs_install":true,"post_install":"Restart the Hermes session to use it."}]}
-                """#)
-        }
-
-        static var toolsetConfig: ToolsetConfig? {
-            decode(
-                ToolsetConfig.self,
-                #"""
-                {"name":"web","has_category":true,"active_search_backend":"firecrawl",
-                 "active_extract_backend":"firecrawl",
-                 "providers":[{"name":"Firecrawl","badge":"paid","tag":"","status":"needs_keys",
-                   "is_active":true,"requires_nous_auth":false,
-                   "env_vars":[{"key":"FIRECRAWL_API_KEY","prompt":"Firecrawl API key","url":null,"is_set":false}],
-                   "post_setup":null,"capabilities":["search","extract"]},
-                  {"name":"Local","badge":"free","tag":"","status":"needs_setup",
-                   "is_active":false,"requires_nous_auth":false,
-                   "env_vars":[],"post_setup":"local-search","capabilities":["search"]}]}
                 """#)
         }
 

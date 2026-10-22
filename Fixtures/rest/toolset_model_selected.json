@@ -1,0 +1,6 @@
+{
+  "ok": true,
+  "name": "image_gen",
+  "model": "best-model",
+  "plugin": "example-images"
+}
