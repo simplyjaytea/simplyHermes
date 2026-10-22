@@ -2,7 +2,7 @@ name: simplyHermes
 options:
   bundleIdPrefix: com.simplyjaytea
   deploymentTarget:
-    iOS: "27.1"
+    iOS: "26.0"
   createIntermediateGroups: true
 settings:
   base:

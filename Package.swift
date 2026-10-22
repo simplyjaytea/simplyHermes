@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "simplyHermes",
-    platforms: [.iOS("27.1"), .macOS(.v15)],
+    platforms: [.iOS("26.0"), .macOS(.v15)],
     products: [
         .library(name: "HermesKit", targets: ["HermesKit"]),
         .library(name: "HermesSSH", targets: ["HermesSSH"]),

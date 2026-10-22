@@ -4,7 +4,7 @@ Native iPhone client for [Hermes Agent](https://hermes-agent.nousresearch.com), 
 
 - Plan: see `docs/architecture.md` and `CONTRIBUTING.md`.
 - Connects to a Hermes dashboard server over HTTPS/WebSocket or through an SSH tunnel.
-- Swift 6, SwiftUI, iOS 27.1+.
+- Swift 6, SwiftUI, iOS 26.0+. Fold-aware layout on iPhone Duo needs iOS 27.1.
 
 ## Layout
 
