@@ -7,6 +7,7 @@ This lists what is not done, what is decided by default, and what has not been c
 - Nothing in this build has run on an iPhone yet. CI runs unit tests, simulator checks and screenshots. The app target only builds on macOS CI.
 - Free-account signing may drop the App Group and the shared Keychain. Widgets, the Share extension and Spotlight depend on them. The app should still run without them. Check this on the first install.
 - Report what you find from the app's bug report screen. It files a GitHub issue.
+- The release screenshot step captures black frames. No fix for alpha.1.
 
 ## Not in this alpha
 
