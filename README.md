@@ -16,7 +16,7 @@ Most of this is covered by CI tests on the simulator. Checks against a real serv
 - **Settings:** providers and keys, messaging, pairing and webhooks, server control and logs, usage, and kanban boards.
 - **Voice and offline:** dictation, read aloud, offline chat, and on-device helpers where Apple Intelligence is on.
 - **iOS integration:** Live Activity, the Bots widget, and Siri, Spotlight, Control Center and Share entry points. Share and Spotlight need the App Group, which free signing can drop.
-- **Bug reports:** the app files a GitHub issue from its bug report screen.
+- **Bug reports:** the app files a GitHub issue on this repo from its bug report screen. Testers need access to the private repo.
 
 Not in this alpha: rewind (held until a live check), the MCP and capability settings (held), the Routines pane, on-device MLX models (device only), the Action button, Hermes Cloud sign-in (hidden until a live check), profile import (hidden), push notifications, and translations (English only).
 
@@ -24,7 +24,7 @@ Not in this alpha: rewind (held until a live check), the MCP and capability sett
 
 The alpha is not signed by Apple. SideStore signs it on your iPhone with a free Apple ID, so you need no paid developer account.
 
-1. On the iPhone, open the [Releases page](https://github.com/simplyjaytea/simplyHermes/releases) and download the newest **Pre-release** `.ipa`.
+1. On the iPhone, sign in to GitHub with an account that has access to this private repo. Then open the [Releases page](https://github.com/simplyjaytea/simplyHermes/releases) and download the newest **Pre-release** `.ipa`.
 2. In SideStore, open **My Apps**, tap **+**, and choose the `.ipa`.
 3. If iOS asks you to trust the developer, go to Settings > General > VPN & Device Management and trust your Apple ID.
 
@@ -50,7 +50,7 @@ simplyHermes connects to a Hermes dashboard server over HTTPS or WebSocket, or t
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Rules for changes |
 | [CLAUDE.md](CLAUDE.md) | Build, CI and release facts for Claude Code sessions |
 
-Report what you find from the app's bug report screen. It files a GitHub issue.
+Report what you find from the app's bug report screen. It files a GitHub issue on this repo, so testers need access to the private repo.
 
 ## Layout
 

@@ -40,6 +40,7 @@ xcodebuild test -skipPackagePluginValidation -project simplyHermes.xcodeproj -sc
 
 - The concurrency group cancels an in-progress run when a new run starts for the same ref. Back-to-back merges to `main` cancel each other's checks. Let one run finish before the next merge.
 - The App job queues for macOS runners. It can wait a long time when many PRs push at once.
+- The repo is private, so the App job bills 10 minutes for each minute of macOS runner time against the monthly Actions quota. Batch changes before you push.
 - The App job runs tests with `-retry-tests-on-failure -test-iterations 2`. A retry can hide a flaky test, so a green App job does not prove the test is stable.
 - The fold UI test, `testFoldMidStreamKeepsSessionScrollAndDraft` in `App/HermesAppUITests/HermesAppUITests.swift`, is the known flaky test. PR #85 ran only that test in the App job. It was closed without merging. Its branch, `claude/wp-54-fold-debug`, is kept for reference.
 
@@ -55,7 +56,7 @@ xcodebuild test -skipPackagePluginValidation -project simplyHermes.xcodeproj -sc
 - Alpha builds come from `.github/workflows/release.yml`. Push a tag such as `v0.1.0-alpha.2`, or run the workflow by hand with `version` and `publish`.
 - The version must look like `0.1.0-alpha.N`. Its `0.1.0` part must match `MARKETING_VERSION` in `project.yml`. `N` becomes the build number.
 - A tag push, or a run with `publish` set, makes a GitHub prerelease with the `.ipa`, its SHA-256 file and a screenshot zip. Without either, the files are workflow artifacts only.
-- Testers install from `docs/install-sidestore.md` and read `docs/alpha-known-issues.md`. The release notes link both.
+- Testers install from `docs/install-sidestore.md` and read `docs/alpha-known-issues.md`. The release notes link both. The repo is private, so testers need collaborator access before those links open.
 
 ## Working rules
 
