@@ -11,6 +11,7 @@ struct ApprovePendingIntent: LiveActivityIntent {
         IntentDescription("Approves the command a bot is waiting on, when exactly one command waits.")
     }
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
+    @available(iOS 27.0, *)
     static var allowedExecutionTargets: IntentExecutionTargets { .main }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
