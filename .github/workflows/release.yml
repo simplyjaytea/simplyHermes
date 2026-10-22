@@ -27,7 +27,7 @@ jobs:
   alpha:
     name: Alpha IPA and screenshots
     runs-on: xcode-27
-    timeout-minutes: 180
+    timeout-minutes: 60
     permissions:
       contents: write
     steps:
@@ -105,6 +105,7 @@ jobs:
 
       - name: Pick simulator
         id: sim
+        continue-on-error: true
         run: |
           set -euo pipefail
           xcrun simctl list runtimes
@@ -135,6 +136,9 @@ jobs:
           PY
 
       - name: Simulator screenshots
+        # Best effort: a flaky simulator must not block the .ipa, which is already built.
+        continue-on-error: true
+        timeout-minutes: 15
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -149,7 +153,6 @@ jobs:
             -scheme simplyHermes \
             -destination "id=$udid" \
             -derivedDataPath build/dd \
-            IPHONEOS_DEPLOYMENT_TARGET="${{ steps.sim.outputs.os }}" \
             CODE_SIGNING_ALLOWED=NO | xcbeautify
           app=$(find build/dd/Build/Products -name "*.app" -maxdepth 3 | head -1)
           xcrun simctl install "$udid" "$app"
@@ -192,5 +195,8 @@ jobs:
             echo "Install: https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/docs/install-sidestore.md"
             echo "Known issues: https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/docs/alpha-known-issues.md"
           } > "$notes"
-          gh release create "v$VERSION" build/release/*.ipa build/release/*.sha256 build/release/*.zip \
+          # Screenshots are best effort, so publish only the files that exist.
+          shopt -s nullglob
+          assets=(build/release/*.ipa build/release/*.sha256 build/release/*.zip)
+          gh release create "v$VERSION" "${assets[@]}" \
             --target "$GITHUB_SHA" --prerelease --title "simplyHermes $VERSION" --notes-file "$notes"
