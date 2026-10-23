@@ -267,10 +267,26 @@
             test = .idle
         }
 
-        /// Reads the server's sign-in needs and picks a matching sign-in method.
-        public func probeAddress(with services: ConnectionServices) async {
+        /// Set when a home address waits for the Local Network explainer. The form shows the explainer.
+        public var showsLocalNetworkExplainer = false
+
+        /// True when the gateway address is a home address. iOS asks for Local Network access before such an address
+        /// connects.
+        public var needsLocalNetwork: Bool {
+            guard mode == .gateway, case .success(let parsed)? = address else { return false }
+            return parsed.needsLocalNetwork
+        }
+
+        /// Reads the server's sign-in needs and picks a matching sign-in method. A home address waits until the
+        /// explainer has been shown, because the probe's first request is what makes iOS ask for access.
+        public func probeAddress(with services: ConnectionServices, localNetworkExplained: Bool) async {
             guard mode == .gateway, case .success(let parsed)? = address else {
                 probe = .idle
+                return
+            }
+            if parsed.needsLocalNetwork && !localNetworkExplained {
+                probe = .idle
+                showsLocalNetworkExplainer = true
                 return
             }
             probe = .checking
@@ -327,7 +343,8 @@
 
         private static func browserMessage(for error: any Error) -> String {
             switch error {
-            case NativeSignInError.codeRejected, NativeSignInError.stateMismatch, NativeSignInError.missingCode:
+            case NativeSignInError.codeRejected, NativeSignInError.stateMismatch, NativeSignInError.missingCode,
+                RESTError.unauthorized:
                 "The server didn't accept the sign-in. Try again."
             case NativeSignInError.sessionExpired:
                 "The sign-in expired. Try again."

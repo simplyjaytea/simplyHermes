@@ -26,6 +26,27 @@ public enum RESTError: Error, Sendable, Equatable {
     case decoding(String)
 }
 
+/// Readable text for every case. `localizedDescription` returns it, so a screen that shows the error never prints the
+/// Swift type name and case number.
+extension RESTError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .unauthorized: "The server refused the request. Sign in again."
+        case .rateLimited: "The server is busy. Try again in a moment."
+        case .http(let status, let detail): Self.serverMessage(status: status, detail: detail)
+        case .unexpectedContent: "The address answered with a web page, not Hermes. Check the address and path."
+        case .transport: "Couldn't reach the server. Check the address and that Hermes is running."
+        case .decoding: "The server sent an answer the app couldn't read."
+        }
+    }
+
+    /// The server's own `detail` when it sent one, otherwise the status code.
+    private static func serverMessage(status: Int, detail: String?) -> String {
+        let text = detail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return text.isEmpty ? "The server answered with status \(status)." : text
+    }
+}
+
 /// Tuning knobs for ``RESTClient``.
 public struct RESTClientConfig: Sendable {
     /// Retries after a `429` before giving up.
