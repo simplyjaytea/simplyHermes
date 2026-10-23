@@ -9,7 +9,8 @@
         private let onDone: (ServerConnection?) -> Void
 
         @State private var saveError: String?
-        @State private var showsLocalNetworkExplainer = false
+        /// True when the explainer was opened by Test, so its Continue runs the test after the probe.
+        @State private var testAfterExplainer = false
         @AppStorage("hermes.localNetworkExplained") private var localNetworkExplained = false
 
         /// `onDone` gets the saved connection, or nil when the user cancelled.
@@ -26,7 +27,9 @@
             NavigationStack {
                 Form {
                     switch form.mode {
-                    case .gateway: GatewayFormSections(form: form, connections: connections)
+                    case .gateway:
+                        GatewayFormSections(
+                            form: form, connections: connections, localNetworkExplained: localNetworkExplained)
                     case .ssh: SSHFormSections(form: form)
                     }
                     securitySection
@@ -44,11 +47,15 @@
                 .sheet(item: trustBinding) { pending in
                     HostKeyTrustSheet(fingerprint: pending.fingerprint) { form.answerTrust($0) }
                 }
-                .sheet(isPresented: $showsLocalNetworkExplainer) {
+                .sheet(isPresented: $form.showsLocalNetworkExplainer, onDismiss: { testAfterExplainer = false }) {
                     LocalNetworkExplainer {
                         localNetworkExplained = true
-                        showsLocalNetworkExplainer = false
-                        Task { await form.runTest(with: connections) }
+                        form.showsLocalNetworkExplainer = false
+                        let runsTest = testAfterExplainer
+                        Task {
+                            await form.probeAddress(with: connections.services, localNetworkExplained: true)
+                            if runsTest { await form.runTest(with: connections) }
+                        }
                     }
                 }
             }
@@ -118,7 +125,8 @@
 
         private func startTest() {
             if needsLocalNetwork && !localNetworkExplained {
-                showsLocalNetworkExplainer = true
+                testAfterExplainer = true
+                form.showsLocalNetworkExplainer = true
             } else {
                 Task { await form.runTest(with: connections) }
             }
@@ -127,8 +135,7 @@
         private var needsLocalNetwork: Bool {
             switch form.mode {
             case .gateway:
-                if case .success(let parsed)? = form.address { return parsed.needsLocalNetwork }
-                return false
+                return form.needsLocalNetwork
             case .ssh:
                 return ConnectionAddress.classify(host: form.host.trimmingCharacters(in: .whitespaces))
                     == .privateNetwork
@@ -152,6 +159,8 @@
     struct GatewayFormSections: View {
         @Bindable var form: ConnectionFormModel
         let connections: ConnectionsModel
+        /// False until the explainer has been shown once. A home address waits for it before the probe.
+        let localNetworkExplained: Bool
 
         var body: some View {
             Section {
@@ -177,7 +186,7 @@
             .task(id: form.urlText) {
                 try? await Task.sleep(for: .milliseconds(600))
                 guard !Task.isCancelled else { return }
-                await form.probeAddress(with: connections.services)
+                await form.probeAddress(with: connections.services, localNetworkExplained: localNetworkExplained)
             }
 
             Section {
