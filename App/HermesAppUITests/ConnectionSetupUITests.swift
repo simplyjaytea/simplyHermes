@@ -57,6 +57,8 @@ final class ConnectionSetupUITests: XCTestCase {
     func testWelcomeShowsChoicesAndHTTPRule() {
         let app = XCUIApplication()
         app.launchArguments += ["-HermesOnboarding", "fresh", "-HermesLayout", "compact"]
+        // Start with the Local Network explainer unseen, so the home address below shows it before the probe.
+        app.launchArguments += ["-hermes.localNetworkExplained", "NO"]
         app.launch()
 
         XCTAssertTrue(element(app, "welcome.addGateway").waitForExistence(timeout: 10))
@@ -69,6 +71,9 @@ final class ConnectionSetupUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.tap()
         field.typeText("http://192.168.1.20:9119")
+        let explainerContinue = element(app, "localNetwork.continue")
+        XCTAssertTrue(explainerContinue.waitForExistence(timeout: 5))
+        explainerContinue.tap()
         XCTAssertTrue(element(app, "connection.httpWarning").waitForExistence(timeout: 5))
         app.buttons["Cancel"].tap()
 
