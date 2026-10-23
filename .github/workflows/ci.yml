@@ -220,21 +220,22 @@ jobs:
           bundle=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$app/Info.plist")
           xcrun simctl launch "$udid" "$bundle"
           sleep 5
-          xcrun simctl io "$udid" screenshot build/shots/launch.png
+          # The Duo simulator has two displays, and simctl exits 22 unless one is named.
+          xcrun simctl io "$udid" screenshot --display=1 build/shots/launch.png
           # WP-02: the posture debug view, as the Duo simulator (or the newest iPhone) reports it.
           xcrun simctl terminate "$udid" "$bundle" || true
           xcrun simctl launch "$udid" "$bundle" -HermesScreen postureDebug -HermesOnboarding skip
           sleep 4
-          xcrun simctl io "$udid" screenshot build/shots/posture-debug.png
+          xcrun simctl io "$udid" screenshot --display=1 build/shots/posture-debug.png
           # Live Activity (WP-63/64): run a long demo turn, then switch to Safari so the
           # Dynamic Island shows the activity. Best effort: older simulators have no island.
           xcrun simctl terminate "$udid" "$bundle" || true
           xcrun simctl launch "$udid" "$bundle" -HermesDemo liveActivity -HermesOnboarding skip || true
           sleep 6
-          xcrun simctl io "$udid" screenshot build/shots/live-in-app.png || true
+          xcrun simctl io "$udid" screenshot --display=1 build/shots/live-in-app.png || true
           xcrun simctl openurl "$udid" "https://example.com" || true
           sleep 5
-          xcrun simctl io "$udid" screenshot build/shots/live-island.png || true
+          xcrun simctl io "$udid" screenshot --display=1 build/shots/live-island.png || true
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
