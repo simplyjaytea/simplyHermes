@@ -327,7 +327,8 @@
 
         private static func browserMessage(for error: any Error) -> String {
             switch error {
-            case NativeSignInError.codeRejected, NativeSignInError.stateMismatch, NativeSignInError.missingCode:
+            case NativeSignInError.codeRejected, NativeSignInError.stateMismatch, NativeSignInError.missingCode,
+                RESTError.unauthorized:
                 "The server didn't accept the sign-in. Try again."
             case NativeSignInError.sessionExpired:
                 "The sign-in expired. Try again."
