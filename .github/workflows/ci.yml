@@ -161,7 +161,6 @@ jobs:
         run: |
           set -o pipefail
           echo "Simulator: ${{ steps.sim.outputs.name }} (iOS ${{ steps.sim.outputs.os }})"
-          # If only an older runtime exists, lower the deployment target so the app still runs in CI.
           xcodebuild test \
             -skipPackagePluginValidation \
             -project simplyHermes.xcodeproj \
@@ -169,7 +168,6 @@ jobs:
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -resultBundlePath build/test.xcresult \
             -retry-tests-on-failure -test-iterations 2 \
-            IPHONEOS_DEPLOYMENT_TARGET="${{ steps.sim.outputs.os }}" \
             CODE_SIGNING_ALLOWED=NO | xcbeautify
       - name: Screenshot app on simulator
         if: always()
@@ -185,7 +183,6 @@ jobs:
             -scheme simplyHermes \
             -destination "id=$udid" \
             -derivedDataPath build/dd \
-            IPHONEOS_DEPLOYMENT_TARGET="${{ steps.sim.outputs.os }}" \
             CODE_SIGNING_ALLOWED=NO | xcbeautify
           app=$(find build/dd/Build/Products -name "*.app" -maxdepth 3 | head -1)
           xcrun simctl install "$udid" "$app"

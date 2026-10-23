@@ -7,6 +7,7 @@ import AppIntents
 struct StopAllTurnsIntent: LiveActivityIntent {
     static var title: LocalizedStringResource { "Stop all turns" }
     static var description: IntentDescription { IntentDescription("Stops every bot turn that is running.") }
+    @available(iOS 27.0, *)
     static var allowedExecutionTargets: IntentExecutionTargets { .main }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
