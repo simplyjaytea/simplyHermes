@@ -22,6 +22,8 @@ Not in this alpha: rewind (held until a live check), the MCP and capability sett
 
 ## Install with SideStore
 
+The alpha needs iOS 26.0 or later. Fold-aware layout on iPhone Duo needs iOS 27.1.
+
 The alpha is not signed by Apple. SideStore signs it on your iPhone with a free Apple ID, so you need no paid developer account.
 
 1. On the iPhone, sign in to GitHub with an account that has access to this private repo. Then open the [Releases page](https://github.com/simplyjaytea/simplyHermes/releases) and download the newest **Pre-release** `.ipa`.

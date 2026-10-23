@@ -90,12 +90,15 @@ import HermesKit
 #endif
 
 /// The runtime for downloaded models, or nil where none can run: the Simulator has no Metal GPU for MLX, and a build
-/// without the MLX packages has nothing to run. With nil the Apple model always answers. The app targets iOS 27.1, so
-/// the `@available` marks above need no `#available` check here.
+/// without the MLX packages has nothing to run. The MLX runtime needs iOS 27, so on iOS 26 the Apple model always
+/// answers, as it does when the runtime is nil.
 func makeMLXRuntime(memoryGate: OnDeviceMemoryGate) -> (any OnDeviceModelRuntime)? {
     #if canImport(MLXFoundationModels) && canImport(FoundationModels, _version: 2) && canImport(Tokenizers)
         #if !targetEnvironment(simulator)
-            return MLXModelRuntime(memoryGate: memoryGate)
+            if #available(iOS 27.0, *) {
+                return MLXModelRuntime(memoryGate: memoryGate)
+            }
+            return nil
         #else
             return nil
         #endif
