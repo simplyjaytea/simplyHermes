@@ -47,7 +47,7 @@
                 .sheet(item: trustBinding) { pending in
                     HostKeyTrustSheet(fingerprint: pending.fingerprint) { form.answerTrust($0) }
                 }
-                .sheet(isPresented: $form.showsLocalNetworkExplainer, onDismiss: { testAfterExplainer = false }) {
+                .sheet(isPresented: $form.showsLocalNetworkExplainer, onDismiss: forgetTestAfterExplainer) {
                     LocalNetworkExplainer {
                         localNetworkExplained = true
                         form.showsLocalNetworkExplainer = false
@@ -121,6 +121,11 @@
                 get: { form.pendingTrust },
                 set: { newValue in if newValue == nil { form.answerTrust(false) } }
             )
+        }
+
+        /// Runs after the explainer closes, so a swiped-away explainer cannot run the test later.
+        private func forgetTestAfterExplainer() {
+            testAfterExplainer = false
         }
 
         private func startTest() {
