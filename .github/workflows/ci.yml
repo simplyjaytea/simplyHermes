@@ -10,6 +10,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Changed files
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Decide whether the App job runs
+        id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # code=false only when a PR changes nothing but root README.md, CLAUDE.md and CONTRIBUTING.md,
+          # or files under docs/ other than docs/protocol/ (tests read it). Pushes and empty diffs keep code=true.
+          code=true
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+            if [ -n "$changed" ] \
+              && ! grep -qvE '^(README|CLAUDE|CONTRIBUTING)\.md$|^docs/' <<< "$changed" \
+              && ! grep -qE '^docs/protocol/' <<< "$changed"; then
+              code=false
+            fi
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   linux:
     name: Packages (Linux)
     runs-on: ubuntu-latest
@@ -67,6 +95,9 @@ jobs:
 
   macos:
     name: App (Xcode 27, simulator)
+    needs: changes
+    # Skipped only when the changes job sets code=false. If that job fails, this job still runs.
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
