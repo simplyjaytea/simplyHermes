@@ -63,6 +63,9 @@ targets:
       path: App/HermesApp/Info.plist
       properties:
         CFBundleDisplayName: simplyHermes
+        # Without these two keys the generated plist says 1.0 (1), whatever the build settings say.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         # Lets SwiftUI animations run at 120 Hz on ProMotion screens.
         CADisableMinimumFrameDurationOnPhone: true
@@ -116,6 +119,8 @@ targets:
       path: App/HermesWidgets/Info.plist
       properties:
         CFBundleDisplayName: simplyHermes
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
@@ -145,6 +150,8 @@ targets:
       path: App/HermesShare/Info.plist
       properties:
         CFBundleDisplayName: simplyHermes
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
