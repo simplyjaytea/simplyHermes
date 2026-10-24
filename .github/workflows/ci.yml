@@ -126,9 +126,22 @@ jobs:
         run: swiftlint --strict
       - name: Generate project
         run: xcodegen generate
-      - name: Get iOS 27.1 simulator runtime (best effort)
-        continue-on-error: true
-        run: xcodebuild -downloadPlatform iOS -buildVersion 27.1 || xcodebuild -downloadPlatform iOS
+      - name: Get iOS 27.1 simulator runtime
+        # The hosted runner sometimes has no iOS 27 runtime, and then every simulator step fails with a
+        # runtime error. Retry the download, check that a runtime is installed, and fail here instead.
+        run: |
+          runtimes="$RUNNER_TEMP/runtimes.txt"
+          for attempt in 1 2 3; do
+            xcodebuild -downloadPlatform iOS -buildVersion 27.1 || xcodebuild -downloadPlatform iOS || true
+            xcrun simctl list runtimes > "$runtimes"
+            if grep -q "iOS 27" "$runtimes"; then
+              exit 0
+            fi
+            echo "Attempt $attempt: no iOS 27 simulator runtime yet."
+            sleep 30
+          done
+          echo "::error::No iOS 27 simulator runtime after 3 attempts."
+          exit 1
       - name: Get Metal toolchain (SwiftTerm shaders)
         run: xcodebuild -downloadComponent MetalToolchain
       - name: Pick simulator
