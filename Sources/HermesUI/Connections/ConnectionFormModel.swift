@@ -104,6 +104,8 @@
         private var ownershipID: String?
 
         public private(set) var test: TestState = .idle
+        /// The last step the test reported. It stays after the test ends, so a failure can say where it happened.
+        public private(set) var testStage: ConnectionTestStep?
         public var pendingTrust: PendingTrust?
         @ObservationIgnored private var autoTrustFingerprint: String?
 
@@ -434,6 +436,7 @@
                 return
             }
             test = .running(mode == .ssh ? .connectingSSH : .reachingServer)
+            testStage = mode == .ssh ? .connectingSSH : .reachingServer
             do {
                 let report = try await connections.tester(for: connection).test(
                     connection, secrets: secrets,
@@ -481,6 +484,7 @@
         }
 
         private func advance(to step: ConnectionTestStep) {
+            testStage = step
             if case .running = test { test = .running(step) }
         }
 

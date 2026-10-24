@@ -237,31 +237,45 @@
         let address: Result<ConnectionAddress.Parsed, ConnectionAddress.Problem>?
 
         var body: some View {
-            switch address {
-            case nil:
-                Text("The address of hermes serve, with a path if it sits behind a proxy.")
-            case .success(let parsed)?:
-                switch parsed.warning {
-                case .unencryptedLocal?:
-                    Label(
-                        "Plain HTTP: anyone on this network can read your chats. Use HTTPS, Tailscale or SSH if you can.",
-                        systemImage: "exclamationmark.triangle.fill"
-                    )
-                    .foregroundStyle(HermesColor.statusWarning)
-                    .accessibilityIdentifier("connection.httpWarning")
-                case .unencryptedTailscale?:
-                    Label(
-                        "Plain HTTP over Tailscale. The tunnel encrypts it, so this is fine on your tailnet.",
-                        systemImage: "lock.trianglebadge.exclamationmark"
-                    )
-                    .accessibilityIdentifier("connection.httpWarning")
+            VStack(alignment: .leading, spacing: 6) {
+                switch address {
                 case nil:
-                    Text(parsed.endpoint.baseURL.absoluteString).font(HermesFont.codeSmall)
+                    Text("The address of hermes serve, with a path if it sits behind a proxy.")
+                case .success(let parsed)?:
+                    switch parsed.warning {
+                    case .unencryptedLocal?:
+                        Label(
+                            "Plain HTTP: anyone on this network can read your chats. Use HTTPS, Tailscale or SSH if you can.",
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .foregroundStyle(HermesColor.statusWarning)
+                        .accessibilityIdentifier("connection.httpWarning")
+                    case .unencryptedTailscale?:
+                        Label(
+                            "Plain HTTP over Tailscale. The tunnel encrypts it, so this is fine on your tailnet.",
+                            systemImage: "lock.trianglebadge.exclamationmark"
+                        )
+                        .accessibilityIdentifier("connection.httpWarning")
+                    case nil:
+                        Text(parsed.endpoint.baseURL.absoluteString).font(HermesFont.codeSmall)
+                    }
+                case .failure(let problem)?:
+                    Label(Self.message(for: problem), systemImage: "xmark.octagon.fill")
+                        .foregroundStyle(HermesColor.destructive)
                 }
-            case .failure(let problem)?:
-                Label(Self.message(for: problem), systemImage: "xmark.octagon.fill")
-                    .foregroundStyle(HermesColor.destructive)
+                if let note = loopbackNote {
+                    Label(note, systemImage: "iphone")
+                        .foregroundStyle(HermesColor.statusWarning)
+                        .accessibilityIdentifier("connection.loopbackNote")
+                }
             }
+        }
+
+        /// The note for an address that points at this iPhone, which never reaches the computer. Devices only: on the
+        /// Simulator, 127.0.0.1 is the Mac and the CI tests use it.
+        private var loopbackNote: String? {
+            guard !SetupEnvironment.isSimulator, case .success(let parsed)? = address else { return nil }
+            return GatewaySetup.loopbackNote(for: parsed.hostClass)
         }
 
         static func message(for problem: ConnectionAddress.Problem) -> String {
