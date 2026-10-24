@@ -56,7 +56,7 @@ xcodebuild test -skipPackagePluginValidation -project simplyHermes.xcodeproj -sc
 
 - Alpha builds come from `.github/workflows/release.yml`. Push a tag such as `v0.1.0-alpha.2`, or run the workflow by hand with `version` and `publish`.
 - The version must look like `0.1.0-alpha.N`. Its `0.1.0` part must match `MARKETING_VERSION` in `project.yml`. `N` becomes the build number.
-- A tag push, or a run with `publish` set, makes a GitHub prerelease with the `.ipa`, its SHA-256 file and a screenshot zip. Without either, the files are workflow artifacts only.
+- A tag push, or a run with `publish` set, makes a GitHub prerelease with the `.ipa` and its SHA-256 file. Without either, the files are workflow artifacts only.
 - Testers install from `docs/install-sidestore.md` and read `docs/alpha-known-issues.md`. The release notes link both.
 
 ## Working rules
