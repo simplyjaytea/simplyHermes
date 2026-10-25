@@ -53,6 +53,48 @@ final class ConnectionSetupUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 10))
     }
 
+    /// The guided setup from the welcome screen: the computer step, the address, the sign-in, the check, then save.
+    @MainActor
+    func testSetUpWizardAddsTestbedGateway() throws {
+        let url = try XCTUnwrap(
+            ProcessInfo.processInfo.environment["HERMES_TESTBED_URL"],
+            "Set TEST_RUNNER_HERMES_TESTBED_URL to the testbed dashboard")
+        let app = XCUIApplication()
+        app.launchArguments += ["-HermesOnboarding", "fresh", "-HermesLayout", "compact"]
+        app.launch()
+
+        XCTAssertTrue(element(app, "welcome.setUp").waitForExistence(timeout: 10))
+        element(app, "welcome.setUp").tap()
+
+        tap(app, "setup.next")
+        let address = element(app, "setup.address")
+        XCTAssertTrue(address.waitForExistence(timeout: 5))
+        address.tap()
+        address.typeText(url)
+        tap(app, "setup.findNext")
+
+        // The probe finds the testbed's basic login, so the wizard asks for the user name and password.
+        let username = element(app, "setup.username")
+        XCTAssertTrue(username.waitForExistence(timeout: 15), "The wizard should ask for the sign-in")
+        username.tap()
+        username.typeText("tester")
+        let password = element(app, "setup.password")
+        password.tap()
+        password.typeText("testbed-password")
+        tap(app, "setup.signIn")
+
+        let passed = element(app, "setup.continue")
+        if !passed.waitForExistence(timeout: 30) {
+            add(XCTAttachment(screenshot: app.screenshot()))
+            XCTFail("The check did not pass")
+        }
+        tap(app, "setup.continue")
+        tap(app, "setup.save")
+        // Saving the first server replaces the welcome screen with the app.
+        XCTAssertTrue(element(app, "welcome.setUp").waitForNonExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 10))
+    }
+
     @MainActor
     func testWelcomeShowsChoicesAndHTTPRule() {
         let app = XCUIApplication()
@@ -61,7 +103,8 @@ final class ConnectionSetupUITests: XCTestCase {
         app.launchArguments += ["-hermes.localNetworkExplained", "NO"]
         app.launch()
 
-        XCTAssertTrue(element(app, "welcome.addGateway").waitForExistence(timeout: 10))
+        XCTAssertTrue(element(app, "welcome.setUp").waitForExistence(timeout: 10))
+        XCTAssertTrue(element(app, "welcome.addGateway").exists)
         XCTAssertTrue(element(app, "welcome.addSSH").exists)
         XCTAssertTrue(element(app, "welcome.scan").exists)
         XCTAssertFalse(element(app, "welcome.cloud").exists, "Hermes Cloud stays hidden until a live check")
@@ -90,5 +133,14 @@ final class ConnectionSetupUITests: XCTestCase {
     @MainActor
     private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    /// Taps an element once it is on screen. The wizard scrolls, so a button can start below the fold.
+    @MainActor
+    private func tap(_ app: XCUIApplication, _ identifier: String) {
+        let target = element(app, identifier)
+        XCTAssertTrue(target.waitForExistence(timeout: 10), "\(identifier) should appear")
+        for _ in 0..<4 where !target.isHittable { app.swipeUp() }
+        target.tap()
     }
 }

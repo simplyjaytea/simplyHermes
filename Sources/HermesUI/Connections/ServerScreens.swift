@@ -12,6 +12,7 @@
         @State private var form: ConnectionFormModel?
         @State private var showsScanner = false
         @State private var showsCloud = false
+        @State private var showsSetup = false
 
         public init(connections: ConnectionsModel) {
             self.connections = connections
@@ -23,11 +24,18 @@
                     header
                     VStack(spacing: 12) {
                         Button {
-                            form = ConnectionFormModel(mode: .gateway)
+                            showsSetup = true
                         } label: {
-                            Label("Add gateway URL", systemImage: "globe")
+                            Label("Set up on my computer", systemImage: "desktopcomputer")
                         }
                         .buttonStyle(HermesButtonStyle(.primary))
+                        .accessibilityIdentifier("welcome.setUp")
+                        Button {
+                            form = ConnectionFormModel(mode: .gateway)
+                        } label: {
+                            Label("Enter an address", systemImage: "globe")
+                        }
+                        .buttonStyle(HermesButtonStyle(.secondary))
                         .accessibilityIdentifier("welcome.addGateway")
                         Button {
                             form = ConnectionFormModel(mode: .ssh)
@@ -57,7 +65,8 @@
                     HermesCard {
                         Text("Which one?").font(HermesFont.headline)
                         Text(
-                            "Gateway URL: Hermes runs hermes serve on your network, over Tailscale or behind a proxy.\n"
+                            "Set up on my computer: the guided path. Hermes runs on your computer.\n"
+                                + "Enter an address: a server you already run, over Tailscale or behind a proxy.\n"
                                 + "SSH: the app logs in to a computer and starts Hermes itself."
                                 + (HermesCloud.isOfferedInApp
                                     ? "\nHermes Cloud: sign in and pick one of your hosted agents. No address to type."
@@ -84,6 +93,9 @@
             }
             .sheet(isPresented: $showsCloud) {
                 CloudConnectView(connections: connections) { _ in showsCloud = false }
+            }
+            .sheet(isPresented: $showsSetup) {
+                GatewaySetupWizard(connections: connections) { showsSetup = false }
             }
         }
 
@@ -112,6 +124,7 @@
         @State private var form: ConnectionFormModel?
         @State private var showsScanner = false
         @State private var showsCloud = false
+        @State private var showsSetup = false
         @State private var pendingDelete: ServerConnection?
 
         public init(connections: ConnectionsModel) {
@@ -155,7 +168,8 @@
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     AddServerMenu(
-                        onPick: { form = $0 }, onScan: { showsScanner = true }, onCloud: { showsCloud = true })
+                        onPick: { form = $0 }, onSetUp: { showsSetup = true }, onScan: { showsScanner = true },
+                        onCloud: { showsCloud = true })
                 }
             }
             .overlay {
@@ -176,6 +190,9 @@
             }
             .sheet(isPresented: $showsCloud) {
                 CloudConnectView(connections: connections) { _ in showsCloud = false }
+            }
+            .sheet(isPresented: $showsSetup) {
+                GatewaySetupWizard(connections: connections) { showsSetup = false }
             }
             .confirmationDialog(
                 "Delete \(pendingDelete?.name ?? "server")?", isPresented: deleteBinding, titleVisibility: .visible,
@@ -223,15 +240,17 @@
         }
     }
 
-    /// The + menu: gateway, SSH, QR code or Hermes Cloud.
+    /// The + menu: guided setup, an address, SSH, QR code or Hermes Cloud.
     struct AddServerMenu: View {
         let onPick: (ConnectionFormModel) -> Void
+        let onSetUp: () -> Void
         let onScan: () -> Void
         let onCloud: () -> Void
 
         var body: some View {
             Menu {
-                Button("Gateway URL", systemImage: "globe") { onPick(ConnectionFormModel(mode: .gateway)) }
+                Button("Set up on my computer", systemImage: "desktopcomputer", action: onSetUp)
+                Button("Enter an address", systemImage: "globe") { onPick(ConnectionFormModel(mode: .gateway)) }
                 Button("SSH server", systemImage: "terminal") { onPick(ConnectionFormModel(mode: .ssh)) }
                 Button("Scan QR code", systemImage: "qrcode.viewfinder", action: onScan)
                 if HermesCloud.isOfferedInApp {
