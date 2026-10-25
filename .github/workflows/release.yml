@@ -1,9 +1,8 @@
 name: Alpha release
 
-# Builds the unsigned simplyHermes .ipa that SideStore re-signs, plus simulator
-# screenshots. Pushing a tag such as v0.1.0-alpha.1 publishes both as a GitHub
-# prerelease. A manual run builds them as workflow artifacts and publishes only
-# when publish is set. Install steps: docs/install-sidestore.md.
+# Builds the unsigned simplyHermes .ipa that SideStore re-signs. Pushing a tag such as
+# v0.1.0-alpha.1 publishes it as a GitHub prerelease. A manual run builds it as a workflow
+# artifact and publishes only when publish is set. Install steps: docs/install-sidestore.md.
 
 on:
   push:
@@ -25,7 +24,7 @@ concurrency:
 
 jobs:
   alpha:
-    name: Alpha IPA and screenshots
+    name: Alpha IPA
     runs-on: xcode-27
     timeout-minutes: 60
     permissions:
@@ -86,6 +85,22 @@ jobs:
             CURRENT_PROJECT_VERSION=${{ steps.version.outputs.build }} \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | xcbeautify
 
+      - name: Check the version stamp
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          set -euo pipefail
+          plist=build/simplyHermes.xcarchive/Products/Applications/simplyHermes.app/Info.plist
+          short=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$plist")
+          bundle=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$plist")
+          marketing="${VERSION%-alpha.*}"
+          if [ "$short" != "$marketing" ] || [ "$bundle" != "$BUILD" ]; then
+            echo "::error::Archive says $short ($bundle), but $VERSION needs $marketing ($BUILD)"
+            exit 1
+          fi
+          echo "Archive version $short ($bundle) matches $VERSION"
+
       - name: Package unsigned IPA
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -98,81 +113,6 @@ jobs:
           (cd build/release && zip -qr "simplyHermes-$VERSION.ipa" Payload && rm -rf Payload)
           (cd build/release && shasum -a 256 "simplyHermes-$VERSION.ipa" > "simplyHermes-$VERSION.ipa.sha256")
           ls -l build/release
-
-      - name: Get iOS 27.1 simulator runtime (best effort)
-        continue-on-error: true
-        run: xcodebuild -downloadPlatform iOS -buildVersion 27.1 || xcodebuild -downloadPlatform iOS
-
-      - name: Pick simulator
-        id: sim
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          xcrun simctl list runtimes
-          xcrun simctl list devicetypes | grep -iE "duo|iphone" || true
-          rt=$(xcrun simctl list runtimes -j | python3 -c "import sys,json;r=[x for x in json.load(sys.stdin)['runtimes'] if x.get('isAvailable') and x['identifier'].split('.')[-1].startswith('iOS-')];r.sort(key=lambda x:[int(n) for n in x['version'].split('.')]);print(r[-1]['identifier'])")
-          duo=$(xcrun simctl list devicetypes -j | python3 -c "import sys,json;d=[x['identifier'] for x in json.load(sys.stdin)['devicetypes'] if 'duo' in x['name'].lower()];print(d[0] if d else '')")
-          if [ -n "$duo" ]; then xcrun simctl create "iPhone Duo CI" "$duo" "$rt" || true; fi
-          xcrun simctl list devices available -j > devices.json
-          python3 - <<'PY' >> "$GITHUB_OUTPUT"
-          import json, re
-          d = json.load(open("devices.json"))["devices"]
-          best = None
-          for rt, devs in d.items():
-              m = re.search(r"iOS-(\d+)-(\d+)", rt)
-              if not m:
-                  continue
-              ver = (int(m.group(1)), int(m.group(2)))
-              for dev in devs:
-                  name = dev["name"]
-                  if "iPhone" not in name:
-                      continue
-                  score = (1 if "Duo" in name else 0, ver, name)
-                  if best is None or score > best[0]:
-                      best = (score, dev["udid"], name, ver)
-          print(f"udid={best[1]}")
-          print(f"name={best[2]}")
-          print(f"os={best[3][0]}.{best[3][1]}")
-          PY
-
-      - name: Simulator screenshots
-        # Best effort: a flaky simulator must not block the .ipa, which is already built.
-        continue-on-error: true
-        timeout-minutes: 15
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -eo pipefail
-          udid="${{ steps.sim.outputs.udid }}"
-          mkdir -p build/shots
-          xcrun simctl boot "$udid" || true
-          xcrun simctl bootstatus "$udid" -b
-          xcodebuild build \
-            -skipPackagePluginValidation \
-            -project simplyHermes.xcodeproj \
-            -scheme simplyHermes \
-            -destination "id=$udid" \
-            -derivedDataPath build/dd \
-            CODE_SIGNING_ALLOWED=NO | xcbeautify
-          app=$(find build/dd/Build/Products -name "*.app" -maxdepth 3 | head -1)
-          xcrun simctl install "$udid" "$app"
-          bundle=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$app/Info.plist")
-          xcrun simctl launch "$udid" "$bundle"
-          sleep 5
-          xcrun simctl io "$udid" screenshot build/shots/launch.png
-          xcrun simctl terminate "$udid" "$bundle" || true
-          xcrun simctl launch "$udid" "$bundle" -HermesScreen postureDebug -HermesOnboarding skip
-          sleep 4
-          xcrun simctl io "$udid" screenshot build/shots/posture-debug.png
-          # Best effort, as in ci.yml: the Live Activity needs a simulator with a Dynamic Island.
-          xcrun simctl terminate "$udid" "$bundle" || true
-          xcrun simctl launch "$udid" "$bundle" -HermesDemo liveActivity -HermesOnboarding skip || true
-          sleep 6
-          xcrun simctl io "$udid" screenshot build/shots/live-in-app.png || true
-          xcrun simctl openurl "$udid" "https://example.com" || true
-          sleep 5
-          xcrun simctl io "$udid" screenshot build/shots/live-island.png || true
-          (cd build/shots && zip -qr "../release/simplyHermes-$VERSION-screenshots.zip" .)
 
       - name: Upload alpha files
         uses: actions/upload-artifact@v4
@@ -195,8 +135,6 @@ jobs:
             echo "Install: https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/docs/install-sidestore.md"
             echo "Known issues: https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/docs/alpha-known-issues.md"
           } > "$notes"
-          # Screenshots are best effort, so publish only the files that exist.
-          shopt -s nullglob
-          assets=(build/release/*.ipa build/release/*.sha256 build/release/*.zip)
-          gh release create "v$VERSION" "${assets[@]}" \
+          gh release create "v$VERSION" \
+            "build/release/simplyHermes-$VERSION.ipa" "build/release/simplyHermes-$VERSION.ipa.sha256" \
             --target "$GITHUB_SHA" --prerelease --title "simplyHermes $VERSION" --notes-file "$notes"
