@@ -21,6 +21,34 @@ import Testing
         #expect(!prompt.contains("--host 0.0.0.0"))
     }
 
+    /// Hermes bound to the Tailscale IP refuses the `Host: <HOST>` that `tailscale serve` passes through unless the
+    /// public URL names it. Without this line every HTTPS request gets 400.
+    @Test func promptDeclaresThePublicURLForTailscaleServe() {
+        #expect(GatewaySetup.prompt.contains("HERMES_DASHBOARD_PUBLIC_URL=https://<HOST>"))
+    }
+
+    @Test func aRefusedHostNamesThePublicURLFix() throws {
+        // The body Hermes 0.22.2 sends for a Host it doesn't know (seen live on a Tailscale-bound server).
+        let refused = ConnectionTestFailure.server(
+            status: 400,
+            detail: "Invalid Host header. Dashboard requests must use the bound hostname or the configured public "
+                + "hostname.")
+        #expect(refused.isHostRejected)
+        #expect(refused.message.contains("HERMES_DASHBOARD_PUBLIC_URL"))
+        let statuses = GatewaySetup.statuses(
+            stage: .reachingServer, failure: refused, passed: false, address: tailscale)
+        guard case .failed(let diagnosis)? = statuses[.reach] else {
+            Issue.record("the reach check should fail")
+            return
+        }
+        #expect(diagnosis.fixes.contains { $0.contains("HERMES_DASHBOARD_PUBLIC_URL") })
+
+        let other = ConnectionTestFailure.server(status: 400, detail: "Bad request")
+        #expect(!other.isHostRejected)
+        #expect(other.message == "The server answered 400: Bad request")
+        #expect(!ConnectionTestFailure.server(status: 502, detail: nil).isHostRejected)
+    }
+
     @Test func promptLinkIsOneTheScannerAccepts() throws {
         // The agent prints `simplyhermes://add?...` with its own host. Filled in, the app must read it.
         let line = try #require(

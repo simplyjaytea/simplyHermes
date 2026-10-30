@@ -152,12 +152,16 @@ public enum GatewaySetup {
           service needs port 9119 free on the Tailscale address.
 
         3. Write the sign-in. Run `umask 077` first.
-        - File: ~/.config/hermes/dashboard.env. If it already exists, keep it and say so.
+        - File: ~/.config/hermes/dashboard.env. If it already exists, keep its values, add any line below that it
+          lacks, and say so.
         - Contents, one variable per line:
           HERMES_DASHBOARD_BASIC_AUTH_USERNAME=hermes
           HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=<20 random letters and digits>
           HERMES_DASHBOARD_BASIC_AUTH_SECRET=<64 random hex characters>
+          HERMES_DASHBOARD_PUBLIC_URL=https://<HOST>
         - Make the password and the secret with openssl rand. Set the file mode to 600.
+        - The public URL is required. tailscale serve passes the Host header <HOST> through, and Hermes answers
+          "Invalid Host header" (HTTP 400) to any name other than its bind address and its public URL.
 
         4. Write the service.
         - File: /etc/systemd/system/hermes-dashboard.service, with this content, filled in:
@@ -194,7 +198,9 @@ public enum GatewaySetup {
           `sudo ufw allow in on tailscale0 to any port 9119 proto tcp` (sudo). Add no other rule.
 
         7. Check it.
-        - `curl -sS --max-time 5 https://<HOST>/api/status` must return JSON with "auth_required": true.
+        - `curl -sS --max-time 5 https://<HOST>/api/status` must return JSON with "auth_required": true. If it
+          says "Invalid Host header", HERMES_DASHBOARD_PUBLIC_URL is missing from the env file or the service did
+          not load it.
         - `curl -sS --max-time 5 http://<TS_IP>:9119/api/status` must return the same kind of JSON.
         - Find the first private IPv4 address that is not on tailscale0 (`ip -4 -br addr`). Call it LAN_IP.
           If there is none, say so and skip this check. Otherwise,
@@ -228,6 +234,16 @@ public enum GatewaySetup {
         switch failure {
         case .unreachable:
             return reachWords(address)
+        case .server where failure.isHostRejected:
+            return (
+                "Hermes refused this address. It answers only to its own address and its public URL.",
+                [
+                    "On the computer, add HERMES_DASHBOARD_PUBLIC_URL=<this address> to "
+                        + "~/.config/hermes/dashboard.env, then run `sudo systemctl restart hermes-dashboard`.",
+                    "Or use the full name, such as machine.tailnet-name.ts.net, not the short one.",
+                    "Run the setup prompt again.",
+                ]
+            )
         case .server(let status, _):
             return (
                 "The server answered with HTTP \(status), not as Hermes does.",

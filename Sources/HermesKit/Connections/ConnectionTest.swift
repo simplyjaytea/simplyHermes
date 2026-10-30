@@ -133,7 +133,10 @@ public enum ConnectionTestFailure: Error, Sendable, Equatable {
             retryAfter.map { "Too many sign-in attempts. Try again in \(Int($0)) seconds." }
                 ?? "Too many sign-in attempts. Try again in a minute."
         case .server(let status, let detail):
-            "The server answered \(status)\(detail.map { ": \($0)" } ?? ".")"
+            isHostRejected
+                ? "Hermes refused this address. It answers only to the address it listens on and to its public URL. "
+                    + "Set HERMES_DASHBOARD_PUBLIC_URL on the server to this address, then restart Hermes."
+                : "The server answered \(status)\(detail.map { ": \($0)" } ?? ".")"
         case .missingSecret:
             "Enter the password, token or key first."
         case .hostKeyRejected:
@@ -148,6 +151,13 @@ public enum ConnectionTestFailure: Error, Sendable, Equatable {
         case .serverTooOld(let found):
             "This Hermes is too old for simplyHermes (\(found)). Update Hermes on the server with `hermes update`."
         }
+    }
+
+    /// True when Hermes refused the request's `Host`: the address is a name Hermes doesn't know, such as the
+    /// `tailscale serve` name in front of a server bound to its Tailscale IP, or a MagicDNS short name.
+    public var isHostRejected: Bool {
+        guard case .server(400, let detail?) = self else { return false }
+        return detail.contains("Invalid Host header")
     }
 }
 

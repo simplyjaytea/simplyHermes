@@ -47,8 +47,9 @@ public enum ConnectionAddress {
         public var needsLocalNetwork: Bool { hostClass == .privateNetwork }
     }
 
-    /// Parses `input`. Without a scheme, local, private and Tailscale hosts get `http://` and others `https://`.
-    /// Spaces around the input and a trailing slash are dropped.
+    /// Parses `input`. Without a scheme, public hosts get `https://`, and so does a `*.ts.net` name without a port:
+    /// that is the `tailscale serve` address, which answers HTTPS on 443 and nothing on 80. Other local, private and
+    /// Tailscale hosts get `http://`. Spaces around the input and a trailing slash are dropped.
     public static func parse(_ input: String) -> Result<Parsed, Problem> {
         var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return .failure(.empty) }
@@ -62,7 +63,7 @@ public enum ConnectionAddress {
             guard scheme == "http" || scheme == "https" else { return .failure(.unsupportedScheme(scheme)) }
         } else {
             guard let host = hostPart(ofSchemeless: text) else { return .failure(.invalid) }
-            text = (classify(host: host) == .publicInternet ? "https://" : "http://") + text
+            text = (defaultsToHTTPS(schemeless: text, host: host) ? "https://" : "http://") + text
         }
 
         guard let components = URLComponents(string: text), let host = components.host, !host.isEmpty,
@@ -101,6 +102,16 @@ public enum ConnectionAddress {
     }
 
     // MARK: - Helpers
+
+    /// The scheme rule for typed text without one. See ``parse(_:)``.
+    private static func defaultsToHTTPS(schemeless text: String, host: String) -> Bool {
+        if classify(host: host) == .publicInternet { return true }
+        var name = host.lowercased()
+        if name.hasSuffix(".") { name.removeLast() }
+        guard name.hasSuffix(".ts.net") else { return false }
+        let authority = text.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false).first ?? ""
+        return !authority.contains(":")
+    }
 
     /// The host of `host[:port][/path]`, or nil when it is not one.
     private static func hostPart(ofSchemeless text: String) -> String? {

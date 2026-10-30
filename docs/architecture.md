@@ -119,9 +119,13 @@ Settings > On-device models, also opened from "Get a better model" in offline ch
 ## Networking permissions
 
 LAN gateways need `NSLocalNetworkUsageDescription` (set); the app explains the prompt once before the first Test of a
-private-network host. ATS: `NSAllowsLocalNetworking` covers local hosts only, not Tailscale `100.x` / `*.ts.net`, so
-`NSAllowsArbitraryLoads` is on and the app enforces plan Q14 itself (`ConnectionAddress`): `http://` only for
-loopback, private and Tailscale hosts, with a warning; HTTPS everywhere else.
+private-network host. ATS: iOS 10 and later ignore `NSAllowsArbitraryLoads` when `NSAllowsLocalNetworking` is set.
+Local networking covers IP addresses (including Tailscale `100.x`), single-label names and `.local`. `*.ts.net` has its
+own `NSExceptionDomains` entry that allows plain HTTP; without it, `http://` to a MagicDNS name fails on the phone while
+Safari loads it. `.lan`, `.internal` and `.home.arpa` have no exception yet, so `http://` to them is still blocked by
+ATS. The app enforces plan Q14 itself (`ConnectionAddress`): `http://` only for loopback, private and Tailscale hosts,
+with a warning; HTTPS everywhere else. A bare `*.ts.net` name without a port defaults to `https://`, the
+`tailscale serve` address.
 
 ## Project file
 

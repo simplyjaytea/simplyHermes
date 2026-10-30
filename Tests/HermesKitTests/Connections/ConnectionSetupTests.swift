@@ -10,9 +10,24 @@ import Testing
     @Test func addsHTTPForLocalHostsAndHTTPSForPublicOnes() throws {
         #expect(try parsed("192.168.1.20:9119").endpoint.baseURL.absoluteString == "http://192.168.1.20:9119")
         #expect(try parsed("hermes.local:9119/").endpoint.baseURL.absoluteString == "http://hermes.local:9119")
-        #expect(try parsed("box.tail1234.ts.net").endpoint.baseURL.absoluteString == "http://box.tail1234.ts.net")
+        #expect(try parsed("100.64.150.77:9119").endpoint.baseURL.absoluteString == "http://100.64.150.77:9119")
         #expect(try parsed("hermes.example.com/ai").endpoint.baseURL.absoluteString == "https://hermes.example.com/ai")
         #expect(try parsed("  https://Hermes.example.com  ").warning == nil)
+    }
+
+    /// `tailscale serve` answers HTTPS on 443 and nothing on 80, so a bare MagicDNS name means HTTPS. With a port,
+    /// the name points at Hermes itself, which speaks plain HTTP.
+    @Test func bareMagicDNSNameMeansTailscaleServeHTTPS() throws {
+        #expect(try parsed("box.tail1234.ts.net").endpoint.baseURL.absoluteString == "https://box.tail1234.ts.net")
+        #expect(try parsed("Box.Tail1234.TS.net/").endpoint.baseURL.scheme == "https")
+        #expect(
+            try parsed("box.tail1234.ts.net/hermes").endpoint.baseURL.absoluteString
+                == "https://box.tail1234.ts.net/hermes")
+        #expect(try parsed("box.tail1234.ts.net").warning == nil)
+        #expect(
+            try parsed("box.tail1234.ts.net:9119").endpoint.baseURL.absoluteString == "http://box.tail1234.ts.net:9119")
+        #expect(try parsed("box.tail1234.ts.net:9119").warning == .unencryptedTailscale)
+        #expect(try parsed("http://box.tail1234.ts.net").endpoint.baseURL.scheme == "http")
     }
 
     @Test func plainHTTPRuleFollowsQ14() throws {

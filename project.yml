@@ -79,11 +79,18 @@ targets:
         NSCameraUsageDescription: simplyHermes scans server QR codes to add a connection.
         NSFaceIDUsageDescription: simplyHermes asks for Face ID before it uses your saved server keys.
         NSMicrophoneUsageDescription: simplyHermes records your voice for dictation and voice conversations and sends it to your Hermes server to turn it into text.
-        # Plan Q14: plain HTTP is allowed for local, private and Tailscale hosts (100.x and *.ts.net, which
-        # NSAllowsLocalNetworking does not cover). The app refuses http:// to public hosts itself (ConnectionAddress).
+        # Plan Q14: plain HTTP is allowed for local, private and Tailscale hosts. The app refuses http:// to public
+        # hosts itself (ConnectionAddress).
+        # iOS 10 and later ignore NSAllowsArbitraryLoads when NSAllowsLocalNetworking is set. Local networking covers
+        # IP addresses (so 100.x), single-label names and .local. *.ts.net needs its own exception, or http:// to a
+        # MagicDNS name fails before it leaves the phone while Safari loads it fine.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           NSAllowsArbitraryLoads: true
+          NSExceptionDomains:
+            ts.net:
+              NSIncludesSubdomains: true
+              NSExceptionAllowsInsecureHTTPLoads: true
         ITSAppUsesNonExemptEncryption: false
         # Live Activity for running bot turns (WP-63/64).
         NSSupportsLiveActivities: true
