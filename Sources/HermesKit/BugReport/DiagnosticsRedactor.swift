@@ -60,6 +60,7 @@ public struct DiagnosticsRedactor: Sendable {
     // Order matters: whole blocks and tokens first, then key=value pairs, then addresses.
     /// The rules that remove secrets: private key blocks, tokens, and key=value pairs.
     private static let secretRules: [Rule] = [
+        Rule(#"([a-z][a-z0-9+.-]*://)[^/\s@]+@"#, "$1"),
         Rule(#"-----BEGIN [A-Z0-9 ]+-----[\s\S]*?-----END [A-Z0-9 ]+-----"#, "[redacted key]"),
         Rule(#"\b(?:gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,})"#, "[redacted token]"),
         Rule(#"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"#, "[redacted token]"),
