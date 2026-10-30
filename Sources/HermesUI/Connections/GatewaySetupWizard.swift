@@ -272,7 +272,6 @@
             }
             switch code {
             case .gateway(let url, let name, let user):
-                form.invalidateTest()
                 form.urlText = url
                 if let name, form.name.isEmpty { form.name = name }
                 if let user {
@@ -295,7 +294,6 @@
                 return
             }
             findProblem = nil
-            form.invalidateTest()
             form.urlText = text
             reachAddress()
         }

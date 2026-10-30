@@ -72,15 +72,27 @@
         public var requiresUnlock: Bool
 
         // Gateway
-        public var urlText = ""
-        public var signInMethod: SignInMethod = .none
-        public var username = ""
-        public var password = ""
-        public var token = ""
+        public var urlText = "" {
+            didSet { invalidateTest() }
+        }
+        public var signInMethod: SignInMethod = .none {
+            didSet { invalidateTest() }
+        }
+        public var username = "" {
+            didSet { invalidateTest() }
+        }
+        public var password = "" {
+            didSet { invalidateTest() }
+        }
+        public var token = "" {
+            didSet { invalidateTest() }
+        }
         public var remembersPassword = false
         public private(set) var probe: ProbeState = .idle
         /// The provider for browser sign-in. Nil lets the server choose.
-        public var browserProvider: String?
+        public var browserProvider: String? {
+            didSet { invalidateTest() }
+        }
         public private(set) var browserState: BrowserState = .idle
         private var browserResult: BrowserSignInResult?
         /// The server the browser sign-in belongs to. Tokens for another address are not used.
@@ -90,16 +102,34 @@
         public private(set) var cloudOrigin: CloudOrigin?
 
         // SSH
-        public var host = ""
-        public var port = "22"
-        public var sshUser = ""
-        public var keySource: KeySource = .generate
-        public private(set) var generatedKey: StoredSSHKey?
+        public var host = "" {
+            didSet { invalidateTest() }
+        }
+        public var port = "22" {
+            didSet { invalidateTest() }
+        }
+        public var sshUser = "" {
+            didSet { invalidateTest() }
+        }
+        public var keySource: KeySource = .generate {
+            didSet { invalidateTest() }
+        }
+        public private(set) var generatedKey: StoredSSHKey? {
+            didSet { invalidateTest() }
+        }
         public private(set) var publicKeyLine: String?
-        public var importText = ""
-        public var passphrase = ""
-        public var hermesPath = ""
-        public var remoteProfile = ""
+        public var importText = "" {
+            didSet { invalidateTest() }
+        }
+        public var passphrase = "" {
+            didSet { invalidateTest() }
+        }
+        public var hermesPath = "" {
+            didSet { invalidateTest() }
+        }
+        public var remoteProfile = "" {
+            didSet { invalidateTest() }
+        }
         public private(set) var pinnedHostKey: String?
         private var ownershipID: String?
 
