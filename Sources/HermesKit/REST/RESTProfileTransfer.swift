@@ -31,7 +31,7 @@ extension RESTClient {
     public func exportProfileArchive(name: String) async throws -> ProfileArchive {
         let answer: HTTPResponse = try await send(
             "POST", "/api/profiles/" + encodedPath(name, "export"), body: ProfileExportRequest(), scoped: false,
-            timeout: ProfileArchive.exportTimeout)
+            timeout: ProfileArchive.exportTimeout, encodedPath: true)
         return try ProfileArchive.from(answer: answer)
     }
 

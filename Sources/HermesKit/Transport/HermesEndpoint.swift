@@ -42,6 +42,17 @@ public struct HermesEndpoint: Sendable, Hashable, Codable {
         return components.url ?? baseURL
     }
 
+    /// Joins an already percent-encoded request path to this endpoint.
+    func url(forEncodedPath path: String) -> URL {
+        let (pathPart, query) = Self.splitQuery(path)
+        var components = baseComponents
+        let segments = pathPart.split(separator: "/").map(String.init)
+        let trailing = pathPart.hasSuffix("/") && !segments.isEmpty ? "/" : ""
+        components.percentEncodedPath = "/" + (basePrefixSegments + segments).joined(separator: "/") + trailing
+        components.percentEncodedQuery = query.isEmpty ? nil : query
+        return components.url ?? baseURL
+    }
+
     /// The WebSocket URL for `path`: `ws` for `http`, `wss` for `https`.
     ///
     /// Adds `token` and `ticket` as query items when given. The token is the session token (`?token=`). The ticket

@@ -178,7 +178,7 @@ func kanbanRecordedRequestKeys(_ name: String) throws -> [String] {
         let stats = try await client.kanbanStats(board: "work")
         #expect(stats == .object(["ready": .object(["count": 2]), "oldest_ready_age_seconds": 90]))
         _ = try await client.kanbanStats()
-        let paths = http.requests.map { ($0.url.path, $0.url.query) }
+        let paths = http.requests.map { ($0.url.path(percentEncoded: true), $0.url.query) }
         #expect(paths[0].0 == "/api/plugins/kanban/stats" && paths[0].1 == "board=work")
         #expect(paths[1].1 == nil)
     }
@@ -199,7 +199,7 @@ func kanbanRecordedRequestKeys(_ name: String) throws -> [String] {
         let requests = http.requests
         #expect(requests.allSatisfy { $0.method == "GET" })
         #expect(
-            requests.map(\.url.path) == [
+            requests.map { $0.url.path(percentEncoded: true) } == [
                 "/api/plugins/kanban/config", "/api/plugins/kanban/assignees", "/api/plugins/kanban/profiles",
                 "/api/plugins/kanban/workers/active", "/api/plugins/kanban/diagnostics",
                 "/api/plugins/kanban/tasks/t%201/log", "/api/plugins/kanban/runs/9",

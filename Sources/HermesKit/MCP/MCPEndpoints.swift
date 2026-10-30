@@ -40,35 +40,36 @@ extension RESTClient {
 
     /// `DELETE /api/mcp/servers/{name}`. Plugin servers are refused.
     public func removeMCPServer(named name: String) async throws {
-        let _: HTTPResponse = try await send("DELETE", "/api/mcp/servers/" + mcpPath(name))
+        let _: HTTPResponse = try await send("DELETE", "/api/mcp/servers/" + mcpPath(name), encodedPath: true)
     }
 
     /// `PUT /api/mcp/servers/{name}/enabled`. A disabled server stays in config. Takes effect on the next session.
     public func setMCPServerEnabled(_ name: String, enabled: Bool) async throws {
         let _: HTTPResponse = try await send(
-            "PUT", "/api/mcp/servers/" + mcpPath(name, "enabled"), body: MCPEnabledBody(enabled: enabled))
+            "PUT", "/api/mcp/servers/" + mcpPath(name, "enabled"), body: MCPEnabledBody(enabled: enabled),
+            encodedPath: true)
     }
 
     /// `POST /api/mcp/servers/{name}/test`: connects, lists the tools and disconnects. The answer is decoded and typed
     /// from `Fixtures/rest/POST_api_mcp_servers_recorder-mcp_test.json`.
     public func testMCPServer(_ name: String) async throws -> MCPTestResult {
-        try await send("POST", "/api/mcp/servers/" + mcpPath(name, "test"))
+        try await send("POST", "/api/mcp/servers/" + mcpPath(name, "test"), encodedPath: true)
     }
 
     /// `POST /api/mcp/servers/{name}/auth`: starts an OAuth sign-in. Only the HTTP status is checked: the flow id and
     /// the sign-in page are not decoded.
     public func startMCPServerAuth(_ name: String) async throws {
-        let _: HTTPResponse = try await send("POST", "/api/mcp/servers/" + mcpPath(name, "auth"))
+        let _: HTTPResponse = try await send("POST", "/api/mcp/servers/" + mcpPath(name, "auth"), encodedPath: true)
     }
 
     /// `GET /api/mcp/oauth/flows/{flow_id}`. Only the HTTP status is checked. A flow that expired answers 404.
     public func checkMCPOAuthFlow(id: String) async throws {
-        let _: HTTPResponse = try await send("GET", "/api/mcp/oauth/flows/" + mcpPath(id))
+        let _: HTTPResponse = try await send("GET", "/api/mcp/oauth/flows/" + mcpPath(id), encodedPath: true)
     }
 
     /// `DELETE /api/mcp/oauth/flows/{flow_id}`: abandons a sign-in. Safe to call after the flow finished.
     public func cancelMCPOAuthFlow(id: String) async throws {
-        let _: HTTPResponse = try await send("DELETE", "/api/mcp/oauth/flows/" + mcpPath(id))
+        let _: HTTPResponse = try await send("DELETE", "/api/mcp/oauth/flows/" + mcpPath(id), encodedPath: true)
     }
 
     /// `POST /api/mcp/catalog/install`. Only the variables the entry declares are accepted. Only the HTTP status is

@@ -17,7 +17,7 @@ import Testing
     @Test func healthStatusIdentityAndUser() async throws {
         let (health, healthRequest) = try await run("health") { try await $0.health() }
         #expect(health.ok && health.displayVersion == "git.d97007c" && health.authRequired == true)
-        #expect(healthRequest.url.path == "/api/health" && healthRequest.url.query == nil)
+        #expect(healthRequest.url.path(percentEncoded: true) == "/api/health" && healthRequest.url.query == nil)
         let (identity, _) = try await run("host_identity") { try await $0.hostIdentity() }
         #expect(identity.ok && identity.role == "serve" && identity.protocolVersion != nil)
         let (status, _) = try await run("status") { try await $0.status() }
@@ -40,7 +40,9 @@ import Testing
         #expect(
             detail.id == "20261014_032737_07e33f" && detail.profile == "default" && detail.archived == false
                 && detail.pinned == false)
-        #expect(request.url.path == "/api/sessions/a%2Fb%20c")
+        #expect(
+            URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.percentEncodedPath
+                == "/api/sessions/a%2Fb%20c")
     }
 
     @Test func messagesTimelineSearchStats() async throws {
@@ -105,7 +107,7 @@ import Testing
         let requests = http.requests
         #expect(requests.map(\.method) == ["PATCH", "POST", "DELETE"])
         #expect(requests[0].url.query == "board=work")
-        #expect(requests[1].url.path == "/api/plugins/kanban/tasks/t_1/comments")
+        #expect(requests[1].url.path(percentEncoded: true) == "/api/plugins/kanban/tasks/t_1/comments")
         let patch = try #require(
             requests[0].body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })
         #expect(patch["block_reason"] as? String == "waiting" && patch["blockReason"] == nil)
@@ -152,11 +154,14 @@ import Testing
         let answer = try await client.pruneSessions(SessionPruneFilter(olderThanDays: 90, profile: "ops"))
         #expect(answer == .object(["deleted": .int(2)]))
         let requests = http.requests
-        #expect(requests[0].method == "GET" && requests[0].url.path == "/api/sessions/a%2Fb%20c/export")
+        #expect(
+            requests[0].method == "GET"
+                && requests[0].url.path(percentEncoded: true) == "/api/sessions/a%2Fb%20c/export")
         #expect(requests[0].url.query == "profile=ops", "an explicit owner replaces the client's scope")
-        #expect(requests[1].url.path == "/api/sessions/s1" && requests[1].url.query == "profile=ops")
+        #expect(
+            requests[1].url.path(percentEncoded: true) == "/api/sessions/s1" && requests[1].url.query == "profile=ops")
         let prune = try #require(requests.last)
-        #expect(prune.method == "POST" && prune.url.path == "/api/sessions/prune")
+        #expect(prune.method == "POST" && prune.url.path(percentEncoded: true) == "/api/sessions/prune")
         let body = try #require(prune.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })
         #expect(body["older_than_days"] as? Int == 90 && body["profile"] as? String == "ops")
         #expect(body["include_archived"] == nil, "archived sessions stay out unless asked for")

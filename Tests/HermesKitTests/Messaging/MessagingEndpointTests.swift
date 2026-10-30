@@ -25,9 +25,11 @@ import Testing
         try await client.testMessagingPlatform(id: "telegram")
         let requests = http.requests
         #expect(requests.map(\.method) == ["GET", "PUT", "POST"])
-        #expect(requests[0].url.path == "/api/messaging/platforms" && requests[0].url.query == "profile=ops")
-        #expect(requests[1].url.path == "/api/messaging/platforms/telegram")
-        #expect(requests[2].url.path == "/api/messaging/platforms/telegram/test")
+        #expect(
+            requests[0].url.path(percentEncoded: true) == "/api/messaging/platforms"
+                && requests[0].url.query == "profile=ops")
+        #expect(requests[1].url.path(percentEncoded: true) == "/api/messaging/platforms/telegram")
+        #expect(requests[2].url.path(percentEncoded: true) == "/api/messaging/platforms/telegram/test")
         #expect(
             try body(requests[1])
                 == .object([
@@ -51,7 +53,7 @@ import Testing
         let client = makeClient(http)
         try await client.updateMessagingPlatform(id: "a/b c", MessagingPlatformUpdate(enabled: false))
         let request = try #require(http.requests.first)
-        #expect(request.url.path == "/api/messaging/platforms/a%2Fb%20c")
+        #expect(request.url.path(percentEncoded: true) == "/api/messaging/platforms/a%2Fb%20c")
         #expect(request.url.query == nil, "no profile is set, so no query is sent")
     }
 
@@ -70,10 +72,10 @@ import Testing
         try await client.cancelTelegramOnboarding(pairingID: "p 1/2")
         let requests = http.requests
         #expect(requests.map(\.method) == ["POST", "GET", "POST", "DELETE"])
-        #expect(requests[0].url.path == "/api/messaging/telegram/onboarding/start")
-        #expect(requests[1].url.path == "/api/messaging/telegram/onboarding/p%201%2F2")
-        #expect(requests[2].url.path == "/api/messaging/telegram/onboarding/p%201%2F2/apply")
-        #expect(requests[3].url.path == "/api/messaging/telegram/onboarding/p%201%2F2")
+        #expect(requests[0].url.path(percentEncoded: true) == "/api/messaging/telegram/onboarding/start")
+        #expect(requests[1].url.path(percentEncoded: true) == "/api/messaging/telegram/onboarding/p%201%2F2")
+        #expect(requests[2].url.path(percentEncoded: true) == "/api/messaging/telegram/onboarding/p%201%2F2/apply")
+        #expect(requests[3].url.path(percentEncoded: true) == "/api/messaging/telegram/onboarding/p%201%2F2")
         #expect(requests.allSatisfy { $0.url.query == "profile=ops" })
         #expect(try body(requests[0]) == .object(["bot_name": .string("simply bot")]))
         #expect(
@@ -94,10 +96,10 @@ import Testing
         try await client.cancelWhatsAppOnboarding(pairingID: "w1")
         let requests = http.requests
         #expect(requests.map(\.method) == ["POST", "GET", "POST", "DELETE"])
-        #expect(requests[0].url.path == "/api/messaging/whatsapp/onboarding/start")
-        #expect(requests[1].url.path == "/api/messaging/whatsapp/onboarding/w1")
-        #expect(requests[2].url.path == "/api/messaging/whatsapp/onboarding/w1/apply")
-        #expect(requests[3].url.path == "/api/messaging/whatsapp/onboarding/w1")
+        #expect(requests[0].url.path(percentEncoded: true) == "/api/messaging/whatsapp/onboarding/start")
+        #expect(requests[1].url.path(percentEncoded: true) == "/api/messaging/whatsapp/onboarding/w1")
+        #expect(requests[2].url.path(percentEncoded: true) == "/api/messaging/whatsapp/onboarding/w1/apply")
+        #expect(requests[3].url.path(percentEncoded: true) == "/api/messaging/whatsapp/onboarding/w1")
         #expect(
             try body(requests[0])
                 == .object(["mode": .string("bot"), "allowed_users": .string(""), "profile": .string("ops")]))
@@ -118,10 +120,10 @@ import Testing
         try await client.clearPendingPairing()
         let requests = http.requests
         #expect(requests.map(\.method) == ["GET", "POST", "POST", "POST"])
-        #expect(requests[0].url.path == "/api/pairing" && requests[0].url.query == "profile=ops")
-        #expect(requests[1].url.path == "/api/pairing/approve")
-        #expect(requests[2].url.path == "/api/pairing/revoke")
-        #expect(requests[3].url.path == "/api/pairing/clear-pending")
+        #expect(requests[0].url.path(percentEncoded: true) == "/api/pairing" && requests[0].url.query == "profile=ops")
+        #expect(requests[1].url.path(percentEncoded: true) == "/api/pairing/approve")
+        #expect(requests[2].url.path(percentEncoded: true) == "/api/pairing/revoke")
+        #expect(requests[3].url.path(percentEncoded: true) == "/api/pairing/clear-pending")
         #expect(
             try body(requests[1])
                 == .object([
@@ -158,12 +160,12 @@ import Testing
         try await client.deleteWebhook(name: "ops/alerts v2")
         let requests = http.requests
         #expect(requests.map(\.method) == ["GET", "POST", "POST", "PUT", "DELETE"])
-        #expect(requests[0].url.path == "/api/webhooks" && requests[0].url.query == nil)
-        #expect(requests[2].url.path == "/api/webhooks/enable")
+        #expect(requests[0].url.path(percentEncoded: true) == "/api/webhooks" && requests[0].url.query == nil)
+        #expect(requests[2].url.path(percentEncoded: true) == "/api/webhooks/enable")
         #expect(requests[2].body == nil)
-        #expect(requests[3].url.path == "/api/webhooks/ops%2Falerts%20v2/enabled")
+        #expect(requests[3].url.path(percentEncoded: true) == "/api/webhooks/ops%2Falerts%20v2/enabled")
         #expect(try body(requests[3]) == .object(["enabled": .bool(false)]))
-        #expect(requests[4].url.path == "/api/webhooks/ops%2Falerts%20v2")
+        #expect(requests[4].url.path(percentEncoded: true) == "/api/webhooks/ops%2Falerts%20v2")
         #expect(requests[4].body == nil)
         let created = try body(requests[1])
         #expect(created["name"] == .string("deploy") && created["events"] == .array([.string("push")]))

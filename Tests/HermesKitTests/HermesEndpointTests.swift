@@ -193,3 +193,16 @@ private func makeEndpoint(_ string: String, headers: [String: String] = [:]) thr
     #expect(endpoint.headers.isEmpty)
     #expect(endpoint.url(forPath: "/api/ws").absoluteString == "https://example.com/api/ws")
 }
+
+@Suite struct HermesEndpointEncodeOnceTests {
+    private let endpoint = HermesEndpoint(string: "http://box:9119/hermes")!
+
+    @Test func rawPercentSequencesRemainLiteral() {
+        #expect(
+            endpoint.url(forPath: "/api/skills/team%2Fskill").absoluteString
+                == "http://box:9119/hermes/api/skills/team%252Fskill")
+        #expect(
+            endpoint.url(forPath: "/api/skills/my skill").absoluteString
+                == "http://box:9119/hermes/api/skills/my%20skill")
+    }
+}

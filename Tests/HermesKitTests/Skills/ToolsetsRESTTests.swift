@@ -46,7 +46,9 @@ import Testing
         let client = makeClient(http, profile: nil)
         _ = try await client.skillToolsetModels("image gen")
         let request = try #require(http.requests.first)
-        #expect(request.url.path == "/api/tools/toolsets/image%20gen/models")
+        #expect(
+            URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.percentEncodedPath
+                == "/api/tools/toolsets/image%20gen/models")
         #expect(request.url.query == nil)
     }
 

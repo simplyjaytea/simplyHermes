@@ -80,9 +80,30 @@ import Testing
         #expect(disabled.restartRequired == true && disabled.unchanged == false)
         let requests = http.requests
         #expect(requests.map(\.method) == ["POST", "POST"])
-        #expect(requests[0].url.path == "/api/dashboard/agent-plugins/owner%2Fplugin/disable")
+        #expect(
+            URLComponents(url: requests[0].url, resolvingAgainstBaseURL: false)?.percentEncodedPath
+                == "/api/dashboard/agent-plugins/owner%2Fplugin/disable")
         #expect(requests[1].url.path == "/api/dashboard/agent-plugins/example-tools/enable")
         #expect(requests.allSatisfy { skillsQuery($0) == ["profile": "ops"] })
+    }
+
+    @Test func pluginNamesAreEncodedOnce() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, #"{"ok":true}"#)
+        http.enqueue(200, #"{"ok":true}"#)
+        http.enqueue(200, #"{"ok":true}"#)
+        let client = makeClient(http, profile: "ops")
+        _ = try await client.setAgentPluginEnabled("my skill", enabled: true)
+        _ = try await client.setAgentPluginEnabled("team/skill", enabled: true)
+        _ = try await client.setAgentPluginEnabled("team%2Fskill", enabled: true)
+        let paths = http.requests.compactMap {
+            URLComponents(url: $0.url, resolvingAgainstBaseURL: false)?.percentEncodedPath
+        }
+        #expect(
+            paths == [
+                "/api/dashboard/agent-plugins/my%20skill/enable", "/api/dashboard/agent-plugins/team%2Fskill/enable",
+                "/api/dashboard/agent-plugins/team%252Fskill/enable",
+            ])
     }
 
     @Test func updateSendsTheConsentFlagAndReadsTheDelta() async throws {

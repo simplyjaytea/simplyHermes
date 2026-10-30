@@ -7,13 +7,16 @@ extension RESTClient {
     /// `GET /api/sessions/{id}/export`. The bytes come back as the server sent them; the export has no response schema.
     /// Pass `profile` only when it is not the profile this client is scoped to.
     public func exportSession(id: String, profile: String?) async throws -> Data {
-        try await sendRaw("GET", "/api/sessions/" + Self.encodedID(id) + "/export", query: Self.profileQuery(profile))
-            .body
+        try await sendRaw(
+            "GET", "/api/sessions/" + Self.encodedID(id) + "/export", query: Self.profileQuery(profile),
+            encodedPath: true
+        )
+        .body
     }
 
     /// `GET /api/sessions/{id}` for one profile. A `404` means the server no longer has the session.
     public func session(id: String, profile: String) async throws -> SessionRecord {
-        try await get("/api/sessions/" + Self.encodedID(id), query: Self.profileQuery(profile))
+        try await get("/api/sessions/" + Self.encodedID(id), query: Self.profileQuery(profile), encodedPath: true)
     }
 
     /// `POST /api/sessions/prune`. The answer is left raw: the contract does not describe it.

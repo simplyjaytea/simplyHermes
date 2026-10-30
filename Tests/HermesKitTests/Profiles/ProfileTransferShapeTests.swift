@@ -23,7 +23,7 @@ private func sentBody(_ request: HTTPRequest?) throws -> [String: Any] {
         let client = makeClient(http, profile: "ops")
         let archive = try await client.exportProfileArchive(name: "ops team")
         let request = try #require(http.requests.first)
-        #expect(request.method == "POST" && request.url.path == "/api/profiles/ops%20team/export")
+        #expect(request.method == "POST" && request.url.path(percentEncoded: true) == "/api/profiles/ops%20team/export")
         #expect(request.url.query == nil, "the profile is in the path, so the active profile does not scope it")
         #expect(request.timeout == ProfileArchive.exportTimeout, "an export waits longer than the default timeout")
         let body = try sentBody(request)
@@ -135,7 +135,9 @@ private func sentBody(_ request: HTTPRequest?) throws -> [String: Any] {
         let result = try await client.importProfileArchive(gzipBytes, name: "ops2")
         #expect(result.name == "ops2")
         let request = try #require(http.requests.first)
-        #expect(request.method == "POST" && request.url.path == "/api/profiles/import" && request.url.query == nil)
+        #expect(
+            request.method == "POST" && request.url.path(percentEncoded: true) == "/api/profiles/import"
+                && request.url.query == nil)
         let body = try sentBody(request)
         #expect(body["archive"] as? String == gzipBytes.base64EncodedString())
         #expect(body["name"] as? String == "ops2")

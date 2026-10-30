@@ -103,27 +103,27 @@ extension RESTClient {
     /// `GET /api/memory/providers/{name}/config`. Recorded for `byterover` only, in
     /// `Fixtures/rest/GET_api_memory_providers_byterover_config.json`.
     public func assistantMemoryProviderConfig(_ name: String) async throws -> JSONValue {
-        try await get("/api/memory/providers/" + settingsAssistantPath(name, "config"))
+        try await get("/api/memory/providers/" + settingsAssistantPath(name, "config"), encodedPath: true)
     }
 
     /// `PUT /api/memory/providers/{name}/config`: saves the provider's `values`. Status only. Not recorded [JT].
     public func saveAssistantMemoryProviderConfig(_ name: String, values: [String: JSONValue]) async throws {
         let _: HTTPResponse = try await send(
             "PUT", "/api/memory/providers/" + settingsAssistantPath(name, "config"),
-            body: SettingsAssistantValuesBody(values: values))
+            body: SettingsAssistantValuesBody(values: values), encodedPath: true)
     }
 
     /// `POST /api/memory/providers/{name}/setup` with `values`. Status only. Not recorded [JT].
     public func setupAssistantMemoryProvider(_ name: String, values: [String: JSONValue]) async throws {
         let _: HTTPResponse = try await send(
             "POST", "/api/memory/providers/" + settingsAssistantPath(name, "setup"),
-            body: SettingsAssistantValuesBody(values: values))
+            body: SettingsAssistantValuesBody(values: values), encodedPath: true)
     }
 
     /// `POST /api/memory/providers/{provider}/oauth/start`. Status only. Not recorded [JT].
     public func startAssistantMemoryOAuth(_ provider: String) async throws {
         let _: HTTPResponse = try await send(
-            "POST", "/api/memory/providers/" + settingsAssistantPath(provider, "oauth", "start"))
+            "POST", "/api/memory/providers/" + settingsAssistantPath(provider, "oauth", "start"), encodedPath: true)
     }
 
     /// `GET /api/memory/providers/{provider}/oauth/status`. Status only. The testbed recorded a 404 for `byterover`
@@ -131,7 +131,7 @@ extension RESTClient {
     /// So the body is not read.
     public func assistantMemoryOAuthStatus(_ provider: String) async throws {
         let _: HTTPResponse = try await send(
-            "GET", "/api/memory/providers/" + settingsAssistantPath(provider, "oauth", "status"))
+            "GET", "/api/memory/providers/" + settingsAssistantPath(provider, "oauth", "status"), encodedPath: true)
     }
 
     /// `POST /api/memory/reset`. `target` is the schema's default, `all`. Destructive: confirm before calling.

@@ -103,7 +103,8 @@ extension RESTClient {
     /// `GET /api/cron/jobs/{job_id}`, in `profile`, which should be the job's own profile (the list row names it). Nil
     /// reads the active profile.
     public func cronJob(id: String, profile: String? = nil) async throws -> CronJob {
-        let answer: CronJobAnswer = try await get("/api/cron/jobs/" + cronPath(id), query: profileQuery(profile))
+        let answer: CronJobAnswer = try await get(
+            "/api/cron/jobs/" + cronPath(id), query: profileQuery(profile), encodedPath: true)
         return answer.job
     }
 
@@ -121,28 +122,33 @@ extension RESTClient {
         if case .string(let schedule)? = update.updates["schedule"], let problem = CronExpression.validate(schedule) {
             throw problem
         }
-        _ = try await sendRaw("PUT", "/api/cron/jobs/" + cronPath(id), query: profileQuery(profile), body: update)
+        _ = try await sendRaw(
+            "PUT", "/api/cron/jobs/" + cronPath(id), query: profileQuery(profile), body: update, encodedPath: true)
     }
 
     /// `DELETE /api/cron/jobs/{job_id}`, in `profile` (the active profile when nil). Cannot be undone.
     public func deleteCronJob(id: String, profile: String? = nil) async throws {
-        _ = try await sendRaw("DELETE", "/api/cron/jobs/" + cronPath(id), query: profileQuery(profile))
+        _ = try await sendRaw(
+            "DELETE", "/api/cron/jobs/" + cronPath(id), query: profileQuery(profile), encodedPath: true)
     }
 
     /// `POST /api/cron/jobs/{job_id}/pause`, in `profile` (the active profile when nil).
     public func pauseCronJob(id: String, profile: String? = nil) async throws {
-        _ = try await sendRaw("POST", "/api/cron/jobs/" + cronPath(id, "pause"), query: profileQuery(profile))
+        _ = try await sendRaw(
+            "POST", "/api/cron/jobs/" + cronPath(id, "pause"), query: profileQuery(profile), encodedPath: true)
     }
 
     /// `POST /api/cron/jobs/{job_id}/resume`, in `profile` (the active profile when nil).
     public func resumeCronJob(id: String, profile: String? = nil) async throws {
-        _ = try await sendRaw("POST", "/api/cron/jobs/" + cronPath(id, "resume"), query: profileQuery(profile))
+        _ = try await sendRaw(
+            "POST", "/api/cron/jobs/" + cronPath(id, "resume"), query: profileQuery(profile), encodedPath: true)
     }
 
     /// `POST /api/cron/jobs/{job_id}/trigger`, in `profile` (the active profile when nil): runs the job now, outside
     /// its schedule.
     public func triggerCronJob(id: String, profile: String? = nil) async throws {
-        _ = try await sendRaw("POST", "/api/cron/jobs/" + cronPath(id, "trigger"), query: profileQuery(profile))
+        _ = try await sendRaw(
+            "POST", "/api/cron/jobs/" + cronPath(id, "trigger"), query: profileQuery(profile), encodedPath: true)
     }
 
     /// `GET /api/cron/jobs/{job_id}/runs`, in `profile` (the active profile when nil), at most `limit` past runs,
@@ -150,7 +156,7 @@ extension RESTClient {
     public func cronJobRuns(id: String, limit: Int = 20, profile: String? = nil) async throws -> [CronRun] {
         let answer: CronRunsAnswer = try await get(
             "/api/cron/jobs/" + cronPath(id, "runs"),
-            query: [URLQueryItem(name: "limit", value: String(limit))] + profileQuery(profile))
+            query: [URLQueryItem(name: "limit", value: String(limit))] + profileQuery(profile), encodedPath: true)
         return answer.runs
     }
 

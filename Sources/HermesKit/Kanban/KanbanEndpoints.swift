@@ -68,7 +68,7 @@ extension RESTClient {
     public func kanbanTaskLog(id: String, tail: Int? = nil, board: String? = nil) async throws -> JSONValue {
         try await get(
             "/api/plugins/kanban/tasks/" + kanbanSegment(id) + "/log",
-            query: kanbanQuery(["tail": tail.map { String($0) }, "board": board]))
+            query: kanbanQuery(["tail": tail.map { String($0) }, "board": board]), encodedPath: true)
     }
 
     /// `GET /api/plugins/kanban/runs/{id}`: one run, under `run`. Not recorded: the testbed never dispatches, so no run
@@ -88,7 +88,7 @@ extension RESTClient {
     /// Not recorded on the testbed.
     public func updateKanbanBoard(slug: String, _ update: KanbanBoardUpdate) async throws {
         let _: HTTPResponse = try await send(
-            "PATCH", "/api/plugins/kanban/boards/" + kanbanSegment(slug), body: update)
+            "PATCH", "/api/plugins/kanban/boards/" + kanbanSegment(slug), body: update, encodedPath: true)
     }
 
     /// `DELETE /api/plugins/kanban/boards/{slug}`. Archives the board unless `hard` is true, which deletes it.
@@ -96,13 +96,14 @@ extension RESTClient {
     public func deleteKanbanBoard(slug: String, hard: Bool = false) async throws {
         let query = hard ? [URLQueryItem(name: "delete", value: "true")] : []
         let _: HTTPResponse = try await send(
-            "DELETE", "/api/plugins/kanban/boards/" + kanbanSegment(slug), query: query)
+            "DELETE", "/api/plugins/kanban/boards/" + kanbanSegment(slug), query: query, encodedPath: true)
     }
 
     /// `POST /api/plugins/kanban/boards/{slug}/switch`: makes the board the server's current one for every client.
     /// Not recorded on the testbed.
     public func switchKanbanBoard(slug: String) async throws {
-        let _: HTTPResponse = try await send("POST", "/api/plugins/kanban/boards/" + kanbanSegment(slug) + "/switch")
+        let _: HTTPResponse = try await send(
+            "POST", "/api/plugins/kanban/boards/" + kanbanSegment(slug) + "/switch", encodedPath: true)
     }
 
     // MARK: Tasks
@@ -119,7 +120,7 @@ extension RESTClient {
     public func reclaimKanbanTask(id: String, reason: String? = nil, board: String? = nil) async throws {
         let _: HTTPResponse = try await send(
             "POST", "/api/plugins/kanban/tasks/" + kanbanSegment(id) + "/reclaim",
-            query: kanbanQuery(["board": board]), body: KanbanReclaimBody(reason: reason))
+            query: kanbanQuery(["board": board]), body: KanbanReclaimBody(reason: reason), encodedPath: true)
     }
 
     /// `POST /api/plugins/kanban/tasks/{id}/reassign`: gives the task to `profile`, optionally reclaiming it first.
@@ -130,7 +131,7 @@ extension RESTClient {
         let _: HTTPResponse = try await send(
             "POST", "/api/plugins/kanban/tasks/" + kanbanSegment(id) + "/reassign",
             query: kanbanQuery(["board": board]),
-            body: KanbanReassignBody(profile: profile, reclaimFirst: reclaimFirst, reason: reason))
+            body: KanbanReassignBody(profile: profile, reclaimFirst: reclaimFirst, reason: reason), encodedPath: true)
     }
 
     /// `POST /api/plugins/kanban/tasks/{id}/specify`: fleshes out a triage task with the auxiliary model. Not recorded
@@ -138,7 +139,7 @@ extension RESTClient {
     public func specifyKanbanTask(id: String, author: String? = nil, board: String? = nil) async throws {
         let _: HTTPResponse = try await send(
             "POST", "/api/plugins/kanban/tasks/" + kanbanSegment(id) + "/specify",
-            query: kanbanQuery(["board": board]), body: KanbanSpecifyBody(author: author))
+            query: kanbanQuery(["board": board]), body: KanbanSpecifyBody(author: author), encodedPath: true)
     }
 
     /// `POST /api/plugins/kanban/dispatch`: starts ready tasks now instead of at the next dispatcher tick.

@@ -23,13 +23,13 @@ extension RESTClient {
     public func updateMessagingPlatform(id: String, _ update: MessagingPlatformUpdate) async throws {
         var body = update
         body.profile = body.profile ?? profile
-        _ = try await send("PUT", "/api/messaging/platforms/" + messagingPath(id), body: body)
+        _ = try await send("PUT", "/api/messaging/platforms/" + messagingPath(id), body: body, encodedPath: true)
     }
 
     /// `POST /api/messaging/platforms/{platform_id}/test`. Only the HTTP status is read. Not exercised by the testbed:
     /// needs real server [JT].
     public func testMessagingPlatform(id: String) async throws {
-        _ = try await send("POST", "/api/messaging/platforms/" + messagingPath(id, "test"))
+        _ = try await send("POST", "/api/messaging/platforms/" + messagingPath(id, "test"), encodedPath: true)
     }
 }
 
@@ -45,13 +45,14 @@ extension RESTClient {
     /// `GET /api/messaging/telegram/onboarding/{pairing_id}`: the pairing's current state. No answer is recorded, and
     /// the testbed had no pairing id, so the answer comes back as the server sent it. Needs real server [JT].
     public func telegramOnboarding(pairingID: String) async throws -> JSONValue {
-        try await get("/api/messaging/telegram/onboarding/" + messagingPath(pairingID))
+        try await get("/api/messaging/telegram/onboarding/" + messagingPath(pairingID), encodedPath: true)
     }
 
     /// `DELETE /api/messaging/telegram/onboarding/{pairing_id}`: cancels the pairing. Only the HTTP status is read.
     /// Needs real server [JT].
     public func cancelTelegramOnboarding(pairingID: String) async throws {
-        _ = try await send("DELETE", "/api/messaging/telegram/onboarding/" + messagingPath(pairingID))
+        _ = try await send(
+            "DELETE", "/api/messaging/telegram/onboarding/" + messagingPath(pairingID), encodedPath: true)
     }
 
     /// `POST /api/messaging/telegram/onboarding/{pairing_id}/apply`: finishes the pairing with the allowed user ids.
@@ -60,7 +61,8 @@ extension RESTClient {
         var body = apply
         body.profile = body.profile ?? profile
         _ = try await send(
-            "POST", "/api/messaging/telegram/onboarding/" + messagingPath(pairingID, "apply"), body: body)
+            "POST", "/api/messaging/telegram/onboarding/" + messagingPath(pairingID, "apply"), body: body,
+            encodedPath: true)
     }
 }
 
@@ -78,13 +80,14 @@ extension RESTClient {
     /// `GET /api/messaging/whatsapp/onboarding/{pairing_id}`: the pairing's current state. No answer is recorded, and
     /// the testbed had no pairing id, so the answer comes back as the server sent it. Needs real server [JT].
     public func whatsAppOnboarding(pairingID: String) async throws -> JSONValue {
-        try await get("/api/messaging/whatsapp/onboarding/" + messagingPath(pairingID))
+        try await get("/api/messaging/whatsapp/onboarding/" + messagingPath(pairingID), encodedPath: true)
     }
 
     /// `DELETE /api/messaging/whatsapp/onboarding/{pairing_id}`: cancels the pairing. Only the HTTP status is read.
     /// Needs real server [JT].
     public func cancelWhatsAppOnboarding(pairingID: String) async throws {
-        _ = try await send("DELETE", "/api/messaging/whatsapp/onboarding/" + messagingPath(pairingID))
+        _ = try await send(
+            "DELETE", "/api/messaging/whatsapp/onboarding/" + messagingPath(pairingID), encodedPath: true)
     }
 
     /// `POST /api/messaging/whatsapp/onboarding/{pairing_id}/apply`: finishes the pairing. Only the HTTP status is read.
@@ -93,7 +96,8 @@ extension RESTClient {
         var body = apply
         body.profile = body.profile ?? profile
         _ = try await send(
-            "POST", "/api/messaging/whatsapp/onboarding/" + messagingPath(pairingID, "apply"), body: body)
+            "POST", "/api/messaging/whatsapp/onboarding/" + messagingPath(pairingID, "apply"), body: body,
+            encodedPath: true)
     }
 }
 
@@ -155,13 +159,14 @@ extension RESTClient {
     /// `DELETE /api/webhooks/{name}`: deletes the webhook. The testbed recorded only the 404 for a missing name
     /// (Fixtures/rest/DELETE_api_webhooks_recorder-hook.json). Only the HTTP status is read. Needs real server [JT].
     public func deleteWebhook(name: String) async throws {
-        _ = try await send("DELETE", "/api/webhooks/" + messagingPath(name))
+        _ = try await send("DELETE", "/api/webhooks/" + messagingPath(name), encodedPath: true)
     }
 
     /// `PUT /api/webhooks/{name}/enabled`: enables or disables one webhook without deleting it. Only the HTTP status is
     /// read. Not exercised by the testbed: needs real server [JT].
     public func setWebhookEnabled(name: String, _ enabled: Bool) async throws {
         _ = try await send(
-            "PUT", "/api/webhooks/" + messagingPath(name, "enabled"), body: WebhookEnabledToggle(enabled: enabled))
+            "PUT", "/api/webhooks/" + messagingPath(name, "enabled"), body: WebhookEnabledToggle(enabled: enabled),
+            encodedPath: true)
     }
 }

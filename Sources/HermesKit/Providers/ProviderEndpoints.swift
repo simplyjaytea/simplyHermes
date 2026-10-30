@@ -36,13 +36,14 @@ extension RESTClient {
     /// Not recorded on the testbed. Status-only.
     public func activateCustomEndpoint(id: String) async throws {
         let _: HTTPResponse = try await send(
-            "POST", "/api/providers/custom-endpoints/" + providerSegment(id) + "/activate")
+            "POST", "/api/providers/custom-endpoints/" + providerSegment(id) + "/activate", encodedPath: true)
     }
 
     /// `DELETE /api/providers/custom-endpoints/{endpoint_id}`: removes the endpoint from the config. Recorded. Status-only.
     /// Confirm with the user first.
     public func deleteCustomEndpoint(id: String) async throws {
-        let _: HTTPResponse = try await send("DELETE", "/api/providers/custom-endpoints/" + providerSegment(id))
+        let _: HTTPResponse = try await send(
+            "DELETE", "/api/providers/custom-endpoints/" + providerSegment(id), encodedPath: true)
     }
 }
 
@@ -63,31 +64,35 @@ extension RESTClient {
     /// `POST /api/providers/oauth/{provider_id}/start`: begins a login. Not recorded (the testbed never runs OAuth), so
     /// the session it opens cannot be read here. Status-only.
     public func startOAuthLogin(provider: String) async throws {
-        let _: HTTPResponse = try await send("POST", "/api/providers/oauth/" + providerSegment(provider) + "/start")
+        let _: HTTPResponse = try await send(
+            "POST", "/api/providers/oauth/" + providerSegment(provider) + "/start", encodedPath: true)
     }
 
     /// `GET /api/providers/oauth/{provider_id}/poll/{session_id}`. Not recorded; kept as received.
     public func pollOAuthLogin(provider: String, session: String) async throws -> JSONValue {
         try await get(
             "/api/providers/oauth/" + providerSegment(provider) + "/poll/" + providerSegment(session),
+            encodedPath: true,
             as: JSONValue.self)
     }
 
     /// `POST /api/providers/oauth/{provider_id}/submit`: sends the code a PKCE flow asks for. Not recorded. Status-only.
     public func submitOAuthCode(provider: String, _ submit: ProviderOAuthSubmit) async throws {
         let _: HTTPResponse = try await send(
-            "POST", "/api/providers/oauth/" + providerSegment(provider) + "/submit", body: submit)
+            "POST", "/api/providers/oauth/" + providerSegment(provider) + "/submit", body: submit, encodedPath: true)
     }
 
     /// `DELETE /api/providers/oauth/sessions/{session_id}`: cancels a pending login. Not recorded. Status-only.
     public func cancelOAuthLogin(session: String) async throws {
-        let _: HTTPResponse = try await send("DELETE", "/api/providers/oauth/sessions/" + providerSegment(session))
+        let _: HTTPResponse = try await send(
+            "DELETE", "/api/providers/oauth/sessions/" + providerSegment(session), encodedPath: true)
     }
 
     /// `DELETE /api/providers/oauth/{provider_id}`: disconnects an OAuth provider. Not recorded. Status-only. Confirm
     /// with the user first.
     public func disconnectOAuthProvider(_ provider: String) async throws {
-        let _: HTTPResponse = try await send("DELETE", "/api/providers/oauth/" + providerSegment(provider))
+        let _: HTTPResponse = try await send(
+            "DELETE", "/api/providers/oauth/" + providerSegment(provider), encodedPath: true)
     }
 }
 
@@ -134,6 +139,6 @@ extension RESTClient {
     /// The server removes the entry from its backing source too. Confirm with the user first.
     public func removeCredential(provider: String, index: Int) async throws {
         let _: HTTPResponse = try await send(
-            "DELETE", "/api/credentials/pool/" + providerSegment(provider) + "/" + String(index))
+            "DELETE", "/api/credentials/pool/" + providerSegment(provider) + "/" + String(index), encodedPath: true)
     }
 }

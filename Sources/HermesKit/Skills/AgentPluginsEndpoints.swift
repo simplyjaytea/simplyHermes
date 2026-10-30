@@ -35,7 +35,8 @@ extension RESTClient {
     /// `POST /api/dashboard/agent-plugins/{name}/enable` or `/disable`: the on and off switch.
     public func setAgentPluginEnabled(_ name: String, enabled: Bool) async throws -> AgentPluginResult {
         try await send(
-            "POST", "/api/dashboard/agent-plugins/" + restPathSegment(name) + (enabled ? "/enable" : "/disable"))
+            "POST", "/api/dashboard/agent-plugins/" + restPathSegment(name) + (enabled ? "/enable" : "/disable"),
+            encodedPath: true)
     }
 
     /// `POST /api/dashboard/agent-plugins/{name}/update`: pulls a git install, or moves a catalog install to its new pin.
@@ -43,12 +44,12 @@ extension RESTClient {
     public func updateAgentPlugin(_ name: String, acceptCapabilities: Bool = false) async throws -> AgentPluginResult {
         try await send(
             "POST", "/api/dashboard/agent-plugins/" + restPathSegment(name) + "/update",
-            body: AcceptCapabilitiesBody(acceptCapabilities: acceptCapabilities))
+            body: AcceptCapabilitiesBody(acceptCapabilities: acceptCapabilities), encodedPath: true)
     }
 
     /// `DELETE /api/dashboard/agent-plugins/{name}`: deletes a user or git install. Bundled plugins cannot be removed.
     public func removeAgentPlugin(_ name: String) async throws -> AgentPluginResult {
-        try await send("DELETE", "/api/dashboard/agent-plugins/" + restPathSegment(name))
+        try await send("DELETE", "/api/dashboard/agent-plugins/" + restPathSegment(name), encodedPath: true)
     }
 
     /// `POST /api/dashboard/agent-plugins/activate`: asks the server to load the plugin for a profile home, so its open

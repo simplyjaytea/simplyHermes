@@ -170,7 +170,9 @@ private final class Recorder<Value>: @unchecked Sendable {
             try await $0.actionStatus("a/b c")
         }
         #expect(status.succeeded && status.isRunning == false)
-        #expect(request.url.path == "/api/actions/a%2Fb%20c/status")
+        #expect(
+            URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.percentEncodedPath
+                == "/api/actions/a%2Fb%20c/status")
         #expect(request.url.query == "lines=200", "no profile is sent when none is set")
     }
 

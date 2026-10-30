@@ -22,7 +22,7 @@ private func decodeSent<Value: Decodable>(_ type: Value.Type, _ request: HTTPReq
         let draft = KanbanBoardDraft(slug: "home", name: "Home", defaultWorkdir: "/srv/home")
         try await makeClient(http).createKanbanBoard(draft)
         let request = try #require(http.requests.first)
-        #expect(request.method == "POST" && request.url.path == "/api/plugins/kanban/boards")
+        #expect(request.method == "POST" && request.url.path(percentEncoded: true) == "/api/plugins/kanban/boards")
         #expect(request.url.query == nil)
         let body = try sentObject(request)
         #expect(body["slug"] as? String == "home" && body["name"] as? String == "Home")
@@ -59,7 +59,9 @@ private func decodeSent<Value: Decodable>(_ type: Value.Type, _ request: HTTPReq
         let update = KanbanBoardUpdate(name: "Home jobs", projectId: "p_1")
         try await makeClient(http).updateKanbanBoard(slug: "my board", update)
         let request = try #require(http.requests.first)
-        #expect(request.method == "PATCH" && request.url.path == "/api/plugins/kanban/boards/my%20board")
+        #expect(
+            request.method == "PATCH"
+                && request.url.path(percentEncoded: true) == "/api/plugins/kanban/boards/my%20board")
         let body = try sentObject(request)
         #expect(body.keys.sorted() == ["name", "project_id"])
         #expect(body["project_id"] as? String == "p_1")
@@ -75,7 +77,10 @@ private func decodeSent<Value: Decodable>(_ type: Value.Type, _ request: HTTPReq
         try await client.deleteKanbanBoard(slug: "work", hard: true)
         let requests = http.requests
         #expect(requests.map(\.method) == ["DELETE", "DELETE"])
-        #expect(requests.map(\.url.path) == ["/api/plugins/kanban/boards/work", "/api/plugins/kanban/boards/work"])
+        #expect(
+            requests.map { $0.url.path(percentEncoded: true) } == [
+                "/api/plugins/kanban/boards/work", "/api/plugins/kanban/boards/work",
+            ])
         #expect(requests[0].url.query == nil)
         #expect(requests[1].url.query == "delete=true")
     }
@@ -85,7 +90,9 @@ private func decodeSent<Value: Decodable>(_ type: Value.Type, _ request: HTTPReq
         http.enqueue(200, try kanbanRecordedBody("DELETE_api_plugins_kanban_boards_recorder"))
         try await makeClient(http).deleteKanbanBoard(slug: "recorder", hard: true)
         let request = try #require(http.requests.first)
-        #expect(request.method == "DELETE" && request.url.path == "/api/plugins/kanban/boards/recorder")
+        #expect(
+            request.method == "DELETE"
+                && request.url.path(percentEncoded: true) == "/api/plugins/kanban/boards/recorder")
         #expect(request.url.query == "delete=true")
         #expect(request.body == nil)
     }
@@ -95,7 +102,9 @@ private func decodeSent<Value: Decodable>(_ type: Value.Type, _ request: HTTPReq
         http.enqueue(200, "{}")
         try await makeClient(http).switchKanbanBoard(slug: "work")
         let request = try #require(http.requests.first)
-        #expect(request.method == "POST" && request.url.path == "/api/plugins/kanban/boards/work/switch")
+        #expect(
+            request.method == "POST"
+                && request.url.path(percentEncoded: true) == "/api/plugins/kanban/boards/work/switch")
         #expect(request.body == nil)
     }
 }
@@ -107,7 +116,7 @@ private func decodeSent<Value: Decodable>(_ type: Value.Type, _ request: HTTPReq
         let change = KanbanBulkChange(ids: ["t_1", "t_2"], status: "ready")
         try await makeClient(http).bulkUpdateKanbanTasks(change, board: "work")
         let request = try #require(http.requests.first)
-        #expect(request.method == "POST" && request.url.path == "/api/plugins/kanban/tasks/bulk")
+        #expect(request.method == "POST" && request.url.path(percentEncoded: true) == "/api/plugins/kanban/tasks/bulk")
         #expect(request.url.query == "board=work")
         let body = try sentObject(request)
         #expect(body.keys.sorted() == ["ids", "status"])
@@ -148,9 +157,9 @@ private func decodeSent<Value: Decodable>(_ type: Value.Type, _ request: HTTPReq
         try await client.reclaimKanbanTask(id: "t_1")
         try await client.reclaimKanbanTask(id: "t 2", reason: "stuck", board: "work")
         let requests = http.requests
-        #expect(requests[0].url.path == "/api/plugins/kanban/tasks/t_1/reclaim")
+        #expect(requests[0].url.path(percentEncoded: true) == "/api/plugins/kanban/tasks/t_1/reclaim")
         #expect(try sentObject(requests[0]).isEmpty)
-        #expect(requests[1].url.path == "/api/plugins/kanban/tasks/t%202/reclaim")
+        #expect(requests[1].url.path(percentEncoded: true) == "/api/plugins/kanban/tasks/t%202/reclaim")
         #expect(requests[1].url.query == "board=work")
         #expect(try sentObject(requests[1])["reason"] as? String == "stuck")
     }
@@ -163,7 +172,9 @@ private func decodeSent<Value: Decodable>(_ type: Value.Type, _ request: HTTPReq
         try await client.reassignKanbanTask(id: "t_1", to: "ops", board: "work")
         try await client.reassignKanbanTask(id: "t_1", to: "default", reclaimFirst: true, reason: "load")
         let requests = http.requests
-        #expect(requests.map(\.url.path) == Array(repeating: "/api/plugins/kanban/tasks/t_1/reassign", count: 2))
+        #expect(
+            requests.map { $0.url.path(percentEncoded: true) }
+                == Array(repeating: "/api/plugins/kanban/tasks/t_1/reassign", count: 2))
         #expect(requests[0].url.query == "board=work")
         let first = try sentObject(requests[0])
         #expect(first["profile"] as? String == "ops" && first["reclaim_first"] as? Bool == false)
@@ -178,7 +189,9 @@ private func decodeSent<Value: Decodable>(_ type: Value.Type, _ request: HTTPReq
         http.enqueue(200, #"{"ok":false,"reason":"no auxiliary model configured"}"#)
         try await makeClient(http).specifyKanbanTask(id: "t_3", board: "work")
         let request = try #require(http.requests.first)
-        #expect(request.method == "POST" && request.url.path == "/api/plugins/kanban/tasks/t_3/specify")
+        #expect(
+            request.method == "POST"
+                && request.url.path(percentEncoded: true) == "/api/plugins/kanban/tasks/t_3/specify")
         #expect(request.url.query == "board=work")
         #expect(try sentObject(request).isEmpty)
     }
@@ -199,7 +212,7 @@ private func decodeSent<Value: Decodable>(_ type: Value.Type, _ request: HTTPReq
         try await client.dispatchKanban()
         let requests = http.requests
         #expect(requests.allSatisfy { $0.method == "POST" && $0.body == nil })
-        #expect(requests.allSatisfy { $0.url.path == "/api/plugins/kanban/dispatch" })
+        #expect(requests.allSatisfy { $0.url.path(percentEncoded: true) == "/api/plugins/kanban/dispatch" })
         #expect(requests[0].url.query == "board=work&dry_run=true&max=3")
         #expect(requests[1].url.query == nil)
     }
@@ -211,7 +224,7 @@ private func decodeSent<Value: Decodable>(_ type: Value.Type, _ request: HTTPReq
         let draft = KanbanTaskDraft(title: "recorder task", body: "recorder fixture")
         _ = try await makeClient(http).createKanbanTask(draft, board: "recorder")
         let request = try #require(http.requests.first)
-        #expect(request.method == "POST" && request.url.path == "/api/plugins/kanban/tasks")
+        #expect(request.method == "POST" && request.url.path(percentEncoded: true) == "/api/plugins/kanban/tasks")
         #expect(request.url.query == "board=recorder")
         let recordedKeys = try kanbanRecordedRequestKeys(name)
         #expect(try sentObject(request).keys.sorted() == recordedKeys)
@@ -224,7 +237,9 @@ private func decodeSent<Value: Decodable>(_ type: Value.Type, _ request: HTTPReq
         try await makeClient(http).addKanbanComment(
             id: "t_fixture", text: "recorder comment", author: "recorder", board: "recorder")
         let request = try #require(http.requests.first)
-        #expect(request.method == "POST" && request.url.path == "/api/plugins/kanban/tasks/t_fixture/comments")
+        #expect(
+            request.method == "POST"
+                && request.url.path(percentEncoded: true) == "/api/plugins/kanban/tasks/t_fixture/comments")
         #expect(request.url.query == "board=recorder")
         let recordedKeys = try kanbanRecordedRequestKeys(name)
         #expect(try sentObject(request).keys.sorted() == recordedKeys)
@@ -237,7 +252,9 @@ private func decodeSent<Value: Decodable>(_ type: Value.Type, _ request: HTTPReq
         try await makeClient(http).updateKanbanTask(
             id: "t_fixture", KanbanTaskUpdate(status: "todo"), board: "recorder")
         let request = try #require(http.requests.first)
-        #expect(request.method == "PATCH" && request.url.path == "/api/plugins/kanban/tasks/t_fixture")
+        #expect(
+            request.method == "PATCH" && request.url.path(percentEncoded: true) == "/api/plugins/kanban/tasks/t_fixture"
+        )
         #expect(request.url.query == "board=recorder")
         let recordedKeys = try kanbanRecordedRequestKeys(name)
         #expect(try sentObject(request).keys.sorted() == recordedKeys)
@@ -248,7 +265,9 @@ private func decodeSent<Value: Decodable>(_ type: Value.Type, _ request: HTTPReq
         http.enqueue(200, try kanbanRecordedBody("DELETE_api_plugins_kanban_tasks_task_id"))
         try await makeClient(http).deleteKanbanTask(id: "t_fixture", board: "recorder")
         let request = try #require(http.requests.first)
-        #expect(request.method == "DELETE" && request.url.path == "/api/plugins/kanban/tasks/t_fixture")
+        #expect(
+            request.method == "DELETE"
+                && request.url.path(percentEncoded: true) == "/api/plugins/kanban/tasks/t_fixture")
         #expect(request.url.query == "board=recorder")
         #expect(request.body == nil)
     }

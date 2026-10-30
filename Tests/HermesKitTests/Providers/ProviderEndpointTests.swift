@@ -16,7 +16,7 @@ import Testing
         let client = makeClient(http, profile: "ops")
         try await client.validateProviderKey(ApiKeyWrite(key: "PROVIDER_KEY", value: "secret-1"))
         let request = try #require(http.requests.first)
-        #expect(request.method == "POST" && request.url.path == "/api/providers/validate")
+        #expect(request.method == "POST" && request.url.path(percentEncoded: true) == "/api/providers/validate")
         #expect(request.url.query == nil, "the contract has no profile parameter here")
         #expect(try json(request) == .object(["key": .string("PROVIDER_KEY"), "value": .string("secret-1")]))
     }
@@ -31,7 +31,9 @@ import Testing
         _ = try await client.validateCustomEndpoint(draft)
         let requests = http.requests
         #expect(
-            requests.map(\.url.path) == ["/api/providers/custom-endpoints", "/api/providers/custom-endpoints/validate"])
+            requests.map { $0.url.path(percentEncoded: true) } == [
+                "/api/providers/custom-endpoints", "/api/providers/custom-endpoints/validate",
+            ])
         #expect(requests[0].url.query == "profile=ops")
         #expect(requests[1].url.query == nil, "validate is not profile-scoped")
         let recordedSave = try recordedFixtureRequest("POST_api_providers_custom-endpoints")
@@ -62,7 +64,7 @@ import Testing
         #expect(!list.endpoints.isEmpty)
         #expect(list.endpoints.allSatisfy { !$0.id.isEmpty && !$0.baseUrl.isEmpty })
         #expect(list.endpoints.allSatisfy { $0.isCurrent != nil && $0.hasApiKey != nil })
-        #expect(http.requests.first?.url.path == "/api/providers/custom-endpoints")
+        #expect(http.requests.first?.url.path(percentEncoded: true) == "/api/providers/custom-endpoints")
     }
 
     @Test func customEndpointDeleteAndActivateEncodeTheID() async throws {
@@ -75,9 +77,9 @@ import Testing
         let requests = http.requests
         let recorded = try recordedFixtureRequest("DELETE_api_providers_custom-endpoints_endpoint_id")
         #expect(recorded["method"] == .string("DELETE") && requests[0].method == "DELETE")
-        #expect(requests[0].url.path == "/api/providers/custom-endpoints/recorder-endpoint")
+        #expect(requests[0].url.path(percentEncoded: true) == "/api/providers/custom-endpoints/recorder-endpoint")
         #expect(requests[1].method == "POST")
-        #expect(requests[1].url.path == "/api/providers/custom-endpoints/a%2Fb%20c/activate")
+        #expect(requests[1].url.path(percentEncoded: true) == "/api/providers/custom-endpoints/a%2Fb%20c/activate")
         #expect(requests[0].body == nil && requests[1].body == nil)
     }
 
@@ -95,12 +97,12 @@ import Testing
         let requests = http.requests
         #expect(requests.map(\.method) == ["GET", "POST", "GET", "POST", "DELETE", "DELETE"])
         #expect(requests[0].url.query == "profile=ops")
-        #expect(requests[1].url.path == "/api/providers/oauth/nous/start")
-        #expect(requests[2].url.path == "/api/providers/oauth/nous/poll/s%2F1")
-        #expect(requests[3].url.path == "/api/providers/oauth/nous/submit")
+        #expect(requests[1].url.path(percentEncoded: true) == "/api/providers/oauth/nous/start")
+        #expect(requests[2].url.path(percentEncoded: true) == "/api/providers/oauth/nous/poll/s%2F1")
+        #expect(requests[3].url.path(percentEncoded: true) == "/api/providers/oauth/nous/submit")
         #expect(try json(requests[3]) == .object(["session_id": .string("s1"), "code": .string("123456")]))
-        #expect(requests[4].url.path == "/api/providers/oauth/sessions/s1")
-        #expect(requests[5].url.path == "/api/providers/oauth/nous")
+        #expect(requests[4].url.path(percentEncoded: true) == "/api/providers/oauth/sessions/s1")
+        #expect(requests[5].url.path(percentEncoded: true) == "/api/providers/oauth/nous")
     }
 
     @Test func apiKeyWritesSendTheRecordedBodies() async throws {
@@ -113,7 +115,8 @@ import Testing
         let remove = try recordedFixtureBody("DELETE_api_env", as: ApiKeyNameRequest.self)
         try await client.deleteApiKey(named: remove.key)
         let requests = http.requests
-        #expect(requests.map(\.method) == ["PUT", "DELETE"] && requests[0].url.path == "/api/env")
+        #expect(
+            requests.map(\.method) == ["PUT", "DELETE"] && requests[0].url.path(percentEncoded: true) == "/api/env")
         #expect(requests[0].url.query == "profile=ops")
         #expect(try json(requests[0]) == recordedFixtureRequest("PUT_api_env")["body"])
         #expect(try json(requests[1]) == recordedFixtureRequest("DELETE_api_env")["body"])
@@ -127,7 +130,7 @@ import Testing
         #expect(!env.isEmpty)
         #expect(env.values.allSatisfy { $0.isSet != nil && $0.isPassword != nil })
         #expect(env.values.contains { $0.isSet == true }, "the seeded run sets one variable")
-        #expect(http.requests.first?.url.path == "/api/env")
+        #expect(http.requests.first?.url.path(percentEncoded: true) == "/api/env")
     }
 
     @Test func revealRunsOnlyWhenAskedFor() async throws {
@@ -142,10 +145,12 @@ import Testing
         _ = try await client.envVars()
         _ = try await client.credentialPool()
         try await client.deleteApiKey(named: "A")
-        #expect(http.requests.allSatisfy { $0.url.path != "/api/env/reveal" }, "no reveal without an explicit call")
+        #expect(
+            http.requests.allSatisfy { $0.url.path(percentEncoded: true) != "/api/env/reveal" },
+            "no reveal without an explicit call")
 
         _ = try await client.revealApiKey(named: "A")
-        let reveals = http.requests.filter { $0.url.path == "/api/env/reveal" }
+        let reveals = http.requests.filter { $0.url.path(percentEncoded: true) == "/api/env/reveal" }
         #expect(reveals.count == 1 && reveals.first?.method == "POST")
         #expect(try json(try #require(reveals.first)) == .object(["key": .string("A")]))
     }
@@ -176,7 +181,7 @@ import Testing
         let requests = http.requests
         #expect(requests.map(\.method) == ["POST", "DELETE"])
         #expect(try json(requests[0]) == recordedFixtureRequest("POST_api_credentials_pool")["body"])
-        #expect(requests[1].url.path == "/api/credentials/pool/open%20router/2")
+        #expect(requests[1].url.path(percentEncoded: true) == "/api/credentials/pool/open%20router/2")
     }
 
     @Test func credentialRemovalSurfacesTheRecordedNotFound() async throws {

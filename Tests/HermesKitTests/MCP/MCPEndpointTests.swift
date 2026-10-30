@@ -16,7 +16,9 @@ import Testing
             name: "fs", command: "uvx", args: ["mcp-fs"], env: ["GITHUB_TOKEN": "t0k3n", "api_key_2": "x"])
         try await makeClient(http).addMCPServer(server)
         let request = try #require(http.requests.first)
-        #expect(request.method == "POST" && request.url.path == "/api/mcp/servers" && request.url.query == nil)
+        #expect(
+            request.method == "POST" && request.url.path(percentEncoded: true) == "/api/mcp/servers"
+                && request.url.query == nil)
         let body = try jsonObject(request)
         #expect(Set(body.keys) == ["name", "command", "args", "env"])
         #expect(body["env"] as? [String: String] == ["GITHUB_TOKEN": "t0k3n", "api_key_2": "x"])
@@ -44,7 +46,9 @@ import Testing
         ]
         try await makeClient(http).replaceMCPServers(servers)
         let request = try #require(http.requests.first)
-        #expect(request.method == "PUT" && request.url.path == "/api/mcp/servers" && request.url.query == nil)
+        #expect(
+            request.method == "PUT" && request.url.path(percentEncoded: true) == "/api/mcp/servers"
+                && request.url.query == nil)
         let map = try #require(try jsonObject(request)["servers"] as? [String: Any])
         #expect(Set(map.keys) == ["docs", "fs"])
         #expect((map["fs"] as? [String: Any])?["enabled"] as? Bool == false)
@@ -56,7 +60,7 @@ import Testing
         try await makeClient(http).removeMCPServer(named: "a b/c")
         let request = try #require(http.requests.first)
         #expect(request.method == "DELETE")
-        #expect(request.url.path == "/api/mcp/servers/a%20b%2Fc")
+        #expect(request.url.path(percentEncoded: true) == "/api/mcp/servers/a%20b%2Fc")
     }
 
     @Test func enabledToggleSendsOnlyTheFlag() async throws {
@@ -64,7 +68,7 @@ import Testing
         http.enqueue(200, #"{"ok":true,"name":"github","enabled":false}"#)
         try await makeClient(http).setMCPServerEnabled("github", enabled: false)
         let request = try #require(http.requests.first)
-        #expect(request.method == "PUT" && request.url.path == "/api/mcp/servers/github/enabled")
+        #expect(request.method == "PUT" && request.url.path(percentEncoded: true) == "/api/mcp/servers/github/enabled")
         let body = try jsonObject(request)
         #expect(body.count == 1 && body["enabled"] as? Bool == false)
     }
@@ -75,7 +79,7 @@ import Testing
         let result = try await makeClient(http).testMCPServer("docs")
         #expect(http.requests.count == 1)
         let request = try #require(http.requests.first)
-        #expect(request.method == "POST" && request.url.path == "/api/mcp/servers/docs/test")
+        #expect(request.method == "POST" && request.url.path(percentEncoded: true) == "/api/mcp/servers/docs/test")
         #expect(result.ok == false && result.error != nil)
     }
 
@@ -84,7 +88,7 @@ import Testing
         http.enqueue(200, try recordedBody("POST_api_mcp_servers_recorder-mcp_test"))
         let result = try await makeClient(http).testMCPServer("recorder-mcp")
         let request = try #require(http.requests.first)
-        #expect(request.url.path == "/api/mcp/servers/recorder-mcp/test")
+        #expect(request.url.path(percentEncoded: true) == "/api/mcp/servers/recorder-mcp/test")
         #expect(result.ok == false && result.error?.isEmpty == false)
     }
 
@@ -117,7 +121,7 @@ import Testing
         let requests = http.requests
         #expect(requests.map(\.method) == ["POST", "GET", "DELETE"])
         #expect(
-            requests.map { $0.url.path } == [
+            requests.map { $0.url.path(percentEncoded: true) } == [
                 "/api/mcp/servers/docs/auth", "/api/mcp/oauth/flows/f1", "/api/mcp/oauth/flows/f1",
             ])
     }
@@ -128,7 +132,7 @@ import Testing
         try await makeClient(http).installMCPCatalogEntry(
             MCPCatalogInstall(name: "github", env: ["GITHUB_TOKEN": "t"]))
         let request = try #require(http.requests.first)
-        #expect(request.method == "POST" && request.url.path == "/api/mcp/catalog/install")
+        #expect(request.method == "POST" && request.url.path(percentEncoded: true) == "/api/mcp/catalog/install")
         let body = try jsonObject(request)
         #expect(body["name"] as? String == "github" && body["enable"] as? Bool == true)
         #expect(body["env"] as? [String: String] == ["GITHUB_TOKEN": "t"])
@@ -141,7 +145,9 @@ import Testing
         let server = try #require(servers.first)
         #expect(!server.name.isEmpty)
         let request = try #require(http.requests.first)
-        #expect(request.method == "GET" && request.url.path == "/api/mcp/servers" && request.url.query == nil)
+        #expect(
+            request.method == "GET" && request.url.path(percentEncoded: true) == "/api/mcp/servers"
+                && request.url.query == nil)
     }
 
     @Test func serversAcceptTheEmptyRecordedList() async throws {
@@ -157,7 +163,7 @@ import Testing
         let catalog = try await makeClient(http).mcpCatalog()
         #expect(!catalog.entries.isEmpty && catalog.entries.allSatisfy { !$0.name.isEmpty })
         let request = try #require(http.requests.first)
-        #expect(request.method == "GET" && request.url.path == "/api/mcp/catalog")
+        #expect(request.method == "GET" && request.url.path(percentEncoded: true) == "/api/mcp/catalog")
     }
 
     @Test func profileScopeIsAddedToMCPCalls() async throws {

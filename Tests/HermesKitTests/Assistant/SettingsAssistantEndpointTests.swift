@@ -34,7 +34,7 @@ import Testing
         let requests = http.requests
         #expect(requests.allSatisfy { $0.method == "GET" && $0.body == nil })
         #expect(
-            requests.map(\.url.path) == [
+            requests.map { $0.url.path(percentEncoded: true) } == [
                 "/api/config", "/api/config/schema", "/api/config/defaults", "/api/memory",
                 "/api/memory/providers/byterover/config", "/api/memory/providers/byterover/oauth/status",
                 "/api/audio/voice-config", "/api/audio/elevenlabs/voices", "/api/curator", "/api/chat/workspaces",
@@ -70,7 +70,7 @@ import Testing
                 "PUT", "PUT", "POST", "POST", "POST", "PUT", "POST", "PUT", "PUT", "PUT", "POST",
             ])
         #expect(
-            requests.map(\.url.path) == [
+            requests.map { $0.url.path(percentEncoded: true) } == [
                 "/api/memory/provider", "/api/memory/providers/byterover/config",
                 "/api/memory/providers/byterover/setup", "/api/memory/providers/byterover/oauth/start",
                 "/api/memory/reset", "/api/curator/paused", "/api/curator/run", "/api/dashboard/theme",
@@ -136,7 +136,7 @@ import Testing
         http.enqueue(200, "{}")
         let client = makeClient(http)
         _ = try await client.assistantMemoryProviderConfig("a/b c")
-        #expect(http.requests.first?.url.path == "/api/memory/providers/a%2Fb%20c/config")
+        #expect(http.requests.first?.url.path(percentEncoded: true) == "/api/memory/providers/a%2Fb%20c/config")
     }
 
     @Test func editingOneKeyWritesEveryOtherKeyBack() async throws {
@@ -158,7 +158,7 @@ import Testing
         #expect(requests.first?.method == "GET")
         #expect(requests.first?.url.query == "profile=ops")
         let put = try #require(requests.last)
-        #expect(put.method == "PUT" && put.url.path == "/api/config")
+        #expect(put.method == "PUT" && put.url.path(percentEncoded: true) == "/api/config")
         #expect(put.url.query == "preserve_language=true&profile=ops")
         let sent = try JSONDecoder().decode(JSONValue.self, from: try #require(put.body))
         let expected: JSONValue = [

@@ -20,7 +20,7 @@ private func jsonBody(_ request: HTTPRequest?) -> [String: Any]? {
         let jobs = try await makeClient(http, profile: "ops").cronJobs()
         #expect(jobs.map(\.id) == ["9c1f0a2e5b7d", "4b8e6d1a0c93", "e27a9c4f1b06"])
         let request = try #require(http.requests.first)
-        #expect(request.method == "GET" && request.url.path == "/api/cron/jobs")
+        #expect(request.method == "GET" && request.url.path(percentEncoded: true) == "/api/cron/jobs")
         #expect(request.url.query == "profile=all", "the list spans every profile, whatever the active one is")
         let first = try #require(jobs.first)
         #expect(first.displayName == "Morning summary" && first.botName == "ana" && first.isEnabled)
@@ -57,7 +57,9 @@ private func jsonBody(_ request: HTTPRequest?) -> [String: Any]? {
         #expect(job.schedule?.expr == "0 9 * * 1-5")
         #expect(job.profile == nil, "a single read is not annotated with its profile")
         let request = try #require(bare.requests.first)
-        #expect(request.url.path == "/api/cron/jobs/9c1f0a2e5b7d" && request.url.query == "profile=ops")
+        #expect(
+            request.url.path(percentEncoded: true) == "/api/cron/jobs/9c1f0a2e5b7d"
+                && request.url.query == "profile=ops")
         _ = try await client.cronJob(id: "9c1f0a2e5b7d", profile: "bo")
         #expect(bare.requests.last?.url.query == "profile=bo", "a job is read in the profile its list row names")
         let wrapped = FakeHTTP()
@@ -81,7 +83,7 @@ private func jsonBody(_ request: HTTPRequest?) -> [String: Any]? {
         let requests = http.requests
         #expect(requests.map(\.method) == ["POST", "PUT", "POST", "POST", "POST", "DELETE"])
         #expect(
-            requests.map(\.url.path) == [
+            requests.map { $0.url.path(percentEncoded: true) } == [
                 "/api/cron/jobs", "/api/cron/jobs/a%2Fb%20c", "/api/cron/jobs/j1/pause", "/api/cron/jobs/j1/resume",
                 "/api/cron/jobs/j1/trigger", "/api/cron/jobs/j1",
             ])
@@ -136,7 +138,9 @@ private func jsonBody(_ request: HTTPRequest?) -> [String: Any]? {
         #expect(runs[0].ended?.timeIntervalSince1970 == 1_792_141_242 && runs[0].isActive == false)
         #expect(runs[1].title == "FAILED · provider timeout" && runs[1].preview == nil)
         let request = try #require(http.requests.first)
-        #expect(request.url.path == "/api/cron/jobs/9c1f0a2e5b7d/runs" && request.url.query == "limit=5")
+        #expect(
+            request.url.path(percentEncoded: true) == "/api/cron/jobs/9c1f0a2e5b7d/runs"
+                && request.url.query == "limit=5")
         _ = try await client.cronJobRuns(id: "9c1f0a2e5b7d", limit: 5, profile: "bo")
         #expect(http.requests.last?.url.query == "limit=5&profile=bo")
     }
@@ -160,7 +164,9 @@ private func jsonBody(_ request: HTTPRequest?) -> [String: Any]? {
         let london = try await client.serverTimeZone(profile: "ana")
         let local = try await client.serverTimeZone()
         #expect(london == "Europe/London" && local.isEmpty)
-        #expect(http.requests[0].url.path == "/api/config" && http.requests[0].url.query == "profile=ana")
+        #expect(
+            http.requests[0].url.path(percentEncoded: true) == "/api/config"
+                && http.requests[0].url.query == "profile=ana")
         #expect(http.requests[1].url.query == nil)
     }
 
