@@ -62,11 +62,16 @@ public protocol CookieImporting: Sendable {
 /// login redirect shows up as the `3xx` it is.
 public final class URLSessionHTTPTransport: HTTPTransport, CookieImporting, @unchecked Sendable {
     private let session: URLSession
-    private let redirectBlocker = RedirectBlocker()
+    private let redirectBlocker: RedirectBlocker
     private let cookies = CookieJar()
+    /// False for ``anonymous(timeout:)``: that transport neither sends nor stores cookies.
+    private let allowsCookies: Bool
 
     /// Creates a transport with an ephemeral session (its own cookie jar, nothing written to disk).
     public init(timeout: TimeInterval = 30) {
+        let blocker = RedirectBlocker()
+        self.redirectBlocker = blocker
+        self.allowsCookies = true
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = timeout
         configuration.httpShouldSetCookies = true
@@ -75,11 +80,36 @@ public final class URLSessionHTTPTransport: HTTPTransport, CookieImporting, @unc
             if configuration.httpCookieStorage == nil { configuration.httpCookieStorage = HTTPCookieStorage.shared }
         #endif
         configuration.httpCookieAcceptPolicy = .always
-        session = URLSession(configuration: configuration, delegate: redirectBlocker, delegateQueue: nil)
+        session = URLSession(configuration: configuration, delegate: blocker, delegateQueue: nil)
     }
 
-    /// Adds cookies, for example the session cookies of a web view sign-in.
+    /// A transport for requests that must not authenticate, such as health probes of fallback addresses.
+    ///
+    /// It has no cookie storage to send from: it sets no `Cookie` header, stores no `Set-Cookie` answer (including in
+    /// the process-wide storage Linux Foundation falls back to), and does not follow redirects. It conforms to
+    /// ``CookieImporting`` so it can stand in where a transport is expected, but importing cookies into it does
+    /// nothing.
+    public static func anonymous(timeout: TimeInterval = 15) -> URLSessionHTTPTransport {
+        let blocker = RedirectBlocker()
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = timeout
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieAcceptPolicy = .never
+        configuration.httpCookieStorage = nil
+        return URLSessionHTTPTransport(
+            session: URLSession(configuration: configuration, delegate: blocker, delegateQueue: nil),
+            redirectBlocker: blocker, allowsCookies: false)
+    }
+
+    private init(session: URLSession, redirectBlocker: RedirectBlocker, allowsCookies: Bool) {
+        self.session = session
+        self.redirectBlocker = redirectBlocker
+        self.allowsCookies = allowsCookies
+    }
+
+    /// Adds cookies, for example the session cookies of a web view sign-in. An anonymous transport ignores them.
     public func importCookies(_ cookies: [HTTPCookie]) {
+        guard allowsCookies else { return }
         #if canImport(Darwin)
             for cookie in cookies { session.configuration.httpCookieStorage?.setCookie(cookie) }
         #else
@@ -95,19 +125,23 @@ public final class URLSessionHTTPTransport: HTTPTransport, CookieImporting, @unc
         if let timeout = request.timeout { urlRequest.timeoutInterval = timeout }
         for (name, value) in request.headers { urlRequest.setValue(value, forHTTPHeaderField: name) }
         #if !canImport(Darwin)
-            for (name, value) in HTTPCookie.requestHeaderFields(with: cookies.cookies(for: request.url)) {
-                urlRequest.setValue(value, forHTTPHeaderField: name)
+            if allowsCookies {
+                for (name, value) in HTTPCookie.requestHeaderFields(with: cookies.cookies(for: request.url)) {
+                    urlRequest.setValue(value, forHTTPHeaderField: name)
+                }
             }
         #endif
         let (data, response) = try await session.data(for: urlRequest)
         guard let http = response as? HTTPURLResponse else { throw RESTError.transport("not an HTTP response") }
         #if !canImport(Darwin)
-            let stringHeaders = Dictionary(
-                uniqueKeysWithValues: http.allHeaderFields.compactMap { pair -> (String, String)? in
-                    guard let key = pair.key as? String, let value = pair.value as? String else { return nil }
-                    return (key, value)
-                })
-            cookies.store(HTTPCookie.cookies(withResponseHeaderFields: stringHeaders, for: request.url))
+            if allowsCookies {
+                let stringHeaders = Dictionary(
+                    uniqueKeysWithValues: http.allHeaderFields.compactMap { pair -> (String, String)? in
+                        guard let key = pair.key as? String, let value = pair.value as? String else { return nil }
+                        return (key, value)
+                    })
+                cookies.store(HTTPCookie.cookies(withResponseHeaderFields: stringHeaders, for: request.url))
+            }
         #endif
         var headers: [String: String] = [:]
         for (key, value) in http.allHeaderFields {

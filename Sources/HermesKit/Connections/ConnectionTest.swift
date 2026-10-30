@@ -203,18 +203,24 @@ public protocol ConnectionTesting: Sendable {
 /// (open `/api/ws` with a fresh ticket, wait for the handshake, call `gateway.capabilities`).
 public struct GatewayConnectionTester: ConnectionTesting {
     private let makeTransport: @Sendable () -> any HTTPTransport
+    private let makeAnonymousTransport: @Sendable () -> any HTTPTransport
     private let makeWebSocket: (@Sendable () -> any WebSocketTransport)?
     private let webSocketTimeout: Double
     private let resolver: any HostResolving
 
-    /// Creates a tester. `makeTransport` gives each test a fresh transport (its own cookies). Without
-    /// `makeWebSocket` (Linux, where Foundation has no WebSockets) the WebSocket leg is skipped.
+    /// Creates a tester. `makeTransport` gives each test a fresh transport (its own cookies). `makeAnonymousTransport`
+    /// gives health probes a transport that sends and stores no cookies; the default disables both, and it is separate
+    /// so a probe can never inherit the test's credentials. Without `makeWebSocket` (Linux, where Foundation has no
+    /// WebSockets) the WebSocket leg is skipped.
     public init(
         makeTransport: @escaping @Sendable () -> any HTTPTransport = { URLSessionHTTPTransport(timeout: 15) },
+        makeAnonymousTransport: (@Sendable () -> any HTTPTransport)? = nil,
         makeWebSocket: (@Sendable () -> any WebSocketTransport)? = Self.defaultWebSocket, webSocketTimeout: Double = 15,
         resolver: any HostResolving = SystemHostResolver()
     ) {
         self.makeTransport = makeTransport
+        self.makeAnonymousTransport =
+            makeAnonymousTransport ?? { URLSessionHTTPTransport.anonymous(timeout: 15) }
         self.makeWebSocket = makeWebSocket
         self.webSocketTimeout = webSocketTimeout
         self.resolver = resolver
@@ -316,17 +322,16 @@ public struct GatewayConnectionTester: ConnectionTesting {
         return report
     }
 
-    /// Header names that carry credentials. A probe must not send them, whichever case the endpoint stores them in.
-    static let credentialHeaderNames: Set<String> = [
-        "authorization", "cookie", "proxy-authorization", "x-hermes-session-token",
-    ]
+    /// Headers a health probe may send. They route the request to the right virtual host; none identifies the user.
+    static let probeHeaderNames: Set<String> = ["host", "x-forwarded-host"]
 
-    /// `endpoint` without its credential-bearing headers, for a health probe that must stay anonymous.
+    /// `endpoint` with only its safe routing headers, for a health probe that must stay anonymous.
     ///
-    /// The endpoint's other headers, such as `Host`, are kept: they describe how to reach the server, not who the
-    /// user is.
+    /// A probe sends an allowlist, not everything except a few known secrets: an endpoint can carry a custom
+    /// credential such as `X-API-Key`, and an unknown name must not reach an address that has not answered as Hermes.
+    /// `Host` and `X-Forwarded-Host` are kept because a forwarder may need them to route.
     public static func anonymousEndpoint(_ endpoint: HermesEndpoint) -> HermesEndpoint {
-        let kept = endpoint.headers.filter { !credentialHeaderNames.contains($0.key.lowercased()) }
+        let kept = endpoint.headers.filter { probeHeaderNames.contains($0.key.lowercased()) }
         guard kept.count != endpoint.headers.count else { return endpoint }
         return HermesEndpoint(baseURL: endpoint.baseURL, headers: kept) ?? endpoint
     }
@@ -334,15 +339,16 @@ public struct GatewayConnectionTester: ConnectionTesting {
     /// The first IP address of `endpoint`'s name that answers as Hermes, and its health. Nil when none does or there
     /// is no fallback (``HostFallback``).
     ///
-    /// Every candidate is probed anonymously: a fresh transport with no imported cookies, no REST auth, and no
-    /// credential headers from the endpoint. A rejected address never sees the user's secrets. A health answer only
-    /// shows that something speaking Hermes is there; over plain HTTP it does not prove which machine it is.
+    /// Every candidate is probed anonymously: an anonymous transport that sends and stores no cookies, no REST auth,
+    /// and only the routing headers from the endpoint. A rejected address never sees the user's secrets. A health
+    /// answer only shows that something speaking Hermes is there; over plain HTTP it does not prove which machine it
+    /// is.
     private func reachByAddress(
         _ endpoint: HermesEndpoint, config: RESTClientConfig
     ) async -> (endpoint: HermesEndpoint, health: ServerHealth)? {
         let probe = Self.anonymousEndpoint(endpoint)
         for candidate in await HostFallback.candidates(for: probe, resolver: resolver) {
-            let client = RESTClient(endpoint: candidate, transport: makeTransport(), config: config)
+            let client = RESTClient(endpoint: candidate, transport: makeAnonymousTransport(), config: config)
             if let health = try? await client.health(), health.ok {
                 // The selected address keeps the endpoint's headers for the authenticated client that follows.
                 let selected = HermesEndpoint(baseURL: candidate.baseURL, headers: endpoint.headers) ?? candidate
@@ -425,7 +431,7 @@ public struct GatewayConnectionTester: ConnectionTesting {
     public func probe(_ endpoint: HermesEndpoint) async -> ServerProbe? {
         var config = RESTClientConfig()
         config.maxRateLimitRetries = 0
-        let transport = makeTransport()
+        let transport = makeAnonymousTransport()
         var client = RESTClient(endpoint: Self.anonymousEndpoint(endpoint), transport: transport, config: config)
         var adapted: HermesEndpoint?
         let health: ServerHealth
@@ -438,7 +444,7 @@ public struct GatewayConnectionTester: ConnectionTesting {
             adapted = found.endpoint
             health = found.health
             client = RESTClient(
-                endpoint: Self.anonymousEndpoint(found.endpoint), transport: makeTransport(), config: config)
+                endpoint: Self.anonymousEndpoint(found.endpoint), transport: makeAnonymousTransport(), config: config)
         }
         guard health.ok else { return nil }
         let options = try? await SignInOptions.detect(using: client)

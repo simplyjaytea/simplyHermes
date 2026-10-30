@@ -154,7 +154,8 @@ let invalidHostBody =
         http.enqueue(200, #"{"ok":true}"#)
         http.enqueue(200, try restFixture("auth_me"))
         http.enqueue(200, #"{"ticket":"t-0123456789abcdef0123","ttl_seconds":30}"#)
-        let tester = GatewayConnectionTester(makeTransport: { http }, makeWebSocket: nil, resolver: resolver)
+        let tester = GatewayConnectionTester(
+            makeTransport: { http }, makeAnonymousTransport: { http }, makeWebSocket: nil, resolver: resolver)
         let report = try await tester.test(
             connection("http://box:9119"), secrets: ConnectionSecrets(password: "pw"), progress: { _ in },
             confirmHostKey: { _ in false })
@@ -174,7 +175,8 @@ let invalidHostBody =
         http.enqueue(200, #"{"ok":true}"#)
         http.enqueue(200, try restFixture("auth_me"))
         http.enqueue(200, #"{"ticket":"t-0123456789abcdef0123","ttl_seconds":30}"#)
-        let tester = GatewayConnectionTester(makeTransport: { http }, makeWebSocket: nil, resolver: resolver)
+        let tester = GatewayConnectionTester(
+            makeTransport: { http }, makeAnonymousTransport: { http }, makeWebSocket: nil, resolver: resolver)
         let report = try await tester.test(
             connection("http://box:9119"), secrets: ConnectionSecrets(password: "pw"), progress: { _ in },
             confirmHostKey: { _ in false })
@@ -185,7 +187,8 @@ let invalidHostBody =
         let http = FakeHTTP()
         http.enqueue(400, invalidHostBody)
         http.enqueue(400, invalidHostBody)
-        let tester = GatewayConnectionTester(makeTransport: { http }, makeWebSocket: nil, resolver: resolver)
+        let tester = GatewayConnectionTester(
+            makeTransport: { http }, makeAnonymousTransport: { http }, makeWebSocket: nil, resolver: resolver)
         do {
             _ = try await tester.test(
                 connection("http://box:9119"), secrets: ConnectionSecrets(password: "pw"), progress: { _ in },
@@ -202,7 +205,8 @@ let invalidHostBody =
         http.enqueue(200, try restFixture("health"))
         http.enqueue(
             200, #"{"providers":[{"name":"basic","display_name":"Username & Password","supports_password":true}]}"#)
-        let tester = GatewayConnectionTester(makeTransport: { http }, makeWebSocket: nil, resolver: resolver)
+        let tester = GatewayConnectionTester(
+            makeTransport: { http }, makeAnonymousTransport: { http }, makeWebSocket: nil, resolver: resolver)
         let probe = try #require(await tester.probe(HermesEndpoint(string: "http://box:9119")!))
         #expect(probe.adaptedEndpoint?.baseURL.absoluteString == "http://100.64.150.77:9119")
     }
@@ -213,11 +217,15 @@ let invalidHostBody =
 
     /// Headers a user could have set on the endpoint. A probe must keep `Host`-style headers and drop credentials.
     private let endpointHeaders = [
+        "Host": "box:9119",
+        "X-Forwarded-Host": "keep-me",
         "Authorization": "Bearer endpoint-secret",
         "Cookie": "endpoint=cookie-secret",
         "Proxy-Authorization": "Basic endpoint-secret",
         "X-Hermes-Session-Token": "endpoint-secret",
-        "X-Forwarded-Host": "keep-me",
+        "X-API-Key": "custom-secret",
+        "X-Custom-Token": "other-secret",
+        "X-Forwarded-Proto": "https",
     ]
 
     private func connection(_ signIn: GatewaySignIn) throws -> ServerConnection {
@@ -242,23 +250,23 @@ let invalidHostBody =
         recorder.requests.filter { $0.request.url.host != "box" && $0.request.url.path == "/api/health" }
     }
 
-    /// Fails for a header that carries a credential, whatever its case, or a value holding a secret.
-    private func expectNoSecrets(_ request: HTTPRequest, _ context: String) {
+    /// A probe may send routing headers and `Accept`, and nothing else. An unknown header is not assumed safe.
+    private func expectOnlyRoutingHeaders(_ request: HTTPRequest, _ context: String) {
+        let allowed: Set<String> = ["host", "x-forwarded-host", "accept"]
         for (name, value) in request.headers {
-            let lower = name.lowercased()
-            #expect(
-                lower != "authorization" && lower != "cookie" && lower != "proxy-authorization"
-                    && lower != "x-hermes-session-token",
-                "\(context) sent \(name)")
+            #expect(allowed.contains(name.lowercased()), "\(context) sent \(name)")
             #expect(!value.contains("secret"), "\(context) sent a secret in \(name)")
         }
+        #expect(request.headers["Host"] == "box:9119")
+        #expect(request.headers["X-Forwarded-Host"] == "keep-me")
     }
 
     @Test func everyCandidateIsProbedWithoutTheSessionToken() async throws {
         let recorder = ProbeRecorder()
         try route(recorder)
         let tester = GatewayConnectionTester(
-            makeTransport: recorder.makeTransport, makeWebSocket: nil, resolver: resolver)
+            makeTransport: recorder.makeTransport, makeAnonymousTransport: recorder.makeTransport,
+            makeWebSocket: nil, resolver: resolver)
         let report = try await tester.test(
             try connection(.sessionToken), secrets: ConnectionSecrets(sessionToken: "session-secret"),
             progress: { _ in }, confirmHostKey: { _ in false })
@@ -269,7 +277,7 @@ let invalidHostBody =
         let candidates = probeRequests(recorder)
         #expect(candidates.map { $0.request.url.host } == ["100.64.150.77", "100.64.150.78"])
         for record in candidates {
-            expectNoSecrets(record.request, "candidate \(record.request.url.host ?? "?")")
+            expectOnlyRoutingHeaders(record.request, "candidate \(record.request.url.host ?? "?")")
             #expect(record.request.headers["X-Forwarded-Host"] == "keep-me")
         }
         // The rejected address saw only the anonymous health probe.
@@ -280,13 +288,16 @@ let invalidHostBody =
             $0.request.url.host == "100.64.150.78" && $0.request.url.path == "/api/status"
         }
         #expect(selected.first?.request.headers["X-Hermes-Session-Token"] == "session-secret")
+        // Endpoint custom credentials follow only after the address was selected.
+        #expect(selected.first?.request.headers["X-API-Key"] == "custom-secret")
     }
 
     @Test func everyCandidateIsProbedWithoutTheBearerToken() async throws {
         let recorder = ProbeRecorder()
         try route(recorder)
         let tester = GatewayConnectionTester(
-            makeTransport: recorder.makeTransport, makeWebSocket: nil, resolver: resolver)
+            makeTransport: recorder.makeTransport, makeAnonymousTransport: recorder.makeTransport,
+            makeWebSocket: nil, resolver: resolver)
         let tokens = NativeTokens(accessToken: "bearer-secret", refreshToken: "refresh", expiresAt: 9_999_999_999)
         let report = try await tester.test(
             try connection(.browser(provider: nil)), secrets: ConnectionSecrets(nativeTokens: tokens),
@@ -294,7 +305,7 @@ let invalidHostBody =
 
         #expect(report.adaptedEndpoint?.baseURL.absoluteString == "http://100.64.150.78:9119")
         for record in probeRequests(recorder) {
-            expectNoSecrets(record.request, "candidate \(record.request.url.host ?? "?")")
+            expectOnlyRoutingHeaders(record.request, "candidate \(record.request.url.host ?? "?")")
         }
         let selected = recorder.requests.first {
             $0.request.url.host == "100.64.150.78" && $0.request.url.path == "/api/status"
@@ -310,7 +321,8 @@ let invalidHostBody =
                 .name: "hermes_session", .value: "cookie-secret", .domain: "box", .path: "/",
             ]))
         let tester = GatewayConnectionTester(
-            makeTransport: recorder.makeTransport, makeWebSocket: nil, resolver: resolver)
+            makeTransport: recorder.makeTransport, makeAnonymousTransport: recorder.makeTransport,
+            makeWebSocket: nil, resolver: resolver)
         _ = try await tester.test(
             try connection(.browser(provider: nil)),
             secrets: ConnectionSecrets(webCookies: [StoredCookie(cookie)]), progress: { _ in },
@@ -319,7 +331,7 @@ let invalidHostBody =
         // Only the transport for the typed server had cookies imported.
         #expect(recorder.importedTransports == ["t1"])
         for record in probeRequests(recorder) {
-            expectNoSecrets(record.request, "candidate \(record.request.url.host ?? "?")")
+            expectOnlyRoutingHeaders(record.request, "candidate \(record.request.url.host ?? "?")")
         }
     }
 
@@ -330,13 +342,14 @@ let invalidHostBody =
             host: "100.64.150.78", path: "/api/auth/providers", status: 200,
             body: #"{"providers":[{"name":"basic","display_name":"Password","supports_password":true}]}"#)
         let tester = GatewayConnectionTester(
-            makeTransport: recorder.makeTransport, makeWebSocket: nil, resolver: resolver)
+            makeTransport: recorder.makeTransport, makeAnonymousTransport: recorder.makeTransport,
+            makeWebSocket: nil, resolver: resolver)
         let endpoint = try #require(HermesEndpoint(string: "http://box:9119", headers: endpointHeaders))
         let probe = try #require(await tester.probe(endpoint))
 
         #expect(probe.adaptedEndpoint?.baseURL.absoluteString == "http://100.64.150.78:9119")
         for record in recorder.requests {
-            expectNoSecrets(record.request, "probe \(record.request.url.host ?? "?")")
+            expectOnlyRoutingHeaders(record.request, "probe \(record.request.url.host ?? "?")")
         }
     }
 
@@ -344,12 +357,13 @@ let invalidHostBody =
         let endpoint = try #require(HermesEndpoint(string: "http://box:9119", headers: endpointHeaders))
         let anonymous = GatewayConnectionTester.anonymousEndpoint(endpoint)
         #expect(anonymous.baseURL == endpoint.baseURL)
-        #expect(anonymous.headers == ["X-Forwarded-Host": "keep-me"])
-        // The header names match whatever case the endpoint stored them in.
+        #expect(anonymous.headers == ["Host": "box:9119", "X-Forwarded-Host": "keep-me"])
+        // Routing names match whatever case the endpoint stored them in; anything else is dropped.
         let mixed = try #require(
             HermesEndpoint(
-                string: "http://box:9119", headers: ["AUTHORIZATION": "x", "cookie": "y", "PROXY-authorization": "z"]))
-        #expect(GatewayConnectionTester.anonymousEndpoint(mixed).headers.isEmpty)
+                string: "http://box:9119",
+                headers: ["HOST": "box:9119", "AUTHORIZATION": "x", "X-API-Key": "y", "PROXY-authorization": "z"]))
+        #expect(GatewayConnectionTester.anonymousEndpoint(mixed).headers == ["HOST": "box:9119"])
     }
 }
 
