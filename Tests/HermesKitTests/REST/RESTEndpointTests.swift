@@ -40,7 +40,9 @@ import Testing
         #expect(
             detail.id == "20261014_032737_07e33f" && detail.profile == "default" && detail.archived == false
                 && detail.pinned == false)
-        #expect(request.url.path == "/api/sessions/a%2Fb%20c")
+        #expect(
+            URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.percentEncodedPath
+                == "/api/sessions/a%2Fb%20c")
     }
 
     @Test func messagesTimelineSearchStats() async throws {

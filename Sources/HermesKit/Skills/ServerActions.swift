@@ -57,7 +57,7 @@ extension RESTClient {
     public func actionStatus(_ name: String, lines: Int = 200) async throws -> ServerActionStatus {
         try await get(
             "/api/actions/" + restPathSegment(name) + "/status",
-            query: [URLQueryItem(name: "lines", value: String(lines))])
+            query: [URLQueryItem(name: "lines", value: String(lines))], encodedPath: true)
     }
 }
 

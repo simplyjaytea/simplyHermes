@@ -107,17 +107,18 @@ public actor RESTClient {
 
     /// `GET` and decode the JSON body.
     public func get<Result: Decodable & Sendable>(
-        _ path: String, query: [URLQueryItem] = [], scoped: Bool = true, as type: Result.Type = Result.self
+        _ path: String, query: [URLQueryItem] = [], scoped: Bool = true, encodedPath: Bool = false,
+        as type: Result.Type = Result.self
     ) async throws -> Result {
-        try decode(try await send("GET", path, query: query, scoped: scoped))
+        try decode(try await send("GET", path, query: query, scoped: scoped, encodedPath: encodedPath))
     }
 
     /// Sends `body` as JSON with `method` and decodes the JSON answer.
     public func send<Result: Decodable & Sendable>(
         _ method: String, _ path: String, query: [URLQueryItem] = [], body: (any Encodable & Sendable)? = nil,
-        scoped: Bool = true, as type: Result.Type = Result.self
+        scoped: Bool = true, encodedPath: Bool = false, as type: Result.Type = Result.self
     ) async throws -> Result {
-        try decode(try await send(method, path, query: query, body: body, scoped: scoped))
+        try decode(try await send(method, path, query: query, body: body, scoped: scoped, encodedPath: encodedPath))
     }
 
     /// Sends a request and returns the raw successful response, after retries and re-authentication.
@@ -126,9 +127,10 @@ public actor RESTClient {
     /// for endpoints that return files.
     public func send(
         _ method: String, _ path: String, query: [URLQueryItem] = [], body: (any Encodable & Sendable)? = nil,
-        scoped: Bool = true, timeout: TimeInterval? = nil
+        scoped: Bool = true, timeout: TimeInterval? = nil, encodedPath: Bool = false
     ) async throws -> HTTPResponse {
-        let response = try await sendRaw(method, path, query: query, body: body, scoped: scoped, timeout: timeout)
+        let response = try await sendRaw(
+            method, path, query: query, body: body, scoped: scoped, timeout: timeout, encodedPath: encodedPath)
         if let type = response.headers["content-type"]?.lowercased(), type.contains("text/html") {
             throw RESTError.unexpectedContent(contentType: type)
         }
@@ -139,13 +141,14 @@ public actor RESTClient {
     /// skips the snake_case encoder; use it for camelCase keys.
     public func sendRaw(
         _ method: String, _ path: String, query: [URLQueryItem] = [], body: (any Encodable & Sendable)? = nil,
-        json: Data? = nil, scoped: Bool = true, timeout: TimeInterval? = nil
+        json: Data? = nil, scoped: Bool = true, timeout: TimeInterval? = nil, encodedPath: Bool = false
     ) async throws -> HTTPResponse {
         let encoded: Data? = try json ?? body.map { try Self.encoder.encode(AnyEncodable($0)) }
         var retriedAuth = false
         var rateLimitRetries = 0
         while true {
-            let request = makeRequest(method, path, scopedQuery(query, scoped), encoded, timeout: timeout)
+            let request = makeRequest(
+                method, path, scopedQuery(query, scoped), encoded, timeout: timeout, encodedPath: encodedPath)
             let response: HTTPResponse
             do {
                 response = try await transport.send(request)
@@ -185,9 +188,11 @@ public actor RESTClient {
     }
 
     private func makeRequest(
-        _ method: String, _ path: String, _ items: [URLQueryItem], _ body: Data?, timeout: TimeInterval?
+        _ method: String, _ path: String, _ items: [URLQueryItem], _ body: Data?, timeout: TimeInterval?,
+        encodedPath: Bool
     ) -> HTTPRequest {
-        let url = endpoint.url(forPath: Self.pathWithQuery(path, items))
+        let joined = Self.pathWithQuery(path, items)
+        let url = encodedPath ? endpoint.url(forEncodedPath: joined) : endpoint.url(forPath: joined)
         var headers = endpoint.headers
         headers["Accept"] = "application/json"
         if body != nil { headers["Content-Type"] = "application/json" }

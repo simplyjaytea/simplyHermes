@@ -56,18 +56,18 @@ extension RESTClient {
 
     /// `GET /api/sessions/{id}`.
     public func session(id: String) async throws -> SessionRecord {
-        try await get("/api/sessions/" + path(id))
+        try await get("/api/sessions/" + path(id), encodedPath: true)
     }
 
     /// `GET /api/sessions/{id}/messages`. With `oldest` false the first page holds the newest messages.
     public func messages(id: String, page: PageRequest = .init(), oldest: Bool = true) async throws -> MessagesPage {
         let query = page.queryItems + [URLQueryItem(name: "order", value: oldest ? "oldest" : "latest")]
-        return try await get("/api/sessions/" + path(id, "messages"), query: query)
+        return try await get("/api/sessions/" + path(id, "messages"), query: query, encodedPath: true)
     }
 
     /// `GET /api/sessions/{id}/timeline`: the user turns, for jump-to and rewind.
     public func timeline(sessionID: String) async throws -> SessionTimeline {
-        try await get("/api/sessions/" + path(sessionID, "timeline"))
+        try await get("/api/sessions/" + path(sessionID, "timeline"), encodedPath: true)
     }
 
     /// `GET /api/sessions/search`.
@@ -82,12 +82,12 @@ extension RESTClient {
 
     /// `PATCH /api/sessions/{id}`: rename, archive, pin or hide.
     public func updateSession(id: String, _ update: SessionUpdate) async throws {
-        let _: Ack = try await send("PATCH", "/api/sessions/" + path(id), body: update)
+        let _: Ack = try await send("PATCH", "/api/sessions/" + path(id), body: update, encodedPath: true)
     }
 
     /// `DELETE /api/sessions/{id}`. Cannot be undone.
     public func deleteSession(id: String) async throws {
-        let _: Ack = try await send("DELETE", "/api/sessions/" + path(id))
+        let _: Ack = try await send("DELETE", "/api/sessions/" + path(id), encodedPath: true)
     }
 }
 
@@ -134,7 +134,7 @@ extension RESTClient {
 
     /// `GET /api/plugins/kanban/tasks/{id}`.
     public func kanbanTask(id: String, board: String? = nil) async throws -> KanbanTaskDetail {
-        try await get("/api/plugins/kanban/tasks/" + path(id), query: items(["board": board]))
+        try await get("/api/plugins/kanban/tasks/" + path(id), query: items(["board": board]), encodedPath: true)
     }
 
     /// `POST /api/plugins/kanban/tasks`.
@@ -146,19 +146,21 @@ extension RESTClient {
     /// refused, for example `done` without a result.
     public func updateKanbanTask(id: String, _ update: KanbanTaskUpdate, board: String? = nil) async throws {
         let _: Ack = try await send(
-            "PATCH", "/api/plugins/kanban/tasks/" + path(id), query: items(["board": board]), body: update)
+            "PATCH", "/api/plugins/kanban/tasks/" + path(id), query: items(["board": board]), body: update,
+            encodedPath: true)
     }
 
     /// `DELETE /api/plugins/kanban/tasks/{id}`.
     public func deleteKanbanTask(id: String, board: String? = nil) async throws {
-        let _: Ack = try await send("DELETE", "/api/plugins/kanban/tasks/" + path(id), query: items(["board": board]))
+        let _: Ack = try await send(
+            "DELETE", "/api/plugins/kanban/tasks/" + path(id), query: items(["board": board]), encodedPath: true)
     }
 
     /// `POST /api/plugins/kanban/tasks/{id}/comments`.
     public func addKanbanComment(id: String, text: String, author: String? = nil, board: String? = nil) async throws {
         let _: Ack = try await send(
             "POST", "/api/plugins/kanban/tasks/" + path(id, "comments"), query: items(["board": board]),
-            body: CommentBody(body: text, author: author))
+            body: CommentBody(body: text, author: author), encodedPath: true)
     }
 }
 
