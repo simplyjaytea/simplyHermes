@@ -107,6 +107,25 @@
         /// The IP endpoint Hermes answered on after it refused the typed name, and the typed URL it stands for.
         private var adaptedAddress: AdaptedAddress?
 
+        /// The form values one test was started with, so a late answer for older inputs can be discarded.
+        ///
+        /// A gateway target keeps the typed address, not the IP a probe or test may adapt to: discovering an
+        /// adaptation while a test runs must not make that test look stale.
+        private struct TestTarget: Equatable, Sendable {
+            struct GatewayTarget: Equatable, Sendable {
+                let typed: URL
+                let signIn: GatewaySignIn
+            }
+
+            let gateway: GatewayTarget?
+            let ssh: SSHSettings?
+            let secrets: ConnectionSecrets
+        }
+
+        private typealias TestRun = ConnectionTestRunTracker<TestTarget>.Run
+        /// The test whose progress and result may still change this form. Empty before a test or after it ends.
+        @ObservationIgnored private var testRuns = ConnectionTestRunTracker<TestTarget>()
+
         private struct AdaptedAddress {
             let typed: URL
             let endpoint: HermesEndpoint
@@ -351,7 +370,7 @@
                 browserResult = result
                 browserServer = parsed.endpoint.baseURL
                 browserState = .signedIn(user: result.userID)
-                test = .idle
+                invalidateTest()
             } catch NativeSignInError.cancelled {
                 browserState = before == .signingIn ? .idle : before
             } catch {
@@ -452,6 +471,10 @@
         }
 
         /// Runs the connection test. SSH asks the user to trust the host key on first connect.
+        ///
+        /// The form stays editable while the test runs, so the test keeps the inputs it was started with. Progress and
+        /// the result count only while the form still has those inputs and no newer test has started; anything else is
+        /// discarded, and an adapted address is remembered only for the address it belongs to.
         public func runTest(with connections: ConnectionsModel) async {
             let connection: ServerConnection
             let secrets: ConnectionSecrets
@@ -462,28 +485,96 @@
                 test = .failed(error)
                 return
             }
+            // A test from an older form state cannot be completed, so its host-key sheet must not hold this one up.
+            resolvePendingTrust(false)
+            guard let target = target(for: connection, secrets: secrets) else {
+                test = .failed(.invalidForm(missing ?? "Enter a valid server address."))
+                return
+            }
+            let run = testRuns.begin(target)
             test = .running(mode == .ssh ? .connectingSSH : .reachingServer)
             testStage = mode == .ssh ? .connectingSSH : .reachingServer
             do {
                 let report = try await connections.tester(for: connection).test(
                     connection, secrets: secrets,
                     progress: { step in
-                        Task { @MainActor in self.advance(to: step) }
+                        Task { @MainActor in self.advance(to: step, run: run) }
                     },
                     confirmHostKey: { fingerprint in
-                        await self.askToTrust(fingerprint)
+                        await self.askToTrust(fingerprint, run: run)
                     })
+                guard isCurrent(run) else {
+                    discard(run)
+                    return
+                }
                 if let key = report.acceptedHostKey { pinnedHostKey = key.openSSHKey }
                 if case .success(let parsed)? = address {
                     rememberAdapted(report.adaptedEndpoint, for: parsed.endpoint)
                 }
                 test = .passed(report)
+                testRuns.finish(run)
             } catch let failure as ConnectionTestFailure {
+                guard isCurrent(run) else {
+                    discard(run)
+                    return
+                }
                 test = .failed(failure)
+                testRuns.finish(run)
             } catch {
+                guard isCurrent(run) else {
+                    discard(run)
+                    return
+                }
                 test = .failed(.unreachable("\(error)"))
+                testRuns.finish(run)
+            }
+            if testRuns.current == nil { autoTrustFingerprint = nil }
+        }
+
+        /// Clears a test result when the form's target inputs change, so a pass for one address never describes
+        /// another. A running test becomes stale and its answer is discarded.
+        public func invalidateTest() {
+            testRuns.invalidate()
+            if test != .idle {
+                test = .idle
+                testStage = nil
             }
             autoTrustFingerprint = nil
+            resolvePendingTrust(false)
+        }
+
+        /// The form values a test would use now, or nil while a field is missing.
+        private func currentTarget() -> TestTarget? {
+            guard let connection = try? makeConnection(), let secrets = try? makeSecrets() else { return nil }
+            return target(for: connection, secrets: secrets)
+        }
+
+        private func target(for connection: ServerConnection, secrets: ConnectionSecrets) -> TestTarget? {
+            switch connection.kind {
+            case .gateway(let settings):
+                guard case .success(let parsed)? = address else { return nil }
+                return TestTarget(
+                    gateway: TestTarget.GatewayTarget(typed: parsed.endpoint.baseURL, signIn: settings.signIn),
+                    ssh: nil, secrets: secrets)
+            case .ssh(let settings):
+                return TestTarget(gateway: nil, ssh: settings, secrets: secrets)
+            }
+        }
+
+        /// True while `run` is the current test and the form still has the inputs it started with.
+        private func isCurrent(_ run: TestRun) -> Bool {
+            guard let target = currentTarget() else { return false }
+            return testRuns.isCurrent(run, target: target)
+        }
+
+        /// Drops `run` when the form changed under it. A newer run owns the form state, so its state is left alone.
+        private func discard(_ run: TestRun) {
+            guard testRuns.isCurrent(run) else { return }
+            testRuns.invalidate()
+            test = .idle
+            testStage = nil
+            autoTrustFingerprint = nil
+            resolvePendingTrust(false)
         }
 
         /// The changed-key override: Face ID, then trust the new key and pin it.
@@ -497,6 +588,10 @@
 
         /// The answer from the fingerprint sheet.
         public func answerTrust(_ trusted: Bool) {
+            resolvePendingTrust(trusted)
+        }
+
+        private func resolvePendingTrust(_ trusted: Bool) {
             pendingTrust?.continuation.resume(returning: trusted)
             pendingTrust = nil
         }
@@ -513,14 +608,24 @@
             return connection
         }
 
-        private func advance(to step: ConnectionTestStep) {
+        private func advance(to step: ConnectionTestStep, run: TestRun) {
+            guard case .running = test else { return }
+            guard isCurrent(run) else {
+                discard(run)
+                return
+            }
             testStage = step
-            if case .running = test { test = .running(step) }
+            test = .running(step)
         }
 
-        private func askToTrust(_ fingerprint: HostKeyFingerprint) async -> Bool {
+        private func askToTrust(_ fingerprint: HostKeyFingerprint, run: TestRun) async -> Bool {
+            guard isCurrent(run) else {
+                discard(run)
+                return false
+            }
             if fingerprint.fingerprint == autoTrustFingerprint { return true }
-            pendingTrust?.continuation.resume(returning: false)
+            // A sheet from an older run must not keep two answers waiting.
+            resolvePendingTrust(false)
             return await withCheckedContinuation { continuation in
                 pendingTrust = PendingTrust(fingerprint: fingerprint, continuation: continuation)
             }

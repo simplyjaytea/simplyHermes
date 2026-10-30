@@ -43,6 +43,10 @@
                 }
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.inline)
+                .onChange(of: form.urlText) { _, _ in form.invalidateTest() }
+                .onChange(of: form.username) { _, _ in form.invalidateTest() }
+                .onChange(of: form.password) { _, _ in form.invalidateTest() }
+                .onChange(of: form.token) { _, _ in form.invalidateTest() }
                 .toolbar { toolbar }
                 .sheet(item: trustBinding) { pending in
                     HostKeyTrustSheet(fingerprint: pending.fingerprint) { form.answerTrust($0) }
