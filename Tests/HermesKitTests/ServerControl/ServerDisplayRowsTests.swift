@@ -69,6 +69,13 @@ import Testing
             ])
     }
 
+    @Test func logURLsRemoveCredentials() {
+        let answer: JSONValue = .object([
+            "lines": .array([.string("before https://user:secret@host/path after")])
+        ])
+        #expect(ServerLogsRows.lines(from: answer) == ["before https://host/path after"])
+    }
+
     @Test func analyticsSplitTotalsFromPerModelGroups() {
         // GET_api_analytics_models.json and GET_api_analytics_usage.json, trimmed: a scalar, totals, a list of objects.
         let json: JSONValue = .object([
