@@ -240,7 +240,7 @@ public enum GatewaySetup {
                 [
                     "On the computer, add HERMES_DASHBOARD_PUBLIC_URL=<this address> to "
                         + "~/.config/hermes/dashboard.env, then run `sudo systemctl restart hermes-dashboard`.",
-                    "Or use the full name, such as machine.tailnet-name.ts.net, not the short one.",
+                    "Or use the address Hermes listens on: its Tailscale IP and port, such as http://100.x.y.z:9119.",
                     "Run the setup prompt again.",
                 ]
             )
