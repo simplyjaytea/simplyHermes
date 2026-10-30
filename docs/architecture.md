@@ -129,9 +129,11 @@ with a warning; HTTPS everywhere else. A bare `*.ts.net` name without a port def
 
 Hermes answers only to its bind address and to `dashboard.public_url`; any other `Host` gets `400 Invalid Host header`.
 A server bound to its Tailscale IP therefore refuses its MagicDNS name. Over plain HTTP the app adapts instead of asking
-for a server change: `GatewayConnectionTester` resolves the name (`HostFallback`), retries on each address, and the form
-saves the IP endpoint that answered, with a note under the address. Over HTTPS the certificate names the host, so there
-is no fallback and the server needs `public_url`.
+for a server change: `GatewayConnectionTester` resolves the name (`HostFallback`) and health-probes each address without
+credentials, then signs in only on the address that answered as Hermes and saves that IP endpoint, with a note under
+the address. A plain-HTTP health answer shows an address speaks Hermes; it is not a certificate and does not prove the
+address is the same machine. Over HTTPS the certificate names the host, so there is no fallback and the server needs
+`public_url`.
 
 ## Project file
 

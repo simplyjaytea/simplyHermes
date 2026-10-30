@@ -71,6 +71,10 @@ public struct ConnectionTestReport: Sendable, Equatable {
     public var compatibility: ServerCompatibility = .compatible
     /// Set when Hermes refused the typed name and answered on one of its IP addresses instead (``HostFallback``).
     /// Save this endpoint, not the typed one.
+    ///
+    /// A Hermes health answer on an address is not proof that the address is the same machine: over plain HTTP
+    /// nothing authenticates the server, and any host that speaks Hermes can answer. The fallback is a convenience
+    /// for a server that refuses its name, not a cryptographic identity check.
     public var adaptedEndpoint: HermesEndpoint?
 
     /// Creates a report.
@@ -265,9 +269,13 @@ public struct GatewayConnectionTester: ConnectionTesting {
         } catch {
             let failure = Self.reachFailure(error)
             guard failure.isHostRejected,
-                let found = await reachByAddress(endpoint, transport: transport, auth: auth, config: config)
+                let found = await reachByAddress(endpoint, config: config)
             else { throw failure }
-            (endpoint, client, health) = found
+            endpoint = found.endpoint
+            health = found.health
+            // The address answered as Hermes without credentials. Only now, for that selected address, make the
+            // authenticated client the rest of the test uses.
+            client = RESTClient(endpoint: endpoint, transport: transport, auth: auth, config: config)
         }
         guard health.ok else { throw ConnectionTestFailure.notHermes }
         let status = try? await client.status()
@@ -308,14 +316,38 @@ public struct GatewayConnectionTester: ConnectionTesting {
         return report
     }
 
-    /// The first IP address of `endpoint`'s name that answers as Hermes, with its client and health. Nil when
-    /// none does or there is no fallback (``HostFallback``).
+    /// Header names that carry credentials. A probe must not send them, whichever case the endpoint stores them in.
+    static let credentialHeaderNames: Set<String> = [
+        "authorization", "cookie", "proxy-authorization", "x-hermes-session-token",
+    ]
+
+    /// `endpoint` without its credential-bearing headers, for a health probe that must stay anonymous.
+    ///
+    /// The endpoint's other headers, such as `Host`, are kept: they describe how to reach the server, not who the
+    /// user is.
+    public static func anonymousEndpoint(_ endpoint: HermesEndpoint) -> HermesEndpoint {
+        let kept = endpoint.headers.filter { !credentialHeaderNames.contains($0.key.lowercased()) }
+        guard kept.count != endpoint.headers.count else { return endpoint }
+        return HermesEndpoint(baseURL: endpoint.baseURL, headers: kept) ?? endpoint
+    }
+
+    /// The first IP address of `endpoint`'s name that answers as Hermes, and its health. Nil when none does or there
+    /// is no fallback (``HostFallback``).
+    ///
+    /// Every candidate is probed anonymously: a fresh transport with no imported cookies, no REST auth, and no
+    /// credential headers from the endpoint. A rejected address never sees the user's secrets. A health answer only
+    /// shows that something speaking Hermes is there; over plain HTTP it does not prove which machine it is.
     private func reachByAddress(
-        _ endpoint: HermesEndpoint, transport: any HTTPTransport, auth: RESTAuth, config: RESTClientConfig
-    ) async -> (HermesEndpoint, RESTClient, ServerHealth)? {
-        for candidate in await HostFallback.candidates(for: endpoint, resolver: resolver) {
-            let client = RESTClient(endpoint: candidate, transport: transport, auth: auth, config: config)
-            if let health = try? await client.health(), health.ok { return (candidate, client, health) }
+        _ endpoint: HermesEndpoint, config: RESTClientConfig
+    ) async -> (endpoint: HermesEndpoint, health: ServerHealth)? {
+        let probe = Self.anonymousEndpoint(endpoint)
+        for candidate in await HostFallback.candidates(for: probe, resolver: resolver) {
+            let client = RESTClient(endpoint: candidate, transport: makeTransport(), config: config)
+            if let health = try? await client.health(), health.ok {
+                // The selected address keeps the endpoint's headers for the authenticated client that follows.
+                let selected = HermesEndpoint(baseURL: candidate.baseURL, headers: endpoint.headers) ?? candidate
+                return (selected, health)
+            }
         }
         return nil
     }
@@ -394,16 +426,19 @@ public struct GatewayConnectionTester: ConnectionTesting {
         var config = RESTClientConfig()
         config.maxRateLimitRetries = 0
         let transport = makeTransport()
-        var client = RESTClient(endpoint: endpoint, transport: transport, config: config)
+        var client = RESTClient(endpoint: Self.anonymousEndpoint(endpoint), transport: transport, config: config)
         var adapted: HermesEndpoint?
         let health: ServerHealth
         do {
             health = try await client.health()
         } catch {
             guard Self.reachFailure(error).isHostRejected,
-                let found = await reachByAddress(endpoint, transport: transport, auth: .cookie, config: config)
+                let found = await reachByAddress(endpoint, config: config)
             else { return nil }
-            (adapted, client, health) = found
+            adapted = found.endpoint
+            health = found.health
+            client = RESTClient(
+                endpoint: Self.anonymousEndpoint(found.endpoint), transport: makeTransport(), config: config)
         }
         guard health.ok else { return nil }
         let options = try? await SignInOptions.detect(using: client)

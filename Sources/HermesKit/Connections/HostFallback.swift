@@ -59,6 +59,9 @@ public struct SystemHostResolver: HostResolving {
 /// IP refuses the MagicDNS name, short or full, unless the operator set a public URL. Over plain HTTP the app can
 /// reach the same server by its IP instead, so it adapts rather than asking the user to change Hermes. Over HTTPS
 /// the certificate names the host, so an IP can't stand in and there is no fallback.
+///
+/// The IP is chosen by asking each address for Hermes health without credentials. That answer shows an address
+/// speaks Hermes; plain HTTP has no certificate, so it cannot prove the address is the same machine.
 public enum HostFallback {
     /// The same endpoint with the host replaced by each address `endpoint`'s name resolves to. Empty for HTTPS and
     /// for a host that is already an IP address.
