@@ -238,10 +238,9 @@ public enum GatewaySetup {
             return (
                 "Hermes refused this address. It answers only to its own address and its public URL.",
                 [
-                    "On the computer, add HERMES_DASHBOARD_PUBLIC_URL=<this address> to "
-                        + "~/.config/hermes/dashboard.env, then run `sudo systemctl restart hermes-dashboard`.",
-                    "Or use the address Hermes listens on: its Tailscale IP and port, such as http://100.x.y.z:9119.",
-                    "Run the setup prompt again.",
+                    "Use the address Hermes listens on: its Tailscale IP and port, such as http://100.x.y.z:9119.",
+                    "HTTPS through tailscale serve needs HERMES_DASHBOARD_PUBLIC_URL=<this address> in "
+                        + "~/.config/hermes/dashboard.env on the computer. Then restart Hermes.",
                 ]
             )
         case .server(let status, _):

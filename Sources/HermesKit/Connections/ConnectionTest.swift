@@ -69,6 +69,9 @@ public struct ConnectionTestReport: Sendable, Equatable {
     public var webSocketChecked = false
     /// The compatibility verdict from `/api/status`.
     public var compatibility: ServerCompatibility = .compatible
+    /// Set when Hermes refused the typed name and answered on one of its IP addresses instead (``HostFallback``).
+    /// Save this endpoint, not the typed one.
+    public var adaptedEndpoint: HermesEndpoint?
 
     /// Creates a report.
     public init(
@@ -135,7 +138,8 @@ public enum ConnectionTestFailure: Error, Sendable, Equatable {
         case .server(let status, let detail):
             isHostRejected
                 ? "Hermes refused this address. It answers only to the address it listens on and to its public URL. "
-                    + "Set HERMES_DASHBOARD_PUBLIC_URL on the server to this address, then restart Hermes."
+                    + "Use the address it listens on, such as its Tailscale IP and port, or set "
+                    + "HERMES_DASHBOARD_PUBLIC_URL on the server to this address."
                 : "The server answered \(status)\(detail.map { ": \($0)" } ?? ".")"
         case .missingSecret:
             "Enter the password, token or key first."
@@ -169,6 +173,8 @@ public struct ServerProbe: Sendable, Equatable {
     public var authProviders: [String]
     /// The full sign-in options (providers and flows), when the server sent them.
     public var signIn: SignInOptions?
+    /// Set when Hermes refused the typed name and answered on this IP address instead (``HostFallback``).
+    public var adaptedEndpoint: HermesEndpoint?
 
     /// Creates a value.
     public init(authRequired: Bool, authProviders: [String], signIn: SignInOptions? = nil) {
@@ -195,16 +201,19 @@ public struct GatewayConnectionTester: ConnectionTesting {
     private let makeTransport: @Sendable () -> any HTTPTransport
     private let makeWebSocket: (@Sendable () -> any WebSocketTransport)?
     private let webSocketTimeout: Double
+    private let resolver: any HostResolving
 
     /// Creates a tester. `makeTransport` gives each test a fresh transport (its own cookies). Without
     /// `makeWebSocket` (Linux, where Foundation has no WebSockets) the WebSocket leg is skipped.
     public init(
         makeTransport: @escaping @Sendable () -> any HTTPTransport = { URLSessionHTTPTransport(timeout: 15) },
-        makeWebSocket: (@Sendable () -> any WebSocketTransport)? = Self.defaultWebSocket, webSocketTimeout: Double = 15
+        makeWebSocket: (@Sendable () -> any WebSocketTransport)? = Self.defaultWebSocket, webSocketTimeout: Double = 15,
+        resolver: any HostResolving = SystemHostResolver()
     ) {
         self.makeTransport = makeTransport
         self.makeWebSocket = makeWebSocket
         self.webSocketTimeout = webSocketTimeout
+        self.resolver = resolver
     }
 
     /// `URLSessionWebSocketTransport` on Apple platforms, nil elsewhere.
@@ -246,20 +255,26 @@ public struct GatewayConnectionTester: ConnectionTesting {
         if let cookies = secrets.webCookies, let importer = transport as? any CookieImporting {
             importer.importCookies(cookies.compactMap(\.cookie))
         }
-        let client = RESTClient(endpoint: settings.endpoint, transport: transport, auth: auth, config: config)
+        var endpoint = settings.endpoint
+        var client = RESTClient(endpoint: endpoint, transport: transport, auth: auth, config: config)
 
         progress(.reachingServer)
         let health: ServerHealth
         do {
             health = try await client.health()
         } catch {
-            throw Self.reachFailure(error)
+            let failure = Self.reachFailure(error)
+            guard failure.isHostRejected,
+                let found = await reachByAddress(endpoint, transport: transport, auth: auth, config: config)
+            else { throw failure }
+            (endpoint, client, health) = found
         }
         guard health.ok else { throw ConnectionTestFailure.notHermes }
         let status = try? await client.status()
         var report = ConnectionTestReport(
             serverVersion: health.displayVersion ?? health.version, releaseDate: status?.releaseDate,
             authProviders: status?.authProviders ?? [])
+        if endpoint != settings.endpoint { report.adaptedEndpoint = endpoint }
         if let status { report.compatibility = ServerCompatibility.check(status) }
         if case .updateRequired(let found) = report.compatibility {
             throw ConnectionTestFailure.serverTooOld(found: found)
@@ -282,14 +297,27 @@ public struct GatewayConnectionTester: ConnectionTesting {
         }
         if let makeWebSocket {
             progress(.openingWebSocket)
+            let client = client
             try await webSocketLeg(
-                settings.endpoint, transport: makeWebSocket(),
+                endpoint, transport: makeWebSocket(),
                 credential: { _ in
                     authRequired ? .ticket(try await client.webSocketTicket().ticket) : .none
                 })
             report.webSocketChecked = true
         }
         return report
+    }
+
+    /// The first IP address of `endpoint`'s name that answers as Hermes, with its client and health. Nil when
+    /// none does or there is no fallback (``HostFallback``).
+    private func reachByAddress(
+        _ endpoint: HermesEndpoint, transport: any HTTPTransport, auth: RESTAuth, config: RESTClientConfig
+    ) async -> (HermesEndpoint, RESTClient, ServerHealth)? {
+        for candidate in await HostFallback.candidates(for: endpoint, resolver: resolver) {
+            let client = RESTClient(endpoint: candidate, transport: transport, auth: auth, config: config)
+            if let health = try? await client.health(), health.ok { return (candidate, client, health) }
+        }
+        return nil
     }
 
     /// Signs in as `signIn` says and returns who the server says the user is.
@@ -365,12 +393,25 @@ public struct GatewayConnectionTester: ConnectionTesting {
     public func probe(_ endpoint: HermesEndpoint) async -> ServerProbe? {
         var config = RESTClientConfig()
         config.maxRateLimitRetries = 0
-        let client = RESTClient(endpoint: endpoint, transport: makeTransport(), config: config)
-        guard let health = try? await client.health(), health.ok else { return nil }
+        let transport = makeTransport()
+        var client = RESTClient(endpoint: endpoint, transport: transport, config: config)
+        var adapted: HermesEndpoint?
+        let health: ServerHealth
+        do {
+            health = try await client.health()
+        } catch {
+            guard Self.reachFailure(error).isHostRejected,
+                let found = await reachByAddress(endpoint, transport: transport, auth: .cookie, config: config)
+            else { return nil }
+            (adapted, client, health) = found
+        }
+        guard health.ok else { return nil }
         let options = try? await SignInOptions.detect(using: client)
-        return ServerProbe(
+        var probe = ServerProbe(
             authRequired: health.authRequired ?? options?.authRequired ?? false,
             authProviders: options?.providers.map(\.name) ?? [], signIn: options)
+        probe.adaptedEndpoint = adapted
+        return probe
     }
 
     /// Maps a REST error from reaching the server to a form message.

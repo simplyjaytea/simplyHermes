@@ -185,7 +185,7 @@
                 if let cloud = form.cloudOrigin {
                     Text("\(cloud.agentName) in \(cloud.organizationName). Hermes Cloud sets this address.")
                 } else {
-                    AddressFooter(address: form.address)
+                    AddressFooter(address: form.address, adaptedNote: form.adaptedAddressNote)
                 }
             }
             .task(id: form.urlText) {
@@ -235,6 +235,7 @@
     /// Under the address: the HTTP warning (plan Q14) or why the address is unusable.
     struct AddressFooter: View {
         let address: Result<ConnectionAddress.Parsed, ConnectionAddress.Problem>?
+        var adaptedNote: String?
 
         var body: some View {
             VStack(alignment: .leading, spacing: 6) {
@@ -262,6 +263,10 @@
                 case .failure(let problem)?:
                     Label(Self.message(for: problem), systemImage: "xmark.octagon.fill")
                         .foregroundStyle(HermesColor.destructive)
+                }
+                if let adaptedNote {
+                    Label(adaptedNote, systemImage: "arrow.triangle.branch")
+                        .accessibilityIdentifier("connection.adaptedAddressNote")
                 }
                 if let note = loopbackNote {
                     Label(note, systemImage: "iphone")

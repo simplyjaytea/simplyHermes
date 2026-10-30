@@ -104,6 +104,13 @@
         private var ownershipID: String?
 
         public private(set) var test: TestState = .idle
+        /// The IP endpoint Hermes answered on after it refused the typed name, and the typed URL it stands for.
+        private var adaptedAddress: AdaptedAddress?
+
+        private struct AdaptedAddress {
+            let typed: URL
+            let endpoint: HermesEndpoint
+        }
         /// The last step the test reported. It stays after the test ends, so a failure can say where it happened.
         public private(set) var testStage: ConnectionTestStep?
         public var pendingTrust: PendingTrust?
@@ -236,6 +243,25 @@
             return found.signIn?.browserProviders ?? []
         }
 
+        /// The endpoint to test and save: the typed one, or the IP address Hermes answered on instead.
+        private func effectiveEndpoint(for parsed: ConnectionAddress.Parsed) -> HermesEndpoint {
+            guard let adaptedAddress, adaptedAddress.typed == parsed.endpoint.baseURL else { return parsed.endpoint }
+            return adaptedAddress.endpoint
+        }
+
+        /// Says which IP address the app uses when Hermes refused the typed name. Nil otherwise.
+        public var adaptedAddressNote: String? {
+            guard mode == .gateway, case .success(let parsed)? = address, let adaptedAddress,
+                adaptedAddress.typed == parsed.endpoint.baseURL
+            else { return nil }
+            return HostFallback.note(typed: parsed.endpoint, adapted: adaptedAddress.endpoint)
+        }
+
+        private func rememberAdapted(_ endpoint: HermesEndpoint?, for typed: HermesEndpoint) {
+            guard let endpoint else { return }
+            adaptedAddress = AdaptedAddress(typed: typed.baseURL, endpoint: endpoint)
+        }
+
         /// The browser sign-in, when it belongs to the address in the form.
         private var browserSignInResult: BrowserSignInResult? {
             guard case .success(let parsed)? = address, parsed.endpoint.baseURL == browserServer else { return nil }
@@ -297,6 +323,7 @@
                 return
             }
             guard !Task.isCancelled else { return }
+            rememberAdapted(found.adaptedEndpoint, for: parsed.endpoint)
             probe = .found(found)
             if !found.authRequired {
                 signInMethod = .none
@@ -373,7 +400,7 @@
                     }
                 kind = .gateway(
                     GatewaySettings(
-                        endpoint: parsed.endpoint, signIn: signIn, remembersPassword: remembersPassword,
+                        endpoint: effectiveEndpoint(for: parsed), signIn: signIn, remembersPassword: remembersPassword,
                         cloud: cloudOrigin))
             case .ssh:
                 kind = .ssh(
@@ -447,6 +474,9 @@
                         await self.askToTrust(fingerprint)
                     })
                 if let key = report.acceptedHostKey { pinnedHostKey = key.openSSHKey }
+                if case .success(let parsed)? = address {
+                    rememberAdapted(report.adaptedEndpoint, for: parsed.endpoint)
+                }
                 test = .passed(report)
             } catch let failure as ConnectionTestFailure {
                 test = .failed(failure)

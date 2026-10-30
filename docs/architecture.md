@@ -127,6 +127,12 @@ ATS. The app enforces plan Q14 itself (`ConnectionAddress`): `http://` only for 
 with a warning; HTTPS everywhere else. A bare `*.ts.net` name without a port defaults to `https://`, the
 `tailscale serve` address.
 
+Hermes answers only to its bind address and to `dashboard.public_url`; any other `Host` gets `400 Invalid Host header`.
+A server bound to its Tailscale IP therefore refuses its MagicDNS name. Over plain HTTP the app adapts instead of asking
+for a server change: `GatewayConnectionTester` resolves the name (`HostFallback`), retries on each address, and the form
+saves the IP endpoint that answered, with a note under the address. Over HTTPS the certificate names the host, so there
+is no fallback and the server needs `public_url`.
+
 ## Project file
 
 XcodeGen `project.yml`; the `.xcodeproj` is generated and git-ignored.
