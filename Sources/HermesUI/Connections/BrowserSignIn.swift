@@ -42,7 +42,9 @@
             endpoint: HermesEndpoint, options: SignInOptions?, provider: String?
         ) async throws -> BrowserSignInResult {
             let exchange = RESTClient(endpoint: endpoint, transport: URLSessionHTTPTransport())
-            let selectedProvider = provider ?? options?.browserProviders.first?.name
+            // Use the same provider selection for the preflight and the real flow. When several providers exist and
+            // none was chosen, leave it to the server's chooser instead of guessing the first one.
+            let selectedProvider = provider
             // Diagnose a cross-origin callback before opening the browser. The probe is anonymous and never follows
             // redirects, so it neither sends nor stores the PKCE cookie the real flow needs.
             let diagnosis = try await BrowserAuthOrigin.preflight(
@@ -50,12 +52,14 @@
                 transport: URLSessionHTTPTransport.anonymous(timeout: 15))
             switch diagnosis {
             case .ok: break
-            case .callbackOriginMismatch(_, let callbackOrigin):
-                throw NativeSignInError.callbackOriginMismatch(callbackOrigin: callbackOrigin)
+            case .callbackOriginMismatch(_, _, let startingURL):
+                throw NativeSignInError.callbackOriginMismatch(startingURL: startingURL)
             }
             guard options?.supportsNativePKCE ?? true else {
-                let login = endpoint.url(
-                    forPath: "/auth/login?provider=" + (selectedProvider ?? ""))
+                var loginComponents = URLComponents()
+                loginComponents.queryItems = [URLQueryItem(name: "provider", value: selectedProvider ?? "")]
+                let loginQuery = (loginComponents.percentEncodedQuery ?? "").replacingOccurrences(of: "+", with: "%2B")
+                let login = endpoint.url(forPath: "/auth/login?" + loginQuery)
                 let cookies = try await WebSignInController.run(.cookies(start: login, endpoint: endpoint))
                 return .cookies(cookies)
             }

@@ -52,9 +52,20 @@ public enum NativeSignInError: Error, Sendable, Equatable {
     /// The refresh token is no longer valid: sign in again.
     case sessionExpired
     /// The server's browser sign-in callback points at a different origin than the one the user entered.
-    case callbackOriginMismatch(callbackOrigin: String)
+    case callbackOriginMismatch(startingURL: String)
     /// The user closed the sign-in sheet.
     case cancelled
+}
+
+extension NativeSignInError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .callbackOriginMismatch(let startingURL):
+            "This server's browser sign-in must be started from \(startingURL). Enter that address and start browser sign-in again."
+        default:
+            nil
+        }
+    }
 }
 
 /// Builds and checks the URLs of one RFC 8252 sign-in. The flow:
