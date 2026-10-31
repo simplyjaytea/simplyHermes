@@ -245,6 +245,37 @@ final class ConnectionFormStaleTestTests: XCTestCase {
         }
     }
 
+    func testDiscoveryDisplaysTheConnectionFailure() async {
+        let (form, _) = makeGatewayForm()
+        let failure = ConnectionTestFailure.unreachable("App Transport Security blocked HTTP (-1022)")
+        let services = ConnectionServices(
+            credentials: InMemoryCredentialStore(), probe: { _ in throw failure }, offline: true)
+        await form.probeAddress(with: services, localNetworkExplained: true)
+        XCTAssertEqual(form.probe, .failed(failure))
+    }
+
+    func testAnEditedAddressDiscardsAnOlderDiscoveryFailure() async {
+        let (form, _) = makeGatewayForm()
+        let gate = TestGate()
+        let services = ConnectionServices(
+            credentials: InMemoryCredentialStore(),
+            probe: { _ in
+                await gate.started()
+                await gate.waitForRelease()
+                throw ConnectionTestFailure.unreachable("old address")
+            }, offline: true)
+        let running = Task { await form.probeAddress(with: services, localNetworkExplained: true) }
+        guard await waitForStart(gate) else {
+            await gate.release()
+            running.cancel()
+            return
+        }
+        form.urlText = "http://other:9119"
+        await gate.release()
+        await running.value
+        if case .failed = form.probe { XCTFail("old discovery replaced the new address state") }
+    }
+
     func testNewSSHFormKeepsItsDashboardOwnershipAcrossConnectionSnapshots() throws {
         let (form, _) = makeSSHForm()
         let first = try form.makeConnection()

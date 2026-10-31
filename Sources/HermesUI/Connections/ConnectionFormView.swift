@@ -306,8 +306,10 @@
             case .found(let found):
                 Text(found.authRequired ? "Required" : "Not needed")
                     .foregroundStyle(found.authRequired ? HermesColor.secondaryText : HermesColor.statusConnected)
-            case .unreachable:
-                Text("Server not found yet")
+            case .failed(let failure):
+                Text(failure.message)
+                    .foregroundStyle(HermesColor.destructive)
+                    .textSelection(.enabled)
             }
         }
     }

@@ -207,7 +207,7 @@ let invalidHostBody =
             200, #"{"providers":[{"name":"basic","display_name":"Username & Password","supports_password":true}]}"#)
         let tester = GatewayConnectionTester(
             makeTransport: { http }, makeAnonymousTransport: { http }, makeWebSocket: nil, resolver: resolver)
-        let probe = try #require(await tester.probe(HermesEndpoint(string: "http://box:9119")!))
+        let probe = try await tester.probe(HermesEndpoint(string: "http://box:9119")!)
         #expect(probe.adaptedEndpoint?.baseURL.absoluteString == "http://100.64.150.77:9119")
     }
 }
@@ -345,7 +345,7 @@ let invalidHostBody =
             makeTransport: recorder.makeTransport, makeAnonymousTransport: recorder.makeTransport,
             makeWebSocket: nil, resolver: resolver)
         let endpoint = try #require(HermesEndpoint(string: "http://box:9119", headers: endpointHeaders))
-        let probe = try #require(await tester.probe(endpoint))
+        let probe = try await tester.probe(endpoint)
 
         #expect(probe.adaptedEndpoint?.baseURL.absoluteString == "http://100.64.150.78:9119")
         for record in recorder.requests {
@@ -374,8 +374,50 @@ let invalidHostBody =
         guard let text = ProcessInfo.processInfo.environment["HERMES_HOST_FALLBACK_URL"],
             let endpoint = HermesEndpoint(string: text)
         else { return }
-        let probe = try #require(await GatewayConnectionTester(makeWebSocket: nil).probe(endpoint))
+        let probe = try await GatewayConnectionTester(makeWebSocket: nil).probe(endpoint)
         #expect(probe.adaptedEndpoint != nil)
         #expect(probe.authRequired)
+    }
+}
+
+private struct FailedProbeTransport: HTTPTransport {
+    func send(_ request: HTTPRequest) async throws -> HTTPResponse {
+        throw RESTError.transport("App Transport Security blocked HTTP (-1022)")
+    }
+}
+
+@Suite struct GatewayProbeFailureTests {
+    @Test func discoveryPreservesTheTransportFailure() async throws {
+        let endpoint = try #require(HermesEndpoint(string: "http://100.64.150.77:9119"))
+        let tester = GatewayConnectionTester(makeAnonymousTransport: { FailedProbeTransport() })
+        do {
+            _ = try await tester.probe(endpoint)
+            Issue.record("discovery must report the failed request")
+        } catch let failure as ConnectionTestFailure {
+            #expect(failure == .unreachable("App Transport Security blocked HTTP (-1022)"))
+        }
+    }
+
+    @Test func discoveryRejectsAnUnhealthyResponse() async throws {
+        let http = FakeHTTP()
+        http.enqueue(200, #"{"ok":false}"#)
+        let tester = GatewayConnectionTester(makeAnonymousTransport: { http })
+        let endpoint = try #require(HermesEndpoint(string: "http://127.0.0.1:9119"))
+        do {
+            _ = try await tester.probe(endpoint)
+            Issue.record("an unhealthy server must not be discovered")
+        } catch let failure as ConnectionTestFailure {
+            #expect(failure == .notHermes)
+        }
+    }
+}
+
+@Suite struct GatewayProbeLiveTests {
+    @Test func reachesTheConfiguredGatewayWithoutCredentials() async throws {
+        guard let text = ProcessInfo.processInfo.environment["HERMES_PROBE_URL"],
+            let endpoint = HermesEndpoint(string: text)
+        else { return }
+        let probe = try await GatewayConnectionTester(makeWebSocket: nil).probe(endpoint)
+        #expect(probe.signIn != nil)
     }
 }

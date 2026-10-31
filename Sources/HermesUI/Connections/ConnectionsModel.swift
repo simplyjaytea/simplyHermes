@@ -37,7 +37,7 @@
         public var sshTester: any ConnectionTesting
         public var unlocker: any DeviceUnlocking
         /// Reads a gateway's sign-in needs before the user signs in.
-        public var probe: @Sendable (HermesEndpoint) async -> ServerProbe?
+        public var probe: @Sendable (HermesEndpoint) async throws -> ServerProbe
         /// Browser sign-in (WP-13).
         public var browserSignIn: any BrowserSigningIn
         /// Connects saved servers on demand (WP-15). Nil keeps everything offline (previews, snapshots).
@@ -50,7 +50,7 @@
             gatewayTester: any ConnectionTesting = GatewayConnectionTester(),
             sshTester: any ConnectionTesting = SSHConnectionTester(),
             unlocker: any DeviceUnlocking = SystemDeviceUnlocker(),
-            probe: (@Sendable (HermesEndpoint) async -> ServerProbe?)? = nil,
+            probe: (@Sendable (HermesEndpoint) async throws -> ServerProbe)? = nil,
             browserSignIn: any BrowserSigningIn = SystemBrowserSignIn(),
             connectionDriver: (any ConnectionDriver)? = nil, offline: Bool = false,
             cloudPortal: any CloudPortalClient = NousPortalClient()
@@ -59,7 +59,7 @@
             self.gatewayTester = gatewayTester
             self.sshTester = sshTester
             self.unlocker = unlocker
-            self.probe = probe ?? { await GatewayConnectionTester().probe($0) }
+            self.probe = probe ?? { try await GatewayConnectionTester().probe($0) }
             self.browserSignIn = browserSignIn
             self.cloudPortal = cloudPortal
             self.connectionDriver =

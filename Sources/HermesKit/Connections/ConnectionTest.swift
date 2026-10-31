@@ -433,8 +433,8 @@ public struct GatewayConnectionTester: ConnectionTesting {
     }
 
     /// Reads health and status without signing in, so the form can show the right sign-in method.
-    /// Nil when nothing usable answers.
-    public func probe(_ endpoint: HermesEndpoint) async -> ServerProbe? {
+    /// Throws the connection failure when nothing usable answers.
+    public func probe(_ endpoint: HermesEndpoint) async throws -> ServerProbe {
         var config = RESTClientConfig()
         config.maxRateLimitRetries = 0
         let transport = makeAnonymousTransport()
@@ -444,15 +444,16 @@ public struct GatewayConnectionTester: ConnectionTesting {
         do {
             health = try await client.health()
         } catch {
-            guard Self.reachFailure(error).isHostRejected,
+            let failure = Self.reachFailure(error)
+            guard failure.isHostRejected,
                 let found = await reachByAddress(endpoint, config: config)
-            else { return nil }
+            else { throw failure }
             adapted = found.endpoint
             health = found.health
             client = RESTClient(
                 endpoint: Self.anonymousEndpoint(found.endpoint), transport: makeAnonymousTransport(), config: config)
         }
-        guard health.ok else { return nil }
+        guard health.ok else { throw ConnectionTestFailure.notHermes }
         let options = try? await SignInOptions.detect(using: client)
         var probe = ServerProbe(
             authRequired: health.authRequired ?? options?.authRequired ?? false,

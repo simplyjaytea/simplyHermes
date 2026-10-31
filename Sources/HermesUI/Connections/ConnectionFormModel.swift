@@ -296,11 +296,16 @@
                 return
             }
             probe = .checking
-            guard let found = await services.probe(parsed.endpoint) else {
-                probe = .unreachable
+            let found: ServerProbe
+            do {
+                found = try await services.probe(parsed.endpoint)
+            } catch {
+                guard !Task.isCancelled, address == .success(parsed) else { return }
+                let failure = (error as? ConnectionTestFailure) ?? GatewayConnectionTester.reachFailure(error)
+                probe = .failed(failure)
                 return
             }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, address == .success(parsed) else { return }
             rememberAdapted(found.adaptedEndpoint, for: parsed.endpoint)
             probe = .found(found)
             if !found.authRequired {
@@ -653,7 +658,7 @@
             case idle
             case checking
             case found(ServerProbe)
-            case unreachable
+            case failed(ConnectionTestFailure)
         }
 
         /// A host key waiting for the user's answer in the fingerprint sheet.
