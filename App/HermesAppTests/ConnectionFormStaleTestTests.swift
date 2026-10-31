@@ -285,4 +285,18 @@ final class ConnectionFormStaleTestTests: XCTestCase {
         XCTAssertEqual(form.test, .idle)
         XCTAssertNil(form.pendingTrust)
     }
+
+    /// Assigning the same sign-in method a background probe already set must not clear a passed or running test.
+    func testAssigningTheSameSignInMethodDoesNotInvalidateAPassedTest() async throws {
+        let (form, connections) = makeGatewayForm()
+        form.signInMethod = .none
+        await pass(form, connections)
+        // A probe returning !authRequired assigns .none again. The pass must survive.
+        form.signInMethod = .none
+        if case .passed = form.test {
+            // expected
+        } else {
+            XCTFail("re-assigning the same sign-in method cleared a passed test")
+        }
+    }
 }

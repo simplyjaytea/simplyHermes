@@ -73,25 +73,25 @@
 
         // Gateway
         public var urlText = "" {
-            didSet { invalidateTest() }
+            didSet { if urlText != oldValue { invalidateTest() } }
         }
         public var signInMethod: SignInMethod = .none {
-            didSet { invalidateTest() }
+            didSet { if signInMethod != oldValue { invalidateTest() } }
         }
         public var username = "" {
-            didSet { invalidateTest() }
+            didSet { if username != oldValue { invalidateTest() } }
         }
         public var password = "" {
-            didSet { invalidateTest() }
+            didSet { if password != oldValue { invalidateTest() } }
         }
         public var token = "" {
-            didSet { invalidateTest() }
+            didSet { if token != oldValue { invalidateTest() } }
         }
         public var remembersPassword = false
         public private(set) var probe: ProbeState = .idle
         /// The provider for browser sign-in. Nil lets the server choose.
         public var browserProvider: String? {
-            didSet { invalidateTest() }
+            didSet { if browserProvider != oldValue { invalidateTest() } }
         }
         public private(set) var browserState: BrowserState = .idle
         private var browserResult: BrowserSignInResult?
@@ -103,32 +103,32 @@
 
         // SSH
         public var host = "" {
-            didSet { invalidateTest() }
+            didSet { if host != oldValue { invalidateTest() } }
         }
         public var port = "22" {
-            didSet { invalidateTest() }
+            didSet { if port != oldValue { invalidateTest() } }
         }
         public var sshUser = "" {
-            didSet { invalidateTest() }
+            didSet { if sshUser != oldValue { invalidateTest() } }
         }
         public var keySource: KeySource = .generate {
-            didSet { invalidateTest() }
+            didSet { if keySource != oldValue { invalidateTest() } }
         }
         public private(set) var generatedKey: StoredSSHKey? {
-            didSet { invalidateTest() }
+            didSet { if generatedKey != oldValue { invalidateTest() } }
         }
         public private(set) var publicKeyLine: String?
         public var importText = "" {
-            didSet { invalidateTest() }
+            didSet { if importText != oldValue { invalidateTest() } }
         }
         public var passphrase = "" {
-            didSet { invalidateTest() }
+            didSet { if passphrase != oldValue { invalidateTest() } }
         }
         public var hermesPath = "" {
-            didSet { invalidateTest() }
+            didSet { if hermesPath != oldValue { invalidateTest() } }
         }
         public var remoteProfile = "" {
-            didSet { invalidateTest() }
+            didSet { if remoteProfile != oldValue { invalidateTest() } }
         }
         public private(set) var pinnedHostKey: String?
         private var ownershipID: String?
