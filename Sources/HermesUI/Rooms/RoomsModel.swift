@@ -9,6 +9,8 @@
     @Observable
     final class RoomsModel {
         private(set) var rooms: [Room] = []
+        /// The last read driver status for each room, so the list can show an approval before the room is opened.
+        private(set) var statuses: [String: RoomDriverStatus] = [:]
         private(set) var isLoading = false
         /// Whether the active gateway has the room methods. Nil until a read answers, so New Group does not show
         /// before the app knows the gateway can make one.
@@ -32,9 +34,34 @@
             rooms.filter { chats[$0.roomID]?.isDisbanded != true }
         }
 
-        /// Whether a room waits on the user, because an approval is pending. Only a room whose chat is open is current.
+        /// Whether a room waits on the user, because an approval is pending. The list polls the room's state; opening
+        /// the room is not required.
         func needsAttention(_ room: Room) -> Bool {
-            RoomStatus.pendingApproval(in: chats[room.roomID]?.status) != nil
+            RoomStatus.pendingApproval(in: statuses[room.roomID]) != nil
+        }
+
+        /// Reads the driver state of the rooms the list draws. A failure for one room leaves its last status alone;
+        /// the list is not the place for a poll error.
+        func refreshStatuses() async {
+            guard let client else { return }
+            let visibleIDs = Set(visibleRooms.map(\.roomID))
+            var fresh = statuses.filter { visibleIDs.contains($0.key) }
+            for room in visibleRooms {
+                guard !Task.isCancelled else { return }
+                if let state = try? await client.state(roomID: room.roomID) {
+                    fresh[room.roomID] = state.driverStatus
+                }
+            }
+            statuses = fresh
+        }
+
+        /// Refreshes the room list's status while the Bots screen is visible. The task is cancelled when the screen
+        /// goes away, so rooms are not polled from the shell.
+        func monitorStatuses() async {
+            while !Task.isCancelled {
+                await refreshStatuses()
+                try? await Task.sleep(for: .seconds(5))
+            }
         }
 
         /// Reads the rooms on the active gateway. Rooms homed on another gateway do not appear (WP-43 spec, section 5).
@@ -45,6 +72,7 @@
                 chats = [:]
                 connectionID = nil
                 rooms = []
+                statuses = [:]
                 supportsGroups = nil
                 errorMessage = nil
                 return
@@ -56,6 +84,7 @@
                 capabilities = nil
                 chats = [:]
                 rooms = []
+                statuses = [:]
                 supportsGroups = nil
                 errorMessage = nil
                 connectionID = connection.id
@@ -69,6 +98,7 @@
                 client = roomClient
                 capabilities = caps
                 rooms = try await roomClient.rooms()
+                statuses = statuses.filter { roomID, _ in rooms.contains { $0.roomID == roomID } }
                 supportsGroups = true
                 errorMessage = nil
             } catch let error as RPCError where error.code == -32601 {
@@ -77,6 +107,7 @@
                 capabilities = nil
                 chats = [:]
                 rooms = []
+                statuses = [:]
                 supportsGroups = false
                 errorMessage = nil
             } catch {

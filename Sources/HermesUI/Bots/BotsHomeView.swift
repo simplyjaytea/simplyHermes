@@ -47,17 +47,30 @@
             .modifier(OptionalSearch(isEnabled: model.showsSearch, text: $model.query))
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("New Agent", systemImage: "plus") { isCreatingPresented = true }
+                    Menu {
+                        Button("New Agent", systemImage: "person.badge.plus") {
+                            isCreatingPresented = true
+                        }
+                        Button("New Group", systemImage: "person.3") {
+                            isCreatingGroupPresented = true
+                        }
+                        .disabled(!canCreateGroup)
+                    } label: {
+                        Label("New", systemImage: "plus")
+                    }
+                    .accessibilityIdentifier("bots.newMenu")
                 }
             }
             .refreshable {
                 await model.reload()
                 await rooms.reload()
+                await rooms.refreshStatuses()
             }
             .task {
                 await model.reload()
                 await rooms.reload()
             }
+            .task { await rooms.monitorStatuses() }
             .sheet(isPresented: $isCreatingPresented) {
                 NewAgentSheet(model: model)
             }
