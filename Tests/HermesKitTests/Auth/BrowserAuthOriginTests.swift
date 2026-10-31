@@ -153,7 +153,8 @@ final class RecordingAuthTransport: HTTPTransport, CookieImporting, @unchecked S
                 typed: typed, locationHeader: matchingLocation, responseStatus: 302) == .ok)
 
         let mismatchLocation =
-            "https://portal.example.com/authorize?redirect_uri=http%3A%2F%2Fhostinger-vps.tailfa5476.ts.net%3A9119%2Fhermes%2Fauth%2Fcallback"
+            "https://portal.example.com/authorize?redirect_uri="
+            + "http%3A%2F%2Fhostinger-vps.tailfa5476.ts.net%3A9119%2Fhermes%2Fauth%2Fcallback"
         let diagnosis = BrowserAuthOrigin.diagnose(typed: typed, locationHeader: mismatchLocation, responseStatus: 302)
         #expect(
             diagnosis
@@ -207,7 +208,8 @@ final class RecordingAuthTransport: HTTPTransport, CookieImporting, @unchecked S
         let error = NativeSignInError.callbackOriginMismatch(startingURL: "http://hostinger-vps.tailfa5476.ts.net:9119")
         #expect(
             error.localizedDescription
-                == "This server's browser sign-in must be started from http://hostinger-vps.tailfa5476.ts.net:9119. Enter that address and start browser sign-in again."
+                == "This server's browser sign-in must be started from http://hostinger-vps.tailfa5476.ts.net:9119. "
+                + "Enter that address and start browser sign-in again."
         )
     }
 }
