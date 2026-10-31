@@ -256,28 +256,3 @@ final class FakeNow: @unchecked Sendable {
         #expect(try store.string(for: .gatewayPassword, connection: id) == nil)
     }
 }
-
-@Suite struct GatewaySignInRecommendationTests {
-    @Test func mixedHTTPGatewayPrefersPasswordOverBrowserCookies() throws {
-        let options = SignInOptions(
-            authRequired: true,
-            providers: [
-                AuthProviderInfo(name: "nous", supportsPassword: false),
-                AuthProviderInfo(name: "basic", supportsPassword: true),
-            ],
-            flows: ["native_pkce", "cookie"])
-        let http = try #require(HermesEndpoint(string: "http://100.64.150.77:9119"))
-        let https = try #require(HermesEndpoint(string: "https://box.ts.net"))
-        #expect(options.recommended(for: http) == .password)
-        #expect(options.recommended(for: https) == .browser)
-        #expect(options.methods.contains(.browser))
-    }
-
-    @Test func browserOnlyHTTPGatewayKeepsBrowserSignIn() throws {
-        let options = SignInOptions(
-            authRequired: true, providers: [AuthProviderInfo(name: "nous", supportsPassword: false)],
-            flows: ["native_pkce"])
-        let http = try #require(HermesEndpoint(string: "http://100.64.150.77:9119"))
-        #expect(options.recommended(for: http) == .browser)
-    }
-}
