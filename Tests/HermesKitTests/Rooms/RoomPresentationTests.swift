@@ -75,7 +75,9 @@ import Testing
         #expect(RoomError.readOnly.message == "This Group Chat is read-only here.")
     }
 
-    @Test func statusToBadgeHelperIdentifiesPendingApproval() throws {
+    @Test func listBadgeAndPollIntervalFollowPolledRoomStatuses() throws {
+        #expect(RoomStatus.listPollInterval == 5)
+
         let approvalJSON = #"""
             {"running": true, "working": false, "blocked": true, "counts": {},
              "pending_actions": [{"action_id": "act-1", "kind": "approval", "task_id": "task-1",
@@ -95,14 +97,33 @@ import Testing
              "peer_routes": []}
             """#
         let retryOnly = try JSONDecoder().decode(RoomDriverStatus.self, from: Data(retryJSON.utf8))
-        #expect(RoomStatus.pendingApproval(in: retryOnly) == nil)
-
         let idle = try status(working: false)
-        #expect(RoomStatus.pendingApproval(in: idle) == nil)
-
         let working = try status(working: true)
-        #expect(RoomStatus.pendingApproval(in: working) == nil)
 
-        #expect(RoomStatus.pendingApproval(in: nil) == nil)
+        let statuses: [String: RoomDriverStatus] = [
+            "room-approval": approval,
+            "room-retry": retryOnly,
+            "room-idle": idle,
+            "room-working": working,
+        ]
+
+        #expect(RoomStatus.needsAttention(roomID: "room-approval", in: statuses) == true)
+        #expect(RoomStatus.needsAttention(roomID: "room-retry", in: statuses) == false)
+        #expect(RoomStatus.needsAttention(roomID: "room-idle", in: statuses) == false)
+        #expect(RoomStatus.needsAttention(roomID: "room-working", in: statuses) == false)
+        #expect(RoomStatus.needsAttention(roomID: "room-unpolled", in: statuses) == false)
+        #expect(RoomStatus.needsAttention(status: nil) == false)
+    }
+
+    @Test func emptyStatePresentationMatchesCapabilities() {
+        #expect(RoomsListPresentation.emptyState(canCreate: true) == .createAction)
+        #expect(
+            RoomsListPresentation.emptyState(canCreate: false)
+                == .explanation("Two ready bots are needed to make a group."))
+
+        var errorMessage: String? = "The room's driver is not running. Try again in a moment."
+        #expect(errorMessage != nil)
+        errorMessage = nil
+        #expect(errorMessage == nil)
     }
 }

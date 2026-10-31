@@ -37,7 +37,7 @@
         /// Whether a room waits on the user, because an approval is pending. The list polls the room's state; opening
         /// the room is not required.
         func needsAttention(_ room: Room) -> Bool {
-            RoomStatus.pendingApproval(in: statuses[room.roomID]) != nil
+            RoomStatus.needsAttention(roomID: room.roomID, in: statuses)
         }
 
         /// Reads the driver state of the rooms the list draws. A failure for one room leaves its last status alone;
@@ -60,7 +60,7 @@
         func monitorStatuses() async {
             while !Task.isCancelled {
                 await refreshStatuses()
-                try? await Task.sleep(for: .seconds(5))
+                try? await Task.sleep(for: .seconds(RoomStatus.listPollInterval))
             }
         }
 

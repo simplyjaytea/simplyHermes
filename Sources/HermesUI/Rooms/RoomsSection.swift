@@ -40,15 +40,18 @@
                         .accessibilityIdentifier("bots.room.\(room.roomID)")
                     }
                     if model.visibleRooms.isEmpty {
-                        if showsCreate {
+                        switch RoomsListPresentation.emptyState(canCreate: showsCreate) {
+                        case .createAction:
                             Button(action: onCreate) {
                                 Label("New Group", systemImage: "plus.circle")
                             }
-                            .accessibilityIdentifier("bots.newGroup")
-                        } else if model.errorMessage == nil {
-                            Text("Two ready bots are needed to make a group.")
-                                .font(HermesFont.footnote)
-                                .foregroundStyle(HermesColor.secondaryText)
+                            .accessibilityIdentifier("bots.newGroupEmpty")
+                        case .explanation(let explanation):
+                            if model.errorMessage == nil {
+                                Text(explanation)
+                                    .font(HermesFont.footnote)
+                                    .foregroundStyle(HermesColor.secondaryText)
+                            }
                         }
                     }
                 }

@@ -308,6 +308,56 @@ private func refusal(_ body: () async throws -> Void) async -> RoomError? {
         }
     }
 
+    @Test func sendOutcomeHandlingMaintainsDraftAndIdempotencyAcrossTruthTable() throws {
+        // 1. Accepted and driver started: clear draft, clear outgoing, no error
+        let fullSuccess = GroupsSendResult(
+            event: try JSONDecoder().decode(RoomEvent.self, from: Data(userEvent.utf8)),
+            clientEventID: "ev-1",
+            accepted: true,
+            driverStarted: true
+        )
+        let fullOutcome = RoomSendOutcome.evaluate(result: fullSuccess)
+        #expect(fullOutcome.shouldClearDraft == true)
+        #expect(fullOutcome.shouldClearOutgoing == true)
+        #expect(fullOutcome.actionError == nil)
+
+        // 2. Accepted but driver did not start: clear draft, clear outgoing, warning note
+        let partialSuccess = GroupsSendResult(
+            event: try JSONDecoder().decode(RoomEvent.self, from: Data(userEvent.utf8)),
+            clientEventID: "ev-2",
+            accepted: true,
+            driverStarted: false
+        )
+        let partialOutcome = RoomSendOutcome.evaluate(result: partialSuccess)
+        #expect(partialOutcome.shouldClearDraft == true)
+        #expect(partialOutcome.shouldClearOutgoing == true)
+        #expect(partialOutcome.actionError == "Message saved; the room did not start a turn.")
+
+        // 3. Not accepted: keep draft, keep outgoing (same event ID for retry), error prompt
+        let refused = GroupsSendResult(
+            event: try JSONDecoder().decode(RoomEvent.self, from: Data(userEvent.utf8)),
+            clientEventID: "ev-3",
+            accepted: false,
+            driverStarted: false
+        )
+        let refusedOutcome = RoomSendOutcome.evaluate(result: refused)
+        #expect(refusedOutcome.shouldClearDraft == false)
+        #expect(refusedOutcome.shouldClearOutgoing == false)
+        #expect(refusedOutcome.actionError == "The room did not accept the message. Try again.")
+
+        // 4. Not accepted even if driver_started was true: draft & outgoing must be kept
+        let refusedWithDriver = GroupsSendResult(
+            event: try JSONDecoder().decode(RoomEvent.self, from: Data(userEvent.utf8)),
+            clientEventID: "ev-4",
+            accepted: false,
+            driverStarted: true
+        )
+        let refusedWithDriverOutcome = RoomSendOutcome.evaluate(result: refusedWithDriver)
+        #expect(refusedWithDriverOutcome.shouldClearDraft == false)
+        #expect(refusedWithDriverOutcome.shouldClearOutgoing == false)
+        #expect(refusedWithDriverOutcome.actionError == "The room did not accept the message. Try again.")
+    }
+
     @Test func listEmptyStateReturnsEmptyRoomsList() async throws {
         let fake = FakeRoomGateway(["groups.list": [.json(#"{"rooms": [], "next_offset": null}"#)]])
         let client = RoomClient(gateway: fake)
@@ -316,18 +366,28 @@ private func refusal(_ body: () async throws -> Void) async -> RoomError? {
         #expect(rooms.isEmpty)
     }
 
-    @Test func listErrorSurfacesFailureMessage() async throws {
-        let error = RPCError(code: 4123, message: "Group Chat worker is unavailable.")
-        let fake = FakeRoomGateway(["groups.list": [.failure(error)]])
+    @Test func listErrorPinsSpecificRPCErrorAndSurfacesMessage() async throws {
+        let driverError = RPCError(code: 4115, message: "Driver not running.")
+        let fake = FakeRoomGateway(["groups.list": [.failure(driverError)]])
         let client = RoomClient(gateway: fake)
+
+        await #expect(throws: RPCError.self) {
+            _ = try await client.rooms()
+        }
 
         do {
             _ = try await client.rooms()
-            Issue.record("rooms() should have thrown an error")
-        } catch {
-            #expect(
-                RoomFailure.message(for: error)
-                    == "The Group Chat worker is not running. Restart the Hermes gateway and try again.")
+            Issue.record("rooms() should have thrown")
+        } catch let error as RPCError {
+            #expect(error.code == 4115)
+            #expect(RoomFailure.message(for: error) == "The room's driver is not running. Try again in a moment.")
         }
+
+        let managedError = RPCError(code: 5116, message: "Managed elsewhere.")
+        #expect(RoomFailure.message(for: managedError) == "This Group Chat is managed by another gateway.")
+
+        let authorityError = RPCError(
+            code: 5000, message: "Conflict", data: ["reason": JSONValue.string("authority_conflict")])
+        #expect(RoomFailure.message(for: authorityError) == "This Group Chat is managed by another gateway.")
     }
 }

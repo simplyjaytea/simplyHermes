@@ -163,12 +163,12 @@
                 }
                 Composer(
                     text: $model.draft, placeholder: "Message the group",
+                    fieldAccessibilityIdentifier: "room.composer",
                     sendAccessibilityIdentifier: "room.send",
                     onSend: {
                         Task { await model.send() }
                     }
                 )
-                .accessibilityIdentifier("room.composer")
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
