@@ -13,6 +13,7 @@
         @Environment(\.hermesPosture) private var forcedPosture
         @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
         @Environment(\.hermesReduceMotion) private var reduceMotionOverride
+        @Environment(\.hermesPalette) private var palette
         @State private var postureMonitor = DevicePostureMonitor()
         @State private var profiles: ProfilesModel?
         @State private var bots: BotsModel?
@@ -252,8 +253,12 @@
                             needsApproval: model.needsApproval(session.id)
                         )
                     }
-                    .tint(HermesColor.primaryText)
+                    .tint(palette.primaryText)
+                    .listRowBackground(palette.card)
                 }
+                .scrollContentBackground(.hidden)
+                .background(palette.groupedBackground)
+                .toolbarBackground(palette.groupedBackground, for: .navigationBar)
             }
         }
 

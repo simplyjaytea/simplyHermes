@@ -26,11 +26,13 @@ JT authorized customizable appearance presets in messages `2a421d29-44d8-4afe-bb
 - **Blue**: Deep navy surfaces (`#0F172A`), light text (`#F0F6FC`), and `#0068D9` blue controls/bubbles.
 - **White**: Light neutral surfaces (`#FFFFFF`), dark text (`#111827`), and `#0068D9` accessible blue accent.
 
-All presets satisfy WCAG 2.1 AA contrast requirements:
-- Normal text on background and incoming bubble: $\ge 4.5:1$ (measured $> 12:1$ across all presets).
-- Button / outgoing bubble text on accent: $\ge 4.5:1$ (measured $5.27:1$ for `#0068D9` with white text).
-- Secondary text: $\ge 3.0:1$ (measured $> 4.7:1$ across all presets).
-- Code text on code card background: $\ge 4.5:1$ (measured $> 14:1$ across all presets).
+Verified color token pairs satisfy WCAG 2.1 AA contrast requirements (rendered accessibility verification across live application screens remains pending device/macOS testing):
+- Body text on background and incoming bubble: $\ge 4.5:1$ (measured $> 12:1$ across all presets).
+- Primary button / outgoing bubble text on accent (`onAccent` on `accent`): $\ge 4.5:1$ (measured $5.27:1$ for `#0068D9` with white text).
+- Destructive button text on destructive fill (`onDestructive` on `destructive`): $\ge 4.5:1$ (measured $4.96:1$ with `#DC2626` accessible red and white text).
+- Secondary button text on background and tinted button text on fill: $\ge 4.5:1$ across all presets.
+- Caption and secondary text on background and incoming bubble: $\ge 4.5:1$ across all presets.
+- Monospace code text and syntax highlighting tokens (keyword, string, comment, number) on code background: $\ge 4.5:1$ across all presets.
 
 Settings > Appearance provides:
 - Labeled preset choices with explicit selected markers.
@@ -41,7 +43,7 @@ Settings > Appearance provides:
 
 ## Tokens
 
-- **Palette** (`HermesPalette`): Authoritative palette mapping from `AppearancePreset` (`PresetPaletteDefinition`), providing `accent`, `onAccent`, `background`, `groupedBackground`, `card`, `fill`, `separator`, `outgoingBubble`, `incomingBubble`, `primaryText`, `secondaryText`, `codeBackground`, `codeText`, and status colors.
+- **Palette** (`HermesPalette`): Authoritative palette mapping from `AppearancePreset` (`PresetPaletteDefinition`), providing `accent`, `onAccent`, `background`, `groupedBackground`, `card`, `fill`, `separator`, `outgoingBubble`, `incomingBubble`, `primaryText`, `secondaryText`, `codeBackground`, `codeText`, `codeKeyword`, `codeString`, `codeComment`, `codeNumber`, `destructive`, `onDestructive`, and status colors.
 - **Color** (`HermesColor`): System colors baseline matching the System preset.
 - **Type** (`HermesFont`): Dynamic Type text styles in SF Pro; `code` and `codeSmall` are SF Mono for commands,
   paths and tool output. Dynamic Type replaces Desktop's zoom.

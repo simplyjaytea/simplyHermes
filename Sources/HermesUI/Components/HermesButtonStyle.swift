@@ -52,7 +52,8 @@
 
         private var foreground: Color {
             switch kind {
-            case .primary, .destructive: palette.onAccent
+            case .primary: palette.onAccent
+            case .destructive: palette.onDestructive
             case .secondary, .tinted: palette.primaryText
             }
         }

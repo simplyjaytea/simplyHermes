@@ -8,15 +8,16 @@
         let isLast: Bool
         @Bindable var chat: LiveChatModel
         @State private var copyCount = 0
+        @Environment(\.hermesPalette) private var palette
 
         var body: some View {
             VStack(alignment: .leading, spacing: 8) {
                 Label(title, systemImage: icon)
                     .font(HermesFont.subheadline.weight(.semibold))
-                    .foregroundStyle(HermesColor.destructive)
+                    .foregroundStyle(palette.destructive)
                 Text(error.message)
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .textSelection(.enabled)
                     .lineLimit(6)
                 HStack(spacing: 8) {
@@ -46,7 +47,7 @@
             .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
             .padding(.vertical, 10)
             .background(
-                HermesColor.destructive.opacity(0.12),
+                palette.destructive.opacity(0.12),
                 in: RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
             )
             .bubbleRow(.leading)

@@ -92,6 +92,8 @@
     /// A command waiting for the user's approval, with Deny and Approve buttons.
     public struct ApprovalBubble: View {
         private let command: String
+        private let isEnabled: Bool
+        private let allowsFeedback: Bool
         private let onDeny: () -> Void
         private let onApprove: () -> Void
 
@@ -100,8 +102,16 @@
         @State private var approveCount = 0
         @Environment(\.hermesPalette) private var palette
 
-        public init(command: String, onDeny: @escaping () -> Void, onApprove: @escaping () -> Void) {
+        public init(
+            command: String,
+            isEnabled: Bool = true,
+            allowsFeedback: Bool = true,
+            onDeny: @escaping () -> Void = {},
+            onApprove: @escaping () -> Void = {}
+        ) {
             self.command = command
+            self.isEnabled = isEnabled
+            self.allowsFeedback = allowsFeedback
             self.onDeny = onDeny
             self.onApprove = onApprove
         }
@@ -121,21 +131,25 @@
                         onDeny()
                     }
                     .buttonStyle(HermesButtonStyle(.secondary))
+                    .disabled(!isEnabled)
                     Button("Approve") {
                         approveCount += 1
                         onApprove()
                     }
                     .buttonStyle(HermesButtonStyle(.primary))
+                    .disabled(!isEnabled)
                 }
             }
             .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
             .padding(.vertical, 10)
             .background(palette.incomingBubble, in: bubbleShape)
             .bubbleRow(.leading)
-            .onAppear { appeared = true }
-            .hermesFeedback(.approvalNeeded, trigger: appeared)
-            .hermesFeedback(.denied, trigger: denyCount)
-            .hermesFeedback(.approved, trigger: approveCount)
+            .onAppear {
+                if allowsFeedback { appeared = true }
+            }
+            .hermesFeedback(.approvalNeeded, trigger: allowsFeedback && appeared)
+            .hermesFeedback(.denied, trigger: allowsFeedback ? denyCount : 0)
+            .hermesFeedback(.approved, trigger: allowsFeedback ? approveCount : 0)
         }
     }
 #endif

@@ -402,6 +402,7 @@
     public struct SettingsHome: View {
         private let connections: ConnectionsModel
         @AppStorage(AppearanceSettings.key) private var storedPresetRaw: String = AppearancePreset.system.rawValue
+        @Environment(\.hermesPalette) private var palette
 
         public init(connections: ConnectionsModel) {
             self.connections = connections
@@ -421,6 +422,7 @@
                     }
                     .accessibilityIdentifier("settings.appearance")
                 }
+                .listRowBackground(palette.card)
                 Section("Connection") {
                     NavigationLink {
                         ServerListView(connections: connections)
@@ -433,6 +435,7 @@
                     }
                     .accessibilityIdentifier("settings.servers")
                 }
+                .listRowBackground(palette.card)
                 Section("Models") {
                     NavigationLink {
                         ProvidersKeysScreen(connections: connections)
@@ -465,10 +468,15 @@
                     }
                     .accessibilityIdentifier("settings.models.keys")
                 }
+                .listRowBackground(palette.card)
                 SettingsToolsSection(connections: connections)
+                    .listRowBackground(palette.card)
                 SettingsServerSection(connections: connections)
+                    .listRowBackground(palette.card)
                 SettingsMessagingSection(connections: connections)
+                    .listRowBackground(palette.card)
                 SettingsAssistantSection(connections: connections)
+                    .listRowBackground(palette.card)
                 Section("Support") {
                     NavigationLink {
                         BugReportScreen(connections: connections)
@@ -483,11 +491,16 @@
                     }
                     .accessibilityIdentifier("settings.githubAccount")
                 }
+                .listRowBackground(palette.card)
                 Section {
                     Text("More settings arrive in WP-53.")
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
+                .listRowBackground(palette.card)
             }
+            .scrollContentBackground(.hidden)
+            .background(palette.groupedBackground)
+            .toolbarBackground(palette.groupedBackground, for: .navigationBar)
             .navigationTitle("Settings")
         }
     }

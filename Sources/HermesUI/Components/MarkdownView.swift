@@ -89,7 +89,7 @@
                 }
                 .padding(.horizontal, 10)
                 ScrollView(.horizontal, showsIndicators: false) {
-                    Text(Self.highlighted(code, language: language))
+                    Text(Self.highlighted(code, language: language, palette: palette))
                         .font(HermesFont.code)
                         .textSelection(.enabled)
                         .padding(.horizontal, 10)
@@ -103,18 +103,17 @@
             )
         }
 
-        /// The code with system colors for keywords, strings, comments and numbers. Closed blocks only change when
-        /// the text does, so streaming a long block re-scans it on each update; blocks are short in practice.
-        static func highlighted(_ code: String, language: String?) -> AttributedString {
+        /// The code highlighted with active palette colors for keywords, strings, comments and numbers.
+        static func highlighted(_ code: String, language: String?, palette: HermesPalette) -> AttributedString {
             var result = AttributedString()
             for token in SyntaxHighlighter.tokens(for: code, language: language) {
                 var piece = AttributedString(token.text)
                 switch token.kind {
-                case .plain: break
-                case .keyword: piece.foregroundColor = .purple
-                case .string: piece.foregroundColor = .red
-                case .comment: piece.foregroundColor = .secondary
-                case .number: piece.foregroundColor = .teal
+                case .plain: piece.foregroundColor = palette.codeText
+                case .keyword: piece.foregroundColor = palette.codeKeyword
+                case .string: piece.foregroundColor = palette.codeString
+                case .comment: piece.foregroundColor = palette.codeComment
+                case .number: piece.foregroundColor = palette.codeNumber
                 }
                 result.append(piece)
             }

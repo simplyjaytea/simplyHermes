@@ -138,10 +138,15 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
     public let secondaryText: RGBColor
     public let codeBackground: RGBColor
     public let codeText: RGBColor
+    public let codeKeyword: RGBColor
+    public let codeString: RGBColor
+    public let codeComment: RGBColor
+    public let codeNumber: RGBColor
     public let statusConnected: RGBColor
     public let statusWarning: RGBColor
     public let statusOffline: RGBColor
     public let destructive: RGBColor
+    public let onDestructive: RGBColor
 
     /// Authoritative mapping from an `AppearancePreset` to its color definition.
     public static func definition(for preset: AppearancePreset) -> PresetPaletteDefinition {
@@ -160,13 +165,18 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                 outgoingBubble: RGBColor(hex: 0x0068D9),
                 incomingBubble: RGBColor(hex: 0xE5E5EA),
                 primaryText: RGBColor(hex: 0x000000),
-                secondaryText: RGBColor(hex: 0x6C6C70),
+                secondaryText: RGBColor(hex: 0x5C5C60),
                 codeBackground: RGBColor(hex: 0xF2F2F7),
                 codeText: RGBColor(hex: 0x000000),
+                codeKeyword: RGBColor(hex: 0x7E22CE),
+                codeString: RGBColor(hex: 0xB91C1C),
+                codeComment: RGBColor(hex: 0x5C5C60),
+                codeNumber: RGBColor(hex: 0x0F766E),
                 statusConnected: RGBColor(hex: 0x34C759),
                 statusWarning: RGBColor(hex: 0xFF9500),
                 statusOffline: RGBColor(hex: 0x8E8E93),
-                destructive: RGBColor(hex: 0xFF3B30)
+                destructive: RGBColor(hex: 0xDC2626),
+                onDestructive: RGBColor(hex: 0xFFFFFF)
             )
 
         case .dark:
@@ -186,10 +196,15 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                 secondaryText: RGBColor(hex: 0xA0A0A5),
                 codeBackground: RGBColor(hex: 0x1E1F22),
                 codeText: RGBColor(hex: 0xF2F2F7),
+                codeKeyword: RGBColor(hex: 0xC084FC),
+                codeString: RGBColor(hex: 0x4ADE80),
+                codeComment: RGBColor(hex: 0x94A3B8),
+                codeNumber: RGBColor(hex: 0x38BDF8),
                 statusConnected: RGBColor(hex: 0x30D158),
                 statusWarning: RGBColor(hex: 0xFF9F0A),
                 statusOffline: RGBColor(hex: 0x8E8E93),
-                destructive: RGBColor(hex: 0xFF453A)
+                destructive: RGBColor(hex: 0xDC2626),
+                onDestructive: RGBColor(hex: 0xFFFFFF)
             )
 
         case .blue:
@@ -209,10 +224,15 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                 secondaryText: RGBColor(hex: 0x96AFD2),
                 codeBackground: RGBColor(hex: 0x0A1020),
                 codeText: RGBColor(hex: 0xE0F2FE),
+                codeKeyword: RGBColor(hex: 0xC084FC),
+                codeString: RGBColor(hex: 0x4ADE80),
+                codeComment: RGBColor(hex: 0x94A3B8),
+                codeNumber: RGBColor(hex: 0x38BDF8),
                 statusConnected: RGBColor(hex: 0x38BDF8),
                 statusWarning: RGBColor(hex: 0xFBBF24),
                 statusOffline: RGBColor(hex: 0x64748B),
-                destructive: RGBColor(hex: 0xF87171)
+                destructive: RGBColor(hex: 0xDC2626),
+                onDestructive: RGBColor(hex: 0xFFFFFF)
             )
 
         case .white:
@@ -232,10 +252,15 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                 secondaryText: RGBColor(hex: 0x646973),
                 codeBackground: RGBColor(hex: 0xF1F3F5),
                 codeText: RGBColor(hex: 0x111827),
+                codeKeyword: RGBColor(hex: 0x7E22CE),
+                codeString: RGBColor(hex: 0xB91C1C),
+                codeComment: RGBColor(hex: 0x646973),
+                codeNumber: RGBColor(hex: 0x0F766E),
                 statusConnected: RGBColor(hex: 0x16A34A),
                 statusWarning: RGBColor(hex: 0xD97706),
                 statusOffline: RGBColor(hex: 0x6B7280),
-                destructive: RGBColor(hex: 0xDC2626)
+                destructive: RGBColor(hex: 0xDC2626),
+                onDestructive: RGBColor(hex: 0xFFFFFF)
             )
         }
     }
@@ -250,7 +275,12 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
             "onAccentOnAccent": onAccent.contrastRatio(with: accent),
             "onAccentOnOutgoingBubble": onAccent.contrastRatio(with: outgoingBubble),
             "codeTextOnCodeBackground": codeText.contrastRatio(with: codeBackground),
-            "onAccentOnDestructive": onAccent.contrastRatio(with: destructive),
+            "codeKeywordOnCodeBackground": codeKeyword.contrastRatio(with: codeBackground),
+            "codeStringOnCodeBackground": codeString.contrastRatio(with: codeBackground),
+            "codeCommentOnCodeBackground": codeComment.contrastRatio(with: codeBackground),
+            "codeNumberOnCodeBackground": codeNumber.contrastRatio(with: codeBackground),
+            "onAccentOnDestructive": onDestructive.contrastRatio(with: destructive),
+            "onDestructiveOnDestructive": onDestructive.contrastRatio(with: destructive),
         ]
     }
 }

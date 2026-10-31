@@ -82,33 +82,56 @@ struct AppearanceSettingsTests {
             let def = PresetPaletteDefinition.definition(for: preset)
             let checks = def.contrastChecks
 
-            // Normal text on background must meet WCAG AA (>= 4.5:1)
+            // Normal body text on background must meet WCAG AA (>= 4.5:1)
             let primaryOnBg = try! #require(checks["primaryOnBackground"])
             #expect(primaryOnBg >= 4.5, "Failed primaryOnBg for \(preset): \(primaryOnBg)")
 
-            // Normal text on incoming bubble must meet WCAG AA (>= 4.5:1)
+            // Normal body text on incoming bubble must meet WCAG AA (>= 4.5:1)
             let primaryOnBubble = try! #require(checks["primaryOnIncomingBubble"])
             #expect(primaryOnBubble >= 4.5, "Failed primaryOnBubble for \(preset): \(primaryOnBubble)")
 
-            // Secondary text on background must meet at least large text/UI requirement (>= 3.0:1)
+            // Caption and secondary text must meet WCAG AA (>= 4.5:1)
             let secOnBg = try! #require(checks["secondaryOnBackground"])
-            #expect(secOnBg >= 3.0, "Failed secOnBg for \(preset): \(secOnBg)")
+            #expect(secOnBg >= 4.5, "Failed secOnBg for \(preset): \(secOnBg)")
 
-            // Secondary text on bubble must meet at least large text/UI requirement (>= 3.0:1)
             let secOnBubble = try! #require(checks["secondaryOnIncomingBubble"])
-            #expect(secOnBubble >= 3.0, "Failed secOnBubble for \(preset): \(secOnBubble)")
+            #expect(secOnBubble >= 4.5, "Failed secOnBubble for \(preset): \(secOnBubble)")
 
-            // Button text (onAccent) on accent fill must meet WCAG AA (>= 4.5:1)
+            // Button pair 1: Primary button text (onAccent) on accent fill must meet WCAG AA (>= 4.5:1)
             let onAccent = try! #require(checks["onAccentOnAccent"])
             #expect(onAccent >= 4.5, "Failed onAccent for \(preset): \(onAccent)")
+
+            // Button pair 2: Secondary button text (primaryText) on background must meet WCAG AA (>= 4.5:1)
+            let secBtnContrast = def.primaryText.contrastRatio(with: def.background)
+            #expect(secBtnContrast >= 4.5, "Failed secondary button contrast for \(preset): \(secBtnContrast)")
+
+            // Button pair 3: Tinted button text (primaryText) on fill must meet WCAG AA (>= 4.5:1)
+            let tintedBtnContrast = def.primaryText.contrastRatio(with: def.fill)
+            #expect(tintedBtnContrast >= 4.5, "Failed tinted button contrast for \(preset): \(tintedBtnContrast)")
+
+            // Button pair 4: Destructive button text (onDestructive) on destructive fill must meet WCAG AA (>= 4.5:1)
+            let onDestructive = try! #require(checks["onDestructiveOnDestructive"])
+            #expect(onDestructive >= 4.5, "Failed onDestructive for \(preset): \(onDestructive)")
 
             // Outgoing bubble text (onAccent) on bubble fill must meet WCAG AA (>= 4.5:1)
             let onOutgoing = try! #require(checks["onAccentOnOutgoingBubble"])
             #expect(onOutgoing >= 4.5, "Failed onOutgoing for \(preset): \(onOutgoing)")
 
-            // Code text on code background must meet WCAG AA (>= 4.5:1)
+            // Code tokens on code background must all meet WCAG AA (>= 4.5:1)
             let codeContrast = try! #require(checks["codeTextOnCodeBackground"])
             #expect(codeContrast >= 4.5, "Failed codeContrast for \(preset): \(codeContrast)")
+
+            let keywordContrast = try! #require(checks["codeKeywordOnCodeBackground"])
+            #expect(keywordContrast >= 4.5, "Failed keywordContrast for \(preset): \(keywordContrast)")
+
+            let stringContrast = try! #require(checks["codeStringOnCodeBackground"])
+            #expect(stringContrast >= 4.5, "Failed stringContrast for \(preset): \(stringContrast)")
+
+            let commentContrast = try! #require(checks["codeCommentOnCodeBackground"])
+            #expect(commentContrast >= 4.5, "Failed commentContrast for \(preset): \(commentContrast)")
+
+            let numberContrast = try! #require(checks["codeNumberOnCodeBackground"])
+            #expect(numberContrast >= 4.5, "Failed numberContrast for \(preset): \(numberContrast)")
         }
     }
 

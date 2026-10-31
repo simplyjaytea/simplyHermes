@@ -8,6 +8,7 @@
     /// The preference updates immediately across the app and is stored on this device only.
     public struct AppearanceSettingsScreen: View {
         @AppStorage(AppearanceSettings.key) private var storedPresetRaw: String = AppearancePreset.system.rawValue
+        @Environment(\.hermesPalette) private var palette
 
         public init() {}
 
@@ -22,37 +23,36 @@
                         presetRow(preset)
                     }
                 } header: {
-                    Text("Theme Presets")
+                    Text("Themes")
                 } footer: {
-                    Text(
-                        "Appearance presets are saved on this device only and do not change server configurations or agent profiles."
-                    )
-                    .font(HermesFont.caption)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    Text("Appearance presets are saved on this device and apply across simplyHermes.")
+                        .font(HermesFont.caption)
+                        .foregroundStyle(palette.secondaryText)
                 }
+                .listRowBackground(palette.card)
 
-                Section("Live Chat Preview") {
+                Section("Preview") {
                     VStack(alignment: .leading, spacing: HermesMetrics.bubbleSpacing) {
                         MessageBubble(
                             role: .user,
-                            text: "Can you verify the appearance presets and test contrast ratios?"
+                            text: "Can you check the latest deployment status?"
                         )
 
                         MessageBubble(
                             role: .assistant,
-                            text: "Inspecting all four presets: System, Dark, Blue, and White."
+                            text: "The test suite passed and services are operational."
                         )
 
                         ToolOutputBubble(
-                            command: "swift test --filter AppearanceSettingsTests",
-                            output: "✔ 7 tests passed (0.02s) with WCAG AA compliance.",
-                            duration: "0.2s"
+                            command: "git status -s",
+                            output: "All working trees clean.",
+                            duration: "0.1s"
                         )
 
                         ApprovalBubble(
-                            command: "apply-appearance --preset \(activePreset.rawValue)",
-                            onDeny: {},
-                            onApprove: {}
+                            command: "systemctl restart web-service",
+                            isEnabled: false,
+                            allowsFeedback: false
                         )
 
                         sampleComposer
@@ -67,6 +67,7 @@
                             .strokeBorder(HermesPalette.palette(for: activePreset).separator, lineWidth: 1)
                     )
                 }
+                .listRowBackground(palette.card)
                 .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
 
                 Section {
@@ -85,7 +86,11 @@
                     .accessibilityIdentifier("appearance.reset")
                     .accessibilityLabel("Reset appearance to System")
                 }
+                .listRowBackground(palette.card)
             }
+            .scrollContentBackground(.hidden)
+            .background(palette.groupedBackground)
+            .toolbarBackground(palette.groupedBackground, for: .navigationBar)
             .navigationTitle("Appearance")
         }
 
@@ -98,11 +103,11 @@
                     VStack(alignment: .leading, spacing: 3) {
                         Text(preset.displayName)
                             .font(HermesFont.body.weight(.medium))
-                            .foregroundStyle(HermesColor.primaryText)
+                            .foregroundStyle(palette.primaryText)
 
                         Text(preset.subtitle)
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
 
                     Spacer(minLength: 8)
@@ -157,34 +162,45 @@
         }
     }
 
-    #Preview("Outer", traits: .fixedLayout(width: 466, height: 678)) {
+    #Preview("System", traits: .fixedLayout(width: 466, height: 678)) {
         NavigationStack {
             AppearanceSettingsScreen()
         }
+        .hermesAppearance(.system)
     }
 
-    #Preview("Inner portrait", traits: .fixedLayout(width: 626, height: 890)) {
+    #Preview("Dark", traits: .fixedLayout(width: 466, height: 678)) {
         NavigationStack {
             AppearanceSettingsScreen()
         }
+        .hermesAppearance(.dark)
     }
 
-    #Preview("Inner landscape", traits: .fixedLayout(width: 890, height: 626)) {
+    #Preview("Blue", traits: .fixedLayout(width: 466, height: 678)) {
         NavigationStack {
             AppearanceSettingsScreen()
         }
+        .hermesAppearance(.blue)
     }
 
-    #Preview("Half-fold", traits: .fixedLayout(width: 890, height: 313)) {
+    #Preview("White", traits: .fixedLayout(width: 466, height: 678)) {
         NavigationStack {
             AppearanceSettingsScreen()
         }
+        .hermesAppearance(.white)
     }
 
-    #Preview("Outer, dark", traits: .fixedLayout(width: 466, height: 678)) {
+    #Preview("Inner portrait, Blue", traits: .fixedLayout(width: 626, height: 890)) {
         NavigationStack {
             AppearanceSettingsScreen()
         }
-        .preferredColorScheme(.dark)
+        .hermesAppearance(.blue)
+    }
+
+    #Preview("Half-fold, Dark", traits: .fixedLayout(width: 890, height: 313)) {
+        NavigationStack {
+            AppearanceSettingsScreen()
+        }
+        .hermesAppearance(.dark)
     }
 #endif

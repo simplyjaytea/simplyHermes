@@ -5,12 +5,14 @@
     /// A small airplane that marks an offline chat (plan Q44). The sessions list shows it on the row of an offline chat;
     /// the tab and the sidebar can too.
     public struct OfflineBadge: View {
+        @Environment(\.hermesPalette) private var palette
+
         public init() {}
 
         public var body: some View {
             Image(systemName: "airplane")
                 .font(HermesFont.footnote)
-                .foregroundStyle(HermesColor.secondaryText)
+                .foregroundStyle(palette.secondaryText)
                 .accessibilityLabel("Offline chat")
                 .accessibilityIdentifier("offline.badge")
         }
@@ -22,6 +24,7 @@
     public struct OfflineBanner: View {
         private let notice: OfflineChatModel.Notice
         private let onGetBetterModel: (@MainActor () -> Void)?
+        @Environment(\.hermesPalette) private var palette
 
         public init(notice: OfflineChatModel.Notice, onGetBetterModel: (@MainActor () -> Void)? = nil) {
             self.notice = notice
@@ -32,14 +35,14 @@
             HStack(spacing: 10) {
                 Image(systemName: "airplane")
                     .font(HermesFont.body.weight(.semibold))
-                    .foregroundStyle(HermesColor.statusWarning)
+                    .foregroundStyle(palette.statusWarning)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(HermesFont.subheadline.weight(.semibold))
                     Text(detail)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
                 Spacer(minLength: 4)
                 if let onGetBetterModel, offersBetterModel {

@@ -11,6 +11,7 @@
         private let needsApproval: (String) -> Bool
         @State private var pendingDelete: SessionListItem?
         @State private var isPruneSheetPresented = false
+        @Environment(\.hermesPalette) private var palette
 
         public init(
             model: SessionsListModel,
@@ -27,13 +28,13 @@
                 if let errorText = model.errorText {
                     Label(errorText, systemImage: "wifi.slash")
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .accessibilityIdentifier("sessions.error")
                 }
                 if let noticeText = model.noticeText {
                     Label(noticeText, systemImage: "checkmark.circle")
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .accessibilityIdentifier("sessions.notice")
                 }
                 if model.isSearching {
@@ -43,9 +44,13 @@
                         Section(section.group.title) {
                             ForEach(section.items) { item in row(item) }
                         }
+                        .listRowBackground(palette.card)
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(palette.groupedBackground)
+            .toolbarBackground(palette.groupedBackground, for: .navigationBar)
             .searchable(text: $model.searchText, prompt: "Search chats")
             .refreshable { await model.refresh() }
             .task(id: model.searchText) { await model.runSearch() }

@@ -22,16 +22,22 @@
         public let secondaryText: Color
         public let codeBackground: Color
         public let codeText: Color
+        public let codeKeyword: Color
+        public let codeString: Color
+        public let codeComment: Color
+        public let codeNumber: Color
         public let statusConnected: Color
         public let statusWarning: Color
         public let statusOffline: Color
         public let destructive: Color
+        public let onDestructive: Color
         public let colorScheme: ColorScheme?
 
         /// Single authoritative mapping from `AppearancePreset` to `HermesPalette`.
         public static func palette(for preset: AppearancePreset) -> HermesPalette {
             switch preset {
             case .system:
+                let def = PresetPaletteDefinition.definition(for: .system)
                 return HermesPalette(
                     preset: .system,
                     accent: HermesColor.accent,
@@ -44,13 +50,32 @@
                     outgoingBubble: HermesColor.outgoingBubble,
                     incomingBubble: Color(uiColor: .systemGray5),
                     primaryText: Color.primary,
-                    secondaryText: Color.secondary,
+                    secondaryText: Color(
+                        red: def.secondaryText.red, green: def.secondaryText.green, blue: def.secondaryText.blue
+                    ),
                     codeBackground: Color(uiColor: .tertiarySystemFill),
                     codeText: Color.primary,
+                    codeKeyword: Color(
+                        red: def.codeKeyword.red, green: def.codeKeyword.green, blue: def.codeKeyword.blue
+                    ),
+                    codeString: Color(
+                        red: def.codeString.red, green: def.codeString.green, blue: def.codeString.blue
+                    ),
+                    codeComment: Color(
+                        red: def.codeComment.red, green: def.codeComment.green, blue: def.codeComment.blue
+                    ),
+                    codeNumber: Color(
+                        red: def.codeNumber.red, green: def.codeNumber.green, blue: def.codeNumber.blue
+                    ),
                     statusConnected: Color(uiColor: .systemGreen),
                     statusWarning: Color(uiColor: .systemOrange),
                     statusOffline: Color(uiColor: .systemGray),
-                    destructive: Color(uiColor: .systemRed),
+                    destructive: Color(
+                        red: def.destructive.red, green: def.destructive.green, blue: def.destructive.blue
+                    ),
+                    onDestructive: Color(
+                        red: def.onDestructive.red, green: def.onDestructive.green, blue: def.onDestructive.blue
+                    ),
                     colorScheme: nil
                 )
             case .dark, .blue, .white:
@@ -86,6 +111,18 @@
                         red: def.codeBackground.red, green: def.codeBackground.green, blue: def.codeBackground.blue
                     ),
                     codeText: Color(red: def.codeText.red, green: def.codeText.green, blue: def.codeText.blue),
+                    codeKeyword: Color(
+                        red: def.codeKeyword.red, green: def.codeKeyword.green, blue: def.codeKeyword.blue
+                    ),
+                    codeString: Color(
+                        red: def.codeString.red, green: def.codeString.green, blue: def.codeString.blue
+                    ),
+                    codeComment: Color(
+                        red: def.codeComment.red, green: def.codeComment.green, blue: def.codeComment.blue
+                    ),
+                    codeNumber: Color(
+                        red: def.codeNumber.red, green: def.codeNumber.green, blue: def.codeNumber.blue
+                    ),
                     statusConnected: Color(
                         red: def.statusConnected.red, green: def.statusConnected.green, blue: def.statusConnected.blue
                     ),
@@ -97,6 +134,9 @@
                     ),
                     destructive: Color(
                         red: def.destructive.red, green: def.destructive.green, blue: def.destructive.blue
+                    ),
+                    onDestructive: Color(
+                        red: def.onDestructive.red, green: def.onDestructive.green, blue: def.onDestructive.blue
                     ),
                     colorScheme: scheme
                 )
