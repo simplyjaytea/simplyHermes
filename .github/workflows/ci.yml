@@ -206,6 +206,11 @@ jobs:
             sleep 2
           done
           curl -fsS http://127.0.0.1:9119/api/health
+      - name: Boot simulator for the test runner
+        run: |
+          udid="${{ steps.sim.outputs.udid }}"
+          xcrun simctl boot "$udid" || true
+          xcrun simctl bootstatus "$udid" -b
       - name: Test
         env:
           # xcodebuild passes TEST_RUNNER_* variables to the UI test runner without the prefix.
