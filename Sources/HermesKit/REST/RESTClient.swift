@@ -148,7 +148,8 @@ public actor RESTClient {
         var rateLimitRetries = 0
         while true {
             let request = makeRequest(
-                method, path, scopedQuery(query, scoped), encoded, timeout: timeout, encodedPath: encodedPath)
+                method, Self.pathWithQuery(path, scopedQuery(query, scoped)), encoded, timeout: timeout,
+                encodedPath: encodedPath)
             let response: HTTPResponse
             do {
                 response = try await transport.send(request)
@@ -188,11 +189,10 @@ public actor RESTClient {
     }
 
     private func makeRequest(
-        _ method: String, _ path: String, _ items: [URLQueryItem], _ body: Data?, timeout: TimeInterval?,
+        _ method: String, _ path: String, _ body: Data?, timeout: TimeInterval?,
         encodedPath: Bool
     ) -> HTTPRequest {
-        let joined = Self.pathWithQuery(path, items)
-        let url = encodedPath ? endpoint.url(forEncodedPath: joined) : endpoint.url(forPath: joined)
+        let url = encodedPath ? endpoint.url(forEncodedPath: path) : endpoint.url(forPath: path)
         var headers = endpoint.headers
         headers["Accept"] = "application/json"
         if body != nil { headers["Content-Type"] = "application/json" }

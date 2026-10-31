@@ -289,10 +289,7 @@ public struct GatewayConnectionTester: ConnectionTesting {
             serverVersion: health.displayVersion ?? health.version, releaseDate: status?.releaseDate,
             authProviders: status?.authProviders ?? [])
         if endpoint != settings.endpoint { report.adaptedEndpoint = endpoint }
-        if let status { report.compatibility = ServerCompatibility.check(status) }
-        if case .updateRequired(let found) = report.compatibility {
-            throw ConnectionTestFailure.serverTooOld(found: found)
-        }
+        report.compatibility = try Self.compatibility(status)
         let authRequired = health.authRequired ?? status?.authRequired ?? false
 
         if authRequired {
@@ -320,6 +317,15 @@ public struct GatewayConnectionTester: ConnectionTesting {
             report.webSocketChecked = true
         }
         return report
+    }
+
+    private static func compatibility(_ status: ServerStatus?) throws -> ServerCompatibility {
+        guard let status else { return .compatible }
+        let result = ServerCompatibility.check(status)
+        if case .updateRequired(let found) = result {
+            throw ConnectionTestFailure.serverTooOld(found: found)
+        }
+        return result
     }
 
     /// Headers a health probe may send. They route the request to the right virtual host; none identifies the user.

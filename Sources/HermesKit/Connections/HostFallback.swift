@@ -31,8 +31,8 @@ public struct SystemHostResolver: HostResolving {
         var list: UnsafeMutablePointer<addrinfo>?
         guard getaddrinfo(host, nil, &hints, &list) == 0, let first = list else { return [] }
         defer { freeaddrinfo(first) }
-        var v4: [String] = []
-        var v6: [String] = []
+        var ipv4: [String] = []
+        var ipv6: [String] = []
         var next: UnsafeMutablePointer<addrinfo>? = first
         while let entry = next?.pointee {
             next = entry.ai_next
@@ -42,14 +42,15 @@ public struct SystemHostResolver: HostResolving {
                 getnameinfo(
                     address, entry.ai_addrlen, &buffer, socklen_t(buffer.count), nil, 0, NI_NUMERICHOST) == 0
             else { continue }
-            let text = String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+            guard let text = String(bytes: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, encoding: .utf8)
+            else { continue }
             if entry.ai_family == AF_INET {
-                if !v4.contains(text) { v4.append(text) }
-            } else if !v6.contains(text) {
-                v6.append(text)
+                if !ipv4.contains(text) { ipv4.append(text) }
+            } else if !ipv6.contains(text) {
+                ipv6.append(text)
             }
         }
-        return v4 + v6
+        return ipv4 + ipv6
     }
 }
 

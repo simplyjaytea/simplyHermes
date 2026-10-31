@@ -34,37 +34,37 @@ final class LocalHTTPFixture: @unchecked Sendable {
     init(response: String) throws {
         self.response = Data(response.utf8)
         #if canImport(Darwin)
-            let fd = socket(AF_INET, SOCK_STREAM, 0)
+            let socketDescriptor = socket(AF_INET, SOCK_STREAM, 0)
         #else
-            let fd = socket(AF_INET, Int32(SOCK_STREAM.rawValue), 0)
+            let socketDescriptor = socket(AF_INET, Int32(SOCK_STREAM.rawValue), 0)
         #endif
-        guard fd >= 0 else { throw Failure.socket }
+        guard socketDescriptor >= 0 else { throw Failure.socket }
         var reuse: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, socklen_t(MemoryLayout<Int32>.size))
+        setsockopt(socketDescriptor, SOL_SOCKET, SO_REUSEADDR, &reuse, socklen_t(MemoryLayout<Int32>.size))
         var address = sockaddr_in()
         address.sin_family = sa_family_t(AF_INET)
         address.sin_port = 0
         address.sin_addr.s_addr = inet_addr("127.0.0.1")
         let bound = withUnsafePointer(to: &address) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                bind(socketDescriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
         }
         guard bound == 0 else {
-            close(fd)
+            close(socketDescriptor)
             throw Failure.bind
         }
-        guard listen(fd, 4) == 0 else {
-            close(fd)
+        guard listen(socketDescriptor, 4) == 0 else {
+            close(socketDescriptor)
             throw Failure.listen
         }
         var actual = sockaddr_in()
         var length = socklen_t(MemoryLayout<sockaddr_in>.size)
         _ = withUnsafeMutablePointer(to: &actual) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(fd, $0, &length) }
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(socketDescriptor, $0, &length) }
         }
         port = Int(UInt16(bigEndian: actual.sin_port))
-        listenFD = fd
+        listenFD = socketDescriptor
         Thread.detachNewThread { [self] in serve() }
     }
 
@@ -95,7 +95,7 @@ final class LocalHTTPFixture: @unchecked Sendable {
             guard count > 0 else { break }
             data.append(buffer, count: count)
         }
-        lock.withLock { seen.append(String(decoding: data, as: UTF8.self)) }
+        lock.withLock { seen.append(String(bytes: data, encoding: .utf8) ?? "") }
         response.withUnsafeBytes { raw in
             guard let base = raw.baseAddress else { return }
             var sent = 0

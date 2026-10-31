@@ -8,62 +8,6 @@
     @MainActor
     @Observable
     public final class ConnectionFormModel {
-        public enum Mode: String, Sendable {
-            case gateway
-            case ssh
-        }
-
-        public enum SignInMethod: String, CaseIterable, Identifiable, Sendable {
-            case none = "None"
-            case browser = "Browser"
-            case password = "Password"
-            case token = "Token"
-            public var id: String { rawValue }
-
-            init(_ method: SignInOptions.Method) {
-                switch method {
-                case .browser: self = .browser
-                case .password: self = .password
-                case .sessionToken: self = .token
-                }
-            }
-        }
-
-        /// Browser sign-in progress (WP-13).
-        public enum BrowserState: Equatable, Sendable {
-            case idle
-            case signingIn
-            case signedIn(user: String?)
-            case failed(String)
-        }
-
-        public enum KeySource: String, CaseIterable, Identifiable, Sendable {
-            case generate = "Generate"
-            case importKey = "Import"
-            public var id: String { rawValue }
-        }
-
-        public enum TestState: Equatable, Sendable {
-            case idle
-            case running(ConnectionTestStep)
-            case passed(ConnectionTestReport)
-            case failed(ConnectionTestFailure)
-        }
-
-        public enum ProbeState: Equatable, Sendable {
-            case idle
-            case checking
-            case found(ServerProbe)
-            case unreachable
-        }
-
-        /// A host key waiting for the user's answer in the fingerprint sheet.
-        public struct PendingTrust: Identifiable, Sendable {
-            public let fingerprint: HostKeyFingerprint
-            let continuation: CheckedContinuation<Bool, Never>
-            public var id: String { fingerprint.fingerprint }
-        }
-
         public let mode: Mode
         public let existingID: UUID?
         private let createdAt: Date
@@ -136,21 +80,6 @@
         public private(set) var test: TestState = .idle
         /// The IP endpoint Hermes answered on after it refused the typed name, and the typed URL it stands for.
         private var adaptedAddress: AdaptedAddress?
-
-        /// The form values one test was started with, so a late answer for older inputs can be discarded.
-        ///
-        /// A gateway target keeps the typed address, not the IP a probe or test may adapt to: discovering an
-        /// adaptation while a test runs must not make that test look stale.
-        private struct TestTarget: Equatable, Sendable {
-            struct GatewayTarget: Equatable, Sendable {
-                let typed: URL
-                let signIn: GatewaySignIn
-            }
-
-            let gateway: GatewayTarget?
-            let ssh: SSHSettings?
-            let secrets: ConnectionSecrets
-        }
 
         private typealias TestRun = ConnectionTestRunTracker<TestTarget>.Run
         /// The test whose progress and result may still change this form. Empty before a test or after it ends.
@@ -584,7 +513,7 @@
             case .gateway(let settings):
                 guard case .success(let parsed)? = address else { return nil }
                 return TestTarget(
-                    gateway: TestTarget.GatewayTarget(typed: parsed.endpoint.baseURL, signIn: settings.signIn),
+                    gateway: GatewayTarget(typed: parsed.endpoint.baseURL, signIn: settings.signIn),
                     ssh: nil, secrets: secrets)
             case .ssh(let settings):
                 return TestTarget(gateway: nil, ssh: settings, secrets: secrets)
@@ -659,6 +588,79 @@
             return await withCheckedContinuation { continuation in
                 pendingTrust = PendingTrust(fingerprint: fingerprint, continuation: continuation)
             }
+        }
+    }
+
+    extension ConnectionFormModel {
+        private struct GatewayTarget: Equatable, Sendable {
+            let typed: URL
+            let signIn: GatewaySignIn
+        }
+
+        /// The form values one test was started with, so a late answer for older inputs can be discarded.
+        ///
+        /// A gateway target keeps the typed address, not the IP a probe or test may adapt to: discovering an
+        /// adaptation while a test runs must not make that test look stale.
+        private struct TestTarget: Equatable, Sendable {
+            let gateway: GatewayTarget?
+            let ssh: SSHSettings?
+            let secrets: ConnectionSecrets
+        }
+
+        public enum Mode: String, Sendable {
+            case gateway
+            case ssh
+        }
+
+        public enum SignInMethod: String, CaseIterable, Identifiable, Sendable {
+            case none = "None"
+            case browser = "Browser"
+            case password = "Password"
+            case token = "Token"
+            public var id: String { rawValue }
+
+            init(_ method: SignInOptions.Method) {
+                switch method {
+                case .browser: self = .browser
+                case .password: self = .password
+                case .sessionToken: self = .token
+                }
+            }
+        }
+
+        /// Browser sign-in progress (WP-13).
+        public enum BrowserState: Equatable, Sendable {
+            case idle
+            case signingIn
+            case signedIn(user: String?)
+            case failed(String)
+        }
+
+        public enum KeySource: String, CaseIterable, Identifiable, Sendable {
+            case generate = "Generate"
+            case importKey = "Import"
+            public var id: String { rawValue }
+        }
+
+        public enum TestState: Equatable, Sendable {
+            case idle
+            case running(ConnectionTestStep)
+            case passed(ConnectionTestReport)
+            case failed(ConnectionTestFailure)
+        }
+
+        public enum ProbeState: Equatable, Sendable {
+            case idle
+            case checking
+            case found(ServerProbe)
+            case unreachable
+        }
+
+        /// A host key waiting for the user's answer in the fingerprint sheet.
+        public struct PendingTrust: Identifiable, Sendable {
+            public let fingerprint: HostKeyFingerprint
+            let continuation: CheckedContinuation<Bool, Never>
+            public var id: String { fingerprint.fingerprint }
         }
     }
 #endif
