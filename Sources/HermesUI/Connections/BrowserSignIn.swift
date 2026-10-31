@@ -42,9 +42,20 @@
             endpoint: HermesEndpoint, options: SignInOptions?, provider: String?
         ) async throws -> BrowserSignInResult {
             let exchange = RESTClient(endpoint: endpoint, transport: URLSessionHTTPTransport())
+            let selectedProvider = provider ?? options?.browserProviders.first?.name
+            // Diagnose a cross-origin callback before opening the browser. The probe is anonymous and never follows
+            // redirects, so it neither sends nor stores the PKCE cookie the real flow needs.
+            let diagnosis = try await BrowserAuthOrigin.preflight(
+                typed: endpoint, provider: selectedProvider, native: options?.supportsNativePKCE ?? true,
+                transport: URLSessionHTTPTransport.anonymous(timeout: 15))
+            switch diagnosis {
+            case .ok: break
+            case .callbackOriginMismatch(_, let callbackOrigin):
+                throw NativeSignInError.callbackOriginMismatch(callbackOrigin: callbackOrigin)
+            }
             guard options?.supportsNativePKCE ?? true else {
                 let login = endpoint.url(
-                    forPath: "/auth/login?provider=" + (provider ?? options?.browserProviders.first?.name ?? ""))
+                    forPath: "/auth/login?provider=" + (selectedProvider ?? ""))
                 let cookies = try await WebSignInController.run(.cookies(start: login, endpoint: endpoint))
                 return .cookies(cookies)
             }

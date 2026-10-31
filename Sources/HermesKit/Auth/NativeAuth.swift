@@ -51,6 +51,8 @@ public enum NativeSignInError: Error, Sendable, Equatable {
     case codeRejected
     /// The refresh token is no longer valid: sign in again.
     case sessionExpired
+    /// The server's browser sign-in callback points at a different origin than the one the user entered.
+    case callbackOriginMismatch(callbackOrigin: String)
     /// The user closed the sign-in sheet.
     case cancelled
 }
