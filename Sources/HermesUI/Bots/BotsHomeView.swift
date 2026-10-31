@@ -55,6 +55,7 @@
                             isCreatingGroupPresented = true
                         }
                         .disabled(!canCreateGroup)
+                        .accessibilityIdentifier("bots.newGroup")
                     } label: {
                         Label("New", systemImage: "plus")
                     }

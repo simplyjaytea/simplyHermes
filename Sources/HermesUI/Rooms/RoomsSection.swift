@@ -37,6 +37,7 @@
                         NavigationLink(value: RoomRoute(roomID: room.roomID)) {
                             RoomRowLabel(room: room, needsAttention: model.needsAttention(room))
                         }
+                        .accessibilityIdentifier("bots.room.\(room.roomID)")
                     }
                     if model.visibleRooms.isEmpty {
                         if showsCreate {

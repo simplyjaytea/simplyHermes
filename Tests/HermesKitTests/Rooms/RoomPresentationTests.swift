@@ -74,4 +74,35 @@ import Testing
     @Test func aChangeToAReadOnlyRoomIsRefusedInWords() {
         #expect(RoomError.readOnly.message == "This Group Chat is read-only here.")
     }
+
+    @Test func statusToBadgeHelperIdentifiesPendingApproval() throws {
+        let approvalJSON = #"""
+            {"running": true, "working": false, "blocked": true, "counts": {},
+             "pending_actions": [{"action_id": "act-1", "kind": "approval", "task_id": "task-1",
+                                  "approval": {"command": "git push"}}],
+             "peer_routes": []}
+            """#
+        let approval = try JSONDecoder().decode(RoomDriverStatus.self, from: Data(approvalJSON.utf8))
+        let pending = RoomStatus.pendingApproval(in: approval)
+        #expect(pending != nil)
+        #expect(pending?.kind == "approval")
+        #expect(pending?.approval?.command == "git push")
+        #expect(RoomStatus.line(for: approval) == "Waiting for your answer…")
+
+        let retryJSON = #"""
+            {"running": true, "working": false, "blocked": false, "counts": {},
+             "pending_actions": [{"action_id": "act-2", "kind": "retry", "task_id": "task-2"}],
+             "peer_routes": []}
+            """#
+        let retryOnly = try JSONDecoder().decode(RoomDriverStatus.self, from: Data(retryJSON.utf8))
+        #expect(RoomStatus.pendingApproval(in: retryOnly) == nil)
+
+        let idle = try status(working: false)
+        #expect(RoomStatus.pendingApproval(in: idle) == nil)
+
+        let working = try status(working: true)
+        #expect(RoomStatus.pendingApproval(in: working) == nil)
+
+        #expect(RoomStatus.pendingApproval(in: nil) == nil)
+    }
 }

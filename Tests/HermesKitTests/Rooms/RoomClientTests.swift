@@ -281,4 +281,53 @@ private func refusal(_ body: () async throws -> Void) async -> RoomError? {
         let params = try #require(await fake.calls.last?.params)
         #expect(params["task_id"]?.stringValue == "dtask:1")
     }
+
+    @Test func sendResultTruthTableHandlesAcceptedAndDriverStartedCombinations() async throws {
+        let truthTable: [(accepted: Bool, driverStarted: Bool)] = [
+            (true, true),
+            (true, false),
+            (false, false),
+            (false, true),
+        ]
+
+        for (accepted, driverStarted) in truthTable {
+            let sendJSON = #"""
+                {"event": \#(userEvent), "client_event_id": "ev-1", "accepted": \#(accepted), "driver_started": \#(driverStarted)}
+                """#
+            let decoded = try JSONDecoder().decode(GroupsSendResult.self, from: Data(sendJSON.utf8))
+            #expect(decoded.accepted == accepted)
+            #expect(decoded.driverStarted == driverStarted)
+            #expect(decoded.clientEventID == "ev-1")
+
+            let fake = FakeRoomGateway(["groups.send": [.json(sendJSON)]])
+            let client = RoomClient(gateway: fake)
+            let result = try await client.send(
+                roomID: "room-1", eventID: RoomIdentifier.newEventID(), text: "hello", threadID: "t1")
+            #expect(result.accepted == accepted)
+            #expect(result.driverStarted == driverStarted)
+        }
+    }
+
+    @Test func listEmptyStateReturnsEmptyRoomsList() async throws {
+        let fake = FakeRoomGateway(["groups.list": [.json(#"{"rooms": [], "next_offset": null}"#)]])
+        let client = RoomClient(gateway: fake)
+
+        let rooms = try await client.rooms()
+        #expect(rooms.isEmpty)
+    }
+
+    @Test func listErrorSurfacesFailureMessage() async throws {
+        let error = RPCError(code: 4123, message: "Group Chat worker is unavailable.")
+        let fake = FakeRoomGateway(["groups.list": [.failure(error)]])
+        let client = RoomClient(gateway: fake)
+
+        do {
+            _ = try await client.rooms()
+            Issue.record("rooms() should have thrown an error")
+        } catch {
+            #expect(
+                RoomFailure.message(for: error)
+                    == "The Group Chat worker is not running. Restart the Hermes gateway and try again.")
+        }
+    }
 }

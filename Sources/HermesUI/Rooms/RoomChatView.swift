@@ -28,12 +28,14 @@
                         Button("Stop", systemImage: "stop.fill", role: .destructive) {
                             Task { await model.stop() }
                         }
+                        .accessibilityIdentifier("room.stop")
                     }
                 }
                 ToolbarItem(placement: .secondaryAction) {
                     Button("Group Settings", systemImage: "slider.horizontal.3") {
                         isSettingsPresented = true
                     }
+                    .accessibilityIdentifier("room.settings")
                 }
             }
             .task { await model.run() }
@@ -136,10 +138,12 @@
                         Task { await model.answer(action, with: .once) }
                     }
                     .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("room.approve")
                     Button("Deny", role: .destructive) {
                         Task { await model.answer(action, with: .deny) }
                     }
                     .buttonStyle(.bordered)
+                    .accessibilityIdentifier("room.deny")
                 }
             }
         }
@@ -159,9 +163,12 @@
                 }
                 Composer(
                     text: $model.draft, placeholder: "Message the group",
+                    sendAccessibilityIdentifier: "room.send",
                     onSend: {
                         Task { await model.send() }
-                    })
+                    }
+                )
+                .accessibilityIdentifier("room.composer")
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
