@@ -57,6 +57,13 @@
             return (names.contains("default") ? ["default"] : []) + rest
         }
 
+        /// The bots a new Group Chat can take. Only the active gateway can host a room made here, and only a bot whose
+        /// live row is ready can join one (WP-43).
+        var groupCandidates: [RoomMember] {
+            guard let active = connections.active else { return [] }
+            return BotRoster.groupCandidates(entries, connectionID: active.id)
+        }
+
         /// What a bot is doing right now. A running turn in its Bot Chat counts as active.
         func activity(of entry: BotRosterEntry, now: Date = Date()) -> BotActivity {
             BotRoster.activity(

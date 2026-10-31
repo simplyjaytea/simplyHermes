@@ -10,6 +10,9 @@
     final class RoomsModel {
         private(set) var rooms: [Room] = []
         private(set) var isLoading = false
+        /// Whether the active gateway has the room methods. Nil until a read answers, so New Group does not show
+        /// before the app knows the gateway can make one.
+        private(set) var supportsGroups: Bool?
         /// The last failure, shown above the list. Nil once a reload works.
         var errorMessage: String?
 
@@ -38,9 +41,12 @@
         func reload() async {
             guard let manager = connections.manager, let connection = connections.active else {
                 client = nil
+                capabilities = nil
                 chats = [:]
                 connectionID = nil
                 rooms = []
+                supportsGroups = nil
+                errorMessage = nil
                 return
             }
             if connectionID != connection.id {
@@ -50,6 +56,8 @@
                 capabilities = nil
                 chats = [:]
                 rooms = []
+                supportsGroups = nil
+                errorMessage = nil
                 connectionID = connection.id
             }
             isLoading = true
@@ -61,6 +69,7 @@
                 client = roomClient
                 capabilities = caps
                 rooms = try await roomClient.rooms()
+                supportsGroups = true
                 errorMessage = nil
             } catch let error as RPCError where error.code == -32601 {
                 // The gateway has no room methods, so it hosts no group chats.
@@ -68,6 +77,7 @@
                 capabilities = nil
                 chats = [:]
                 rooms = []
+                supportsGroups = false
                 errorMessage = nil
             } catch {
                 errorMessage = RoomFailure.message(for: error)
@@ -99,6 +109,10 @@
         func create(_ draft: RoomDraft, roomID: String) async throws -> Room {
             guard let client else { throw RoomError.noGateway }
             let room = try await client.create(draft, roomID: roomID)
+            // Show the room even if the list read after it fails; the next refresh reads it again.
+            if !rooms.contains(where: { $0.roomID == room.roomID }) {
+                rooms.insert(room, at: 0)
+            }
             await reload()
             return room
         }
