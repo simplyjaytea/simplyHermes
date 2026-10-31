@@ -11,6 +11,11 @@ struct HermesApp: App {
     private let integration: AppIntegration
     private let entry: EntryIntegration
     @AppStorage(OnDeviceSettings.key) private var onDeviceEnabled = true
+    @AppStorage(AppearanceSettings.key) private var storedPresetRaw: String = AppearancePreset.system.rawValue
+
+    private var activePreset: AppearancePreset {
+        AppearancePreset.fallback(for: storedPresetRaw)
+    }
 
     init() {
         let launch = LaunchOptions(defaults: .standard)
@@ -34,7 +39,7 @@ struct HermesApp: App {
         WindowGroup {
             RootView(model: model, connections: connections, sessionsList: sessionsList, launch: launch)
                 .integrationHost(entry)
-                .tint(HermesColor.accent)
+                .hermesAppearance(activePreset)
                 .environment(\.onDeviceModels, OnDeviceModelServices.shared.model)
                 .onDeviceModelsSheet(OnDeviceModelServices.shared.model, isEnabled: $onDeviceEnabled)
                 .onOpenURL { url in
@@ -47,7 +52,7 @@ struct HermesApp: App {
         }
         WindowGroup(id: ShellWindow.chat, for: String.self) { $sessionID in
             ChatWindow(model: model, sessionID: sessionID)
-                .tint(HermesColor.accent)
+                .hermesAppearance(activePreset)
                 .environment(\.onDeviceModels, OnDeviceModelServices.shared.model)
         }
     }

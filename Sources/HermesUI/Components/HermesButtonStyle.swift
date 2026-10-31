@@ -20,6 +20,7 @@
         @Environment(\.isEnabled) private var isEnabled
         @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
         @Environment(\.hermesReduceMotion) private var reduceMotionOverride
+        @Environment(\.hermesPalette) private var palette
 
         public init(_ kind: Kind = .primary, fillsWidth: Bool = true) {
             self.kind = kind
@@ -51,17 +52,17 @@
 
         private var foreground: Color {
             switch kind {
-            case .primary, .destructive: HermesColor.onAccent
-            case .secondary, .tinted: HermesColor.primaryText
+            case .primary, .destructive: palette.onAccent
+            case .secondary, .tinted: palette.primaryText
             }
         }
 
         private var background: Color {
             switch kind {
-            case .primary: HermesColor.accent
-            case .secondary: HermesColor.background
-            case .tinted: HermesColor.fill
-            case .destructive: HermesColor.destructive
+            case .primary: palette.accent
+            case .secondary: palette.background
+            case .tinted: palette.fill
+            case .destructive: palette.destructive
             }
         }
     }

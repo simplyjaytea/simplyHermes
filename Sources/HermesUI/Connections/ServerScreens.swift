@@ -401,6 +401,7 @@
     /// The Settings section until WP-53 fills in the rest: Servers first.
     public struct SettingsHome: View {
         private let connections: ConnectionsModel
+        @AppStorage(AppearanceSettings.key) private var storedPresetRaw: String = AppearancePreset.system.rawValue
 
         public init(connections: ConnectionsModel) {
             self.connections = connections
@@ -408,6 +409,18 @@
 
         public var body: some View {
             List {
+                Section("Appearance") {
+                    NavigationLink {
+                        AppearanceSettingsScreen()
+                    } label: {
+                        LabeledContent {
+                            Text(AppearancePreset.fallback(for: storedPresetRaw).displayName)
+                        } label: {
+                            Label("Appearance", systemImage: "paintpalette")
+                        }
+                    }
+                    .accessibilityIdentifier("settings.appearance")
+                }
                 Section("Connection") {
                     NavigationLink {
                         ServerListView(connections: connections)

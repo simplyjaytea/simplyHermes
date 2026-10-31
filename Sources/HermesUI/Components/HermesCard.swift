@@ -4,6 +4,7 @@
     /// A rounded card on the grouped background, for settings, bots and automations.
     public struct HermesCard<Content: View>: View {
         private let content: Content
+        @Environment(\.hermesPalette) private var palette
 
         public init(@ViewBuilder content: () -> Content) {
             self.content = content()
@@ -16,7 +17,7 @@
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                HermesColor.card,
+                palette.card,
                 in: RoundedRectangle(cornerRadius: HermesMetrics.cardRadius, style: .continuous)
             )
         }
@@ -26,6 +27,7 @@
     public struct HermesSheetHeader: View {
         private let title: String
         private let onClose: () -> Void
+        @Environment(\.hermesPalette) private var palette
 
         public init(_ title: String, onClose: @escaping () -> Void) {
             self.title = title
@@ -36,13 +38,14 @@
             HStack {
                 Text(title)
                     .font(HermesFont.headline)
+                    .foregroundStyle(palette.primaryText)
                 Spacer(minLength: 8)
                 Button(action: onClose) {
                     Image(systemName: "xmark")
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
-                        .background(HermesColor.fill, in: Circle())
+                        .background(palette.fill, in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("Close"))

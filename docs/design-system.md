@@ -3,13 +3,13 @@
 Code: `Sources/HermesUI/` (`Theme/`, `Components/`, `Gallery/`). Mockups: the "simplyHermes look" design canvas
 (https://claude.ai/artifact/NzMVAUk7ivZ6Wpgfr7Yk36).
 
-## Decisions (JT, 2026-10-14)
+## Decisions (JT, 2026-10-14 & 2026-10-31)
 
 | Question | Decision |
 | --- | --- |
 | Q1 visual direction | Pure iOS 27 native: system colors, SF fonts, Liquid Glass |
 | Q8 motion and haptics | Rich, with a Reduce Motion fallback for every animation |
-| Q10 appearance | Follow system light/dark |
+| Q10 appearance | Selectable appearance presets (authorized 2026-10-31): **System** (default), **Dark**, **Blue**, **White** |
 | Chat style | **A · Bubbles**: your messages in accent bubbles, Hermes, tool output and approvals in grey bubbles; docked composer |
 | Accent | **System blue**, drawn as `#0068D9` (darker than `#007AFF` so white text reaches 4.5:1); same in light and dark |
 | Tent posture | **Glance view**: task title and elapsed time, the pending command in mono, large Stop / Deny / Approve |
@@ -17,10 +17,32 @@ Code: `Sources/HermesUI/` (`Theme/`, `Components/`, `Gallery/`). Mockups: the "s
 
 Ask JT before any new design choice.
 
+## Appearance Presets (2026-10-31)
+
+JT authorized customizable appearance presets in messages `2a421d29-44d8-4afe-bb50-b426616ed591` and `045d9859-21fa-4f74-af6d-efd95d552584`. These are full appearance presets, not white-on-white accents:
+
+- **System**: Retains native iOS light/dark mode and `#0068D9` blue accent. Default for installations without a saved choice, preserving existing behavior.
+- **Dark**: Graphite surfaces (`#18191B`), light text (`#F2F2F7`), and `#0068D9` blue accent.
+- **Blue**: Deep navy surfaces (`#0F172A`), light text (`#F0F6FC`), and `#0068D9` blue controls/bubbles.
+- **White**: Light neutral surfaces (`#FFFFFF`), dark text (`#111827`), and `#0068D9` accessible blue accent.
+
+All presets satisfy WCAG 2.1 AA contrast requirements:
+- Normal text on background and incoming bubble: $\ge 4.5:1$ (measured $> 12:1$ across all presets).
+- Button / outgoing bubble text on accent: $\ge 4.5:1$ (measured $5.27:1$ for `#0068D9` with white text).
+- Secondary text: $\ge 3.0:1$ (measured $> 4.7:1$ across all presets).
+- Code text on code card background: $\ge 4.5:1$ (measured $> 14:1$ across all presets).
+
+Settings > Appearance provides:
+- Labeled preset choices with explicit selected markers.
+- Local sample conversation preview with real message, tool, approval, and composer views.
+- Instant app-wide update without switching animations.
+- Reset to System button.
+- Device-only persistence via `AppearanceSettings` (`UserDefaults` key `appearancePreset`) with safe fallback to `System` for unknown or corrupted values.
+
 ## Tokens
 
-- **Color** (`HermesColor`): system colors only, plus `accent`. `outgoingBubble` = accent with `onAccent` (white)
-  text; `incomingBubble` = `systemGray5`; status dots use `systemGreen` / `systemOrange` / `systemGray`.
+- **Palette** (`HermesPalette`): Authoritative palette mapping from `AppearancePreset` (`PresetPaletteDefinition`), providing `accent`, `onAccent`, `background`, `groupedBackground`, `card`, `fill`, `separator`, `outgoingBubble`, `incomingBubble`, `primaryText`, `secondaryText`, `codeBackground`, `codeText`, and status colors.
+- **Color** (`HermesColor`): System colors baseline matching the System preset.
 - **Type** (`HermesFont`): Dynamic Type text styles in SF Pro; `code` and `codeSmall` are SF Mono for commands,
   paths and tool output. Dynamic Type replaces Desktop's zoom.
 - **Metrics** (`HermesMetrics`): 44 pt minimum tap target; bubble radius 20; inner radius 12; card radius 18;

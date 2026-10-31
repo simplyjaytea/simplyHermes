@@ -8,6 +8,7 @@
         let text: String
         /// Fades in new characters at the end of the last paragraph while the reply streams (plan Q47).
         var fadesNewText = false
+        @Environment(\.hermesPalette) private var palette
 
         var body: some View {
             let blocks = MarkdownBlocks.parse(text)
@@ -40,17 +41,17 @@
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text(start.map { "\($0 + offset)." } ?? "•")
                                 .font(HermesFont.bubble.monospacedDigit())
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .foregroundStyle(palette.secondaryText)
                             Text(InlineMarkdown.attributed(item)).font(HermesFont.bubble)
                         }
                     }
                 }
             case .quote(let value):
                 HStack(spacing: 8) {
-                    Capsule().fill(HermesColor.separator).frame(width: 3)
+                    Capsule().fill(palette.separator).frame(width: 3)
                     Text(InlineMarkdown.attributed(value))
                         .font(HermesFont.bubble)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
             case .rule:
                 Divider()
@@ -63,13 +64,14 @@
         let language: String?
         let code: String
         @State private var copyCount = 0
+        @Environment(\.hermesPalette) private var palette
 
         var body: some View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
                     Text(language ?? "code")
                         .font(HermesFont.caption)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                     Spacer()
                     Button {
                         UIPasteboard.general.string = code
@@ -79,6 +81,7 @@
                             copyCount > 0 ? "Copied" : "Copy", systemImage: copyCount > 0 ? "checkmark" : "doc.on.doc"
                         )
                         .font(HermesFont.caption.weight(.semibold))
+                        .foregroundStyle(palette.secondaryText)
                         .frame(minHeight: HermesMetrics.minTapTarget - 12)
                     }
                     .buttonStyle(.plain)
@@ -95,7 +98,7 @@
                 }
             }
             .background(
-                HermesColor.fill,
+                palette.codeBackground,
                 in: RoundedRectangle(cornerRadius: 10, style: .continuous)
             )
         }
