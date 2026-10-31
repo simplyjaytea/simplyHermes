@@ -143,7 +143,64 @@ struct AppearanceSettingsTests {
 
                 let numberContrast = try! #require(checks["codeNumberOnCodeBackground"])
                 #expect(numberContrast >= 4.5, "Failed numberContrast for \(preset): \(numberContrast)")
+
+                // Error text ink on background must meet WCAG AA (>= 4.5:1)
+                let errorOnBg = try! #require(checks["errorTextOnBackground"])
+                #expect(
+                    errorOnBg >= 4.5,
+                    "Failed errorTextOnBackground for \(preset) (dark: \(isDark), hc: \(highContrast)): \(errorOnBg)"
+                )
+
+                // Error text on error background card must meet WCAG AA (>= 4.5:1)
+                let errorOnCard = try! #require(checks["errorTextOnErrorBackground"])
+                #expect(
+                    errorOnCard >= 4.5,
+                    "Failed errorTextOnErrorBackground for \(preset) (dark: \(isDark), hc: \(highContrast)): \(errorOnCard)"
+                )
+
+                // Secondary text on error background card must meet WCAG AA (>= 4.5:1)
+                let secOnErrorCard = try! #require(checks["secondaryTextOnErrorBackground"])
+                #expect(
+                    secOnErrorCard >= 4.5,
+                    "Failed secondaryTextOnErrorBackground for \(preset) (dark: \(isDark), hc: \(highContrast)): \(secOnErrorCard)"
+                )
             }
+        }
+    }
+
+    @Test func errorTextIsDistinctFromDestructiveButtonFill() {
+        // Dark backgrounds (#18191B for dark, #0F172A for blue) demonstrate why destructive button fill
+        // (#DC2626) is insufficient for text (< 4.0:1), requiring dedicated semantic errorText (>= 4.5:1).
+        for preset in [AppearancePreset.dark, AppearancePreset.blue] {
+            let defDark = PresetPaletteDefinition.definition(for: preset, isDark: true, highContrast: false)
+            // Dedicated error text ink on dark background meets WCAG AA (>= 4.5:1)
+            let errorTextContrast = defDark.errorText.contrastRatio(with: defDark.background)
+            #expect(
+                errorTextContrast >= 4.5, "errorText contrast on \(preset) should be >= 4.5:1, got \(errorTextContrast)"
+            )
+
+            // Destructive button fill #DC2626 on dark background has insufficient contrast for text (< 4.0:1)
+            let destructiveFillAsTextContrast = defDark.destructive.contrastRatio(with: defDark.background)
+            #expect(
+                destructiveFillAsTextContrast < 4.0,
+                "destructive button fill on \(preset) background unexpectedly had >= 4.0:1 contrast: \(destructiveFillAsTextContrast)"
+            )
+
+            // Destructive button fill is correctly paired with high-contrast white onDestructive (>= 4.5:1)
+            let buttonTextContrast = defDark.onDestructive.contrastRatio(with: defDark.destructive)
+            #expect(buttonTextContrast >= 4.5)
+
+            // Error text ink must be distinct from destructive button fill in dark presets
+            #expect(defDark.errorText != defDark.destructive)
+        }
+
+        // Across all presets, errorText meets >= 4.5:1 on background and errorBackground
+        for preset in AppearancePreset.allCases {
+            let def = PresetPaletteDefinition.definition(for: preset)
+            #expect(def.errorText.contrastRatio(with: def.background) >= 4.5)
+            #expect(def.errorText.contrastRatio(with: def.errorBackground) >= 4.5)
+            #expect(def.secondaryText.contrastRatio(with: def.errorBackground) >= 4.5)
+            #expect(def.onDestructive.contrastRatio(with: def.destructive) >= 4.5)
         }
     }
 
@@ -151,12 +208,14 @@ struct AppearanceSettingsTests {
         let lightDef = PresetPaletteDefinition.definition(for: .system, isDark: false, highContrast: false)
         let darkDef = PresetPaletteDefinition.definition(for: .system, isDark: true, highContrast: false)
 
-        // Dark mode must provide distinct text and syntax colors from light mode
+        // Dark mode must provide distinct text, syntax, and error colors from light mode
         #expect(lightDef.secondaryText != darkDef.secondaryText)
         #expect(lightDef.codeKeyword != darkDef.codeKeyword)
         #expect(lightDef.codeString != darkDef.codeString)
         #expect(lightDef.codeComment != darkDef.codeComment)
         #expect(lightDef.codeNumber != darkDef.codeNumber)
+        #expect(lightDef.errorText != darkDef.errorText)
+        #expect(lightDef.errorBackground != darkDef.errorBackground)
         #expect(lightDef.primaryText != darkDef.primaryText)
         #expect(lightDef.background != darkDef.background)
 
@@ -179,6 +238,14 @@ struct AppearanceSettingsTests {
         let darkStandardSecContrast = darkDef.secondaryText.contrastRatio(with: darkDef.background)
         let darkHCSecContrast = darkHC.secondaryText.contrastRatio(with: darkHC.background)
         #expect(darkHCSecContrast > darkStandardSecContrast)
+
+        let lightStandardErrorContrast = lightDef.errorText.contrastRatio(with: lightDef.background)
+        let lightHCErrorContrast = lightHC.errorText.contrastRatio(with: lightHC.background)
+        #expect(lightHCErrorContrast > lightStandardErrorContrast)
+
+        let darkStandardErrorContrast = darkDef.errorText.contrastRatio(with: darkDef.background)
+        let darkHCErrorContrast = darkHC.errorText.contrastRatio(with: darkHC.background)
+        #expect(darkHCErrorContrast > darkStandardErrorContrast)
     }
 
     @Test func rgbColorLuminanceAndContrastMath() {

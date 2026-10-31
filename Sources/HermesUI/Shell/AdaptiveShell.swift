@@ -132,6 +132,7 @@
                             VStack(alignment: .leading, spacing: 4) {
                                 debugLayoutMenu(current: layout)
                                 debugScrollAnchor
+                                debugPaletteProbe
                             }
                         }
                     }
@@ -417,6 +418,14 @@
                 .font(HermesFont.codeSmall)
                 .padding(.leading, 8)
                 .accessibilityIdentifier("debug.scrollAnchor")
+        }
+
+        /// The inherited environment palette preset, exposed only when debug UI tests are active.
+        private var debugPaletteProbe: some View {
+            Text(palette.preset.rawValue)
+                .font(HermesFont.codeSmall)
+                .padding(.leading, 8)
+                .accessibilityIdentifier("debug.activePreset")
         }
 
         private func debugLayoutMenu(current: DisplayLayout) -> some View {

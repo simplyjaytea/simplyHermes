@@ -14,7 +14,7 @@
             VStack(alignment: .leading, spacing: 8) {
                 Label(title, systemImage: icon)
                     .font(HermesFont.subheadline.weight(.semibold))
-                    .foregroundStyle(palette.destructive)
+                    .foregroundStyle(palette.errorText)
                 Text(error.message)
                     .font(HermesFont.footnote)
                     .foregroundStyle(palette.secondaryText)
@@ -47,7 +47,7 @@
             .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
             .padding(.vertical, 10)
             .background(
-                palette.destructive.opacity(0.12),
+                palette.errorBackground,
                 in: RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
             )
             .bubbleRow(.leading)

@@ -147,6 +147,8 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
     public let statusOffline: RGBColor
     public let destructive: RGBColor
     public let onDestructive: RGBColor
+    public let errorText: RGBColor
+    public let errorBackground: RGBColor
 
     /// Authoritative mapping from an `AppearancePreset` to its color definition,
     /// supporting dynamic light/dark and accessibility contrast traits.
@@ -181,7 +183,9 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                     statusWarning: RGBColor(hex: 0xFF9F0A),
                     statusOffline: RGBColor(hex: 0x8E8E93),
                     destructive: RGBColor(hex: 0xDC2626),
-                    onDestructive: RGBColor(hex: 0xFFFFFF)
+                    onDestructive: RGBColor(hex: 0xFFFFFF),
+                    errorText: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
+                    errorBackground: highContrast ? RGBColor(hex: 0x221316) : RGBColor(hex: 0x2B191D)
                 )
             } else {
                 return PresetPaletteDefinition(
@@ -207,7 +211,9 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                     statusWarning: RGBColor(hex: 0xFF9500),
                     statusOffline: RGBColor(hex: 0x8E8E93),
                     destructive: RGBColor(hex: 0xDC2626),
-                    onDestructive: RGBColor(hex: 0xFFFFFF)
+                    onDestructive: RGBColor(hex: 0xFFFFFF),
+                    errorText: highContrast ? RGBColor(hex: 0x991B1B) : RGBColor(hex: 0xB91C1C),
+                    errorBackground: highContrast ? RGBColor(hex: 0xFFF1F1) : RGBColor(hex: 0xFEF2F2)
                 )
             }
 
@@ -236,7 +242,9 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                 statusWarning: RGBColor(hex: 0xFF9F0A),
                 statusOffline: RGBColor(hex: 0x8E8E93),
                 destructive: RGBColor(hex: 0xDC2626),
-                onDestructive: RGBColor(hex: 0xFFFFFF)
+                onDestructive: RGBColor(hex: 0xFFFFFF),
+                errorText: RGBColor(hex: 0xF87171),
+                errorBackground: RGBColor(hex: 0x2B191D)
             )
 
         case .blue:
@@ -264,7 +272,9 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                 statusWarning: RGBColor(hex: 0xFBBF24),
                 statusOffline: RGBColor(hex: 0x64748B),
                 destructive: RGBColor(hex: 0xDC2626),
-                onDestructive: RGBColor(hex: 0xFFFFFF)
+                onDestructive: RGBColor(hex: 0xFFFFFF),
+                errorText: RGBColor(hex: 0xF87171),
+                errorBackground: RGBColor(hex: 0x241828)
             )
 
         case .white:
@@ -292,7 +302,9 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                 statusWarning: RGBColor(hex: 0xD97706),
                 statusOffline: RGBColor(hex: 0x6B7280),
                 destructive: RGBColor(hex: 0xDC2626),
-                onDestructive: RGBColor(hex: 0xFFFFFF)
+                onDestructive: RGBColor(hex: 0xFFFFFF),
+                errorText: RGBColor(hex: 0xB91C1C),
+                errorBackground: RGBColor(hex: 0xFEF2F2)
             )
         }
     }
@@ -313,6 +325,9 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
             "codeNumberOnCodeBackground": codeNumber.contrastRatio(with: codeBackground),
             "onAccentOnDestructive": onDestructive.contrastRatio(with: destructive),
             "onDestructiveOnDestructive": onDestructive.contrastRatio(with: destructive),
+            "errorTextOnBackground": errorText.contrastRatio(with: background),
+            "errorTextOnErrorBackground": errorText.contrastRatio(with: errorBackground),
+            "secondaryTextOnErrorBackground": secondaryText.contrastRatio(with: errorBackground),
         ]
     }
 }

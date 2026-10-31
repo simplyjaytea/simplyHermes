@@ -31,6 +31,8 @@
         public let statusOffline: Color
         public let destructive: Color
         public let onDestructive: Color
+        public let errorText: Color
+        public let errorBackground: Color
         public let colorScheme: ColorScheme?
 
         /// Creates a dynamic `UIColor` for `.system` that adapts to trait collection changes (light/dark and increase contrast).
@@ -126,6 +128,12 @@
                 onDestructive: Color(
                     red: def.onDestructive.red, green: def.onDestructive.green, blue: def.onDestructive.blue
                 ),
+                errorText: Color(
+                    red: def.errorText.red, green: def.errorText.green, blue: def.errorText.blue
+                ),
+                errorBackground: Color(
+                    red: def.errorBackground.red, green: def.errorBackground.green, blue: def.errorBackground.blue
+                ),
                 colorScheme: scheme
             )
         }
@@ -158,6 +166,8 @@
                     statusOffline: Color(uiColor: .systemGray),
                     destructive: dynamicSystemColor(\.destructive),
                     onDestructive: dynamicSystemColor(\.onDestructive),
+                    errorText: dynamicSystemColor(\.errorText),
+                    errorBackground: dynamicSystemColor(\.errorBackground),
                     colorScheme: nil
                 )
             case .dark, .blue, .white:
@@ -219,6 +229,13 @@
                     ),
                     onDestructive: Color(
                         red: def.onDestructive.red, green: def.onDestructive.green, blue: def.onDestructive.blue
+                    ),
+                    errorText: Color(
+                        red: def.errorText.red, green: def.errorText.green, blue: def.errorText.blue
+                    ),
+                    errorBackground: Color(
+                        red: def.errorBackground.red, green: def.errorBackground.green,
+                        blue: def.errorBackground.blue
                     ),
                     colorScheme: scheme
                 )

@@ -59,7 +59,7 @@
                     if let note = Self.note(for: entry.delivery) {
                         Text(note.text)
                             .font(HermesFont.caption2)
-                            .foregroundStyle(note.isError ? palette.destructive : palette.secondaryText)
+                            .foregroundStyle(note.isError ? palette.errorText : palette.secondaryText)
                             .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
                     }
                 }

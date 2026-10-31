@@ -136,10 +136,51 @@ struct AppearancePresetAppTests {
             let def = PresetPaletteDefinition.definition(for: preset)
             let buttonContrast = def.onDestructive.contrastRatio(with: def.destructive)
             #expect(buttonContrast >= 4.5, "Button contrast below 4.5:1 for \(preset): \(buttonContrast)")
+
+            // Verify errorText and errorBackground tokens exist and are accessible
+            let errorTextContrast = def.errorText.contrastRatio(with: def.background)
+            #expect(errorTextContrast >= 4.5, "errorText contrast below 4.5:1 for \(preset): \(errorTextContrast)")
+            let errorCardContrast = def.errorText.contrastRatio(with: def.errorBackground)
+            #expect(
+                errorCardContrast >= 4.5, "errorText on errorBackground below 4.5:1 for \(preset): \(errorCardContrast)"
+            )
         }
     }
 
     #if canImport(UIKit)
+        private struct EnvironmentProbe: View {
+            @Environment(\.hermesPalette) var palette
+            @Environment(\.hermesAppearancePreset) var preset
+            let onRead: (AppearancePreset, HermesPalette) -> Void
+
+            var body: some View {
+                Text("probe")
+                    .onAppear {
+                        onRead(preset, palette)
+                    }
+            }
+        }
+
+        @Test func viewModifierActivelyPropagatesEnvironmentPalette() {
+            for preset in AppearancePreset.allCases {
+                var capturedPreset: AppearancePreset?
+                var capturedPalette: HermesPalette?
+
+                let probe = EnvironmentProbe { p, pal in
+                    capturedPreset = p
+                    capturedPalette = pal
+                }
+                .hermesAppearance(preset)
+
+                let host = UIHostingController(rootView: probe)
+                _ = host.view
+                host.view.layoutIfNeeded()
+
+                #expect(capturedPreset == preset)
+                #expect(capturedPalette?.preset == preset)
+            }
+        }
+
         @Test func dynamicSystemUIColorAdaptsToTraits() {
             let lightTraits = UITraitCollection(userInterfaceStyle: .light)
             let darkTraits = UITraitCollection(userInterfaceStyle: .dark)
@@ -166,6 +207,16 @@ struct AppearancePresetAppTests {
             let lightSec = secColor.resolvedColor(with: lightTraits)
             let darkSec = secColor.resolvedColor(with: darkTraits)
             #expect(lightSec != darkSec)
+
+            let errorTextColor = HermesPalette.dynamicSystemUIColor(\.errorText)
+            let lightErrorText = errorTextColor.resolvedColor(with: lightTraits)
+            let darkErrorText = errorTextColor.resolvedColor(with: darkTraits)
+            #expect(lightErrorText != darkErrorText)
+
+            let errorBgColor = HermesPalette.dynamicSystemUIColor(\.errorBackground)
+            let lightErrorBg = errorBgColor.resolvedColor(with: lightTraits)
+            let darkErrorBg = errorBgColor.resolvedColor(with: darkTraits)
+            #expect(lightErrorBg != darkErrorBg)
 
             // Trait-resolved palette helper checks
             let resolvedDark = HermesPalette.palette(for: .system, traits: darkTraits)
