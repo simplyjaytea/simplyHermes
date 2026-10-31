@@ -8,16 +8,46 @@
     }
 
     /// The group chats of the Bots screen. Plan Q7 puts group rooms in the roster like group chats, so they sit in
-    /// the same list as the bots.
+    /// the same list as the bots. A gateway without the room methods shows nothing; a gateway that supports them
+    /// always shows the section, so New Group is not hidden when there are no rooms or too few ready bots.
     struct RoomsSection: View {
-        let model: RoomsModel
+        @Bindable var model: RoomsModel
+        /// Whether the New Group action can run. False shows why instead of hiding the section.
+        var showsCreate = false
+        /// Opens the New Group sheet.
+        var onCreate: () -> Void = {}
+
+        private var isHidden: Bool {
+            model.supportsGroups != true && model.errorMessage == nil
+        }
 
         var body: some View {
-            if !model.visibleRooms.isEmpty {
+            if !isHidden {
                 Section("Group Chats") {
+                    if let message = model.errorMessage {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(message)
+                                .font(HermesFont.footnote)
+                                .foregroundStyle(HermesColor.destructive)
+                            Button("Dismiss") { model.errorMessage = nil }
+                                .font(HermesFont.footnote)
+                        }
+                    }
                     ForEach(model.visibleRooms, id: \.roomID) { room in
                         NavigationLink(value: RoomRoute(roomID: room.roomID)) {
                             RoomRowLabel(room: room, needsAttention: model.needsAttention(room))
+                        }
+                    }
+                    if model.visibleRooms.isEmpty {
+                        if showsCreate {
+                            Button(action: onCreate) {
+                                Label("New Group", systemImage: "plus.circle")
+                            }
+                            .accessibilityIdentifier("bots.newGroup")
+                        } else if model.errorMessage == nil {
+                            Text("Two ready bots are needed to make a group.")
+                                .font(HermesFont.footnote)
+                                .foregroundStyle(HermesColor.secondaryText)
                         }
                     }
                 }

@@ -172,6 +172,20 @@ public enum BotRoster {
             .map(\.element.1)
     }
 
+    /// The bots a new Group Chat can take: the ready bots of one gateway, once per profile, in roster order. A bot on
+    /// another gateway, an unavailable bot, or a bot still read over REST cannot join a room made here (WP-43).
+    public static func groupCandidates(
+        _ entries: [BotRosterEntry], connectionID: UUID
+    ) -> [RoomMember] {
+        var seen: Set<String> = []
+        return entries.compactMap { entry in
+            guard entry.connectionID == connectionID, entry.status == .ready, !entry.profile.isEmpty,
+                seen.insert(entry.profile).inserted
+            else { return nil }
+            return .local(profile: entry.profile, displayName: entry.title)
+        }
+    }
+
     /// The roster as sections, the way the list draws it: one section per gateway when there are two or more, hidden
     /// bots last. A search shows hidden bots too and keeps the roster order.
     public static func sections(

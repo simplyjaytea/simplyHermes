@@ -2,11 +2,19 @@
     import HermesKit
     import SwiftUI
 
-    /// The Bots screen: every bot of every saved gateway in one list (plan Q7). Tapping a bot opens its Bot Chat.
+    /// The Bots screen: every bot of every saved gateway in one list (plan Q7), plus the active gateway's Group Chats.
+    /// Tapping a bot opens its Bot Chat; tapping a group opens the room.
     struct BotsHomeView: View {
         @Bindable var model: BotsModel
+        let rooms: RoomsModel
         @State private var isCreatingPresented = false
+        @State private var isCreatingGroupPresented = false
         @State private var editing: BotRosterEntry?
+
+        /// Group creation needs room methods on the active gateway and two ready bots to join.
+        private var canCreateGroup: Bool {
+            rooms.supportsGroups == true && model.groupCandidates.count >= RoomDraft.minMembers
+        }
 
         var body: some View {
             List {
@@ -25,19 +33,49 @@
                         }
                     }
                 }
+                if model.query.isEmpty {
+                    RoomsSection(model: rooms, showsCreate: canCreateGroup) {
+                        isCreatingGroupPresented = true
+                    }
+                }
+            }
+            .navigationDestination(for: RoomRoute.self) { route in
+                RoomChatScreen(model: rooms, roomID: route.roomID)
             }
             .overlay { emptyState }
             .navigationTitle("Bots")
             .modifier(OptionalSearch(isEnabled: model.showsSearch, text: $model.query))
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("New Agent", systemImage: "plus") { isCreatingPresented = true }
+                    Menu {
+                        Button("New Agent", systemImage: "person.badge.plus") {
+                            isCreatingPresented = true
+                        }
+                        Button("New Group", systemImage: "person.3") {
+                            isCreatingGroupPresented = true
+                        }
+                        .disabled(!canCreateGroup)
+                    } label: {
+                        Label("New", systemImage: "plus")
+                    }
+                    .accessibilityIdentifier("bots.newMenu")
                 }
             }
-            .refreshable { await model.reload() }
-            .task { await model.reload() }
+            .refreshable {
+                await model.reload()
+                await rooms.reload()
+                await rooms.refreshStatuses()
+            }
+            .task {
+                await model.reload()
+                await rooms.reload()
+            }
+            .task { await rooms.monitorStatuses() }
             .sheet(isPresented: $isCreatingPresented) {
                 NewAgentSheet(model: model)
+            }
+            .sheet(isPresented: $isCreatingGroupPresented) {
+                NewRoomSheet(model: rooms, candidates: model.groupCandidates)
             }
             .sheet(item: $editing) { entry in
                 BotEditSheet(model: model, entry: entry)
@@ -70,7 +108,7 @@
 
         @ViewBuilder
         private var emptyState: some View {
-            if model.entries.isEmpty && !model.isLoading {
+            if model.entries.isEmpty && rooms.visibleRooms.isEmpty && rooms.errorMessage == nil && !model.isLoading {
                 ContentUnavailableView(
                     "No bots yet", systemImage: "person.2", description: Text("Tap + to make one."))
             }

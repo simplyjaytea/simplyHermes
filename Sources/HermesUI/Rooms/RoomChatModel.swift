@@ -106,12 +106,17 @@
             outgoing = message
             isSending = true
             do {
-                _ = try await client.send(
+                let result = try await client.send(
                     roomID: room.roomID, eventID: message.eventID, text: message.text, threadID: message.threadID)
-                outgoing = nil
-                draft = ""
-                lastSendAt = Date()
-                actionError = nil
+                if result.accepted {
+                    outgoing = nil
+                    draft = ""
+                    lastSendAt = Date()
+                    actionError = result.driverStarted ? nil : "Message saved; the room did not start a turn."
+                } else {
+                    // Keep the draft and ids, so trying again is the same message.
+                    actionError = "The room did not accept the message. Try again."
+                }
             } catch {
                 actionError = RoomFailure.message(for: error)
             }

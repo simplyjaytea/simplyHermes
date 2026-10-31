@@ -16,6 +16,7 @@
         @State private var postureMonitor = DevicePostureMonitor()
         @State private var profiles: ProfilesModel?
         @State private var bots: BotsModel?
+        @State private var rooms: RoomsModel?
         @State private var terminals = TerminalModel()
         @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -42,6 +43,7 @@
             _profiles = State(initialValue: profileList)
             _bots = State(
                 initialValue: connections.map { BotsModel(connections: $0, profiles: profileList, shell: model) })
+            _rooms = State(initialValue: connections.map { RoomsModel(connections: $0) })
             self.showsDebugLayoutMenu = showsDebugLayoutMenu
         }
 
@@ -68,7 +70,10 @@
                     .environment(\.hermesPosture, posture)
                     .task(id: forcedPosture) { applyForcedPosture() }
                     .task(id: sessionScopeKey) { await attachSessions() }
-                    .task(id: connections?.active?.id) { await bots?.reload() }
+                    .task(id: connections?.active?.id) {
+                        await bots?.reload()
+                        await rooms?.reload()
+                    }
                     .onChange(of: connections?.active?.id) { _, _ in model.forgetServerChats() }
                     .task(id: model.pendingSessionReference) { await openPendingSession() }
             }
@@ -360,8 +365,8 @@
         private func sectionContent(_ section: AppSection) -> some View {
             if section == .settings, let connections {
                 SettingsHome(connections: connections)
-            } else if section == .bots, let bots {
-                BotsHomeView(model: bots)
+            } else if section == .bots, let bots, let rooms {
+                BotsHomeView(model: bots, rooms: rooms)
             } else if section == .automations, let connections {
                 AutomationsScreen(connections: connections)
             } else if section == .tools {
