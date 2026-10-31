@@ -75,7 +75,7 @@
             didSet { if remoteProfile != oldValue { invalidateTest() } }
         }
         public private(set) var pinnedHostKey: String?
-        private var ownershipID: String?
+        private var ownershipID = SSHSettings.makeOwnershipID()
 
         public private(set) var test: TestState = .idle
         /// The IP endpoint Hermes answered on after it refused the typed name, and the typed URL it stands for.

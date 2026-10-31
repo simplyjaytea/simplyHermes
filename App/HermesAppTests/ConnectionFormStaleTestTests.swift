@@ -245,6 +245,17 @@ final class ConnectionFormStaleTestTests: XCTestCase {
         }
     }
 
+    func testNewSSHFormKeepsItsDashboardOwnershipAcrossConnectionSnapshots() throws {
+        let (form, _) = makeSSHForm()
+        let first = try form.makeConnection()
+        let second = try form.makeConnection()
+        guard case .ssh(let original) = first.kind, case .ssh(let repeated) = second.kind else {
+            return XCTFail("expected SSH settings")
+        }
+        XCTAssertEqual(original, repeated)
+        XCTAssertEqual(original.ownershipID.count, 32)
+    }
+
     func testEverySSHTargetFieldClearsAPassedTest() async throws {
         let cases: [(String, (ConnectionFormModel) -> Void)] = [
             ("host", { $0.host = "other" }),
