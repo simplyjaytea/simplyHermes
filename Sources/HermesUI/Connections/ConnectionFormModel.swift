@@ -252,8 +252,8 @@
             return found.authProviders.contains("basic") ? [.password, .token] : [.token]
         }
 
-        private static func recommended(for found: ServerProbe) -> SignInMethod {
-            if let method = found.signIn?.recommended { return SignInMethod(method) }
+        private static func recommended(for found: ServerProbe, endpoint: HermesEndpoint) -> SignInMethod {
+            if let method = found.signIn?.recommended(for: endpoint) { return SignInMethod(method) }
             return found.authProviders.contains("basic") ? .password : .token
         }
 
@@ -311,7 +311,7 @@
             if !found.authRequired {
                 signInMethod = .none
             } else if signInMethod == .none || !Self.methods(for: found).contains(signInMethod) {
-                signInMethod = Self.recommended(for: found)
+                signInMethod = Self.recommended(for: found, endpoint: parsed.endpoint)
             }
             if browserProvider == nil, let only = found.signIn?.browserProviders, only.count == 1 {
                 browserProvider = only[0].name

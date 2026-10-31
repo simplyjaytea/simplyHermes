@@ -1,3 +1,5 @@
+import Foundation
+
 /// How a user can sign in to a gateway, read from `/api/status` and `/api/auth/providers` (plan 2.3).
 public struct SignInOptions: Sendable, Equatable {
     /// The ways to sign in, in the order the form offers them.
@@ -50,6 +52,15 @@ public struct SignInOptions: Sendable, Equatable {
         if !browserProviders.isEmpty, methods.contains(.browser) { return .browser }
         if passwordProvider != nil { return .password }
         return methods.first
+    }
+
+    /// Password sign-in avoids cross-site browser cookies on a plain-HTTP gateway when available.
+    /// HTTPS and browser-only servers keep their advertised browser flow.
+    public func recommended(for endpoint: HermesEndpoint) -> Method? {
+        if authRequired, endpoint.baseURL.scheme?.lowercased() == "http", passwordProvider != nil {
+            return .password
+        }
+        return recommended
     }
 
     /// Reads the options. A server whose provider list fails still gets options from `/api/status`.
