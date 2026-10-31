@@ -138,4 +138,76 @@ struct AppearancePresetAppTests {
             #expect(buttonContrast >= 4.5, "Button contrast below 4.5:1 for \(preset): \(buttonContrast)")
         }
     }
+
+    #if canImport(UIKit)
+        @Test func dynamicSystemUIColorAdaptsToTraits() {
+            let lightTraits = UITraitCollection(userInterfaceStyle: .light)
+            let darkTraits = UITraitCollection(userInterfaceStyle: .dark)
+            let highContrastLightTraits = UITraitCollection(traitsFrom: [
+                UITraitCollection(userInterfaceStyle: .light),
+                UITraitCollection(accessibilityContrast: .high),
+            ])
+            let highContrastDarkTraits = UITraitCollection(traitsFrom: [
+                UITraitCollection(userInterfaceStyle: .dark),
+                UITraitCollection(accessibilityContrast: .high),
+            ])
+
+            let keywordColor = HermesPalette.dynamicSystemUIColor(\.codeKeyword)
+            let lightKeyword = keywordColor.resolvedColor(with: lightTraits)
+            let darkKeyword = keywordColor.resolvedColor(with: darkTraits)
+            let hcLightKeyword = keywordColor.resolvedColor(with: highContrastLightTraits)
+            let hcDarkKeyword = keywordColor.resolvedColor(with: highContrastDarkTraits)
+
+            #expect(lightKeyword != darkKeyword)
+            #expect(hcLightKeyword != lightKeyword)
+            #expect(hcDarkKeyword != darkKeyword)
+
+            let secColor = HermesPalette.dynamicSystemUIColor(\.secondaryText)
+            let lightSec = secColor.resolvedColor(with: lightTraits)
+            let darkSec = secColor.resolvedColor(with: darkTraits)
+            #expect(lightSec != darkSec)
+
+            // Trait-resolved palette helper checks
+            let resolvedDark = HermesPalette.palette(for: .system, traits: darkTraits)
+            #expect(resolvedDark.preset == .system)
+            #expect(resolvedDark.colorScheme == .dark)
+
+            let resolvedLight = HermesPalette.palette(for: .system, traits: lightTraits)
+            #expect(resolvedLight.preset == .system)
+            #expect(resolvedLight.colorScheme == .light)
+        }
+
+        @Test func uiHostingControllerRenderedHarness() {
+            // Render screen and sample chat bubbles inside UIHostingController
+            for preset in AppearancePreset.allCases {
+                let screenView = AppearanceSettingsScreen().hermesAppearance(preset)
+                let host = UIHostingController(rootView: screenView)
+                _ = host.view
+                host.view.bounds = CGRect(x: 0, y: 0, width: 393, height: 852)
+                host.view.layoutIfNeeded()
+                #expect(!host.view.subviews.isEmpty)
+
+                // Render sample bubbles wrapped in palette
+                let bubbleView = VStack {
+                    MessageBubble(role: .user, text: "Rendered test user message")
+                    MessageBubble(role: .assistant, text: "Rendered test assistant message")
+                    ToolOutputBubble(command: "ls -la", output: "total 0", duration: "0.01s")
+                    ApprovalBubble(
+                        command: "reboot",
+                        isEnabled: false,
+                        allowsFeedback: false,
+                        onDeny: {},
+                        onApprove: {}
+                    )
+                }
+                .hermesAppearance(preset)
+
+                let bubbleHost = UIHostingController(rootView: bubbleView)
+                _ = bubbleHost.view
+                bubbleHost.view.bounds = CGRect(x: 0, y: 0, width: 393, height: 400)
+                bubbleHost.view.layoutIfNeeded()
+                #expect(!bubbleHost.view.subviews.isEmpty)
+            }
+        }
+    #endif
 }

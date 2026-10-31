@@ -148,36 +148,68 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
     public let destructive: RGBColor
     public let onDestructive: RGBColor
 
-    /// Authoritative mapping from an `AppearancePreset` to its color definition.
-    public static func definition(for preset: AppearancePreset) -> PresetPaletteDefinition {
+    /// Authoritative mapping from an `AppearancePreset` to its color definition,
+    /// supporting dynamic light/dark and accessibility contrast traits.
+    public static func definition(
+        for preset: AppearancePreset,
+        isDark: Bool = false,
+        highContrast: Bool = false
+    ) -> PresetPaletteDefinition {
         switch preset {
         case .system:
-            // Native default palette: light mode baseline with #0068D9 accent
-            return PresetPaletteDefinition(
-                preset: .system,
-                background: RGBColor(hex: 0xFFFFFF),
-                groupedBackground: RGBColor(hex: 0xF2F2F7),
-                card: RGBColor(hex: 0xFFFFFF),
-                fill: RGBColor(hex: 0xE5E5EA),
-                separator: RGBColor(hex: 0xC6C6C8),
-                accent: RGBColor(hex: 0x0068D9),
-                onAccent: RGBColor(hex: 0xFFFFFF),
-                outgoingBubble: RGBColor(hex: 0x0068D9),
-                incomingBubble: RGBColor(hex: 0xE5E5EA),
-                primaryText: RGBColor(hex: 0x000000),
-                secondaryText: RGBColor(hex: 0x5C5C60),
-                codeBackground: RGBColor(hex: 0xF2F2F7),
-                codeText: RGBColor(hex: 0x000000),
-                codeKeyword: RGBColor(hex: 0x7E22CE),
-                codeString: RGBColor(hex: 0xB91C1C),
-                codeComment: RGBColor(hex: 0x5C5C60),
-                codeNumber: RGBColor(hex: 0x0F766E),
-                statusConnected: RGBColor(hex: 0x34C759),
-                statusWarning: RGBColor(hex: 0xFF9500),
-                statusOffline: RGBColor(hex: 0x8E8E93),
-                destructive: RGBColor(hex: 0xDC2626),
-                onDestructive: RGBColor(hex: 0xFFFFFF)
-            )
+            if isDark {
+                return PresetPaletteDefinition(
+                    preset: .system,
+                    background: RGBColor(hex: 0x000000),
+                    groupedBackground: RGBColor(hex: 0x000000),
+                    card: RGBColor(hex: 0x1C1C1E),
+                    fill: RGBColor(hex: 0x2C2C2E),
+                    separator: RGBColor(hex: 0x38383A),
+                    accent: RGBColor(hex: 0x0068D9),
+                    onAccent: RGBColor(hex: 0xFFFFFF),
+                    outgoingBubble: RGBColor(hex: 0x0068D9),
+                    incomingBubble: RGBColor(hex: 0x2C2C2E),
+                    primaryText: RGBColor(hex: 0xFFFFFF),
+                    secondaryText: highContrast ? RGBColor(hex: 0xEBEBF5) : RGBColor(hex: 0xA0A0A5),
+                    codeBackground: RGBColor(hex: 0x1C1C1E),
+                    codeText: RGBColor(hex: 0xF2F2F7),
+                    codeKeyword: highContrast ? RGBColor(hex: 0xE9D5FF) : RGBColor(hex: 0xC084FC),
+                    codeString: highContrast ? RGBColor(hex: 0xBBF7D0) : RGBColor(hex: 0x4ADE80),
+                    codeComment: highContrast ? RGBColor(hex: 0xCBD5E1) : RGBColor(hex: 0x94A3B8),
+                    codeNumber: highContrast ? RGBColor(hex: 0xBAE6FD) : RGBColor(hex: 0x38BDF8),
+                    statusConnected: RGBColor(hex: 0x30D158),
+                    statusWarning: RGBColor(hex: 0xFF9F0A),
+                    statusOffline: RGBColor(hex: 0x8E8E93),
+                    destructive: RGBColor(hex: 0xDC2626),
+                    onDestructive: RGBColor(hex: 0xFFFFFF)
+                )
+            } else {
+                return PresetPaletteDefinition(
+                    preset: .system,
+                    background: RGBColor(hex: 0xFFFFFF),
+                    groupedBackground: RGBColor(hex: 0xF2F2F7),
+                    card: RGBColor(hex: 0xFFFFFF),
+                    fill: RGBColor(hex: 0xE5E5EA),
+                    separator: RGBColor(hex: 0xC6C6C8),
+                    accent: RGBColor(hex: 0x0068D9),
+                    onAccent: RGBColor(hex: 0xFFFFFF),
+                    outgoingBubble: RGBColor(hex: 0x0068D9),
+                    incomingBubble: RGBColor(hex: 0xE5E5EA),
+                    primaryText: RGBColor(hex: 0x000000),
+                    secondaryText: highContrast ? RGBColor(hex: 0x3C3C43) : RGBColor(hex: 0x5C5C60),
+                    codeBackground: RGBColor(hex: 0xF2F2F7),
+                    codeText: RGBColor(hex: 0x000000),
+                    codeKeyword: highContrast ? RGBColor(hex: 0x581C87) : RGBColor(hex: 0x7E22CE),
+                    codeString: highContrast ? RGBColor(hex: 0x991B1B) : RGBColor(hex: 0xB91C1C),
+                    codeComment: highContrast ? RGBColor(hex: 0x3C3C43) : RGBColor(hex: 0x5C5C60),
+                    codeNumber: highContrast ? RGBColor(hex: 0x115E59) : RGBColor(hex: 0x0F766E),
+                    statusConnected: RGBColor(hex: 0x34C759),
+                    statusWarning: RGBColor(hex: 0xFF9500),
+                    statusOffline: RGBColor(hex: 0x8E8E93),
+                    destructive: RGBColor(hex: 0xDC2626),
+                    onDestructive: RGBColor(hex: 0xFFFFFF)
+                )
+            }
 
         case .dark:
             // Dark graphite preset with light text and blue controls

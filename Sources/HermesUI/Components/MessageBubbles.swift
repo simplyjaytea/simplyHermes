@@ -106,8 +106,8 @@
             command: String,
             isEnabled: Bool = true,
             allowsFeedback: Bool = true,
-            onDeny: @escaping () -> Void = {},
-            onApprove: @escaping () -> Void = {}
+            onDeny: @escaping () -> Void,
+            onApprove: @escaping () -> Void
         ) {
             self.command = command
             self.isEnabled = isEnabled

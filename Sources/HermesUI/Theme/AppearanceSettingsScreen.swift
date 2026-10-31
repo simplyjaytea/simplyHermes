@@ -33,26 +33,33 @@
 
                 Section("Preview") {
                     VStack(alignment: .leading, spacing: HermesMetrics.bubbleSpacing) {
+                        Text("Example conversation")
+                            .font(HermesFont.caption.weight(.medium))
+                            .foregroundStyle(palette.secondaryText)
+                            .padding(.horizontal, 4)
+
                         MessageBubble(
                             role: .user,
-                            text: "Can you check the latest deployment status?"
+                            text: "How do the color tokens look in this theme?"
                         )
 
                         MessageBubble(
                             role: .assistant,
-                            text: "The test suite passed and services are operational."
+                            text: "Here is a preview of assistant text, tool output, and an approval prompt."
                         )
 
                         ToolOutputBubble(
-                            command: "git status -s",
-                            output: "All working trees clean.",
+                            command: "swift --version",
+                            output: "Swift version 6.1.2 (example output)",
                             duration: "0.1s"
                         )
 
                         ApprovalBubble(
-                            command: "systemctl restart web-service",
+                            command: "echo 'Reviewing appearance preview'",
                             isEnabled: false,
-                            allowsFeedback: false
+                            allowsFeedback: false,
+                            onDeny: {},
+                            onApprove: {}
                         )
 
                         sampleComposer
@@ -191,6 +198,13 @@
     }
 
     #Preview("Inner portrait, Blue", traits: .fixedLayout(width: 626, height: 890)) {
+        NavigationStack {
+            AppearanceSettingsScreen()
+        }
+        .hermesAppearance(.blue)
+    }
+
+    #Preview("Inner landscape, Blue", traits: .fixedLayout(width: 890, height: 626)) {
         NavigationStack {
             AppearanceSettingsScreen()
         }
