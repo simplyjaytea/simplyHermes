@@ -387,9 +387,10 @@
             if let sessionTitle, let entry = bots?.entries.first(where: { $0.title == sessionTitle }) {
                 return entry
             }
-            if let chosen = profiles?.selection.chosen, let entry = bots?.entries.first(where: { $0.profile == chosen })
-            {
-                return entry
+            if let chosen = profiles?.selection.chosen {
+                if let entry = bots?.entries.first(where: { $0.profile == chosen }) {
+                    return entry
+                }
             }
             guard let connection = connections?.active else { return nil }
             let profile = profiles?.selection.chosen ?? "default"

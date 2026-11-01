@@ -290,8 +290,8 @@ public struct BotSettingsDraft: Sendable, Equatable {
     }
 
     public var isSkillsDirty: Bool {
-        for skill in skills {
-            if baselineSkills[skill.name] != skill.enabled { return true }
+        for skill in skills where baselineSkills[skill.name] != skill.enabled {
+            return true
         }
         return false
     }
@@ -299,16 +299,16 @@ public struct BotSettingsDraft: Sendable, Equatable {
     public var isToolsetsDirty: Bool {
         if toolsetsPinned != baselineToolsetsPinned { return true }
         if toolsetsPinned {
-            for toolset in toolsets {
-                if baselineToolsets[toolset.name] != toolset.enabled { return true }
+            for toolset in toolsets where baselineToolsets[toolset.name] != toolset.enabled {
+                return true
             }
         }
         return false
     }
 
     public var isMcpDirty: Bool {
-        for server in mcpServers {
-            if baselineMcpServers[server.name] != server.enabled { return true }
+        for server in mcpServers where baselineMcpServers[server.name] != server.enabled {
+            return true
         }
         return false
     }
@@ -520,6 +520,60 @@ public struct BotSettingsSaveOutcome: Sendable, Equatable {
         self.statusMessage = statusMessage
     }
 
+    private static func evaluateSection(
+        _ section: BotSettingsSection,
+        result: ProfilesConfigureResult,
+        hasRoleDirty: Bool
+    ) -> (isApplied: Bool, isFailed: Bool) {
+        switch section {
+        case .identity:
+            let roleOk = !hasRoleDirty || result.applied.description == true
+            let metaOk = result.applied.uiMeta != false
+            let success = roleOk && metaOk
+            return (success, !success)
+        case .model:
+            if result.confirmRequired == true {
+                return (false, false)
+            }
+            let success = result.applied.model == true
+            return (success, !success)
+        case .soul:
+            let success = result.applied.soul == true
+            return (success, !success)
+        case .skills:
+            let success = result.applied.skills == true
+            return (success, !success)
+        case .toolsets:
+            let success = result.applied.toolsets == true
+            return (success, !success)
+        case .mcp:
+            let success = result.applied.mcpServers == true
+            return (success, !success)
+        }
+    }
+
+    private static func buildStatusMessage(
+        complete: Bool,
+        confirmRequired: Bool,
+        confirmMessage: String?,
+        applied: Set<BotSettingsSection>,
+        failed: Set<BotSettingsSection>
+    ) -> String {
+        if complete {
+            return "All changes saved."
+        }
+        if confirmRequired {
+            return confirmMessage ?? "Changing to this model requires confirmation."
+        }
+        if !applied.isEmpty && !failed.isEmpty {
+            let appliedNames = applied.map(\.displayName).sorted().joined(separator: ", ")
+            let failedNames = failed.map(\.displayName).sorted().joined(separator: ", ")
+            return "\(appliedNames) saved, but \(failedNames) could not be updated."
+        }
+        let failedNames = failed.map(\.displayName).sorted().joined(separator: ", ")
+        return "\(failedNames) could not be saved."
+    }
+
     /// Evaluates the outcome of `profiles.configure` against the sections that were sent.
     public static func evaluate(
         result: ProfilesConfigureResult,
@@ -529,74 +583,25 @@ public struct BotSettingsSaveOutcome: Sendable, Equatable {
         var applied: Set<BotSettingsSection> = []
         var failed: Set<BotSettingsSection> = []
 
-        if requestedSections.contains(.identity) {
-            let roleOk = !hasRoleDirty || result.applied.description == true
-            let metaOk = result.applied.uiMeta != false
-            if roleOk && metaOk {
-                applied.insert(.identity)
-            } else {
-                failed.insert(.identity)
+        for section in requestedSections {
+            let (isApplied, isFailed) = evaluateSection(section, result: result, hasRoleDirty: hasRoleDirty)
+            if isApplied {
+                applied.insert(section)
             }
-        }
-
-        if requestedSections.contains(.model) {
-            if result.confirmRequired == true {
-                // Needs confirmation; not marked as failed yet
-            } else if result.applied.model == true {
-                applied.insert(.model)
-            } else {
-                failed.insert(.model)
-            }
-        }
-
-        if requestedSections.contains(.soul) {
-            if result.applied.soul == true {
-                applied.insert(.soul)
-            } else {
-                failed.insert(.soul)
-            }
-        }
-
-        if requestedSections.contains(.skills) {
-            if result.applied.skills == true {
-                applied.insert(.skills)
-            } else {
-                failed.insert(.skills)
-            }
-        }
-
-        if requestedSections.contains(.toolsets) {
-            if result.applied.toolsets == true {
-                applied.insert(.toolsets)
-            } else {
-                failed.insert(.toolsets)
-            }
-        }
-
-        if requestedSections.contains(.mcp) {
-            if result.applied.mcpServers == true {
-                applied.insert(.mcp)
-            } else {
-                failed.insert(.mcp)
+            if isFailed {
+                failed.insert(section)
             }
         }
 
         let confirmReq = result.confirmRequired == true
         let complete = failed.isEmpty && !confirmReq
-
-        let message: String
-        if complete {
-            message = "All changes saved."
-        } else if confirmReq {
-            message = result.confirmMessage ?? "Changing to this model requires confirmation."
-        } else if !applied.isEmpty && !failed.isEmpty {
-            let appliedNames = applied.map(\.displayName).sorted().joined(separator: ", ")
-            let failedNames = failed.map(\.displayName).sorted().joined(separator: ", ")
-            message = "\(appliedNames) saved, but \(failedNames) could not be updated."
-        } else {
-            let failedNames = failed.map(\.displayName).sorted().joined(separator: ", ")
-            message = "\(failedNames) could not be saved."
-        }
+        let message = buildStatusMessage(
+            complete: complete,
+            confirmRequired: confirmReq,
+            confirmMessage: result.confirmMessage,
+            applied: applied,
+            failed: failed
+        )
 
         return BotSettingsSaveOutcome(
             isCompleteSuccess: complete,
@@ -639,9 +644,8 @@ public enum BotSettingsError: Sendable {
             }
         }
         let desc = error.localizedDescription
-        if desc.lowercased().contains("offline") || desc.lowercased().contains("unreachable")
-            || desc.lowercased().contains("not connected")
-        {
+        let lower = desc.lowercased()
+        if lower.contains("offline") || lower.contains("unreachable") || lower.contains("not connected") {
             return "The server is offline or unreachable. Check your connection."
         }
         return desc

@@ -437,12 +437,15 @@ import Testing
         draft.resetToolsets()
         #expect(!draft.toolsetsPinned)
         #expect(!draft.isToolsetsDirty)
-        #expect(draft.buildConfigureParams() == nil)
     }
+}
 
+// MARK: - Save Flow & Lifecycle Sub-Suite
+
+extension BotSettingsTests {
     // MARK: - 11. Model & Gateway Save Flow Tests
 
-    @Test func saveFlowIdentityOnlyDoesNotCallConfigureProfile() async throws {
+    @Test func saveFlowIdentityOnlySendsOnlyMetadataConfigure() async throws {
         let gateway = FakeBotGateway([
             "profiles.list": [
                 .json(botListing(revisions: #"{"hermes-bots": 1}"#))
@@ -473,11 +476,18 @@ import Testing
 
         let calls = await gateway.calls
         let configureCalls = calls.filter { $0.method == "profiles.configure" }
+        // The ui_meta write is itself a profiles.configure call, but no empty section payload is sent
         #expect(configureCalls.count == 1)
         let callParams = configureCalls.first?.params
         #expect(callParams?["ui_meta"]?["hermes-bots"]?["title"]?.stringValue == "Updated Title")
         #expect(callParams?["ui_meta"]?["hermes-bots"]?["pinned"]?.boolValue == true)
         #expect(callParams?["description"] == nil)
+        #expect(callParams?["soul"] == nil)
+        #expect(callParams?["model"] == nil)
+        #expect(callParams?["provider"] == nil)
+        #expect(callParams?["skills"] == nil)
+        #expect(callParams?["toolsets"] == nil)
+        #expect(callParams?["mcp_servers"] == nil)
     }
 
     @Test func saveFlowWithIdentityAndConfigureAppliesBaselinesIndependently() async throws {

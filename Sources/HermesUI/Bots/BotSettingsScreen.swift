@@ -95,226 +95,250 @@
         @ViewBuilder
         private func form(for draft: BotSettingsDraft) -> some View {
             Form {
-                if let error = model.errorMessage {
-                    Section {
-                        Text(error)
-                            .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.destructive)
-                            .accessibilityIdentifier("botSettings.error")
-                    }
-                }
+                statusAndErrorSections()
+                identitySection(for: draft)
+                modelSection(for: draft)
+                soulSection(for: draft)
+                skillsSection(for: draft)
+                toolsetsSection(for: draft)
+                mcpSection(for: draft)
+                exportSection()
+            }
+            .disabled(model.isSaving)
+        }
 
-                if let status = model.statusMessage, model.errorMessage == nil {
-                    Section {
-                        Text(status)
-                            .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.accent)
-                    }
+        @ViewBuilder
+        private func statusAndErrorSections() -> some View {
+            if let error = model.errorMessage {
+                Section {
+                    Text(error)
+                        .font(HermesFont.footnote)
+                        .foregroundStyle(HermesColor.destructive)
+                        .accessibilityIdentifier("botSettings.error")
                 }
+            }
 
-                // MARK: 1. Identity
-                Section("Identity") {
-                    TextField("Name", text: binding(for: \.title))
-                        .accessibilityIdentifier("botSettings.title")
-                    TextField("Role (optional)", text: binding(for: \.role), axis: .vertical)
-                        .lineLimit(2...4)
-                        .accessibilityIdentifier("botSettings.role")
-                    AvatarPicker(
-                        avatar: binding(for: \.avatar),
-                        name: draft.title.isEmpty ? model.entry.profile : draft.title,
-                        tint: model.entry.tint
-                    )
-                    Toggle("Pinned", isOn: binding(for: \.isPinned))
-                    Toggle("Hidden", isOn: binding(for: \.isHidden))
-                } footer: {
-                    if let problem = draft.problems.first(where: {
-                        if case .titleTooLong = $0 { return true }
-                        if case .roleTooLong = $0 { return true }
-                        return false
-                    }) {
-                        Text(problem.userMessage)
-                            .foregroundStyle(HermesColor.destructive)
-                    } else {
-                        Text("Handle @\(model.entry.profile). Hidden bots move to the bottom of the roster.")
-                    }
+            if let status = model.statusMessage, model.errorMessage == nil {
+                Section {
+                    Text(status)
+                        .font(HermesFont.footnote)
+                        .foregroundStyle(HermesColor.accent)
                 }
+            }
+        }
 
-                // MARK: 2. Model & Provider
-                Section("Model & Provider") {
-                    if !model.modelOptions.isEmpty {
-                        Picker(
-                            "Provider",
-                            selection: Binding(
-                                get: { draft.provider },
-                                set: { newProvider in
-                                    model.draft?.provider = newProvider
-                                    if let providerOpt = model.modelOptions.first(where: { $0.slug == newProvider }),
-                                        let availableModels = providerOpt.models, !availableModels.isEmpty
-                                    {
-                                        if !availableModels.contains(draft.model) {
-                                            model.draft?.model = availableModels.first ?? ""
-                                        }
-                                    }
+        @ViewBuilder
+        private func identitySection(for draft: BotSettingsDraft) -> some View {
+            Section("Identity") {
+                TextField("Name", text: binding(for: \.title))
+                    .accessibilityIdentifier("botSettings.title")
+                TextField("Role (optional)", text: binding(for: \.role), axis: .vertical)
+                    .lineLimit(2...4)
+                    .accessibilityIdentifier("botSettings.role")
+                AvatarPicker(
+                    avatar: binding(for: \.avatar),
+                    name: draft.title.isEmpty ? model.entry.profile : draft.title,
+                    tint: model.entry.tint
+                )
+                Toggle("Pinned", isOn: binding(for: \.isPinned))
+                Toggle("Hidden", isOn: binding(for: \.isHidden))
+            } footer: {
+                if let problem = draft.problems.first(where: {
+                    if case .titleTooLong = $0 { return true }
+                    if case .roleTooLong = $0 { return true }
+                    return false
+                }) {
+                    Text(problem.userMessage)
+                        .foregroundStyle(HermesColor.destructive)
+                } else {
+                    Text("Handle @\(model.entry.profile). Hidden bots move to the bottom of the roster.")
+                }
+            }
+        }
+
+        @ViewBuilder
+        private func modelSection(for draft: BotSettingsDraft) -> some View {
+            Section("Model & Provider") {
+                if !model.modelOptions.isEmpty {
+                    Picker(
+                        "Provider",
+                        selection: Binding(
+                            get: { draft.provider },
+                            set: { newProvider in
+                                model.draft?.provider = newProvider
+                                let providerOpt = model.modelOptions.first(where: { $0.slug == newProvider })
+                                let availableModels = providerOpt?.models ?? []
+                                if !availableModels.isEmpty && !availableModels.contains(draft.model) {
+                                    model.draft?.model = availableModels.first ?? ""
                                 }
-                            )
-                        ) {
-                            ForEach(model.modelOptions, id: \.slug) { opt in
-                                Text(opt.name).tag(opt.slug)
+                            }
+                        )
+                    ) {
+                        ForEach(model.modelOptions, id: \.slug) { opt in
+                            Text(opt.name).tag(opt.slug)
+                        }
+                    }
+                    let currentProvider = model.modelOptions.first(where: { $0.slug == draft.provider })
+                    let availableModels = currentProvider?.models ?? []
+                    if !availableModels.isEmpty {
+                        Picker("Model", selection: binding(for: \.model)) {
+                            ForEach(availableModels, id: \.self) { modelName in
+                                Text(modelName).tag(modelName)
                             }
                         }
-                        if let currentProvider = model.modelOptions.first(where: { $0.slug == draft.provider }),
-                            let availableModels = currentProvider.models, !availableModels.isEmpty
-                        {
-                            Picker("Model", selection: binding(for: \.model)) {
-                                ForEach(availableModels, id: \.self) { modelName in
-                                    Text(modelName).tag(modelName)
-                                }
-                            }
-                        } else {
-                            TextField("Model", text: binding(for: \.model))
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                        }
                     } else {
-                        TextField("Provider", text: binding(for: \.provider))
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
                         TextField("Model", text: binding(for: \.model))
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     }
-                } footer: {
-                    if draft.problems.contains(.modelIncomplete) {
-                        Text(BotSettingsProblem.modelIncomplete.userMessage)
-                            .foregroundStyle(HermesColor.destructive)
-                    } else {
-                        Text("Configures the default provider and model used by this bot.")
-                    }
-                }
-
-                // MARK: 3. Soul
-                Section("Personality (SOUL)") {
-                    TextField("SOUL instructions", text: binding(for: \.soul), axis: .vertical)
-                        .lineLimit(4...12)
-                        .accessibilityIdentifier("botSettings.soul")
-                } footer: {
-                    HStack {
-                        if let soulProblem = draft.problems.first(where: {
-                            if case .soulTooLong = $0 { return true }
-                            return false
-                        }) {
-                            Text(soulProblem.userMessage)
-                                .foregroundStyle(HermesColor.destructive)
-                        } else {
-                            Text("Personality and core instructions for this bot.")
-                        }
-                        Spacer()
-                        Text("\(draft.soul.count) / \(BotSettingsDraft.maxSoulLength)")
-                            .font(HermesFont.caption.monospacedDigit())
-                            .foregroundStyle(HermesColor.secondaryText)
-                    }
-                }
-
-                // MARK: 4. Skills
-                Section {
-                    TextField("Search skills", text: $model.skillSearchText)
+                } else {
+                    TextField("Provider", text: binding(for: \.provider))
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-
-                    let matching = draft.filteredSkills(matching: model.skillSearchText)
-                    if matching.isEmpty {
-                        Text("No matching skills")
-                            .foregroundStyle(HermesColor.secondaryText)
-                    } else {
-                        ForEach(matching) { skill in
-                            Toggle(skill.name, isOn: skillBinding(for: skill.name))
-                        }
-                    }
-                } header: {
-                    Text("Skills (\(draft.enabledSkillsCount) of \(draft.totalSkillsCount) enabled)")
-                } footer: {
-                    Text("Skills extend what this bot can perform. Disabled skills are excluded from execution.")
+                    TextField("Model", text: binding(for: \.model))
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                 }
-
-                // MARK: 5. Toolsets
-                Section {
-                    if !draft.toolsetsPinned {
-                        HStack {
-                            Text("Inherited from settings")
-                                .foregroundStyle(HermesColor.secondaryText)
-                            Spacer()
-                            Button("Customize") {
-                                model.draft?.customizeToolsets()
-                            }
-                            .buttonStyle(HermesButtonStyle(.tinted))
-                        }
-                    } else {
-                        HStack {
-                            Text("Customized for this bot")
-                                .foregroundStyle(HermesColor.accent)
-                        }
-                        ForEach(draft.toolsets) { toolset in
-                            Toggle(isOn: toolsetBinding(for: toolset.name)) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(toolset.label ?? toolset.name)
-                                        .font(HermesFont.body)
-                                    if let desc = toolset.description, !desc.isEmpty {
-                                        Text(desc)
-                                            .font(HermesFont.caption)
-                                            .foregroundStyle(HermesColor.secondaryText)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Toolsets")
-                } footer: {
-                    Text(
-                        draft.toolsetsPinned
-                            ? "Toolsets are customized for this bot. Resetting toolset inheritance to global settings is desktop-only."
-                            : "Toolsets are currently inherited from global settings. Tap Customize to choose specific toolsets."
-                    )
-                }
-
-                // MARK: 6. MCP Servers
-                if !draft.mcpServers.isEmpty {
-                    Section("MCP Servers") {
-                        ForEach(draft.mcpServers) { server in
-                            Toggle(isOn: mcpBinding(for: server.name)) {
-                                HStack {
-                                    Text(server.name)
-                                    if let transport = server.transport {
-                                        Spacer()
-                                        Text(transport)
-                                            .font(HermesFont.caption)
-                                            .foregroundStyle(HermesColor.secondaryText)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // MARK: 7. Secondary Action: Export
-                Section {
-                    Button {
-                        Task { await model.exportBot() }
-                    } label: {
-                        HStack {
-                            Label("Export this bot", systemImage: "square.and.arrow.up")
-                            Spacer()
-                            if model.isExporting {
-                                ProgressView()
-                            }
-                        }
-                    }
-                    .disabled(model.isExporting)
-                } footer: {
-                    Text("Export creates an archive of this bot's configuration and memory to save or share.")
+            } footer: {
+                if draft.problems.contains(.modelIncomplete) {
+                    Text(BotSettingsProblem.modelIncomplete.userMessage)
+                        .foregroundStyle(HermesColor.destructive)
+                } else {
+                    Text("Configures the default provider and model used by this bot.")
                 }
             }
-            .disabled(model.isSaving)
+        }
+
+        @ViewBuilder
+        private func soulSection(for draft: BotSettingsDraft) -> some View {
+            Section("Personality (SOUL)") {
+                TextField("SOUL instructions", text: binding(for: \.soul), axis: .vertical)
+                    .lineLimit(4...12)
+                    .accessibilityIdentifier("botSettings.soul")
+            } footer: {
+                HStack {
+                    if let soulProblem = draft.problems.first(where: {
+                        if case .soulTooLong = $0 { return true }
+                        return false
+                    }) {
+                        Text(soulProblem.userMessage)
+                            .foregroundStyle(HermesColor.destructive)
+                    } else {
+                        Text("Personality and core instructions for this bot.")
+                    }
+                    Spacer()
+                    Text("\(draft.soul.count) / \(BotSettingsDraft.maxSoulLength)")
+                        .font(HermesFont.caption.monospacedDigit())
+                        .foregroundStyle(HermesColor.secondaryText)
+                }
+            }
+        }
+
+        @ViewBuilder
+        private func skillsSection(for draft: BotSettingsDraft) -> some View {
+            Section {
+                TextField("Search skills", text: $model.skillSearchText)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+
+                let matching = draft.filteredSkills(matching: model.skillSearchText)
+                if matching.isEmpty {
+                    Text("No matching skills")
+                        .foregroundStyle(HermesColor.secondaryText)
+                } else {
+                    ForEach(matching) { skill in
+                        Toggle(skill.name, isOn: skillBinding(for: skill.name))
+                    }
+                }
+            } header: {
+                Text("Skills (\(draft.enabledSkillsCount) of \(draft.totalSkillsCount) enabled)")
+            } footer: {
+                Text("Skills extend what this bot can perform. Disabled skills are excluded from execution.")
+            }
+        }
+
+        @ViewBuilder
+        private func toolsetsSection(for draft: BotSettingsDraft) -> some View {
+            Section {
+                if !draft.toolsetsPinned {
+                    HStack {
+                        Text("Inherited from settings")
+                            .foregroundStyle(HermesColor.secondaryText)
+                        Spacer()
+                        Button("Customize") {
+                            model.draft?.customizeToolsets()
+                        }
+                        .buttonStyle(HermesButtonStyle(.tinted))
+                    }
+                } else {
+                    HStack {
+                        Text("Customized for this bot")
+                            .foregroundStyle(HermesColor.accent)
+                    }
+                    ForEach(draft.toolsets) { toolset in
+                        Toggle(isOn: toolsetBinding(for: toolset.name)) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(toolset.label ?? toolset.name)
+                                    .font(HermesFont.body)
+                                if let desc = toolset.description, !desc.isEmpty {
+                                    Text(desc)
+                                        .font(HermesFont.caption)
+                                        .foregroundStyle(HermesColor.secondaryText)
+                                }
+                            }
+                        }
+                    }
+                }
+            } header: {
+                Text("Toolsets")
+            } footer: {
+                Text(
+                    draft.toolsetsPinned
+                        ? "Toolsets are customized for this bot. Resetting toolset inheritance to global settings is desktop-only."
+                        : "Toolsets are currently inherited from global settings. Tap Customize to choose specific toolsets."
+                )
+            }
+        }
+
+        @ViewBuilder
+        private func mcpSection(for draft: BotSettingsDraft) -> some View {
+            if !draft.mcpServers.isEmpty {
+                Section("MCP Servers") {
+                    ForEach(draft.mcpServers) { server in
+                        Toggle(isOn: mcpBinding(for: server.name)) {
+                            HStack {
+                                Text(server.name)
+                                if let transport = server.transport {
+                                    Spacer()
+                                    Text(transport)
+                                        .font(HermesFont.caption)
+                                        .foregroundStyle(HermesColor.secondaryText)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        @ViewBuilder
+        private func exportSection() -> some View {
+            Section {
+                Button {
+                    Task { await model.exportBot() }
+                } label: {
+                    HStack {
+                        Label("Export this bot", systemImage: "square.and.arrow.up")
+                        Spacer()
+                        if model.isExporting {
+                            ProgressView()
+                        }
+                    }
+                }
+                .disabled(model.isExporting)
+            } footer: {
+                Text("Export creates an archive of this bot's configuration and memory to save or share.")
+            }
         }
 
         private func binding<T>(for keyPath: WritableKeyPath<BotSettingsDraft, T>) -> Binding<T> {

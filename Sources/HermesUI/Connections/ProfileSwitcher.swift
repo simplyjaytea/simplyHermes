@@ -77,10 +77,9 @@
 
         private var activeBotEntry: BotRosterEntry? {
             guard let connection = connections.active else { return nil }
-            let profile = profiles.selection.chosen ?? "default"
-            if let entry = bots?.entries.first(where: { $0.connectionID == connection.id && $0.profile == profile })
-                ?? bots?.entries.first(where: { $0.profile == profile })
-            {
+            let byConnection = bots?.entries.first(where: { $0.connectionID == connection.id && $0.profile == profile })
+            let byProfile = bots?.entries.first(where: { $0.profile == profile })
+            if let entry = byConnection ?? byProfile {
                 return entry
             }
             let title = profiles.selection.current?.title ?? profile
