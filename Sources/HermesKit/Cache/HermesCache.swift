@@ -26,7 +26,20 @@ public final class HermesCache: Sendable {
         try Self.migrator.migrate(database)
     }
 
-    private static var migrator: DatabaseMigrator {
+    private init(database: any DatabaseWriter) {
+        self.database = database
+    }
+
+    /// Opens `url` with only the migrations up to `lastMigration` applied, so a test can build an older schema.
+    static func openSchema(url: URL, upTo lastMigration: String) throws -> HermesCache {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let queue = try DatabaseQueue(path: url.path)
+        try migrator.migrate(queue, upTo: lastMigration)
+        return HermesCache(database: queue)
+    }
+
+    static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration("v1") { handle in
             try handle.execute(
@@ -82,6 +95,20 @@ public final class HermesCache: Sendable {
                         created_at REAL NOT NULL,
                         PRIMARY KEY (connection, chat_id, message_id)
                     ) WITHOUT ROWID;
+                    """)
+        }
+        // The outbox (WP-2) holds messages the user sent that the server has not acknowledged yet. Nothing else keeps them.
+        migrator.registerMigration("outbox-v1") { handle in
+            try handle.execute(
+                sql: """
+                    CREATE TABLE outbound_messages (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        chat_id TEXT NOT NULL,
+                        state TEXT NOT NULL,
+                        created_at REAL NOT NULL,
+                        json BLOB NOT NULL
+                    ) WITHOUT ROWID;
+                    CREATE INDEX outbound_messages_chat ON outbound_messages (chat_id, created_at);
                     """)
         }
         return migrator
@@ -228,6 +255,11 @@ public final class HermesCache: Sendable {
 
     /// The offline chats kept in this database (WP-65b). They share the file but not the rows of the server's data.
     public var offlineChats: GRDBOfflineChatStore { GRDBOfflineChatStore(database: database) }
+
+    // MARK: - Outbox
+
+    /// Messages waiting to reach the server (WP-2). They share the file but not the rows of the server's data.
+    public var outbox: GRDBOutboxStore { GRDBOutboxStore(database: database) }
 
     private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
