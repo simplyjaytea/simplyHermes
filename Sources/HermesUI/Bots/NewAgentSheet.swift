@@ -10,6 +10,7 @@
         @State private var isCreating = false
         @State private var isAdvancedExpanded = false
         @State private var localError: String?
+        @State private var lookSaveWarning = false
 
         var body: some View {
             NavigationStack {
@@ -64,8 +65,12 @@
                         Button("Cancel") { dismiss() }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Create") { Task { await create() } }
-                            .disabled(!canCreate)
+                        if lookSaveWarning {
+                            Button("Done") { dismiss() }
+                        } else {
+                            Button("Create") { Task { await create() } }
+                                .disabled(!canCreate)
+                        }
                     }
                 }
             }
@@ -104,6 +109,7 @@
             defer { isCreating = false }
             if let created = await model.createAgent(draft) {
                 if !created.lookSaved {
+                    lookSaveWarning = true
                     localError =
                         model.errorMessage
                         ?? "\(created.profile) was created, but its title or avatar did not save. Edit it from its menu."

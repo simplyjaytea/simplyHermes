@@ -130,7 +130,6 @@
                     if let problem = draft.problems.first(where: {
                         if case .titleTooLong = $0 { return true }
                         if case .roleTooLong = $0 { return true }
-                        if case .uiMetaTooLarge = $0 { return true }
                         return false
                     }) {
                         Text(problem.userMessage)
@@ -253,11 +252,6 @@
                         HStack {
                             Text("Customized for this bot")
                                 .foregroundStyle(HermesColor.accent)
-                            Spacer()
-                            Button("Reset to inherited") {
-                                model.draft?.resetToolsets()
-                            }
-                            .buttonStyle(HermesButtonStyle(.tinted))
                         }
                         ForEach(draft.toolsets) { toolset in
                             Toggle(isOn: toolsetBinding(for: toolset.name)) {
@@ -278,7 +272,7 @@
                 } footer: {
                     Text(
                         draft.toolsetsPinned
-                            ? "Toolsets are pinned for this bot. Resetting restores inheritance from global settings."
+                            ? "Toolsets are customized for this bot. Resetting toolset inheritance to global settings is desktop-only."
                             : "Toolsets are currently inherited from global settings. Tap Customize to choose specific toolsets."
                     )
                 }

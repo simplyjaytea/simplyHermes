@@ -71,7 +71,6 @@ public enum BotSettingsProblem: Sendable, Equatable {
     case roleTooLong(Int)
     case soulTooLong(Int)
     case modelIncomplete
-    case uiMetaTooLarge
 
     public var userMessage: String {
         switch self {
@@ -83,13 +82,13 @@ public enum BotSettingsProblem: Sendable, Equatable {
             return "SOUL text cannot exceed \(max) characters."
         case .modelIncomplete:
             return "Set both the provider and the model, or neither."
-        case .uiMetaTooLarge:
-            return "Settings metadata exceeds the 64 KB server limit."
         }
     }
 }
 
 /// Editable draft state for `BotSettingsScreen` with baseline snapshot tracking and dirty section diffing.
+/// Note: Metadata payload size is guarded at save time by `BotClient.updateNamespace` enforcing
+/// `BotMetaNamespace.maxPayloadBytes` (64 KB) and throwing `BotError.metaTooLarge`.
 public struct BotSettingsDraft: Sendable, Equatable {
     public static let maxTitleLength = 100
     public static let maxRoleLength = 500
@@ -120,24 +119,6 @@ public struct BotSettingsDraft: Sendable, Equatable {
 
     // Section 6: MCP Servers
     public var mcpServers: [BotSettingsMcpServerItem]
-
-    /// Additional metadata bytes (e.g. from custom namespaces) to factor into the 64 KB limit.
-    public var additionalUiMetaBytes: Int = 0
-
-    /// Estimated size in bytes of the `ui_meta` payload (desktop + app namespaces).
-    public var estimatedUiMetaBytes: Int {
-        var bytes = additionalUiMetaBytes
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        bytes += trimmedTitle.utf8.count
-        if let avatar {
-            switch avatar {
-            case .emoji(let value), .symbol(let value):
-                bytes += value.utf8.count + 50
-            }
-        }
-        bytes += 100
-        return bytes
-    }
 
     // Baselines for dirty tracking
     private var baselineTitle: String
@@ -283,6 +264,18 @@ public struct BotSettingsDraft: Sendable, Equatable {
             || isHidden != baselineIsHidden
     }
 
+    /// True when desktop-namespace metadata (title, pinned, hidden) has changed.
+    public var isDesktopMetaDirty: Bool {
+        title.trimmingCharacters(in: .whitespacesAndNewlines) != baselineTitle
+            || isPinned != baselineIsPinned
+            || isHidden != baselineIsHidden
+    }
+
+    /// True when app-namespace look metadata (avatar) has changed.
+    public var isAppLookDirty: Bool {
+        avatar != baselineAvatar
+    }
+
     public var isRoleDirty: Bool {
         role.trimmingCharacters(in: .whitespacesAndNewlines) != baselineRole
     }
@@ -365,10 +358,6 @@ public struct BotSettingsDraft: Sendable, Equatable {
             problems.append(.modelIncomplete)
         }
 
-        if estimatedUiMetaBytes > BotMetaNamespace.maxPayloadBytes {
-            problems.append(.uiMetaTooLarge)
-        }
-
         return problems
     }
 
@@ -403,7 +392,7 @@ public struct BotSettingsDraft: Sendable, Equatable {
     }
 
     public mutating func resetToolsets() {
-        toolsetsPinned = false
+        toolsetsPinned = baselineToolsetsPinned
         // Revert toolset states to baseline
         for toolsetIndex in toolsets.indices {
             let name = toolsets[toolsetIndex].name
@@ -457,13 +446,7 @@ public struct BotSettingsDraft: Sendable, Equatable {
         }
 
         if isToolsetsDirty {
-            if toolsetsPinned {
-                params.toolsetsPinned = true
-                params.enabledToolsets = toolsets.filter { $0.enabled }.map(\.name)
-            } else {
-                params.toolsetsPinned = false
-                params.enabledToolsets = nil
-            }
+            params.enabledToolsets = toolsets.filter { $0.enabled }.map(\.name)
         }
 
         if isMcpDirty {
@@ -662,5 +645,89 @@ public enum BotSettingsError: Sendable {
             return "The server is offline or unreachable. Check your connection."
         }
         return desc
+    }
+}
+
+/// Coordinates saving dirty bot settings and confirming expensive model changes across metadata namespaces
+/// and `profiles.configure`.
+public struct BotSettingsCoordinator: Sendable {
+    public let client: BotClient
+
+    public init(client: BotClient) {
+        self.client = client
+    }
+
+    /// Saves dirty identity metadata and/or `profiles.configure` sections.
+    /// Returns the evaluated save outcome, or nil if only identity metadata was saved.
+    @discardableResult
+    public func save(
+        draft: inout BotSettingsDraft
+    ) async throws -> BotSettingsSaveOutcome? {
+        // 1. Identity metadata writes
+        if draft.isIdentityMetaDirty {
+            if draft.isDesktopMetaDirty {
+                let targetTitle = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                let targetPinned = draft.isPinned
+                let targetHidden = draft.isHidden
+                try await client.updateNamespace(
+                    profile: draft.targetProfile, namespace: BotMetaNamespace.desktop
+                ) { meta in
+                    meta.title = targetTitle
+                    meta.pinned = targetPinned
+                    meta.hidden = targetHidden
+                }
+            }
+            if draft.isAppLookDirty {
+                let targetAvatar = draft.avatar
+                try await client.updateNamespace(
+                    profile: draft.targetProfile, namespace: BotMetaNamespace.app
+                ) { object in
+                    object = BotAppLook(avatar: targetAvatar).applied(to: object)
+                }
+            }
+            draft.applySuccessfulIdentityMeta()
+        }
+
+        // 2. Configure dirty sections
+        guard let params = draft.buildConfigureParams() else {
+            return nil
+        }
+
+        let result = try await client.configureProfile(params)
+        let outcome = BotSettingsSaveOutcome.evaluate(
+            result: result,
+            requestedSections: draft.dirtySections,
+            hasRoleDirty: draft.isRoleDirty
+        )
+
+        draft.applySuccessfulSections(outcome.appliedSections)
+        return outcome
+    }
+
+    /// Confirms an expensive model change carrying `confirm_expensive_model: true`.
+    @discardableResult
+    public func confirmExpensiveModelChange(
+        draft: inout BotSettingsDraft
+    ) async throws -> BotSettingsSaveOutcome {
+        guard let params = draft.buildConfigureParams(confirmExpensiveModel: true) else {
+            return BotSettingsSaveOutcome(
+                isCompleteSuccess: false,
+                appliedSections: [],
+                failedSections: [],
+                confirmRequired: false,
+                confirmMessage: nil,
+                statusMessage: "No changes to confirm."
+            )
+        }
+
+        let result = try await client.configureProfile(params)
+        let outcome = BotSettingsSaveOutcome.evaluate(
+            result: result,
+            requestedSections: draft.dirtySections,
+            hasRoleDirty: draft.isRoleDirty
+        )
+
+        draft.applySuccessfulSections(outcome.appliedSections)
+        return outcome
     }
 }

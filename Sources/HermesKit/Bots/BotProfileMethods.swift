@@ -18,15 +18,13 @@ public struct ProfilesConfigureParams: Sendable, Equatable, Codable {
     public var confirmExpensiveModel: Bool?
     public var disabledSkills: [String]?
     public var enabledToolsets: [String]?
-    public var toolsetsPinned: Bool?
     public var enabledMCPServers: [String]?
 
     public init(
         profile: String? = nil, name: String? = nil, uiMeta: JSONValue? = nil,
         uiMetaExpectedRevisions: [String: Int]? = nil, soul: String? = nil, description: String? = nil,
         model: String? = nil, provider: String? = nil, confirmExpensiveModel: Bool? = nil,
-        disabledSkills: [String]? = nil, enabledToolsets: [String]? = nil, toolsetsPinned: Bool? = nil,
-        enabledMCPServers: [String]? = nil
+        disabledSkills: [String]? = nil, enabledToolsets: [String]? = nil, enabledMCPServers: [String]? = nil
     ) {
         self.profile = profile
         self.name = name
@@ -39,7 +37,6 @@ public struct ProfilesConfigureParams: Sendable, Equatable, Codable {
         self.confirmExpensiveModel = confirmExpensiveModel
         self.disabledSkills = disabledSkills
         self.enabledToolsets = enabledToolsets
-        self.toolsetsPinned = toolsetsPinned
         self.enabledMCPServers = enabledMCPServers
     }
 
@@ -50,7 +47,6 @@ public struct ProfilesConfigureParams: Sendable, Equatable, Codable {
         case confirmExpensiveModel = "confirm_expensive_model"
         case disabledSkills = "disabled_skills"
         case enabledToolsets = "enabled_toolsets"
-        case toolsetsPinned = "toolsets_pinned"
         case enabledMCPServers = "enabled_mcp_servers"
     }
 }

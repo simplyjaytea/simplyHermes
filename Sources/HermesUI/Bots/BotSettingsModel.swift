@@ -74,7 +74,7 @@
         /// Saves dirty sections via `profiles.configure` and metadata namespaces.
         @discardableResult
         public func save() async -> Bool {
-            guard let currentDraft = draft, currentDraft.isDirty, currentDraft.isValid else { return false }
+            guard var currentDraft = draft, currentDraft.isDirty, currentDraft.isValid else { return false }
             guard let connection = connections.connection(id: entry.connectionID),
                 let manager = connections.manager
             else {
@@ -89,41 +89,10 @@
 
             do {
                 let client = try await manager.client(for: connection)
-                let botClient = BotClient(gateway: client)
+                let coordinator = BotSettingsCoordinator(client: BotClient(gateway: client))
 
-                // 1. Identity metadata writes (Desktop and App namespaces)
-                if currentDraft.isIdentityMetaDirty {
-                    if currentDraft.title != entry.title || currentDraft.isPinned != entry.isPinned
-                        || currentDraft.isHidden != entry.isHidden
-                    {
-                        try await botClient.updateNamespace(
-                            profile: entry.profile, namespace: BotMetaNamespace.desktop
-                        ) { meta in
-                            if currentDraft.title != entry.title {
-                                meta.title = currentDraft.title.trimmingCharacters(in: .whitespacesAndNewlines)
-                            }
-                            meta.pinned = currentDraft.isPinned
-                            meta.hidden = currentDraft.isHidden
-                        }
-                    }
-                    if currentDraft.avatar != entry.avatar {
-                        try await botClient.updateNamespace(
-                            profile: entry.profile, namespace: BotMetaNamespace.app
-                        ) { object in
-                            object = BotAppLook(avatar: currentDraft.avatar).applied(to: object)
-                        }
-                    }
-                    draft?.applySuccessfulIdentityMeta()
-                }
-
-                // 2. Configure dirty sections via profiles.configure
-                if let params = currentDraft.buildConfigureParams() {
-                    let result = try await botClient.configureProfile(params)
-                    let outcome = BotSettingsSaveOutcome.evaluate(
-                        result: result,
-                        requestedSections: currentDraft.dirtySections,
-                        hasRoleDirty: currentDraft.isRoleDirty
-                    )
+                if let outcome = try await coordinator.save(draft: &currentDraft) {
+                    draft = currentDraft
 
                     if outcome.confirmRequired {
                         confirmRequired = true
@@ -131,7 +100,6 @@
                         return false
                     }
 
-                    draft?.applySuccessfulSections(outcome.appliedSections)
                     statusMessage = outcome.statusMessage
 
                     if !outcome.isCompleteSuccess {
@@ -139,6 +107,7 @@
                         return false
                     }
                 } else {
+                    draft = currentDraft
                     statusMessage = "All changes saved."
                 }
 
@@ -153,8 +122,8 @@
         /// Re-sends the model change carrying `confirm_expensive_model: true`.
         @discardableResult
         public func confirmExpensiveModelChange() async -> Bool {
-            guard let currentDraft = draft else { return false }
-            guard let params = currentDraft.buildConfigureParams(confirmExpensiveModel: true) else { return false }
+            guard var currentDraft = draft else { return false }
+            guard currentDraft.buildConfigureParams(confirmExpensiveModel: true) != nil else { return false }
             guard let connection = connections.connection(id: entry.connectionID),
                 let manager = connections.manager
             else {
@@ -171,14 +140,9 @@
 
             do {
                 let client = try await manager.client(for: connection)
-                let result = try await BotClient(gateway: client).configureProfile(params)
-                let outcome = BotSettingsSaveOutcome.evaluate(
-                    result: result,
-                    requestedSections: currentDraft.dirtySections,
-                    hasRoleDirty: currentDraft.isRoleDirty
-                )
-
-                draft?.applySuccessfulSections(outcome.appliedSections)
+                let coordinator = BotSettingsCoordinator(client: BotClient(gateway: client))
+                let outcome = try await coordinator.confirmExpensiveModelChange(draft: &currentDraft)
+                draft = currentDraft
 
                 if outcome.isCompleteSuccess {
                     statusMessage = outcome.statusMessage

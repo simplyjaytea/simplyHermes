@@ -178,13 +178,11 @@ import Testing
 
         let customParams = draft.buildConfigureParams()
         #expect(customParams?.enabledToolsets?.sorted() == ["terminal", "web"].sorted())
-        #expect(customParams?.toolsetsPinned == true)
 
         // Toggling one toolset keeps full list semantics
         draft.toggleToolset(named: "terminal")
         let toggledParams = draft.buildConfigureParams()
         #expect(toggledParams?.enabledToolsets == ["web"])
-        #expect(toggledParams?.toolsetsPinned == true)
 
         // Reset reverts toolset states to baseline and unpins
         draft.resetToolsets()
@@ -378,62 +376,228 @@ import Testing
         #expect(draft.isValid)
     }
 
-    // MARK: - 10. Toolset Reset From Pinned Baseline
+    // MARK: - 10. OpenRPC Contract Conformance
 
-    @Test func toolsetResetFromPinnedBaselineSendsUnpinWithoutEnabledList() {
+    @Test func configurePayloadContainsOnlyContractDefinedKeys() throws {
+        let contractURL = FixtureFiles.directory.deletingLastPathComponent()
+            .appendingPathComponent("docs/protocol/gateway-contract.openrpc.json")
+        let rootData = try Data(contentsOf: contractURL)
+        let rootObject = try #require(try JSONSerialization.jsonObject(with: rootData) as? [String: Any])
+        let schemas = try #require((rootObject["components"] as? [String: Any])?["schemas"] as? [String: Any])
+        let configureSchema = try #require(schemas["ProfilesConfigureParams"] as? [String: Any])
+
+        #expect(configureSchema["additionalProperties"] as? Bool == false)
+        let allowedProperties = Set(try #require((configureSchema["properties"] as? [String: Any])?.keys))
+
+        // Ensure toolsets_pinned is NOT part of the contract schema
+        #expect(!allowedProperties.contains("toolsets_pinned"))
+
+        // Full params payload containing all properties
+        let params = ProfilesConfigureParams(
+            profile: "ops",
+            name: "ops",
+            soul: "Ops soul",
+            description: "Ops description",
+            model: "claude-3-5",
+            provider: "anthropic",
+            confirmExpensiveModel: true,
+            disabledSkills: ["skill-1"],
+            enabledToolsets: ["web", "terminal"],
+            enabledMCPServers: ["mcp-1"]
+        )
+
+        let encodedData = try JSONEncoder().encode(params)
+        let encodedDict = try #require(JSONSerialization.jsonObject(with: encodedData) as? [String: Any])
+
+        // All encoded keys must be strictly within the contract schema
+        for encodedKey in encodedDict.keys {
+            #expect(allowedProperties.contains(encodedKey))
+        }
+        #expect(!encodedDict.keys.contains("toolsets_pinned"))
+
+        // Customize toolsets produces enabled_toolsets within contract
         var draft = BotSettingsDraft(
             targetProfile: "ops",
             toolsets: [
                 BotSettingsToolsetItem(name: "web", enabled: true),
-                BotSettingsToolsetItem(name: "terminal", enabled: false),
+                BotSettingsToolsetItem(name: "terminal", enabled: true),
             ],
-            toolsetsPinned: true
+            toolsetsPinned: false
         )
+        draft.customizeToolsets()
+        let customParams = try #require(draft.buildConfigureParams())
+        let customData = try JSONEncoder().encode(customParams)
+        let customDict = try #require(JSONSerialization.jsonObject(with: customData) as? [String: Any])
+        for encodedKey in customDict.keys {
+            #expect(allowedProperties.contains(encodedKey))
+        }
+        #expect(!customDict.keys.contains("toolsets_pinned"))
 
-        #expect(!draft.isToolsetsDirty)
-        #expect(draft.toolsetsPinned)
-
-        // User clicks Reset to inherit global settings
+        // Reset toolsets reverts toolset customization without sending unsupported unpin field
         draft.resetToolsets()
         #expect(!draft.toolsetsPinned)
-        #expect(draft.isToolsetsDirty)
-
-        let params = draft.buildConfigureParams()
-        #expect(params != nil)
-        #expect(params?.toolsetsPinned == false)
-        #expect(params?.enabledToolsets == nil)  // MUST NOT send enabled_toolsets list on reset!
-
-        // Server applies the unpin
-        let result = ProfilesConfigureResult(
-            ok: true,
-            applied: ProfilesConfigureApplied(toolsets: true)
-        )
-        let outcome = BotSettingsSaveOutcome.evaluate(
-            result: result,
-            requestedSections: draft.dirtySections
-        )
-        #expect(outcome.isCompleteSuccess)
-        #expect(outcome.appliedSections == [.toolsets])
-
-        draft.applySuccessfulSections(outcome.appliedSections)
         #expect(!draft.isToolsetsDirty)
-        #expect(!draft.toolsetsPinned)
+        #expect(draft.buildConfigureParams() == nil)
     }
 
-    // MARK: - 11. ui_meta Size Validation
+    // MARK: - 11. Model & Gateway Save Flow Tests
 
-    @Test func validationRejectsOversizedUiMeta() {
-        var draft = BotSettingsDraft(targetProfile: "ops", title: "Ops")
-        #expect(draft.isValid)
-        #expect(!draft.problems.contains(.uiMetaTooLarge))
+    @Test func saveFlowIdentityOnlyDoesNotCallConfigureProfile() async throws {
+        let gateway = FakeBotGateway([
+            "profiles.list": [
+                .json(botListing(revisions: #"{"hermes-bots": 1}"#))
+            ],
+            "profiles.configure": [
+                .json(#"{"ok": true, "applied": {"ui_meta": true}}"#)
+            ],
+        ])
+        let client = BotClient(gateway: gateway)
+        let coordinator = BotSettingsCoordinator(client: client)
 
-        // Exceed 64 KB limit with additional metadata
-        draft.additionalUiMetaBytes = BotMetaNamespace.maxPayloadBytes + 1
-        #expect(!draft.isValid)
-        #expect(draft.problems.contains(.uiMetaTooLarge))
-        #expect(
-            draft.problems.first(where: { $0 == .uiMetaTooLarge })?.userMessage
-                == "Settings metadata exceeds the 64 KB server limit.")
+        var draft = BotSettingsDraft(
+            targetProfile: "ops",
+            title: "Original Title",
+            role: "Operator"
+        )
+        draft.title = "Updated Title"
+        draft.isPinned = true
+
+        #expect(draft.isIdentityMetaDirty)
+        #expect(!draft.isRoleDirty)
+        #expect(!draft.hasConfigurePayload)
+
+        let outcome = try await coordinator.save(draft: &draft)
+        #expect(outcome == nil)
+        #expect(!draft.isDirty)
+        #expect(!draft.isIdentityMetaDirty)
+
+        let calls = await gateway.calls
+        let configureCalls = calls.filter { $0.method == "profiles.configure" }
+        #expect(configureCalls.count == 1)
+        let callParams = configureCalls.first?.params
+        #expect(callParams?["ui_meta"]?["hermes-bots"]?["title"]?.stringValue == "Updated Title")
+        #expect(callParams?["ui_meta"]?["hermes-bots"]?["pinned"]?.boolValue == true)
+        #expect(callParams?["description"] == nil)
+    }
+
+    @Test func saveFlowWithIdentityAndConfigureAppliesBaselinesIndependently() async throws {
+        let gateway = FakeBotGateway([
+            "profiles.list": [
+                .json(botListing(revisions: #"{"hermes-bots": 1}"#))
+            ],
+            "profiles.configure": [
+                .json(#"{"ok": true, "applied": {"ui_meta": true}}"#),
+                .json(#"{"ok": true, "applied": {"soul": true}}"#),
+            ],
+        ])
+        let client = BotClient(gateway: gateway)
+        let coordinator = BotSettingsCoordinator(client: client)
+
+        var draft = BotSettingsDraft(
+            targetProfile: "ops",
+            title: "Original Title",
+            soul: "Original Soul"
+        )
+        draft.title = "Updated Title"
+        draft.soul = "Updated Soul"
+
+        #expect(draft.isIdentityMetaDirty)
+        #expect(draft.isSoulDirty)
+
+        let outcome = try await coordinator.save(draft: &draft)
+        let saveOutcome = try #require(outcome)
+        #expect(saveOutcome.isCompleteSuccess)
+        #expect(saveOutcome.appliedSections == [.soul])
+        #expect(!draft.isDirty)
+        #expect(!draft.isIdentityMetaDirty)
+        #expect(!draft.isSoulDirty)
+
+        let calls = await gateway.calls
+        let configureCalls = calls.filter { $0.method == "profiles.configure" }
+        #expect(configureCalls.count == 2)
+    }
+
+    @Test func saveFlowWithIdentitySuccessAndConfigurePartialFailurePreservesFailedSection() async throws {
+        let gateway = FakeBotGateway([
+            "profiles.list": [
+                .json(botListing(revisions: #"{"hermes-bots": 1}"#))
+            ],
+            "profiles.configure": [
+                .json(#"{"ok": true, "applied": {"ui_meta": true}}"#),
+                .json(#"{"ok": false, "applied": {"soul": true, "model": false}}"#),
+            ],
+        ])
+        let client = BotClient(gateway: gateway)
+        let coordinator = BotSettingsCoordinator(client: client)
+
+        var draft = BotSettingsDraft(
+            targetProfile: "ops",
+            title: "Original Title",
+            provider: "anthropic",
+            model: "claude-3-haiku",
+            soul: "Original Soul"
+        )
+        draft.title = "Updated Title"
+        draft.soul = "Updated Soul"
+        draft.model = "claude-3-5"
+
+        let outcome = try await coordinator.save(draft: &draft)
+        let saveOutcome = try #require(outcome)
+        #expect(!saveOutcome.isCompleteSuccess)
+        #expect(saveOutcome.appliedSections == [.soul])
+        #expect(saveOutcome.failedSections == [.model])
+
+        // Identity and soul baseline updated, model remains dirty with failed value
+        #expect(!draft.isIdentityMetaDirty)
+        #expect(!draft.isSoulDirty)
+        #expect(draft.isModelDirty)
+        #expect(draft.model == "claude-3-5")
+    }
+
+    @Test func confirmExpensiveModelChangeFlowWithMultiSectionEvaluation() async throws {
+        let gateway = FakeBotGateway([
+            "profiles.configure": [
+                .json(
+                    #"{"ok": false, "confirm_required": true, "confirm_message": "Opus is expensive.", "applied": {"soul": true}}"#
+                ),
+                .json(#"{"ok": true, "applied": {"model": true}}"#),
+            ]
+        ])
+        let client = BotClient(gateway: gateway)
+        let coordinator = BotSettingsCoordinator(client: client)
+
+        var draft = BotSettingsDraft(
+            targetProfile: "ops",
+            provider: "anthropic",
+            model: "claude-3-5",
+            soul: "Original Soul"
+        )
+        draft.soul = "Updated Soul"
+        draft.model = "claude-3-opus"
+
+        let firstOutcome = try await coordinator.save(draft: &draft)
+        let initialOutcome = try #require(firstOutcome)
+        #expect(initialOutcome.confirmRequired)
+        #expect(initialOutcome.confirmMessage == "Opus is expensive.")
+        #expect(initialOutcome.appliedSections == [.soul])
+
+        // First save applied soul section immediately
+        #expect(!draft.isSoulDirty)
+        #expect(draft.isModelDirty)
+
+        // Confirm second write sends only remaining dirty section with confirm_expensive_model: true
+        let confirmOutcome = try await coordinator.confirmExpensiveModelChange(draft: &draft)
+        #expect(confirmOutcome.isCompleteSuccess)
+        #expect(confirmOutcome.appliedSections == [.model])
+        #expect(!draft.isDirty)
+
+        let calls = await gateway.calls
+        let configureCalls = calls.filter { $0.method == "profiles.configure" }
+        #expect(configureCalls.count == 2)
+        let secondParams = configureCalls.last?.params
+        #expect(secondParams?["confirm_expensive_model"]?.boolValue == true)
+        #expect(secondParams?["soul"] == nil)
+        #expect(secondParams?["model"]?.stringValue == "claude-3-opus")
     }
 
     // MARK: - 12. Identity Scoping and Payload Generation
