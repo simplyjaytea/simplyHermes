@@ -2,6 +2,7 @@ import HermesKit
 import HermesUI
 import SwiftUI
 import Testing
+@testable import simplyHermes
 
 @MainActor
 struct AppearancePresetAppTests {
