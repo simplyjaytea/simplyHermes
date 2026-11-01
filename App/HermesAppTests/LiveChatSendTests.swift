@@ -1,6 +1,7 @@
 import HermesKit
-import HermesUI
 import Testing
+
+@testable import HermesUI
 
 /// WP-3: a typed message is saved to the outbox before anything else, and the composer may clear only after that.
 /// These run with no server, so the message stays "Waiting to send".
