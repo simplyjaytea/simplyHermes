@@ -27,6 +27,11 @@ public enum DeliveryState: Sendable, Equatable, Codable {
         }
     }
 
+    /// True once the server has the message. Such a message is no longer shown as waiting.
+    public var isSent: Bool {
+        if case .sent = self { true } else { false }
+    }
+
     /// The state name without its payload, as stored in the `state` column.
     var kind: String {
         switch self {

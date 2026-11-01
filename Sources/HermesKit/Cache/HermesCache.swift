@@ -98,6 +98,7 @@ public final class HermesCache: Sendable {
                     """)
         }
         // The outbox (WP-2) holds messages the user sent that the server has not acknowledged yet. Nothing else keeps them.
+        // A rowid table, so the queue is read back in the order the messages were written.
         migrator.registerMigration("outbox-v1") { handle in
             try handle.execute(
                 sql: """
@@ -107,8 +108,8 @@ public final class HermesCache: Sendable {
                         state TEXT NOT NULL,
                         created_at REAL NOT NULL,
                         json BLOB NOT NULL
-                    ) WITHOUT ROWID;
-                    CREATE INDEX outbound_messages_chat ON outbound_messages (chat_id, created_at);
+                    );
+                    CREATE INDEX outbound_messages_chat ON outbound_messages (chat_id);
                     """)
         }
         return migrator

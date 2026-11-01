@@ -162,6 +162,14 @@
                     if let failure = chat.state.lastError, !chat.isRunning, !Self.lastRowShowsError(chat.state) {
                         ErrorCard(error: ChatError.classify(failure), isLast: true, chat: chat)
                     }
+                    ForEach(chat.outboxRows) { OutboxRow(record: $0) }
+                    if let outboxError = chat.outboxError {
+                        Text(outboxError)
+                            .font(HermesFont.footnote)
+                            .foregroundStyle(HermesColor.secondaryText)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                    }
                     if !chat.state.subagents.isEmpty {
                         SubagentBlock(chat: chat)
                     }
@@ -401,13 +409,16 @@
             let text = model.drafts[sessionID, default: ""]
             let files = model.attachments[sessionID, default: []]
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !files.isEmpty else { return }
-            model.clearDraft(in: sessionID)
-            model.attachments[sessionID] = []
-            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                model.rememberSent(text, in: sessionID)
-            }
             isFollowing = true
-            chat.send(text, attachments: files)
+            // The draft clears only once the message is saved (WP-3). Text typed meanwhile stays in the composer.
+            Task {
+                guard await chat.send(text, attachments: files) else { return }
+                if model.drafts[sessionID, default: ""] == text { model.clearDraft(in: sessionID) }
+                if model.attachments[sessionID, default: []] == files { model.attachments[sessionID] = [] }
+                if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    model.rememberSent(text, in: sessionID)
+                }
+            }
         }
     }
 #endif
