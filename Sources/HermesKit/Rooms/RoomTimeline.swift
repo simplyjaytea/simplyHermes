@@ -194,6 +194,35 @@ public struct RoomSendOutcome: Sendable, Equatable {
             )
         }
     }
+
+    /// Determines the outgoing message for a send attempt.
+    /// When retrying with the same draft text as a pending message that was not cleared by an earlier outcome,
+    /// the pending message is preserved so its `eventID` and `threadID` are reused on retry.
+    public static func nextOutgoing(
+        for draft: String,
+        pending: RoomOutgoingMessage?,
+        previousOutcome: RoomSendOutcome? = nil
+    ) -> RoomOutgoingMessage? {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if let previousOutcome, previousOutcome.shouldClearOutgoing {
+            return RoomOutgoingMessage(text: trimmed)
+        }
+        if let pending, pending.text == trimmed {
+            return pending
+        }
+        return RoomOutgoingMessage(text: trimmed)
+    }
+
+    /// Evaluates the pending outgoing message to hold after evaluating `outcome`.
+    /// When `shouldClearOutgoing == false`, the current outgoing message (and its eventID) is retained for retry.
+    /// When `shouldClearOutgoing == true`, the outgoing message is cleared (returns nil).
+    public static func retainedOutgoing(
+        current: RoomOutgoingMessage?,
+        outcome: RoomSendOutcome
+    ) -> RoomOutgoingMessage? {
+        outcome.shouldClearOutgoing ? nil : current
+    }
 }
 
 /// Pure presentation logic for the Group Chats roster section (WP-43 spec, section 1).

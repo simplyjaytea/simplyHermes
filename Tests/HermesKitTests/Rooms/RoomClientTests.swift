@@ -358,6 +358,60 @@ private func refusal(_ body: () async throws -> Void) async -> RoomError? {
         #expect(refusedWithDriverOutcome.actionError == "The room did not accept the message. Try again.")
     }
 
+    @Test func rejectedSendRetainsSameEventIDAcrossRetry() throws {
+        let draft = "Plan for group sync"
+        // 1. Initial send attempt mints an initial outgoing message with unique eventID and threadID
+        let initialMessage = try #require(RoomSendOutcome.nextOutgoing(for: draft, pending: nil))
+        let originalEventID = initialMessage.eventID
+        let originalThreadID = initialMessage.threadID
+        #expect(!originalEventID.isEmpty)
+        #expect(!originalThreadID.isEmpty)
+
+        // 2. Server rejects the send (accepted: false)
+        let rejectedResult = GroupsSendResult(
+            event: try JSONDecoder().decode(RoomEvent.self, from: Data(userEvent.utf8)),
+            clientEventID: originalEventID,
+            accepted: false,
+            driverStarted: false
+        )
+        let rejectedOutcome = RoomSendOutcome.evaluate(result: rejectedResult)
+        #expect(rejectedOutcome.shouldClearDraft == false)
+        #expect(rejectedOutcome.shouldClearOutgoing == false)
+
+        // 3. Pending outgoing message is retained
+        let retainedMessage = try #require(
+            RoomSendOutcome.retainedOutgoing(current: initialMessage, outcome: rejectedOutcome))
+        #expect(retainedMessage.eventID == originalEventID)
+        #expect(retainedMessage.threadID == originalThreadID)
+
+        // 4. Retrying the send with the same draft reuses the EXACT SAME eventID and threadID
+        let retryMessage = try #require(
+            RoomSendOutcome.nextOutgoing(for: draft, pending: retainedMessage, previousOutcome: rejectedOutcome))
+        #expect(retryMessage.eventID == originalEventID, "Retry must reuse the original eventID for idempotency")
+        #expect(retryMessage.threadID == originalThreadID, "Retry must reuse the original threadID")
+
+        // 5. Subsequent success clears the outgoing message
+        let successResult = GroupsSendResult(
+            event: try JSONDecoder().decode(RoomEvent.self, from: Data(userEvent.utf8)),
+            clientEventID: retryMessage.eventID,
+            accepted: true,
+            driverStarted: true
+        )
+        let successOutcome = RoomSendOutcome.evaluate(result: successResult)
+        #expect(successOutcome.shouldClearOutgoing == true)
+        let clearedMessage = RoomSendOutcome.retainedOutgoing(current: retryMessage, outcome: successOutcome)
+        #expect(clearedMessage == nil)
+
+        // 6. After success, the next send with new draft mints a fresh eventID
+        let nextMessage = try #require(
+            RoomSendOutcome.nextOutgoing(for: "Next message", pending: clearedMessage, previousOutcome: successOutcome))
+        #expect(nextMessage.eventID != originalEventID, "A new message after success must mint a fresh eventID")
+
+        // 7. Modifying the draft while a retry is pending also mints a fresh eventID
+        let modifiedMessage = try #require(RoomSendOutcome.nextOutgoing(for: "Changed text", pending: retainedMessage))
+        #expect(modifiedMessage.eventID != originalEventID, "Editing the draft must mint a fresh eventID")
+    }
+
     @Test func listEmptyStateReturnsEmptyRoomsList() async throws {
         let fake = FakeRoomGateway(["groups.list": [.json(#"{"rooms": [], "next_offset": null}"#)]])
         let client = RoomClient(gateway: fake)

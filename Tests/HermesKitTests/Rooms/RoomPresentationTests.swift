@@ -120,10 +120,5 @@ import Testing
         #expect(
             RoomsListPresentation.emptyState(canCreate: false)
                 == .explanation("Two ready bots are needed to make a group."))
-
-        var errorMessage: String? = "The room's driver is not running. Try again in a moment."
-        #expect(errorMessage != nil)
-        errorMessage = nil
-        #expect(errorMessage == nil)
     }
 }

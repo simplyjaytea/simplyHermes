@@ -94,13 +94,7 @@
         /// Sends the draft. A send that fails keeps its ids, so sending the same text again is the same message.
         func send() async {
             guard !isSending, readOnlyNote == nil else { return }
-            let typed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-            let message: RoomOutgoingMessage
-            if let outgoing, outgoing.text == typed {
-                message = outgoing
-            } else if let fresh = RoomOutgoingMessage(text: typed) {
-                message = fresh
-            } else {
+            guard let message = RoomSendOutcome.nextOutgoing(for: draft, pending: outgoing) else {
                 return
             }
             outgoing = message
@@ -109,9 +103,7 @@
                 let result = try await client.send(
                     roomID: room.roomID, eventID: message.eventID, text: message.text, threadID: message.threadID)
                 let outcome = RoomSendOutcome.evaluate(result: result)
-                if outcome.shouldClearOutgoing {
-                    outgoing = nil
-                }
+                outgoing = RoomSendOutcome.retainedOutgoing(current: outgoing, outcome: outcome)
                 if outcome.shouldClearDraft {
                     draft = ""
                 }

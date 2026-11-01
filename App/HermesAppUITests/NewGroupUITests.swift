@@ -61,8 +61,8 @@ final class NewGroupUITests: XCTestCase {
 
         // Toggle candidate bots to satisfy draft requirements
         let switches = app.switches
-        for i in 0..<switches.count {
-            let toggle = switches.element(boundBy: i)
+        for index in 0..<switches.count {
+            let toggle = switches.element(boundBy: index)
             if (toggle.value as? String) == "0" {
                 toggle.tap()
             }
