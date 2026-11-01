@@ -24,7 +24,7 @@ extension GatewayClient: ChatTransport {
     /// Calls `session.resume` and tracks the live session.
     public func resumeSession(_ params: SessionResumeParams) async throws -> SessionAttachResult {
         let result: SessionAttachResult = try await call("session.resume", params: params)
-        track(liveID: result.sessionID, storedID: result.storedSessionID ?? params.sessionID)
+        track(liveID: result.sessionID, storedID: result.storedSessionID ?? params.sessionID, profile: params.profile)
         return result
     }
 
@@ -131,6 +131,12 @@ public actor ChatSessionController: OutboxSubmitter {
                 await self?.handle(event)
             }
         }
+        try await resume()
+    }
+
+    /// Resumes the stored session under this chat's profile and shows its history. Also used to re-attach after a
+    /// failed resync.
+    private func resume() async throws {
         let result = try await transport.resumeSession(
             SessionResumeParams(sessionID: storedSessionID, profile: profile))
         state.apply(.attached(result))
@@ -433,6 +439,17 @@ public actor ChatSessionController: OutboxSubmitter {
         guard let action = TranscriptAction(event) else { return }
         state.apply(action)
         if state.turn != nil { awaitingTurn = false }
+        switch action {
+        case .attached where state.turn == nil:
+            // A cold re-attach shows no running turn. A message that waited for that turn must not wait for ever (WP-5).
+            awaitingTurn = false
+        case .resyncFailed:
+            // The session could not be read again. Nothing is awaited any more, and the chat resumes once more.
+            awaitingTurn = false
+            Task { [weak self] in try? await self?.resume() }
+        default:
+            break
+        }
         if case .event(let envelope, _) = action {
             switch envelope.event {
             case .messageComplete, .error: awaitingTurn = false

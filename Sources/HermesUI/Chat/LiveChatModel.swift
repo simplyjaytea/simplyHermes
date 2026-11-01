@@ -125,6 +125,9 @@
         @ObservationIgnored private let outbox: any OutboxStore
         /// Sends the outbox's messages through the attached controller. Nil while the chat is detached.
         @ObservationIgnored private var drainer: OutboxDrainer?
+        /// The profile this chat was pinned to at its first attach. Nil for the server's default profile.
+        @ObservationIgnored private var pinnedProfile: String?
+        @ObservationIgnored private var profilePinned = false
 
         init(
             connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String,
@@ -166,7 +169,14 @@
                 let client = try await manager.client(for: connection)
                 await broker.install(on: client)
                 self.client = client
-                let controller = ChatSessionController(transport: client, storedSessionID: storedSessionID)
+                // The chat keeps the profile it first attached under. A later profile change, such as opening another
+                // bot, does not move it (WP-5).
+                if !profilePinned {
+                    pinnedProfile = await client.activeProfile()
+                    profilePinned = true
+                }
+                let controller = ChatSessionController(
+                    transport: client, storedSessionID: storedSessionID, profile: pinnedProfile)
                 let states = await controller.states()
                 let pending = await broker.updates()
                 try await controller.attach()
