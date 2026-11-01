@@ -386,7 +386,11 @@
         /// Whether a chat with no live connection can take a message. Only a New chat can: its first message starts a
         /// server chat. Any other placeholder chat shows "Not connected" and keeps its composer disabled.
         public func canStartChat(_ id: String) -> Bool {
-            unstartedChatIDs.contains(id)
+            #if DEBUG
+                // UI tests type into the sample chats (`-HermesSampleChats YES`). Release builds have none.
+                if Self.sampleSessions.contains(where: { $0.id == id }) { return true }
+            #endif
+            return unstartedChatIDs.contains(id)
         }
 
         /// Sends the draft as a user message. A New chat's first message creates its server chat instead, and the

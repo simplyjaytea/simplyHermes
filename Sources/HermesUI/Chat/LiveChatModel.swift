@@ -104,7 +104,7 @@
             SubagentPanel.rows(state.subagents, firstSeen: firstSeen, now: now)
         }
 
-        @ObservationIgnored private let connections: ConnectionsModel
+        @ObservationIgnored let connections: ConnectionsModel
         @ObservationIgnored private let broker: ServerRequestBroker
         @ObservationIgnored let storedSessionID: String
         /// When an automatic retry will fire, if one is scheduled.

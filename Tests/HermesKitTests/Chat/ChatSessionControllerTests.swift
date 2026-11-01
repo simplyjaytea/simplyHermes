@@ -420,7 +420,8 @@ private func lines(_ state: TranscriptState) -> [String] {
     // MARK: - Persisted sends (WP-3)
 
     private func record(_ text: String) -> OutboundRecord {
-        OutboundRecord(chatID: "20261015_000000_aaaaaa", text: text, createdAt: Date(timeIntervalSince1970: 0))
+        OutboundRecord(
+            connectionID: "x", chatID: "20261015_000000_aaaaaa", text: text, createdAt: Date(timeIntervalSince1970: 0))
     }
 
     @Test func deliverSendsOnceAndEchoesTheRow() async throws {

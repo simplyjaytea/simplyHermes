@@ -132,7 +132,7 @@
             if !model.canStartChat(sessionID) {
                 Text("Not connected")
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
                     .accessibilityIdentifier("chat.notConnected")
@@ -163,7 +163,7 @@
             case .notice:
                 Text(message.text)
                     .font(HermesFont.caption)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .frame(maxWidth: .infinity)
             }
         }

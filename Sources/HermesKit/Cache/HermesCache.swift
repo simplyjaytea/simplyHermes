@@ -104,12 +104,14 @@ public final class HermesCache: Sendable {
                 sql: """
                     CREATE TABLE outbound_messages (
                         id TEXT NOT NULL PRIMARY KEY,
+                        connection_id TEXT NOT NULL,
                         chat_id TEXT NOT NULL,
                         state TEXT NOT NULL,
                         created_at REAL NOT NULL,
                         json BLOB NOT NULL
                     );
                     CREATE INDEX outbound_messages_chat ON outbound_messages (chat_id);
+                    CREATE INDEX outbound_messages_connection ON outbound_messages (connection_id);
                     """)
         }
         return migrator
@@ -249,6 +251,7 @@ public final class HermesCache: Sendable {
             for table in ["session", "message", "reading_position", "offline_message", "offline_chat"] {
                 try handle.execute(sql: "DELETE FROM \(table) WHERE connection = ?", arguments: [connection])
             }
+            try handle.execute(sql: "DELETE FROM outbound_messages WHERE connection_id = ?", arguments: [connection])
         }
     }
 

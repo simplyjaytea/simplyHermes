@@ -30,22 +30,29 @@ public enum ChatStatusDeriver {
             return noNetwork ? unreachable : connected
         case .reconnecting:
             return noNetwork ? unreachable : reconnecting
-        case .signInRequired, .updateRequired:
-            return needsSignIn
+        case .signInRequired:
+            return needsAttention(.signIn)
+        case .updateRequired:
+            return needsAttention(.serverUpdate)
         case .failed(let failure):
             return status(for: failure)
         }
     }
 
-    /// Maps a failed connection attempt onto the pill. Unreachable failures keep the chat waiting for the user's choice;
-    /// trust and sign-in failures need the user to act.
+    /// Maps a failed connection attempt onto the pill. Transport and server-side failures keep the chat waiting for the
+    /// user's choice; anything the user has to fix names its reason.
     private static func status(for failure: ConnectionTestFailure) -> ChatStatus {
         switch failure {
-        case .unreachable, .notHermes, .rateLimited, .server, .ssh, .webSocket:
+        case .unreachable, .rateLimited, .server, .ssh, .webSocket:
             unreachable
-        case .signInRequired, .wrongCredentials, .missingSecret, .hostKeyRejected, .hostKeyChanged,
-            .invalidForm, .serverTooOld:
-            needsSignIn
+        case .signInRequired, .wrongCredentials, .missingSecret:
+            needsAttention(.signIn)
+        case .serverTooOld:
+            needsAttention(.serverUpdate)
+        case .hostKeyRejected, .hostKeyChanged:
+            needsAttention(.hostKey)
+        case .notHermes, .invalidForm:
+            needsAttention(.settings)
         }
     }
 
@@ -53,7 +60,9 @@ public enum ChatStatusDeriver {
     private static let connected = ChatStatus(pill: .connected, canSend: true, sendPath: .server)
     private static let reconnecting = ChatStatus(pill: .reconnecting, canSend: true, sendPath: .hold)
     private static let unreachable = ChatStatus(pill: .unreachable, canSend: true, sendPath: .askUser)
-    private static let needsSignIn = ChatStatus(pill: .needsSignIn, canSend: false, sendPath: .askUser)
+    private static func needsAttention(_ reason: AttentionReason) -> ChatStatus {
+        ChatStatus(pill: .needsAttention(reason), canSend: false, sendPath: .askUser)
+    }
 
     // MARK: - Local chats
 

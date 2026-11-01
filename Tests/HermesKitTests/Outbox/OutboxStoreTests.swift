@@ -6,8 +6,10 @@ import Testing
 struct OutboxStoreTests {
     private let start = Date(timeIntervalSince1970: 1_800_000_000)
 
-    private func record(_ text: String, chat: String = "c1", at offset: Double = 0) -> OutboundRecord {
-        OutboundRecord(chatID: chat, text: text, createdAt: start.addingTimeInterval(offset))
+    private func record(
+        _ text: String, chat: String = "c1", connection: String = "x", at offset: Double = 0
+    ) -> OutboundRecord {
+        OutboundRecord(connectionID: connection, chatID: chat, text: text, createdAt: start.addingTimeInterval(offset))
     }
 
     private func temporaryURL() -> URL {
@@ -129,6 +131,21 @@ struct OutboxStoreTests {
         try await cache.outbox.remove(id: dropped.id)
 
         #expect(try await cache.outbox.records(inChat: "c1") == [kept])
+    }
+
+    // MARK: - Purge
+
+    @Test func purgingAServerDropsOnlyItsWaitingMessages() async throws {
+        let cache = try HermesCache()
+        let gone = record("gone", chat: "c1", connection: "removed")
+        let kept = record("kept", chat: "c2", connection: "other", at: 1)
+        try await cache.outbox.insert(gone)
+        try await cache.outbox.insert(kept)
+
+        try await cache.purge(connection: "removed")
+
+        #expect(try await cache.outbox.records(inChat: "c1").isEmpty)
+        #expect(try await cache.outbox.records(inChat: "c2") == [kept])
     }
 
     // MARK: - Migration

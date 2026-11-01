@@ -47,6 +47,8 @@ public enum DeliveryState: Sendable, Equatable, Codable {
 public struct OutboundRecord: Sendable, Equatable, Identifiable, Codable {
     /// The client id. It doubles as the idempotency key the server sees, so a retried send is not delivered twice.
     public let id: UUID
+    /// The saved server connection the chat belongs to, so a removed server takes its waiting messages with it.
+    public let connectionID: String
     /// The chat the message belongs to.
     public let chatID: String
     /// The message text.
@@ -62,9 +64,11 @@ public struct OutboundRecord: Sendable, Equatable, Identifiable, Codable {
 
     /// Creates a pending message.
     public init(
-        id: UUID = UUID(), chatID: String, text: String, attachmentRefs: [String] = [], createdAt: Date
+        id: UUID = UUID(), connectionID: String, chatID: String, text: String, attachmentRefs: [String] = [],
+        createdAt: Date
     ) {
         self.id = id
+        self.connectionID = connectionID
         self.chatID = chatID
         self.text = text
         self.attachmentRefs = attachmentRefs

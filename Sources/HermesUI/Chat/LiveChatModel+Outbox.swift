@@ -24,8 +24,12 @@
                 return true
             }
             guard !trimmed.isEmpty else { return false }
+            // A live chat always belongs to the active server. Without one the text is still kept, under no server.
+            let connectionID = connections.active?.id.uuidString ?? ""
             do {
-                try await outbox.insert(OutboundRecord(chatID: storedSessionID, text: trimmed, createdAt: Date()))
+                try await outbox.insert(
+                    OutboundRecord(
+                        connectionID: connectionID, chatID: storedSessionID, text: trimmed, createdAt: Date()))
             } catch {
                 outboxError = Self.outboxMessage(for: error)
                 return false

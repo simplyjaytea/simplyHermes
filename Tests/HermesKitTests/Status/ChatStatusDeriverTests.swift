@@ -58,7 +58,7 @@ struct ChatStatusDeriverTests {
             path: .unsatisfied, local: noModel, expected: status(.unreachable, canSend: true, .askUser)),
         Row(
             name: "no network + sign-in still needed", backend: serverChat, phase: .signInRequired,
-            path: .unsatisfied, local: noModel, expected: status(.needsSignIn, canSend: false, .askUser)),
+            path: .unsatisfied, local: noModel, expected: status(.needsAttention(.signIn), canSend: false, .askUser)),
         Row(
             name: "no network + failed unreachable", backend: serverChat, phase: .failed(.unreachable("timeout")),
             path: .unsatisfied, local: noModel, expected: status(.unreachable, canSend: true, .askUser)),
@@ -101,26 +101,27 @@ struct ChatStatusDeriverTests {
             path: .unknown, local: noModel, expected: status(.reconnecting, canSend: true, .hold)),
         Row(
             name: "satisfied + signInRequired", backend: serverChat, phase: .signInRequired, path: .satisfied,
-            local: noModel, expected: status(.needsSignIn, canSend: false, .askUser)),
+            local: noModel, expected: status(.needsAttention(.signIn), canSend: false, .askUser)),
         Row(
             name: "satisfied + updateRequired", backend: serverChat, phase: .updateRequired(found: "0.1"),
-            path: .satisfied, local: noModel, expected: status(.needsSignIn, canSend: false, .askUser)),
+            path: .satisfied, local: noModel, expected: status(.needsAttention(.serverUpdate), canSend: false, .askUser)
+        ),
         Row(
             name: "failed unreachable", backend: serverChat, phase: .failed(.unreachable("timeout")),
             path: .satisfied, local: noModel, expected: status(.unreachable, canSend: true, .askUser)),
         Row(
             name: "failed notHermes", backend: serverChat, phase: .failed(.notHermes), path: .satisfied,
-            local: noModel, expected: status(.unreachable, canSend: true, .askUser)),
+            local: noModel, expected: status(.needsAttention(.settings), canSend: false, .askUser)),
         Row(
             name: "failed signInRequired", backend: serverChat,
             phase: .failed(.signInRequired(providers: ["github"])), path: .satisfied, local: noModel,
-            expected: status(.needsSignIn, canSend: false, .askUser)),
+            expected: status(.needsAttention(.signIn), canSend: false, .askUser)),
         Row(
             name: "failed wrongCredentials", backend: serverChat, phase: .failed(.wrongCredentials),
-            path: .satisfied, local: noModel, expected: status(.needsSignIn, canSend: false, .askUser)),
+            path: .satisfied, local: noModel, expected: status(.needsAttention(.signIn), canSend: false, .askUser)),
         Row(
             name: "failed missingSecret", backend: serverChat, phase: .failed(.missingSecret), path: .satisfied,
-            local: noModel, expected: status(.needsSignIn, canSend: false, .askUser)),
+            local: noModel, expected: status(.needsAttention(.signIn), canSend: false, .askUser)),
         Row(
             name: "failed rateLimited", backend: serverChat, phase: .failed(.rateLimited(retryAfter: 60)),
             path: .satisfied, local: noModel, expected: status(.unreachable, canSend: true, .askUser)),
@@ -129,11 +130,11 @@ struct ChatStatusDeriverTests {
             path: .satisfied, local: noModel, expected: status(.unreachable, canSend: true, .askUser)),
         Row(
             name: "failed hostKeyRejected", backend: serverChat, phase: .failed(.hostKeyRejected),
-            path: .satisfied, local: noModel, expected: status(.needsSignIn, canSend: false, .askUser)),
+            path: .satisfied, local: noModel, expected: status(.needsAttention(.hostKey), canSend: false, .askUser)),
         Row(
             name: "failed hostKeyChanged", backend: serverChat,
             phase: .failed(.hostKeyChanged(expected: "a", actual: "b")), path: .satisfied, local: noModel,
-            expected: status(.needsSignIn, canSend: false, .askUser)),
+            expected: status(.needsAttention(.hostKey), canSend: false, .askUser)),
         Row(
             name: "failed ssh", backend: serverChat, phase: .failed(.ssh("tunnel closed")), path: .satisfied,
             local: noModel, expected: status(.unreachable, canSend: true, .askUser)),
@@ -142,10 +143,11 @@ struct ChatStatusDeriverTests {
             local: noModel, expected: status(.unreachable, canSend: true, .askUser)),
         Row(
             name: "failed invalidForm", backend: serverChat, phase: .failed(.invalidForm("no host")),
-            path: .satisfied, local: noModel, expected: status(.needsSignIn, canSend: false, .askUser)),
+            path: .satisfied, local: noModel, expected: status(.needsAttention(.settings), canSend: false, .askUser)),
         Row(
             name: "failed serverTooOld", backend: serverChat, phase: .failed(.serverTooOld(found: "0.1")),
-            path: .satisfied, local: noModel, expected: status(.needsSignIn, canSend: false, .askUser)),
+            path: .satisfied, local: noModel, expected: status(.needsAttention(.serverUpdate), canSend: false, .askUser)
+        ),
 
         // A server chat never takes its answer from the local model, even when the model is ready.
         Row(

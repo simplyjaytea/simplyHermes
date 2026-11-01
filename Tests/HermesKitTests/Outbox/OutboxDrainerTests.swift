@@ -27,7 +27,8 @@ struct OutboxDrainerTests {
     private let start = Date(timeIntervalSince1970: 1_800_000_000)
 
     private func record(_ text: String, chat: String = "c1") -> OutboundRecord {
-        OutboundRecord(chatID: chat, text: text, createdAt: start.addingTimeInterval(Double(text.count)))
+        OutboundRecord(
+            connectionID: "x", chatID: chat, text: text, createdAt: start.addingTimeInterval(Double(text.count)))
     }
 
     private func temporaryURL() -> URL {

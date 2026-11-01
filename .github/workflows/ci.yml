@@ -285,6 +285,21 @@ jobs:
           cp -R "$app" build/ipa/Payload/
           (cd build/ipa && zip -qr simplyHermes-unsigned.ipa Payload && rm -rf Payload)
           ls -l build/ipa
+      - name: No sample conversation text in the Release app (AT-4a)
+        # Every assistant message must come from Hermes or the on-device model. The sample chats, their fake replies
+        # and the fake approval are DEBUG-only; this fails if any of their text reaches the Release build.
+        run: |
+          set -eo pipefail
+          app=$(find build/ddi/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1 | head -1)
+          found=0
+          for text in "Backup cron fix" "Blog post draft" "Router firmware" "ssh-copy-id backup@nas.local" \
+            "The NAS rejected the SSH key" "Checked the logs and the config"; do
+            if grep -r -a -l -F -- "$text" "$app"; then
+              echo "::error::Release app contains sample text: $text"
+              found=1
+            fi
+          done
+          exit $found
       - name: Upload unsigned .ipa
         uses: actions/upload-artifact@v4
         with:

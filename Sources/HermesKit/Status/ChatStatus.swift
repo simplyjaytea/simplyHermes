@@ -81,8 +81,8 @@ public enum PillState: Sendable, Equatable {
     case reconnecting
     /// O4: the server cannot be reached.
     case unreachable
-    /// O5: the user must sign in, or the server needs an update.
-    case needsSignIn
+    /// O5: the server answered, but the user has to act first. The reason picks the words and the action.
+    case needsAttention(AttentionReason)
     /// O6: the app has no server set up.
     case noServer
     /// L1: the model is ready to answer.
@@ -95,6 +95,19 @@ public enum PillState: Sendable, Equatable {
     case localFailed(ModelIdentity, reason: LocalModelFailure)
     /// L5: on-device features are turned off.
     case localOff
+}
+
+/// Why an online chat needs the user before it can connect. Each reason has its own words: a changed host key is a
+/// security warning, not a sign-in prompt.
+public enum AttentionReason: Sendable, Equatable {
+    /// Sign in again: no session, wrong credentials or a missing saved secret.
+    case signIn
+    /// The Hermes server is too old for this app.
+    case serverUpdate
+    /// The server's SSH host key was rejected or has changed since it was trusted.
+    case hostKey
+    /// The saved connection is wrong: an invalid form, or the address answers but is not Hermes.
+    case settings
 }
 
 /// Where a message from a chat goes. Only `.server` reaches Hermes, and only `.local` is answered on this iPhone.

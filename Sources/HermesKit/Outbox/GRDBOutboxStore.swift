@@ -17,11 +17,11 @@ public struct GRDBOutboxStore: OutboxStore {
         try await database.write { handle in
             try handle.execute(
                 sql: """
-                    INSERT INTO outbound_messages (id, chat_id, state, created_at, json)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO outbound_messages (id, connection_id, chat_id, state, created_at, json)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
                 arguments: [
-                    record.id.uuidString, record.chatID, record.state.kind,
+                    record.id.uuidString, record.connectionID, record.chatID, record.state.kind,
                     record.createdAt.timeIntervalSince1970, json,
                 ])
         }
