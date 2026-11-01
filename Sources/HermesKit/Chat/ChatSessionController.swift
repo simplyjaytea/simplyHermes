@@ -77,7 +77,7 @@ public struct AttachmentRefused: Error, Equatable {
 
 /// Owns the ``TranscriptState`` of one open chat: resumes the session, feeds gateway events to the reducer,
 /// sends prompts and stops the running turn. It performs the I/O the reducer leaves out.
-public actor ChatSessionController {
+public actor ChatSessionController: OutboxSubmitter {
     private let transport: any ChatTransport
     private let storedSessionID: String
     private let profile: String?
@@ -149,7 +149,9 @@ public actor ChatSessionController {
     @discardableResult
     public func send(_ text: String, attachments: [ComposerAttachment] = []) async -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty || !attachments.isEmpty, let live = state.liveSessionID else { return nil }
+        guard !trimmed.isEmpty || !attachments.isEmpty else { return nil }
+        // Not live yet: the text goes back to the composer, so nothing the user typed is discarded (WP-3).
+        guard let live = state.liveSessionID else { return text }
         var prompt = trimmed
         var shownAs: String?
         if attachments.isEmpty, let command = SlashCommand(trimmed) {
@@ -174,6 +176,29 @@ public actor ChatSessionController {
         await submit(prompt, attachments: attachments, shownAs: shownAs)
         await drainIfIdle()
         return nil
+    }
+
+    /// Sends one persisted message (WP-3). Unlike ``send(_:attachments:)`` it never queues: when Hermes is busy, or the
+    /// session is not live yet, it answers ``SubmitOutcome/deferred``, and the outbox keeps the message. The echo row
+    /// appears only once the server has accepted the prompt, so the message is never shown twice.
+    public func deliver(_ record: OutboundRecord) async -> SubmitOutcome {
+        guard let live = state.liveSessionID, isIdle, queue.isEmpty else { return .deferred }
+        isSubmitting = true
+        defer { isSubmitting = false }
+        do {
+            let result = try await transport.submitPrompt(
+                PromptSubmitParams(sessionID: live, text: record.text, profile: profile))
+            submitCount += 1
+            let localID = "\(submitCount)"
+            state.apply(.userSubmitted(localID: localID, text: record.text))
+            state.apply(.submitAcknowledged(localID: localID, result))
+            awaitingTurn = result.status != .queued && state.turn == nil
+            publish()
+            return .acknowledged
+        } catch {
+            publish()
+            return .failed(Self.message(for: error))
+        }
     }
 
     /// Injects text into the running turn (`session.steer`) without interrupting it. Returns false when nothing

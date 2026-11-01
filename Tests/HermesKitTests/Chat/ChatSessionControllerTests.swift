@@ -416,4 +416,51 @@ private func lines(_ state: TranscriptState) -> [String] {
         #expect(transport.dispatched.last?.arg == "now")
         #expect(composerText == "Goodbye")
     }
+
+    // MARK: - Persisted sends (WP-3)
+
+    private func record(_ text: String) -> OutboundRecord {
+        OutboundRecord(chatID: "20261015_000000_aaaaaa", text: text, createdAt: Date(timeIntervalSince1970: 0))
+    }
+
+    @Test func deliverSendsOnceAndEchoesTheRow() async throws {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        let outcome = await controller.deliver(record("hello"))
+        #expect(outcome == .acknowledged)
+        #expect(transport.submitted.map(\.text) == ["hello"])
+        guard case .user(let entry) = await controller.current.items.last?.content else {
+            Issue.record("no user row")
+            return
+        }
+        #expect(entry.text == "hello")
+        #expect(entry.delivery == .sent)
+    }
+
+    @Test func deliverBeforeTheSessionIsLiveDefersInsteadOfDropping() async throws {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        let outcome = await controller.deliver(record("hello"))
+        #expect(outcome == .deferred)
+        #expect(transport.submitted.isEmpty)
+    }
+
+    @Test func deliverWhileATurnRunsDefersUntilItEnds() async throws {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        // The fake answers "streaming", so the turn is under way and the next message must wait.
+        #expect(await controller.deliver(record("first")) == .acknowledged)
+        #expect(await controller.deliver(record("second")) == .deferred)
+        #expect(transport.submitted.map(\.text) == ["first"])
+    }
+
+    @Test func sendBeforeTheSessionIsLiveReturnsTheTextToTheComposer() async throws {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        let composerText = await controller.send("  keep me  ")
+        #expect(composerText == "  keep me  ")
+        #expect(transport.submitted.isEmpty)
+    }
 }

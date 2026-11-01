@@ -70,6 +70,8 @@ struct HermesApp: App {
         let file = url.flatMap { try? HermesCache(url: $0) }
         let cache = file ?? (try? HermesCache())
         guard let cache else { preconditionFailure("The in-memory cache cannot fail to open") }
+        // WP-3: messages waiting to reach the server are kept in the same file, so they survive a relaunch.
+        OutboxServices.install(cache.outbox)
         // WP-65b: offline chats are kept in the same cache file as the chat list. They exist nowhere else, so they stay
         // off when the file would not open and the cache fell back to memory. UI tests keep it in memory on purpose.
         if file != nil || launch.onboarding != nil {

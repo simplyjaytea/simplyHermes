@@ -203,7 +203,12 @@
 
         private func send(_ message: OutboundMessage, in id: String, live: LiveChatModel?) {
             if let live {
-                live.send(message.text, attachments: message.attachments)
+                Task {
+                    // A message that could not be saved goes back to the chat's draft rather than disappearing.
+                    let saved = await live.send(message.text, attachments: message.attachments)
+                    guard !saved else { return }
+                    if model.drafts[id, default: ""].isEmpty { model.drafts[id] = message.text }
+                }
                 return
             }
             // A placeholder chat sends its draft. Lend it the text, then give the user's own draft back.

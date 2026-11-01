@@ -26,6 +26,10 @@
         public private(set) var preferences = ModelPreferencesStore.load()
         /// Approvals of this chat that wait for the user.
         public private(set) var approvals: [PendingApproval] = []
+        /// Typed messages the server does not have yet, oldest first. The screen shows them as "Waiting to send".
+        public private(set) var outboxRows: [OutboundRecord] = []
+        /// Why the last save or send of a message failed. The screen shows it as a status line. Nil when none did.
+        public private(set) var outboxError: String?
 
         /// An approval request with the fields the inline card needs.
         public struct PendingApproval: Identifiable, Equatable {
@@ -85,7 +89,7 @@
             return VoiceInputModel(
                 server: { await manager.rest(for: id) },
                 insertText: insertText,
-                sendMessage: { [weak self] text in self?.send(text) }
+                sendMessage: { [weak self] text in Task { _ = await self?.send(text) } }
             )
         }
 
@@ -118,11 +122,18 @@
         /// A New chat's first message, held until the chat attaches. ``attach()`` sends it.
         @ObservationIgnored private var firstMessage: (text: String, attachments: [ComposerAttachment])?
         @ObservationIgnored private var isMovingWorkspace = false
+        @ObservationIgnored private let outbox: any OutboxStore
+        /// Sends the outbox's messages through the attached controller. Nil while the chat is detached.
+        @ObservationIgnored private var drainer: OutboxDrainer?
 
-        init(connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String) {
+        init(
+            connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String,
+            outbox: any OutboxStore
+        ) {
             self.connections = connections
             self.broker = broker
             self.storedSessionID = storedSessionID
+            self.outbox = outbox
             state = TranscriptState(storedSessionID: storedSessionID)
             offline = OfflineChatModel(
                 services: OfflineChatServices.shared, connections: connections, storedSessionID: storedSessionID)
@@ -161,6 +172,15 @@
                 try await controller.attach()
                 self.controller = controller
                 phase = .ready
+                // Messages that were mid-send when the app stopped go out again, once, and acknowledged ones are dropped.
+                let drainer = OutboxDrainer(store: outbox, chatID: storedSessionID, submitter: controller)
+                self.drainer = drainer
+                do {
+                    try await drainer.recoverInterrupted()
+                    _ = try await outbox.pruneSent(inChat: storedSessionID)
+                } catch {
+                    outboxError = Self.outboxMessage(for: error)
+                }
                 tasks = [
                     Task { [weak self] in
                         for await next in states {
@@ -170,6 +190,8 @@
                             self?.noteWorkspace(next.transcript.info?.cwd)
                             self?.state = next.transcript
                             self?.queue = next.queue
+                            // Hermes is free again: the next waiting message may go.
+                            if next.transcript.turn == nil { self?.drainSoon() }
                             if firstInfo, let info = next.transcript.info { self?.restoreModelPreferences(for: info) }
                         }
                     },
@@ -177,10 +199,12 @@
                         for await list in pending { self?.setApprovals(list) }
                     },
                 ]
-                if let first = firstMessage {
+                await refreshOutbox()
+                // A New chat's first message waits here until it is saved. If the save fails it stays for the next try.
+                if let first = firstMessage, await send(first.text, attachments: first.attachments) {
                     firstMessage = nil
-                    send(first.text, attachments: first.attachments)
                 }
+                await drainOutbox()
             } catch {
                 phase = .failed(Self.describe(error))
             }
@@ -192,6 +216,7 @@
             retryTask?.cancel()
             offline.stop()
             tasks = []
+            drainer = nil
             let controller = controller
             self.controller = nil
             Task { await controller?.detach() }
@@ -287,14 +312,65 @@
             }
         }
 
-        public func send(_ text: String, attachments: [ComposerAttachment] = []) {
+        /// Sends what the composer holds (WP-3). Typed text is saved to the outbox first, and goes out once the chat can
+        /// take it, even if the app stops in between. Returns true once the text is saved or handed on, so the composer may
+        /// clear. False leaves the draft where it is.
+        @discardableResult
+        public func send(_ text: String, attachments: [ComposerAttachment] = []) async -> Bool {
             // Plan Q44: while the server is out of reach, text goes to the on-device model. Files need Hermes.
-            if attachments.isEmpty, offline.send(text) { return }
-            guard let controller else { return }
-            HermesSounds.play(.send)
-            Task {
-                if let composerText = await controller.send(text, attachments: attachments) { prefill = composerText }
+            if attachments.isEmpty, offline.send(text) { return true }
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Files and slash commands run on the controller at once. They are not saved to the outbox yet.
+            if !attachments.isEmpty || SlashCommand(trimmed) != nil {
+                guard let controller else { return false }
+                HermesSounds.play(.send)
+                if let composerText = await controller.send(text, attachments: attachments) {
+                    prefill = composerText
+                    return false
+                }
+                return true
             }
+            guard !trimmed.isEmpty else { return false }
+            do {
+                try await outbox.insert(OutboundRecord(chatID: storedSessionID, text: trimmed, createdAt: Date()))
+            } catch {
+                outboxError = Self.outboxMessage(for: error)
+                return false
+            }
+            outboxError = nil
+            HermesSounds.play(.send)
+            await refreshOutbox()
+            Task { await drainOutbox() }
+            return true
+        }
+
+        /// Sends the chat's waiting messages if Hermes can take them, then refreshes the rows the screen shows.
+        private func drainOutbox() async {
+            guard let drainer else { return }
+            do {
+                try await drainer.drain()
+            } catch {
+                outboxError = Self.outboxMessage(for: error)
+            }
+            await refreshOutbox()
+        }
+
+        /// Starts a drain when there are waiting messages and the chat is free to send them.
+        private func drainSoon() {
+            guard !outboxRows.isEmpty else { return }
+            Task { await drainOutbox() }
+        }
+
+        private func refreshOutbox() async {
+            do {
+                outboxRows = try await outbox.records(inChat: storedSessionID).filter { !$0.state.isSent }
+            } catch {
+                outboxError = Self.outboxMessage(for: error)
+            }
+        }
+
+        private static func outboxMessage(for error: any Error) -> String {
+            String(localized: "Couldn't update your waiting messages. Your text is still in the composer.")
         }
 
         /// Clears ``prefill`` once the composer has taken its text.
@@ -313,7 +389,10 @@
                 offline.sendFailed()
                 return
             }
-            send(offer.prompt)
+            guard await send(offer.prompt) else {
+                offline.sendFailed()
+                return
+            }
             offline.resolveOffer(offer, as: .sent)
         }
 
@@ -578,7 +657,8 @@
                 serverID = active.id
             }
             if let existing = chats[sessionID] { return existing }
-            let chat = LiveChatModel(connections: connections, broker: broker, storedSessionID: sessionID)
+            let chat = LiveChatModel(
+                connections: connections, broker: broker, storedSessionID: sessionID, outbox: OutboxServices.store)
             chats[sessionID] = chat
             return chat
         }
