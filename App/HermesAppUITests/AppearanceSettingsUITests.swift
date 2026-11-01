@@ -272,6 +272,11 @@
                 return
             }
 
+            if !app.navigationBars["Settings"].waitForExistence(timeout: 10) {
+                settingsTab.tap()
+                XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
+            }
+
             let appearanceRow = element(app, "settings.appearance")
             XCTAssertTrue(
                 appearanceRow.waitForExistence(timeout: 5),

@@ -22,8 +22,27 @@ struct AppearancePresetAppTests {
             let traits = UITraitCollection(userInterfaceStyle: style)
             let destructive = UIColor(palette.destructive).resolvedColor(with: traits)
             let onDestructive = UIColor(palette.onDestructive).resolvedColor(with: traits)
-            #expect(destructive == UIColor(red: 220 / 255.0, green: 38 / 255.0, blue: 38 / 255.0, alpha: 1))
-            #expect(onDestructive == UIColor.white)
+            for (color, expected) in [
+                (destructive, UIColor(red: 220 / 255.0, green: 38 / 255.0, blue: 38 / 255.0, alpha: 1)),
+                (onDestructive, UIColor.white),
+            ] {
+                var red: CGFloat = 0
+                var green: CGFloat = 0
+                var blue: CGFloat = 0
+                var alpha: CGFloat = 0
+                var expectedRed: CGFloat = 0
+                var expectedGreen: CGFloat = 0
+                var expectedBlue: CGFloat = 0
+                var expectedAlpha: CGFloat = 0
+                #expect(color.getRed(&red, green: &green, blue: &blue, alpha: &alpha))
+                #expect(
+                    expected.resolvedColor(with: traits).getRed(
+                        &expectedRed, green: &expectedGreen, blue: &expectedBlue, alpha: &expectedAlpha))
+                #expect(abs(red - expectedRed) < 0.001)
+                #expect(abs(green - expectedGreen) < 0.001)
+                #expect(abs(blue - expectedBlue) < 0.001)
+                #expect(abs(alpha - expectedAlpha) < 0.001)
+            }
         }
     }
 
