@@ -79,7 +79,7 @@
                 NewRoomSheet(model: rooms, candidates: model.groupCandidates)
             }
             .sheet(item: $editing) { entry in
-                BotEditSheet(model: model, entry: entry)
+                BotSettingsScreen(entry: entry, connections: model.connections, rosterModel: model)
             }
         }
 
@@ -92,7 +92,7 @@
             .disabled(entry.status != .ready)
             .contextMenu {
                 if entry.status == .ready {
-                    Button("Edit", systemImage: "pencil") { editing = entry }
+                    Button("Bot Settings", systemImage: "slider.horizontal.3") { editing = entry }
                     Button(entry.isPinned ? "Unpin" : "Pin", systemImage: entry.isPinned ? "pin.slash" : "pin") {
                         var edit = BotEdit(entry: entry)
                         edit.isPinned.toggle()

@@ -3,46 +3,6 @@ import Testing
 
 @testable import HermesKit
 
-/// Answers each method from a script of replies. A method's last reply repeats once its script runs out.
-/// With `activeProfile` set, each call is scoped the way `GatewayClient` scopes it (`ProfileScope`): a method that
-/// takes `profile` and does not name one records the active profile.
-private actor FakeBotGateway: BotGateway {
-    enum Reply: Sendable {
-        case json(String)
-        case failure(RPCError)
-    }
-
-    struct Call: Sendable {
-        let method: String
-        let params: JSONValue?
-    }
-
-    private var scripts: [String: [Reply]]
-    private let activeProfile: String?
-    private(set) var calls: [Call] = []
-
-    init(_ scripts: [String: [Reply]], activeProfile: String? = nil) {
-        self.scripts = scripts
-        self.activeProfile = activeProfile
-    }
-
-    func call<Value: Decodable & Sendable>(
-        _ method: String, params: (any Encodable & Sendable)?, as type: Value.Type
-    ) async throws -> Value {
-        let encoded = try params.map { try JSONValue(encoding: $0) }
-        calls.append(
-            Call(method: method, params: ProfileScope.scoped(method: method, params: encoded, profile: activeProfile)))
-        guard let script = scripts[method], let reply = script.first else {
-            throw RPCError(code: -32601, message: "no reply scripted for \(method)")
-        }
-        if script.count > 1 { scripts[method] = Array(script.dropFirst()) }
-        switch reply {
-        case .json(let text): return try JSONDecoder().decode(Value.self, from: Data(text.utf8))
-        case .failure(let error): throw error
-        }
-    }
-}
-
 /// A `profiles.list` answer with one profile, carrying the given revisions and `ui_meta`.
 private func listing(_ profile: String = "ops", revisions: String = "{}", uiMeta: String = "{}") -> String {
     #"""

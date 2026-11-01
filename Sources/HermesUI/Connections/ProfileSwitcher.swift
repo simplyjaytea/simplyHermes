@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+    import Foundation
     import HermesKit
     import SwiftUI
 
@@ -7,11 +8,19 @@
     public struct ProfileSwitcher: View {
         private let profiles: ProfilesModel
         private let connections: ConnectionsModel
+        private let bots: BotsModel?
         @State private var showsBotSettings = false
 
         public init(profiles: ProfilesModel, connections: ConnectionsModel) {
             self.profiles = profiles
             self.connections = connections
+            self.bots = nil
+        }
+
+        init(profiles: ProfilesModel, connections: ConnectionsModel, bots: BotsModel?) {
+            self.profiles = profiles
+            self.connections = connections
+            self.bots = bots
         }
 
         private var isConnected: Bool {
@@ -58,8 +67,44 @@
                 await profiles.refresh()
             }
             .sheet(isPresented: $showsBotSettings) {
-                BotSettingsSheet(profiles: profiles, connections: connections)
+                if let entry = activeBotEntry {
+                    BotSettingsScreen(entry: entry, connections: connections, rosterModel: bots)
+                } else {
+                    BotSettingsSheet(profiles: profiles, connections: connections)
+                }
             }
+        }
+
+        private var activeBotEntry: BotRosterEntry? {
+            guard let connection = connections.active else { return nil }
+            let profile = profiles.selection.chosen ?? "default"
+            let byConnection = bots?.entries.first(where: { $0.connectionID == connection.id && $0.profile == profile })
+            let byProfile = bots?.entries.first(where: { $0.profile == profile })
+            if let entry = byConnection ?? byProfile {
+                return entry
+            }
+            let title = ProfileSelection.title(of: profiles.selection.current) ?? profile
+            return BotRosterEntry(
+                connectionID: connection.id,
+                sourceLabel: connection.name,
+                profile: profile,
+                handle: profile,
+                title: title,
+                monogram: BotMonogram.text(for: title),
+                tint: BotTint.name(for: profile),
+                avatar: nil,
+                status: .ready,
+                isRetained: true,
+                isPinned: false,
+                isHidden: false,
+                isDefault: profile == "default",
+                role: nil,
+                preview: nil,
+                lastActive: nil,
+                workerActiveAt: nil,
+                canonicalSessionID: nil,
+                activity: Date().timeIntervalSince1970 * 1000
+            )
         }
     }
 #endif

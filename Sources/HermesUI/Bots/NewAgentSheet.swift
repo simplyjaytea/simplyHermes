@@ -9,10 +9,21 @@
         @State private var draft = NewAgentDraft()
         @State private var isCreating = false
         @State private var isAdvancedExpanded = false
+        @State private var localError: String?
+        @State private var lookSaveWarning = false
 
         var body: some View {
             NavigationStack {
                 Form {
+                    if let localError {
+                        Section {
+                            Text(localError)
+                                .font(HermesFont.footnote)
+                                .foregroundStyle(HermesColor.destructive)
+                                .accessibilityIdentifier("newAgent.error")
+                        }
+                    }
+
                     Section {
                         TextField("Name", text: $draft.name)
                             .textInputAutocapitalization(.never)
@@ -54,8 +65,12 @@
                         Button("Cancel") { dismiss() }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Create") { Task { await create() } }
-                            .disabled(!canCreate)
+                        if lookSaveWarning {
+                            Button("Done") { dismiss() }
+                        } else {
+                            Button("Create") { Task { await create() } }
+                                .disabled(!canCreate)
+                        }
                     }
                 }
             }
@@ -89,10 +104,20 @@
 
         private func create() async {
             isCreating = true
-            defer { isCreating = false }
+            localError = nil
             model.errorMessage = nil
-            if await model.createAgent(draft) != nil {
-                dismiss()
+            defer { isCreating = false }
+            if let created = await model.createAgent(draft) {
+                if !created.lookSaved {
+                    lookSaveWarning = true
+                    localError =
+                        model.errorMessage
+                        ?? "\(created.profile) was created, but its title or avatar did not save. Edit it from its menu."
+                } else {
+                    dismiss()
+                }
+            } else {
+                localError = model.errorMessage ?? "Could not create agent."
             }
         }
     }

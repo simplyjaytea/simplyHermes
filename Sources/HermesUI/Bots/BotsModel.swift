@@ -18,7 +18,7 @@
         /// The search text. Matching ignores case and one leading `@`.
         var query = ""
 
-        @ObservationIgnored private let connections: ConnectionsModel
+        @ObservationIgnored let connections: ConnectionsModel
         @ObservationIgnored private let profiles: ProfilesModel?
         @ObservationIgnored private let shell: ShellModel
         /// The last good read of each gateway, kept while it does not answer.
@@ -29,7 +29,7 @@
             let installID: String?
         }
 
-        init(connections: ConnectionsModel, profiles: ProfilesModel?, shell: ShellModel) {
+        init(connections: ConnectionsModel, profiles: ProfilesModel? = nil, shell: ShellModel = ShellModel()) {
             self.connections = connections
             self.profiles = profiles
             self.shell = shell
