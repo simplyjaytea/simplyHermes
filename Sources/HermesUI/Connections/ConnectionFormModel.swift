@@ -360,6 +360,8 @@
                 "The server didn't accept the sign-in. Try again."
             case NativeSignInError.sessionExpired:
                 "The sign-in expired. Try again."
+            case NativeSignInError.callbackOriginMismatch(let startingURL):
+                "This server's browser sign-in must be started from \(startingURL). Enter that address and start browser sign-in again."
             case NativeSignInError.server(let detail):
                 "The server refused the sign-in: \(detail)"
             default:
