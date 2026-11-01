@@ -6,7 +6,8 @@ public enum SubmitOutcome: Sendable, Equatable {
     case acknowledged
     /// The chat cannot take the message yet: Hermes is busy, or the session is not live. It stays pending.
     case deferred
-    /// The server refused the prompt. The reason is for the user. The message stays pending for now.
+    /// The server refused the prompt. The reason is for the user. The message is kept as failed, until the user retries
+    /// it or deletes it.
     case failed(String)
 }
 
@@ -64,15 +65,28 @@ public actor OutboxDrainer {
     }
 
     private func sendPending() async throws {
-        for record in try await store.records(inChat: chatID) where record.state == .pending {
+        for record in try await store.records(inChat: chatID) {
+            // A failed message holds back the ones written after it, so they keep the order the user wrote them in.
+            if case .failed = record.state { return }
+            guard record.state == .pending else { continue }
             try await store.updateState(.sending, forID: record.id)
             switch await submitter.deliver(record) {
             case .acknowledged:
                 try await store.updateState(.sent(acknowledgedAt: clock()), forID: record.id)
-            case .deferred, .failed:
+            case .deferred:
                 try await store.updateState(.pending, forID: record.id)
+                return
+            case .failed(let reason):
+                // The user decides what happens next (Retry, Edit or Delete). Later messages wait behind it.
+                try await store.updateState(.failed(reason: reason), forID: record.id)
                 return
             }
         }
+    }
+
+    /// Retries a failed message, then sends the waiting messages. Only a failed message can be retried.
+    public func retry(_ id: UUID) async throws {
+        try await store.updateState(.pending, forID: id)
+        try await drain()
     }
 }

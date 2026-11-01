@@ -27,9 +27,9 @@
         /// Approvals of this chat that wait for the user.
         public private(set) var approvals: [PendingApproval] = []
         /// Typed messages the server does not have yet, oldest first. The screen shows them as "Waiting to send".
-        public private(set) var outboxRows: [OutboundRecord] = []
+        public internal(set) var outboxRows: [OutboundRecord] = []
         /// Why the last save or send of a message failed. The screen shows it as a status line. Nil when none did.
-        public private(set) var outboxError: String?
+        public internal(set) var outboxError: String?
 
         /// An approval request with the fields the inline card needs.
         public struct PendingApproval: Identifiable, Equatable {
@@ -106,13 +106,13 @@
 
         @ObservationIgnored private let connections: ConnectionsModel
         @ObservationIgnored private let broker: ServerRequestBroker
-        @ObservationIgnored private let storedSessionID: String
+        @ObservationIgnored let storedSessionID: String
         /// When an automatic retry will fire, if one is scheduled.
         public private(set) var retryAt: Date?
         /// Text a slash command asked the composer to take back, unsent. The chat screen moves it into the draft.
-        public private(set) var prefill: String?
+        public internal(set) var prefill: String?
         @ObservationIgnored private var retryTask: Task<Void, Never>?
-        @ObservationIgnored private var controller: ChatSessionController?
+        @ObservationIgnored var controller: ChatSessionController?
         /// The attempt to connect and resume that is under way, if any. Calls to ``attach()`` share it.
         @ObservationIgnored private var attaching: Task<Void, Never>?
         @ObservationIgnored private var client: GatewayClient?
@@ -122,9 +122,9 @@
         /// A New chat's first message, held until the chat attaches. ``attach()`` sends it.
         @ObservationIgnored private var firstMessage: (text: String, attachments: [ComposerAttachment])?
         @ObservationIgnored private var isMovingWorkspace = false
-        @ObservationIgnored private let outbox: any OutboxStore
+        @ObservationIgnored let outbox: any OutboxStore
         /// Sends the outbox's messages through the attached controller. Nil while the chat is detached.
-        @ObservationIgnored private var drainer: OutboxDrainer?
+        @ObservationIgnored var drainer: OutboxDrainer?
         /// The profile this chat was pinned to at its first attach. Nil for the server's default profile.
         @ObservationIgnored private var pinnedProfile: String?
         @ObservationIgnored private var profilePinned = false
@@ -320,67 +320,6 @@
                 for change in changes { _ = try? await client.configSet(change) }
                 await self.loadModelOptions()
             }
-        }
-
-        /// Sends what the composer holds (WP-3). Typed text is saved to the outbox first, and goes out once the chat can
-        /// take it, even if the app stops in between. Returns true once the text is saved or handed on, so the composer may
-        /// clear. False leaves the draft where it is.
-        @discardableResult
-        public func send(_ text: String, attachments: [ComposerAttachment] = []) async -> Bool {
-            // Plan Q44: while the server is out of reach, text goes to the on-device model. Files need Hermes.
-            if attachments.isEmpty, offline.send(text) { return true }
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            // Files and slash commands run on the controller at once. They are not saved to the outbox yet.
-            if !attachments.isEmpty || SlashCommand(trimmed) != nil {
-                guard let controller else { return false }
-                HermesSounds.play(.send)
-                if let composerText = await controller.send(text, attachments: attachments) {
-                    prefill = composerText
-                    return false
-                }
-                return true
-            }
-            guard !trimmed.isEmpty else { return false }
-            do {
-                try await outbox.insert(OutboundRecord(chatID: storedSessionID, text: trimmed, createdAt: Date()))
-            } catch {
-                outboxError = Self.outboxMessage(for: error)
-                return false
-            }
-            outboxError = nil
-            HermesSounds.play(.send)
-            await refreshOutbox()
-            Task { await drainOutbox() }
-            return true
-        }
-
-        /// Sends the chat's waiting messages if Hermes can take them, then refreshes the rows the screen shows.
-        private func drainOutbox() async {
-            guard let drainer else { return }
-            do {
-                try await drainer.drain()
-            } catch {
-                outboxError = Self.outboxMessage(for: error)
-            }
-            await refreshOutbox()
-        }
-
-        /// Starts a drain when there are waiting messages and the chat is free to send them.
-        private func drainSoon() {
-            guard !outboxRows.isEmpty else { return }
-            Task { await drainOutbox() }
-        }
-
-        private func refreshOutbox() async {
-            do {
-                outboxRows = try await outbox.records(inChat: storedSessionID).filter { !$0.state.isSent }
-            } catch {
-                outboxError = Self.outboxMessage(for: error)
-            }
-        }
-
-        private static func outboxMessage(for error: any Error) -> String {
-            String(localized: "Couldn't update your waiting messages. Your text is still in the composer.")
         }
 
         /// Clears ``prefill`` once the composer has taken its text.

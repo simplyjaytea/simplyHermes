@@ -64,6 +64,12 @@ public struct GRDBOutboxStore: OutboxStore {
         }
     }
 
+    public func remove(id: UUID) async throws {
+        try await database.write { handle in
+            try handle.execute(sql: "DELETE FROM outbound_messages WHERE id = ?", arguments: [id.uuidString])
+        }
+    }
+
     private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970

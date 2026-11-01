@@ -68,16 +68,44 @@ struct OutboxDrainerTests {
         #expect(try await states(cache) == ["a:sent", "b:sent", "c:sent"])
     }
 
-    @Test func aFailedMessageStaysPendingAndStopsThePass() async throws {
+    @Test func aFailedMessageIsKeptAsFailedAndStopsThePass() async throws {
         let cache = try HermesCache()
         for text in ["a", "b"] { try await cache.outbox.insert(record(text)) }
         let submitter = ScriptedSubmitter([.failed("Can't reach the server")])
         let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter)
 
         try await drainer.drain()
+        // A later drain does not resend it on its own: only Retry does.
+        try await drainer.drain()
 
         #expect(await submitter.delivered == ["a"])
-        #expect(try await states(cache) == ["a:pending", "b:pending"])
+        #expect(try await states(cache) == ["a:failed", "b:pending"])
+        let failed = try await cache.outbox.records(inChat: "c1").first
+        #expect(failed?.state == .failed(reason: "Can't reach the server"))
+    }
+
+    @Test func aRetriedMessageGoesOutAndTheWaitingOnesFollow() async throws {
+        let cache = try HermesCache()
+        let first = record("a")
+        try await cache.outbox.insert(first)
+        try await cache.outbox.insert(record("b"))
+        let submitter = ScriptedSubmitter([.failed("boom")])
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter)
+        try await drainer.drain()
+
+        try await drainer.retry(first.id)
+
+        #expect(await submitter.delivered == ["a", "a", "b"])
+        #expect(try await states(cache) == ["a:sent", "b:sent"])
+    }
+
+    @Test func retryOnlyAppliesToAFailedMessage() async throws {
+        let cache = try HermesCache()
+        let saved = record("a")
+        try await cache.outbox.insert(saved)
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: ScriptedSubmitter())
+        await #expect(throws: OutboxError.self) { try await drainer.retry(saved.id) }
+        #expect(try await states(cache) == ["a:pending"])
     }
 
     @Test func aMessageInterruptedMidSendReturnsToPendingOnAttach() async throws {
