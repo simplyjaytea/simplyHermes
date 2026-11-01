@@ -7,7 +7,12 @@
         @State private var model: BotSettingsModel
         @Environment(\.dismiss) private var dismiss
 
-        public init(entry: BotRosterEntry, connections: ConnectionsModel, rosterModel: BotsModel? = nil) {
+        public init(entry: BotRosterEntry, connections: ConnectionsModel) {
+            _model = State(
+                initialValue: BotSettingsModel(entry: entry, connections: connections))
+        }
+
+        init(entry: BotRosterEntry, connections: ConnectionsModel, rosterModel: BotsModel?) {
             _model = State(
                 initialValue: BotSettingsModel(entry: entry, connections: connections, rosterModel: rosterModel))
         }
@@ -65,8 +70,9 @@
                 ) {
                     Button("Confirm and Save", role: .destructive) {
                         Task {
-                            await model.confirmExpensiveModelChange()
-                            if model.errorMessage == nil { dismiss() }
+                            if await model.confirmExpensiveModelChange() {
+                                dismiss()
+                            }
                         }
                     }
                     Button("Cancel", role: .cancel) {
@@ -124,6 +130,7 @@
                     if let problem = draft.problems.first(where: {
                         if case .titleTooLong = $0 { return true }
                         if case .roleTooLong = $0 { return true }
+                        if case .uiMetaTooLarge = $0 { return true }
                         return false
                     }) {
                         Text(problem.userMessage)
@@ -136,7 +143,22 @@
                 // MARK: 2. Model & Provider
                 Section("Model & Provider") {
                     if !model.modelOptions.isEmpty {
-                        Picker("Provider", selection: binding(for: \.provider)) {
+                        Picker(
+                            "Provider",
+                            selection: Binding(
+                                get: { draft.provider },
+                                set: { newProvider in
+                                    model.draft?.provider = newProvider
+                                    if let providerOpt = model.modelOptions.first(where: { $0.slug == newProvider }),
+                                        let availableModels = providerOpt.models, !availableModels.isEmpty
+                                    {
+                                        if !availableModels.contains(draft.model) {
+                                            model.draft?.model = availableModels.first ?? ""
+                                        }
+                                    }
+                                }
+                            )
+                        ) {
                             ForEach(model.modelOptions, id: \.slug) { opt in
                                 Text(opt.name).tag(opt.slug)
                             }
@@ -145,8 +167,8 @@
                             let availableModels = currentProvider.models, !availableModels.isEmpty
                         {
                             Picker("Model", selection: binding(for: \.model)) {
-                                ForEach(availableModels, id: \.self) { m in
-                                    Text(m).tag(m)
+                                ForEach(availableModels, id: \.self) { modelName in
+                                    Text(modelName).tag(modelName)
                                 }
                             }
                         } else {
@@ -298,6 +320,7 @@
                     Text("Export creates an archive of this bot's configuration and memory to save or share.")
                 }
             }
+            .disabled(model.isSaving)
         }
 
         private func binding<T>(for keyPath: WritableKeyPath<BotSettingsDraft, T>) -> Binding<T> {

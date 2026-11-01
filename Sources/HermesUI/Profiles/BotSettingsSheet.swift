@@ -77,9 +77,13 @@
     }
 
     /// A file for the share sheet. Its URL identifies it.
-    struct ShareFile: Identifiable {
-        let url: URL
-        var id: URL { url }
+    public struct ShareFile: Identifiable {
+        public let url: URL
+        public var id: URL { url }
+
+        public init(url: URL) {
+            self.url = url
+        }
     }
 
     /// The system share sheet for `items`.

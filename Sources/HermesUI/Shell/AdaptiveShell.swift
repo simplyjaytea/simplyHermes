@@ -400,8 +400,8 @@
                 profile: profile,
                 handle: profile,
                 title: title,
-                monogram: String(profile.prefix(2)).uppercased(),
-                tint: "accent",
+                monogram: BotMonogram.text(for: title),
+                tint: BotTint.name(for: profile),
                 avatar: nil,
                 status: .ready,
                 isRetained: true,
@@ -452,7 +452,7 @@
         private var profileSwitcher: some ToolbarContent {
             if let connections, let profiles {
                 ToolbarItem(placement: .topBarLeading) {
-                    ProfileSwitcher(profiles: profiles, connections: connections)
+                    ProfileSwitcher(profiles: profiles, connections: connections, bots: bots)
                 }
             }
         }

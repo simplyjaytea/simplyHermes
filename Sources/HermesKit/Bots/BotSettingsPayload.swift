@@ -121,6 +121,24 @@ public struct BotSettingsDraft: Sendable, Equatable {
     // Section 6: MCP Servers
     public var mcpServers: [BotSettingsMcpServerItem]
 
+    /// Additional metadata bytes (e.g. from custom namespaces) to factor into the 64 KB limit.
+    public var additionalUiMetaBytes: Int = 0
+
+    /// Estimated size in bytes of the `ui_meta` payload (desktop + app namespaces).
+    public var estimatedUiMetaBytes: Int {
+        var bytes = additionalUiMetaBytes
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        bytes += trimmedTitle.utf8.count
+        if let avatar {
+            switch avatar {
+            case .emoji(let value), .symbol(let value):
+                bytes += value.utf8.count + 50
+            }
+        }
+        bytes += 100
+        return bytes
+    }
+
     // Baselines for dirty tracking
     private var baselineTitle: String
     private var baselineRole: String
@@ -257,6 +275,14 @@ public struct BotSettingsDraft: Sendable, Equatable {
             || isHidden != baselineIsHidden
     }
 
+    /// True when metadata stored outside `profiles.configure` (title, avatar, pinned, hidden) has changed.
+    public var isIdentityMetaDirty: Bool {
+        title.trimmingCharacters(in: .whitespacesAndNewlines) != baselineTitle
+            || avatar != baselineAvatar
+            || isPinned != baselineIsPinned
+            || isHidden != baselineIsHidden
+    }
+
     public var isRoleDirty: Bool {
         role.trimmingCharacters(in: .whitespacesAndNewlines) != baselineRole
     }
@@ -309,6 +335,11 @@ public struct BotSettingsDraft: Sendable, Equatable {
         !dirtySections.isEmpty
     }
 
+    /// True when there are dirty sections to send over `profiles.configure`.
+    public var hasConfigurePayload: Bool {
+        isRoleDirty || isModelDirty || isSoulDirty || isSkillsDirty || isToolsetsDirty || isMcpDirty
+    }
+
     // MARK: - Validation
 
     public var problems: [BotSettingsProblem] {
@@ -332,6 +363,10 @@ public struct BotSettingsDraft: Sendable, Equatable {
         let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedProvider.isEmpty != trimmedModel.isEmpty {
             problems.append(.modelIncomplete)
+        }
+
+        if estimatedUiMetaBytes > BotMetaNamespace.maxPayloadBytes {
+            problems.append(.uiMetaTooLarge)
         }
 
         return problems
@@ -370,10 +405,10 @@ public struct BotSettingsDraft: Sendable, Equatable {
     public mutating func resetToolsets() {
         toolsetsPinned = false
         // Revert toolset states to baseline
-        for i in toolsets.indices {
-            let name = toolsets[i].name
+        for toolsetIndex in toolsets.indices {
+            let name = toolsets[toolsetIndex].name
             if let base = baselineToolsets[name] {
-                toolsets[i].enabled = base
+                toolsets[toolsetIndex].enabled = base
             }
         }
     }
@@ -396,7 +431,7 @@ public struct BotSettingsDraft: Sendable, Equatable {
     /// Builds `ProfilesConfigureParams` containing only dirty sections.
     /// Passes `targetProfile` as both `profile` and `name`.
     public func buildConfigureParams(confirmExpensiveModel: Bool = false) -> ProfilesConfigureParams? {
-        guard isDirty else { return nil }
+        guard hasConfigurePayload else { return nil }
 
         var params = ProfilesConfigureParams(profile: targetProfile, name: targetProfile)
 
@@ -422,8 +457,13 @@ public struct BotSettingsDraft: Sendable, Equatable {
         }
 
         if isToolsetsDirty {
-            // Full enabled toolsets list semantics
-            params.enabledToolsets = toolsets.filter { $0.enabled }.map(\.name)
+            if toolsetsPinned {
+                params.toolsetsPinned = true
+                params.enabledToolsets = toolsets.filter { $0.enabled }.map(\.name)
+            } else {
+                params.toolsetsPinned = false
+                params.enabledToolsets = nil
+            }
         }
 
         if isMcpDirty {
@@ -434,6 +474,14 @@ public struct BotSettingsDraft: Sendable, Equatable {
     }
 
     // MARK: - Apply Successful Outcome
+
+    /// Updates the baseline for metadata saved outside `profiles.configure` (title, avatar, pinned, hidden).
+    public mutating func applySuccessfulIdentityMeta() {
+        baselineTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        baselineAvatar = avatar
+        baselineIsPinned = isPinned
+        baselineIsHidden = isHidden
+    }
 
     /// Updates the baseline for sections that were successfully written, keeping failed values intact.
     public mutating func applySuccessfulSections(_ sections: Set<BotSettingsSection>) {

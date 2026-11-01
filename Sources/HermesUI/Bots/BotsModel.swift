@@ -29,7 +29,7 @@
             let installID: String?
         }
 
-        init(connections: ConnectionsModel, profiles: ProfilesModel?, shell: ShellModel) {
+        init(connections: ConnectionsModel, profiles: ProfilesModel? = nil, shell: ShellModel = ShellModel()) {
             self.connections = connections
             self.profiles = profiles
             self.shell = shell

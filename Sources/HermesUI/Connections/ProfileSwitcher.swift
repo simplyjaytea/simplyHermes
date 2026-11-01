@@ -8,11 +8,19 @@
     public struct ProfileSwitcher: View {
         private let profiles: ProfilesModel
         private let connections: ConnectionsModel
+        private let bots: BotsModel?
         @State private var showsBotSettings = false
 
         public init(profiles: ProfilesModel, connections: ConnectionsModel) {
             self.profiles = profiles
             self.connections = connections
+            self.bots = nil
+        }
+
+        init(profiles: ProfilesModel, connections: ConnectionsModel, bots: BotsModel?) {
+            self.profiles = profiles
+            self.connections = connections
+            self.bots = bots
         }
 
         private var isConnected: Bool {
@@ -60,7 +68,7 @@
             }
             .sheet(isPresented: $showsBotSettings) {
                 if let entry = activeBotEntry {
-                    BotSettingsScreen(entry: entry, connections: connections)
+                    BotSettingsScreen(entry: entry, connections: connections, rosterModel: bots)
                 } else {
                     BotSettingsSheet(profiles: profiles, connections: connections)
                 }
@@ -70,6 +78,11 @@
         private var activeBotEntry: BotRosterEntry? {
             guard let connection = connections.active else { return nil }
             let profile = profiles.selection.chosen ?? "default"
+            if let entry = bots?.entries.first(where: { $0.connectionID == connection.id && $0.profile == profile })
+                ?? bots?.entries.first(where: { $0.profile == profile })
+            {
+                return entry
+            }
             let title = profiles.selection.current?.title ?? profile
             return BotRosterEntry(
                 connectionID: connection.id,
@@ -77,8 +90,8 @@
                 profile: profile,
                 handle: profile,
                 title: title,
-                monogram: String(profile.prefix(2)).uppercased(),
-                tint: "accent",
+                monogram: BotMonogram.text(for: title),
+                tint: BotTint.name(for: profile),
                 avatar: nil,
                 status: .ready,
                 isRetained: true,

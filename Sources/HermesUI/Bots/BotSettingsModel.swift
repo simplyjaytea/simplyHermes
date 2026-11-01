@@ -24,7 +24,13 @@
         @ObservationIgnored private let connections: ConnectionsModel
         @ObservationIgnored private let rosterModel: BotsModel?
 
-        public init(entry: BotRosterEntry, connections: ConnectionsModel, rosterModel: BotsModel? = nil) {
+        public init(entry: BotRosterEntry, connections: ConnectionsModel) {
+            self.entry = entry
+            self.connections = connections
+            self.rosterModel = nil
+        }
+
+        init(entry: BotRosterEntry, connections: ConnectionsModel, rosterModel: BotsModel?) {
             self.entry = entry
             self.connections = connections
             self.rosterModel = rosterModel
@@ -48,10 +54,8 @@
                 let client = try await manager.client(for: connection)
                 let botClient = BotClient(gateway: client)
 
-                async let describeCall = botClient.describeProfile(entry.profile)
-                async let optionsCall = botClient.modelOptions(profile: entry.profile)
-
-                let (describe, options) = try await (describeCall, optionsCall)
+                let describe = try await botClient.describeProfile(entry.profile)
+                let options = try? await botClient.modelOptions(profile: entry.profile)
 
                 draft = BotSettingsDraft(
                     describe: describe,
@@ -61,7 +65,7 @@
                     isPinned: entry.isPinned,
                     isHidden: entry.isHidden
                 )
-                modelOptions = options.providers
+                modelOptions = options?.providers ?? []
             } catch {
                 errorMessage = BotSettingsError.message(for: error)
             }
@@ -88,8 +92,7 @@
                 let botClient = BotClient(gateway: client)
 
                 // 1. Identity metadata writes (Desktop and App namespaces)
-                var identityApplied = true
-                if currentDraft.isIdentityDirty {
+                if currentDraft.isIdentityMetaDirty {
                     if currentDraft.title != entry.title || currentDraft.isPinned != entry.isPinned
                         || currentDraft.isHidden != entry.isHidden
                     {
@@ -110,9 +113,10 @@
                             object = BotAppLook(avatar: currentDraft.avatar).applied(to: object)
                         }
                     }
+                    draft?.applySuccessfulIdentityMeta()
                 }
 
-                // 2. Configure dirty sections
+                // 2. Configure dirty sections via profiles.configure
                 if let params = currentDraft.buildConfigureParams() {
                     let result = try await botClient.configureProfile(params)
                     let outcome = BotSettingsSaveOutcome.evaluate(
@@ -134,8 +138,7 @@
                         errorMessage = outcome.statusMessage
                         return false
                     }
-                } else if identityApplied {
-                    draft?.applySuccessfulSections([.identity])
+                } else {
                     statusMessage = "All changes saved."
                 }
 
@@ -148,14 +151,15 @@
         }
 
         /// Re-sends the model change carrying `confirm_expensive_model: true`.
-        public func confirmExpensiveModelChange() async {
-            guard let currentDraft = draft else { return }
-            guard let params = currentDraft.buildConfigureParams(confirmExpensiveModel: true) else { return }
+        @discardableResult
+        public func confirmExpensiveModelChange() async -> Bool {
+            guard let currentDraft = draft else { return false }
+            guard let params = currentDraft.buildConfigureParams(confirmExpensiveModel: true) else { return false }
             guard let connection = connections.connection(id: entry.connectionID),
                 let manager = connections.manager
             else {
                 errorMessage = "The server is offline or unreachable."
-                return
+                return false
             }
 
             isSaving = true
@@ -170,18 +174,23 @@
                 let result = try await BotClient(gateway: client).configureProfile(params)
                 let outcome = BotSettingsSaveOutcome.evaluate(
                     result: result,
-                    requestedSections: [.model]
+                    requestedSections: currentDraft.dirtySections,
+                    hasRoleDirty: currentDraft.isRoleDirty
                 )
 
+                draft?.applySuccessfulSections(outcome.appliedSections)
+
                 if outcome.isCompleteSuccess {
-                    draft?.applySuccessfulSections([.model])
-                    statusMessage = "Model updated successfully."
+                    statusMessage = outcome.statusMessage
                     await rosterModel?.reload()
+                    return true
                 } else {
                     errorMessage = outcome.statusMessage
+                    return false
                 }
             } catch {
                 errorMessage = BotSettingsError.message(for: error)
+                return false
             }
         }
 

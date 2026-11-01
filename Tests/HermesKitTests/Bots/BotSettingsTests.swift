@@ -178,11 +178,13 @@ import Testing
 
         let customParams = draft.buildConfigureParams()
         #expect(customParams?.enabledToolsets?.sorted() == ["terminal", "web"].sorted())
+        #expect(customParams?.toolsetsPinned == true)
 
         // Toggling one toolset keeps full list semantics
         draft.toggleToolset(named: "terminal")
         let toggledParams = draft.buildConfigureParams()
         #expect(toggledParams?.enabledToolsets == ["web"])
+        #expect(toggledParams?.toolsetsPinned == true)
 
         // Reset reverts toolset states to baseline and unpins
         draft.resetToolsets()
@@ -374,5 +376,179 @@ import Testing
 
         draft.model = "claude-3-5"
         #expect(draft.isValid)
+    }
+
+    // MARK: - 10. Toolset Reset From Pinned Baseline
+
+    @Test func toolsetResetFromPinnedBaselineSendsUnpinWithoutEnabledList() {
+        var draft = BotSettingsDraft(
+            targetProfile: "ops",
+            toolsets: [
+                BotSettingsToolsetItem(name: "web", enabled: true),
+                BotSettingsToolsetItem(name: "terminal", enabled: false),
+            ],
+            toolsetsPinned: true
+        )
+
+        #expect(!draft.isToolsetsDirty)
+        #expect(draft.toolsetsPinned)
+
+        // User clicks Reset to inherit global settings
+        draft.resetToolsets()
+        #expect(!draft.toolsetsPinned)
+        #expect(draft.isToolsetsDirty)
+
+        let params = draft.buildConfigureParams()
+        #expect(params != nil)
+        #expect(params?.toolsetsPinned == false)
+        #expect(params?.enabledToolsets == nil)  // MUST NOT send enabled_toolsets list on reset!
+
+        // Server applies the unpin
+        let result = ProfilesConfigureResult(
+            ok: true,
+            applied: ProfilesConfigureApplied(toolsets: true)
+        )
+        let outcome = BotSettingsSaveOutcome.evaluate(
+            result: result,
+            requestedSections: draft.dirtySections
+        )
+        #expect(outcome.isCompleteSuccess)
+        #expect(outcome.appliedSections == [.toolsets])
+
+        draft.applySuccessfulSections(outcome.appliedSections)
+        #expect(!draft.isToolsetsDirty)
+        #expect(!draft.toolsetsPinned)
+    }
+
+    // MARK: - 11. ui_meta Size Validation
+
+    @Test func validationRejectsOversizedUiMeta() {
+        var draft = BotSettingsDraft(targetProfile: "ops", title: "Ops")
+        #expect(draft.isValid)
+        #expect(!draft.problems.contains(.uiMetaTooLarge))
+
+        // Exceed 64 KB limit with additional metadata
+        draft.additionalUiMetaBytes = BotMetaNamespace.maxPayloadBytes + 1
+        #expect(!draft.isValid)
+        #expect(draft.problems.contains(.uiMetaTooLarge))
+        #expect(
+            draft.problems.first(where: { $0 == .uiMetaTooLarge })?.userMessage
+                == "Settings metadata exceeds the 64 KB server limit.")
+    }
+
+    // MARK: - 12. Identity Scoping and Payload Generation
+
+    @Test func identityOnlyEditsDoNotProduceConfigurePayload() {
+        var draft = BotSettingsDraft(
+            targetProfile: "ops",
+            title: "Ops",
+            role: "Operator"
+        )
+        #expect(!draft.isDirty)
+        #expect(!draft.isIdentityMetaDirty)
+        #expect(!draft.hasConfigurePayload)
+        #expect(draft.buildConfigureParams() == nil)
+
+        // Only metadata (title, pinned, hidden, avatar) changed
+        draft.title = "Ops Chief"
+        draft.isPinned = true
+        #expect(draft.isDirty)
+        #expect(draft.isIdentityMetaDirty)
+        #expect(!draft.isRoleDirty)
+        #expect(!draft.hasConfigurePayload)
+        #expect(draft.buildConfigureParams() == nil)  // No empty profiles.configure call!
+
+        // When role changes, configure payload is required
+        draft.role = "Lead Operator"
+        #expect(draft.isRoleDirty)
+        #expect(draft.hasConfigurePayload)
+        let params = draft.buildConfigureParams()
+        #expect(params?.description == "Lead Operator")
+
+        // Applying successful identity metadata leaves only role dirty
+        draft.applySuccessfulIdentityMeta()
+        #expect(!draft.isIdentityMetaDirty)
+        #expect(draft.isRoleDirty)
+        #expect(draft.hasConfigurePayload)
+    }
+
+    // MARK: - 13. Confirm Flow With Multiple Sections
+
+    @Test func confirmFlowEvaluatesAllSentSectionsAndKeepsFailedSectionsDirty() {
+        var draft = BotSettingsDraft(
+            targetProfile: "ops",
+            provider: "anthropic",
+            model: "claude-3-5",
+            soul: "Terse assistant"
+        )
+        draft.model = "claude-3-opus"
+        draft.soul = "Very verbose personality"
+        #expect(draft.dirtySections == [.model, .soul])
+
+        // First attempt returns confirm_required for model
+        let confirmResult = ProfilesConfigureResult(
+            ok: false,
+            applied: ProfilesConfigureApplied(soul: true),
+            confirmRequired: true,
+            confirmMessage: "Opus is expensive."
+        )
+        let firstOutcome = BotSettingsSaveOutcome.evaluate(
+            result: confirmResult,
+            requestedSections: draft.dirtySections
+        )
+        #expect(firstOutcome.confirmRequired)
+        #expect(!firstOutcome.isCompleteSuccess)
+        #expect(firstOutcome.appliedSections == [.soul])
+
+        draft.applySuccessfulSections(firstOutcome.appliedSections)
+        #expect(!draft.isSoulDirty)
+        #expect(draft.isModelDirty)
+
+        // Second write with confirmExpensiveModel = true
+        let secondParams = draft.buildConfigureParams(confirmExpensiveModel: true)
+        #expect(secondParams?.confirmExpensiveModel == true)
+        #expect(secondParams?.soul == nil)  // Already clean!
+        #expect(secondParams?.model == "claude-3-opus")
+
+        let secondResult = ProfilesConfigureResult(
+            ok: true,
+            applied: ProfilesConfigureApplied(model: true)
+        )
+        let secondOutcome = BotSettingsSaveOutcome.evaluate(
+            result: secondResult,
+            requestedSections: draft.dirtySections
+        )
+        #expect(secondOutcome.isCompleteSuccess)
+        #expect(secondOutcome.appliedSections == [.model])
+
+        draft.applySuccessfulSections(secondOutcome.appliedSections)
+        #expect(!draft.isDirty)
+    }
+
+    // MARK: - 14. BotRosterEntry Memberwise Initializer
+
+    @Test func botRosterEntryPublicInitializerConstructsWithDefaults() {
+        let id = UUID()
+        let entry = BotRosterEntry(
+            connectionID: id,
+            sourceLabel: "Gateway 1",
+            profile: "ops",
+            handle: "ops",
+            title: "Ops Bot",
+            monogram: "OB",
+            tint: "accent"
+        )
+        #expect(entry.connectionID == id)
+        #expect(entry.sourceLabel == "Gateway 1")
+        #expect(entry.profile == "ops")
+        #expect(entry.handle == "ops")
+        #expect(entry.title == "Ops Bot")
+        #expect(entry.monogram == "OB")
+        #expect(entry.tint == "accent")
+        #expect(entry.status == .ready)
+        #expect(!entry.isPinned)
+        #expect(!entry.isHidden)
+        #expect(entry.role == nil)
+        #expect(entry.avatar == nil)
     }
 }

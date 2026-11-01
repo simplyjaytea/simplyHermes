@@ -102,8 +102,14 @@
             localError = nil
             model.errorMessage = nil
             defer { isCreating = false }
-            if await model.createAgent(draft) != nil {
-                dismiss()
+            if let created = await model.createAgent(draft) {
+                if !created.lookSaved {
+                    localError =
+                        model.errorMessage
+                        ?? "\(created.profile) was created, but its title or avatar did not save. Edit it from its menu."
+                } else {
+                    dismiss()
+                }
             } else {
                 localError = model.errorMessage ?? "Could not create agent."
             }
