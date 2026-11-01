@@ -132,6 +132,8 @@
         @ObservationIgnored var drainer: OutboxDrainer?
         /// Set while the composer's send is saving. A second send starts only after it ends (review M5).
         @ObservationIgnored var composerSend = SingleFlight()
+        /// The latest drain of this chat's waiting messages. Detaching cancels it, so a closed chat sends nothing more.
+        @ObservationIgnored var drainTask: Task<Void, Never>?
         /// The profile this chat was pinned to at its first attach: the default by name when none was active.
         @ObservationIgnored private var pinnedProfile: String?
         @ObservationIgnored private var profilePinned = false
@@ -237,6 +239,8 @@
             offline.stop()
             tasks = []
             drainer = nil
+            drainTask?.cancel()
+            drainTask = nil
             let controller = controller
             self.controller = nil
             Task { await controller?.detach() }

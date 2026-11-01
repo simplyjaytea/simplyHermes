@@ -24,6 +24,11 @@
                 return true
             }
             guard !trimmed.isEmpty else { return false }
+            // Without durable storage a message would be lost on relaunch, so it is not sent, and the text stays (M6).
+            guard OutboxServices.isDurable else {
+                outboxError = String(localized: "Messages can't be saved on this device, so nothing was sent.")
+                return false
+            }
             // A live chat always belongs to the active server. Without one the text is still kept, under no server.
             let connectionID = connections.active?.id.uuidString ?? ""
             do {
@@ -37,7 +42,7 @@
             outboxError = nil
             HermesSounds.play(.send)
             await refreshOutbox()
-            Task { await drainOutbox() }
+            drainTask = Task { await drainOutbox() }
             return true
         }
 
@@ -93,7 +98,7 @@
         /// Starts a drain when there are waiting messages and the chat is free to send them.
         func drainSoon() {
             guard !outboxRows.isEmpty else { return }
-            Task { await drainOutbox() }
+            drainTask = Task { await drainOutbox() }
         }
 
         func refreshOutbox() async {

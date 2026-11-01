@@ -11,9 +11,14 @@
             return cache.outbox
         }()
 
-        /// Uses `store` for every chat from now on.
-        public static func install(_ store: any OutboxStore) {
+        /// False when the store cannot keep messages across a relaunch. Sending is then refused with a status line,
+        /// the same way offline chats are turned off when their file will not open, so nothing is lost silently.
+        public static var isDurable = true
+
+        /// Uses `store` for every chat from now on. `durable` says whether it keeps messages across a relaunch.
+        public static func install(_ store: any OutboxStore, durable: Bool = true) {
             self.store = store
+            isDurable = durable
         }
     }
 #endif
