@@ -394,7 +394,7 @@
             }
             guard let connection = connections?.active else { return nil }
             let profile = profiles?.selection.chosen ?? "default"
-            let title = sessionTitle ?? profiles?.selection.current?.title ?? profile
+            let title = sessionTitle ?? ProfileSelection.title(of: profiles?.selection.current) ?? profile
             return BotRosterEntry(
                 connectionID: connection.id,
                 sourceLabel: connection.name,

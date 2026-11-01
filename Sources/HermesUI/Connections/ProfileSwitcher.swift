@@ -83,7 +83,7 @@
             if let entry = byConnection ?? byProfile {
                 return entry
             }
-            let title = profiles.selection.current?.title ?? profile
+            let title = ProfileSelection.title(of: profiles.selection.current) ?? profile
             return BotRosterEntry(
                 connectionID: connection.id,
                 sourceLabel: connection.name,
