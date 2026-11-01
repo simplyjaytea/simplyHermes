@@ -12,6 +12,8 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
     private(set) var steered: [String] = []
     private(set) var uploads: [String] = []
     var failSubmit: RPCError?
+    /// Fails `prompt.submit` with an error that is not a server refusal, such as a dropped connection.
+    var failSubmitError: (any Error)?
     /// Runs inside `prompt.submit`, before it answers. Tests use it to deliver events ahead of the answer.
     var duringSubmit: (@Sendable () async throws -> Void)?
     /// What `session.history` answers with.
@@ -41,6 +43,7 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
     func submitPrompt(_ params: PromptSubmitParams) async throws -> PromptSubmitResult {
         lock.withLock { submitted.append(params) }
         try await duringSubmit?()
+        if let failSubmitError { throw failSubmitError }
         if let failSubmit { throw failSubmit }
         return try JSONDecoder().decode(
             PromptSubmitResult.self, from: Data(#"{"status":"streaming","user_row_id":9}"#.utf8))
@@ -508,5 +511,23 @@ private func lines(_ state: TranscriptState) -> [String] {
         // The next attach clears the note.
         state.apply(.attached(try coldResult()))
         #expect(state.connectionNote == nil)
+    }
+
+    // MARK: - Failure classification (review M2)
+
+    @Test func aDroppedConnectionDefersTheMessageInsteadOfFailingIt() async throws {
+        let transport = try FakeChatTransport()
+        transport.failSubmitError = GatewayClientError.notConnected
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        #expect(await controller.deliver(record("waiting")) == .deferred)
+    }
+
+    @Test func aServerRefusalFailsTheMessageWithTheServersWords() async throws {
+        let transport = try FakeChatTransport()
+        transport.failSubmit = RPCError(code: 5000, message: "Model is not available", data: nil)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        #expect(await controller.deliver(record("refused")) == .failed("Model is not available"))
     }
 }

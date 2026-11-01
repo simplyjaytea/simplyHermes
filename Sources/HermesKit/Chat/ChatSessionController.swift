@@ -201,9 +201,14 @@ public actor ChatSessionController: OutboxSubmitter {
             awaitingTurn = result.status != .queued && state.turn == nil
             publish()
             return .acknowledged
-        } catch {
+        } catch let refusal as RPCError {
+            // Hermes itself refused the prompt. Its own words are the reason, and the message is kept as failed.
             publish()
-            return .failed(Self.message(for: error))
+            return .failed(refusal.message.isEmpty ? "Hermes refused this message." : refusal.message)
+        } catch {
+            // The connection was down or slow, so nothing was refused. The message waits and goes out with the next try.
+            publish()
+            return .deferred
         }
     }
 
