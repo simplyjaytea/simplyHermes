@@ -1,5 +1,4 @@
 #if canImport(XCTest)
-    import HermesKit
     import XCTest
 
     /// End-to-end rendered UI tests for appearance preset selection, persistent storage across relaunch,
