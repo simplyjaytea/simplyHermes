@@ -231,20 +231,20 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                 outgoingBubble: RGBColor(hex: 0x0068D9),
                 incomingBubble: RGBColor(hex: 0x2C2D31),
                 primaryText: RGBColor(hex: 0xF2F2F7),
-                secondaryText: RGBColor(hex: 0xA0A0A5),
+                secondaryText: highContrast ? RGBColor(hex: 0xEBEBF5) : RGBColor(hex: 0xA0A0A5),
                 codeBackground: RGBColor(hex: 0x1E1F22),
                 codeText: RGBColor(hex: 0xF2F2F7),
-                codeKeyword: RGBColor(hex: 0xC084FC),
-                codeString: RGBColor(hex: 0x4ADE80),
-                codeComment: RGBColor(hex: 0x94A3B8),
-                codeNumber: RGBColor(hex: 0x38BDF8),
+                codeKeyword: highContrast ? RGBColor(hex: 0xE9D5FF) : RGBColor(hex: 0xC084FC),
+                codeString: highContrast ? RGBColor(hex: 0xBBF7D0) : RGBColor(hex: 0x4ADE80),
+                codeComment: highContrast ? RGBColor(hex: 0xCBD5E1) : RGBColor(hex: 0x94A3B8),
+                codeNumber: highContrast ? RGBColor(hex: 0xBAE6FD) : RGBColor(hex: 0x38BDF8),
                 statusConnected: RGBColor(hex: 0x30D158),
                 statusWarning: RGBColor(hex: 0xFF9F0A),
                 statusOffline: RGBColor(hex: 0x8E8E93),
                 destructive: RGBColor(hex: 0xDC2626),
                 onDestructive: RGBColor(hex: 0xFFFFFF),
-                errorText: RGBColor(hex: 0xF87171),
-                errorBackground: RGBColor(hex: 0x2B191D)
+                errorText: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
+                errorBackground: highContrast ? RGBColor(hex: 0x221316) : RGBColor(hex: 0x2B191D)
             )
 
         case .blue:
@@ -261,20 +261,20 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                 outgoingBubble: RGBColor(hex: 0x0068D9),
                 incomingBubble: RGBColor(hex: 0x1E2B45),
                 primaryText: RGBColor(hex: 0xF0F6FC),
-                secondaryText: RGBColor(hex: 0x96AFD2),
+                secondaryText: highContrast ? RGBColor(hex: 0xC8DBF8) : RGBColor(hex: 0x96AFD2),
                 codeBackground: RGBColor(hex: 0x0A1020),
                 codeText: RGBColor(hex: 0xE0F2FE),
-                codeKeyword: RGBColor(hex: 0xC084FC),
-                codeString: RGBColor(hex: 0x4ADE80),
-                codeComment: RGBColor(hex: 0x94A3B8),
-                codeNumber: RGBColor(hex: 0x38BDF8),
+                codeKeyword: highContrast ? RGBColor(hex: 0xE9D5FF) : RGBColor(hex: 0xC084FC),
+                codeString: highContrast ? RGBColor(hex: 0xBBF7D0) : RGBColor(hex: 0x4ADE80),
+                codeComment: highContrast ? RGBColor(hex: 0xCBD5E1) : RGBColor(hex: 0x94A3B8),
+                codeNumber: highContrast ? RGBColor(hex: 0xBAE6FD) : RGBColor(hex: 0x38BDF8),
                 statusConnected: RGBColor(hex: 0x38BDF8),
                 statusWarning: RGBColor(hex: 0xFBBF24),
                 statusOffline: RGBColor(hex: 0x64748B),
                 destructive: RGBColor(hex: 0xDC2626),
                 onDestructive: RGBColor(hex: 0xFFFFFF),
-                errorText: RGBColor(hex: 0xF87171),
-                errorBackground: RGBColor(hex: 0x241828)
+                errorText: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
+                errorBackground: highContrast ? RGBColor(hex: 0x1C1220) : RGBColor(hex: 0x241828)
             )
 
         case .white:
@@ -291,20 +291,20 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                 outgoingBubble: RGBColor(hex: 0x0068D9),
                 incomingBubble: RGBColor(hex: 0xEDEDF0),
                 primaryText: RGBColor(hex: 0x111827),
-                secondaryText: RGBColor(hex: 0x646973),
+                secondaryText: highContrast ? RGBColor(hex: 0x3C3C43) : RGBColor(hex: 0x646973),
                 codeBackground: RGBColor(hex: 0xF1F3F5),
                 codeText: RGBColor(hex: 0x111827),
-                codeKeyword: RGBColor(hex: 0x7E22CE),
-                codeString: RGBColor(hex: 0xB91C1C),
-                codeComment: RGBColor(hex: 0x646973),
-                codeNumber: RGBColor(hex: 0x0F766E),
+                codeKeyword: highContrast ? RGBColor(hex: 0x581C87) : RGBColor(hex: 0x7E22CE),
+                codeString: highContrast ? RGBColor(hex: 0x991B1B) : RGBColor(hex: 0xB91C1C),
+                codeComment: highContrast ? RGBColor(hex: 0x3C3C43) : RGBColor(hex: 0x646973),
+                codeNumber: highContrast ? RGBColor(hex: 0x115E59) : RGBColor(hex: 0x0F766E),
                 statusConnected: RGBColor(hex: 0x16A34A),
                 statusWarning: RGBColor(hex: 0xD97706),
                 statusOffline: RGBColor(hex: 0x6B7280),
                 destructive: RGBColor(hex: 0xDC2626),
                 onDestructive: RGBColor(hex: 0xFFFFFF),
-                errorText: RGBColor(hex: 0xB91C1C),
-                errorBackground: RGBColor(hex: 0xFEF2F2)
+                errorText: highContrast ? RGBColor(hex: 0x991B1B) : RGBColor(hex: 0xB91C1C),
+                errorBackground: highContrast ? RGBColor(hex: 0xFFF1F1) : RGBColor(hex: 0xFEF2F2)
             )
         }
     }

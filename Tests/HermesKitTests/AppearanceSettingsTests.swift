@@ -266,4 +266,130 @@ struct AppearanceSettingsTests {
         let blueContrast = white.contrastRatio(with: systemBlue)
         #expect(blueContrast >= 5.0)
     }
+
+    @Test func allPresetsAdaptToHighContrastWithStrictlyHigherContrast() {
+        for preset in AppearancePreset.allCases {
+            let standardDefinition = PresetPaletteDefinition.definition(
+                for: preset,
+                isDark: preset != .white,
+                highContrast: false
+            )
+            let highContrastDefinition = PresetPaletteDefinition.definition(
+                for: preset,
+                isDark: preset != .white,
+                highContrast: true
+            )
+
+            // 1. Token values must differ between standard and high contrast
+            #expect(
+                standardDefinition.secondaryText != highContrastDefinition.secondaryText,
+                "secondaryText should differ in high contrast for \(preset)"
+            )
+            #expect(
+                standardDefinition.codeKeyword != highContrastDefinition.codeKeyword,
+                "codeKeyword should differ in high contrast for \(preset)"
+            )
+            #expect(
+                standardDefinition.codeString != highContrastDefinition.codeString,
+                "codeString should differ in high contrast for \(preset)"
+            )
+            #expect(
+                standardDefinition.codeComment != highContrastDefinition.codeComment,
+                "codeComment should differ in high contrast for \(preset)"
+            )
+            #expect(
+                standardDefinition.codeNumber != highContrastDefinition.codeNumber,
+                "codeNumber should differ in high contrast for \(preset)"
+            )
+            #expect(
+                standardDefinition.errorText != highContrastDefinition.errorText,
+                "errorText should differ in high contrast for \(preset)"
+            )
+            #expect(
+                standardDefinition.errorBackground != highContrastDefinition.errorBackground,
+                "errorBackground should differ in high contrast for \(preset)"
+            )
+
+            // 2. Contrast must strictly increase in high contrast mode
+            let standardSecContrast = standardDefinition.secondaryText.contrastRatio(
+                with: standardDefinition.background
+            )
+            let highContrastSecContrast = highContrastDefinition.secondaryText.contrastRatio(
+                with: highContrastDefinition.background
+            )
+            #expect(
+                highContrastSecContrast > standardSecContrast,
+                "High contrast secondaryText contrast (\(highContrastSecContrast)) should exceed standard (\(standardSecContrast)) for \(preset)"
+            )
+
+            let standardKeywordContrast = standardDefinition.codeKeyword.contrastRatio(
+                with: standardDefinition.codeBackground
+            )
+            let highContrastKeywordContrast = highContrastDefinition.codeKeyword.contrastRatio(
+                with: highContrastDefinition.codeBackground
+            )
+            #expect(
+                highContrastKeywordContrast > standardKeywordContrast,
+                "High contrast codeKeyword contrast (\(highContrastKeywordContrast)) should exceed standard (\(standardKeywordContrast)) for \(preset)"
+            )
+
+            let standardStringContrast = standardDefinition.codeString.contrastRatio(
+                with: standardDefinition.codeBackground
+            )
+            let highContrastStringContrast = highContrastDefinition.codeString.contrastRatio(
+                with: highContrastDefinition.codeBackground
+            )
+            #expect(
+                highContrastStringContrast > standardStringContrast,
+                "High contrast codeString contrast (\(highContrastStringContrast)) should exceed standard (\(standardStringContrast)) for \(preset)"
+            )
+
+            let standardCommentContrast = standardDefinition.codeComment.contrastRatio(
+                with: standardDefinition.codeBackground
+            )
+            let highContrastCommentContrast = highContrastDefinition.codeComment.contrastRatio(
+                with: highContrastDefinition.codeBackground
+            )
+            #expect(
+                highContrastCommentContrast > standardCommentContrast,
+                "High contrast codeComment contrast (\(highContrastCommentContrast)) should exceed standard (\(standardCommentContrast)) for \(preset)"
+            )
+
+            let standardNumberContrast = standardDefinition.codeNumber.contrastRatio(
+                with: standardDefinition.codeBackground
+            )
+            let highContrastNumberContrast = highContrastDefinition.codeNumber.contrastRatio(
+                with: highContrastDefinition.codeBackground
+            )
+            #expect(
+                highContrastNumberContrast > standardNumberContrast,
+                "High contrast codeNumber contrast (\(highContrastNumberContrast)) should exceed standard (\(standardNumberContrast)) for \(preset)"
+            )
+
+            let standardErrorContrast = standardDefinition.errorText.contrastRatio(
+                with: standardDefinition.background
+            )
+            let highContrastErrorContrast = highContrastDefinition.errorText.contrastRatio(
+                with: highContrastDefinition.background
+            )
+            #expect(
+                highContrastErrorContrast > standardErrorContrast,
+                "High contrast errorText contrast (\(highContrastErrorContrast)) should exceed standard (\(standardErrorContrast)) for \(preset)"
+            )
+
+            // 3. Both standard and high contrast tokens must satisfy WCAG AA (>= 4.5:1)
+            #expect(standardSecContrast >= 4.5)
+            #expect(highContrastSecContrast >= 4.5)
+            #expect(standardKeywordContrast >= 4.5)
+            #expect(highContrastKeywordContrast >= 4.5)
+            #expect(standardStringContrast >= 4.5)
+            #expect(highContrastStringContrast >= 4.5)
+            #expect(standardCommentContrast >= 4.5)
+            #expect(highContrastCommentContrast >= 4.5)
+            #expect(standardNumberContrast >= 4.5)
+            #expect(highContrastNumberContrast >= 4.5)
+            #expect(standardErrorContrast >= 4.5)
+            #expect(highContrastErrorContrast >= 4.5)
+        }
+    }
 }

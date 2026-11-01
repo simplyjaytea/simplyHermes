@@ -19,6 +19,9 @@ struct HermesApp: App {
 
     init() {
         let launch = LaunchOptions(defaults: .standard)
+        if launch.resetAppearance {
+            AppearanceSettings(defaults: .standard).reset()
+        }
         self.launch = launch
         let connections = Self.makeConnections(launch)
         _connections = State(initialValue: connections)
@@ -109,6 +112,8 @@ struct LaunchOptions {
     var onboarding: Onboarding?
     /// Opens this section first, so a UI test can start on it without tapping the tab bar.
     var section: AppSection?
+    /// Resets appearance settings to system defaults on launch (pass as `-HermesResetAppearance YES`).
+    var resetAppearance: Bool
 
     enum Onboarding: String {
         case skip
@@ -122,6 +127,7 @@ struct LaunchOptions {
         demo = defaults.string(forKey: "HermesDemo")
         onboarding = defaults.string(forKey: "HermesOnboarding").flatMap(Onboarding.init(rawValue:))
         section = defaults.string(forKey: "HermesSection").flatMap(AppSection.init(rawValue:))
+        resetAppearance = defaults.bool(forKey: "HermesResetAppearance")
     }
 }
 

@@ -17,11 +17,9 @@
         override func setUp() {
             super.setUp()
             continueAfterFailure = false
-            UserDefaults.standard.removeObject(forKey: AppearanceSettings.key)
         }
 
         override func tearDown() {
-            UserDefaults.standard.removeObject(forKey: AppearanceSettings.key)
             super.tearDown()
         }
 
@@ -29,6 +27,7 @@
         func testAppearancePresetSelectionAndRootPropagation() {
             let app = XCUIApplication()
             app.launchArguments += [
+                "-HermesResetAppearance", "YES",
                 "-HermesOnboarding", "skip",
                 "-HermesLayout", "compact",
                 "-HermesDebugLayoutSwitcher", "YES",
@@ -125,6 +124,7 @@
         func testAppearancePresetPersistsAcrossRelaunch() {
             let app = XCUIApplication()
             app.launchArguments += [
+                "-HermesResetAppearance", "YES",
                 "-HermesOnboarding", "skip",
                 "-HermesLayout", "compact",
                 "-HermesDebugLayoutSwitcher", "YES",
@@ -144,8 +144,14 @@
             navigateToChats(app)
             XCTAssertEqual(activePreset(app), "blue")
 
-            // Relaunch the application process
+            // Relaunch the application process without the reset appearance flag
             app.terminate()
+            if let index = app.launchArguments.firstIndex(of: "-HermesResetAppearance") {
+                app.launchArguments.remove(at: index)
+                if index < app.launchArguments.count, app.launchArguments[index] == "YES" {
+                    app.launchArguments.remove(at: index)
+                }
+            }
             app.launch()
 
             // Verify active preset in Chat immediately inherits stored Blue preset on fresh launch
@@ -245,7 +251,7 @@
         @MainActor
         private func isSelected(_ element: XCUIElement) -> Bool {
             if element.isSelected { return true }
-            if let val = element.value as? String, val.contains("Selected") { return true }
+            if let elementValue = element.value as? String, elementValue.contains("Selected") { return true }
             return false
         }
 

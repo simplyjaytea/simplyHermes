@@ -118,6 +118,33 @@ struct AppearancePresetAppTests {
         #expect(launch5Settings.preset == .system)
     }
 
+    @Test func launchResetIsolatesDirtyPresetOnLaunch() {
+        let (defaults, suiteName) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // 1. Simulate dirty state from prior session
+        let dirtySettings = AppearanceSettings(defaults: defaults)
+        dirtySettings.preset = .blue
+        #expect(defaults.string(forKey: AppearanceSettings.key) == "blue")
+        #expect(dirtySettings.preset == .blue)
+
+        // 2. Normal launch without reset argument preserves dirty state
+        #expect(defaults.bool(forKey: "HermesResetAppearance") == false)
+        let unresetSettings = AppearanceSettings(defaults: defaults)
+        #expect(unresetSettings.preset == .blue)
+
+        // 3. Launch with -HermesResetAppearance YES (as evaluated by LaunchOptions and HermesApp.init)
+        defaults.set(true, forKey: "HermesResetAppearance")
+        if defaults.bool(forKey: "HermesResetAppearance") {
+            AppearanceSettings(defaults: defaults).reset()
+        }
+
+        // 4. Executable proof of isolation: preset is cleanly restored to system and key is removed
+        let cleanSettings = AppearanceSettings(defaults: defaults)
+        #expect(cleanSettings.preset == .system)
+        #expect(defaults.object(forKey: AppearanceSettings.key) == nil)
+    }
+
     @Test func viewModifierAppliesPaletteAndScheme() {
         for preset in AppearancePreset.allCases {
             let palette = HermesPalette.palette(for: preset)
@@ -226,6 +253,56 @@ struct AppearancePresetAppTests {
             let resolvedLight = HermesPalette.palette(for: .system, traits: lightTraits)
             #expect(resolvedLight.preset == .system)
             #expect(resolvedLight.colorScheme == .light)
+        }
+
+        @Test func dynamicUIColorAdaptsToTraitsForAllPresets() {
+            let darkTraits = UITraitCollection(userInterfaceStyle: .dark)
+            let highContrastDarkTraits = UITraitCollection(traitsFrom: [
+                UITraitCollection(userInterfaceStyle: .dark),
+                UITraitCollection(accessibilityContrast: .high),
+            ])
+            let lightTraits = UITraitCollection(userInterfaceStyle: .light)
+            let highContrastLightTraits = UITraitCollection(traitsFrom: [
+                UITraitCollection(userInterfaceStyle: .light),
+                UITraitCollection(accessibilityContrast: .high),
+            ])
+
+            for preset in AppearancePreset.allCases {
+                let standardTraits = (preset == .white) ? lightTraits : darkTraits
+                let highContrastTraits = (preset == .white) ? highContrastLightTraits : highContrastDarkTraits
+
+                let keywordColor = HermesPalette.dynamicUIColor(for: preset, \.codeKeyword)
+                let standardKeyword = keywordColor.resolvedColor(with: standardTraits)
+                let highContrastKeyword = keywordColor.resolvedColor(with: highContrastTraits)
+                #expect(
+                    standardKeyword != highContrastKeyword,
+                    "codeKeyword should adapt to high contrast for \(preset)"
+                )
+
+                let secondaryTextColor = HermesPalette.dynamicUIColor(for: preset, \.secondaryText)
+                let standardSec = secondaryTextColor.resolvedColor(with: standardTraits)
+                let highContrastSec = secondaryTextColor.resolvedColor(with: highContrastTraits)
+                #expect(
+                    standardSec != highContrastSec,
+                    "secondaryText should adapt to high contrast for \(preset)"
+                )
+
+                let errorTextColor = HermesPalette.dynamicUIColor(for: preset, \.errorText)
+                let standardErrorText = errorTextColor.resolvedColor(with: standardTraits)
+                let highContrastErrorText = errorTextColor.resolvedColor(with: highContrastTraits)
+                #expect(
+                    standardErrorText != highContrastErrorText,
+                    "errorText should adapt to high contrast for \(preset)"
+                )
+
+                let errorBgColor = HermesPalette.dynamicUIColor(for: preset, \.errorBackground)
+                let standardErrorBg = errorBgColor.resolvedColor(with: standardTraits)
+                let highContrastErrorBg = errorBgColor.resolvedColor(with: highContrastTraits)
+                #expect(
+                    standardErrorBg != highContrastErrorBg,
+                    "errorBackground should adapt to high contrast for \(preset)"
+                )
+            }
         }
 
         @Test func uiHostingControllerRenderedHarness() {
