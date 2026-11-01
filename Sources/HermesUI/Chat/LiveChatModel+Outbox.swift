@@ -41,6 +41,16 @@
             return true
         }
 
+        /// Starts a composer send. False while an earlier composer send of this chat is still saving (review M5).
+        public func beginComposerSend() -> Bool {
+            composerSend.begin()
+        }
+
+        /// Ends the composer send that ``beginComposerSend()`` started.
+        public func endComposerSend() {
+            composerSend.end()
+        }
+
         /// Sends the chat's waiting messages if Hermes can take them, then refreshes the rows the screen shows.
         func drainOutbox() async {
             guard let drainer else { return }

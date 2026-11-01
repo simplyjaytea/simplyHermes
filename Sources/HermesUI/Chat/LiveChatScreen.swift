@@ -430,8 +430,11 @@
             let files = model.attachments[sessionID, default: []]
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !files.isEmpty else { return }
             isFollowing = true
+            // A second tap while this save runs is refused, so the same draft is not saved twice (review M5).
+            guard chat.beginComposerSend() else { return }
             // The draft clears only once the message is saved (WP-3). Text typed meanwhile stays in the composer.
             Task {
+                defer { chat.endComposerSend() }
                 guard await chat.send(text, attachments: files) else { return }
                 if model.drafts[sessionID, default: ""] == text { model.clearDraft(in: sessionID) }
                 if model.attachments[sessionID, default: []] == files { model.attachments[sessionID] = [] }

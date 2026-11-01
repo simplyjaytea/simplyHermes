@@ -125,6 +125,8 @@
         @ObservationIgnored let outbox: any OutboxStore
         /// Sends the outbox's messages through the attached controller. Nil while the chat is detached.
         @ObservationIgnored var drainer: OutboxDrainer?
+        /// Set while the composer's send is saving. A second send starts only after it ends (review M5).
+        @ObservationIgnored var composerSend = SingleFlight()
         /// The profile this chat was pinned to at its first attach: the default by name when none was active.
         @ObservationIgnored private var pinnedProfile: String?
         @ObservationIgnored private var profilePinned = false
