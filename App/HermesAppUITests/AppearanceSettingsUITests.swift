@@ -40,7 +40,7 @@
 
             // Select Blue preset
             let blueButton = element(app, "appearance.preset.blue")
-            XCTAssertTrue(blueButton.waitForExistence(timeout: 5))
+            XCTAssertTrue(blueButton.waitForExistence(timeout: 5), "Blue preset must exist")
             blueButton.tap()
             XCTAssertTrue(
                 isSelected(blueButton),
@@ -58,7 +58,7 @@
             // Return to Appearance and select Dark preset
             navigateToAppearance(app)
             let darkButton = element(app, "appearance.preset.dark")
-            XCTAssertTrue(darkButton.waitForExistence(timeout: 5))
+            XCTAssertTrue(darkButton.waitForExistence(timeout: 5), "Dark preset must exist")
             darkButton.tap()
             XCTAssertTrue(
                 isSelected(darkButton),
@@ -75,7 +75,7 @@
             // Return to Appearance and select White preset
             navigateToAppearance(app)
             let whiteButton = element(app, "appearance.preset.white")
-            XCTAssertTrue(whiteButton.waitForExistence(timeout: 5))
+            XCTAssertTrue(whiteButton.waitForExistence(timeout: 5), "White preset must exist")
             whiteButton.tap()
             XCTAssertTrue(
                 isSelected(whiteButton),
@@ -93,7 +93,7 @@
             navigateToAppearance(app)
             let resetButton = element(app, "appearance.reset")
             scrollToElement(resetButton, in: app)
-            XCTAssertTrue(resetButton.waitForExistence(timeout: 5))
+            XCTAssertTrue(resetButton.waitForExistence(timeout: 5), "Reset button must exist")
             XCTAssertTrue(
                 resetButton.isHittable,
                 "Reset button should be visible and hittable before tapping"
@@ -101,7 +101,10 @@
             resetButton.tap()
 
             let systemButton = element(app, "appearance.preset.system")
-            XCTAssertTrue(systemButton.waitForExistence(timeout: 5))
+            for _ in 0..<3 where !systemButton.isHittable {
+                app.swipeDown()
+            }
+            XCTAssertTrue(systemButton.waitForExistence(timeout: 5), "System preset must exist after reset")
             XCTAssertTrue(
                 isSelected(systemButton),
                 "System preset button should be selected after resetting"

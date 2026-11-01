@@ -18,8 +18,13 @@ struct AppearancePresetAppTests {
         #expect(palette.accent == HermesColor.accent)
         #expect(palette.onAccent == HermesColor.onAccent)
         #expect(palette.outgoingBubble == HermesColor.outgoingBubble)
-        #expect(palette.destructive == Color(red: 220 / 255.0, green: 38 / 255.0, blue: 38 / 255.0))
-        #expect(palette.onDestructive == Color.white)
+        for style in [UIUserInterfaceStyle.light, .dark] {
+            let traits = UITraitCollection(userInterfaceStyle: style)
+            let destructive = UIColor(palette.destructive).resolvedColor(with: traits)
+            let onDestructive = UIColor(palette.onDestructive).resolvedColor(with: traits)
+            #expect(destructive == UIColor(red: 220 / 255.0, green: 38 / 255.0, blue: 38 / 255.0, alpha: 1))
+            #expect(onDestructive == UIColor.white)
+        }
     }
 
     @Test func darkPaletteEnforcesDarkSchemeAndDistinctSurfaces() {
@@ -154,10 +159,12 @@ struct AppearancePresetAppTests {
             let onRead: (AppearancePreset, HermesPalette) -> Void
 
             var body: some View {
-                Text("probe")
-                    .onAppear {
-                        onRead(preset, palette)
-                    }
+                readEnvironment()
+            }
+
+            private func readEnvironment() -> Text {
+                onRead(preset, palette)
+                return Text("probe")
             }
         }
 
@@ -173,7 +180,10 @@ struct AppearancePresetAppTests {
                 .hermesAppearance(preset)
 
                 let host = UIHostingController(rootView: probe)
-                _ = host.view
+                let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 393, height: 852))
+                window.rootViewController = host
+                window.isHidden = false
+                host.view.setNeedsLayout()
                 host.view.layoutIfNeeded()
 
                 #expect(capturedPreset == preset)
@@ -283,8 +293,10 @@ struct AppearancePresetAppTests {
             for preset in AppearancePreset.allCases {
                 let screenView = AppearanceSettingsScreen().hermesAppearance(preset)
                 let host = UIHostingController(rootView: screenView)
-                _ = host.view
-                host.view.bounds = CGRect(x: 0, y: 0, width: 393, height: 852)
+                let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 393, height: 852))
+                window.rootViewController = host
+                window.isHidden = false
+                host.view.setNeedsLayout()
                 host.view.layoutIfNeeded()
                 #expect(!host.view.subviews.isEmpty)
 
@@ -304,8 +316,8 @@ struct AppearancePresetAppTests {
                 .hermesAppearance(preset)
 
                 let bubbleHost = UIHostingController(rootView: bubbleView)
-                _ = bubbleHost.view
-                bubbleHost.view.bounds = CGRect(x: 0, y: 0, width: 393, height: 400)
+                window.rootViewController = bubbleHost
+                bubbleHost.view.setNeedsLayout()
                 bubbleHost.view.layoutIfNeeded()
                 #expect(!bubbleHost.view.subviews.isEmpty)
             }
