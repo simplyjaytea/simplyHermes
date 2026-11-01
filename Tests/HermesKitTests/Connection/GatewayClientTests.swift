@@ -89,6 +89,27 @@ private func connected(_ rig: Rig, socket: FakeSocket) async throws {
         await rig.client.stop()
     }
 
+    @Test func aChatPinnedToTheDefaultProfileKeepsItWhenAnotherProfileBecomesActive() async throws {
+        let rig = await Rig()
+        let socket = FakeSocket()
+        socket.serve { frame in
+            guard let id = frame.id else { return [] }
+            return [Frames.result(id: id, "{}")]
+        }
+        try await connected(rig, socket: socket)
+        // Chat A attached while no bot was active, so it pins the default profile by name.
+        let pinned = ProfilePin.resolve(activeProfile: nil)
+        // Opening bot B makes B the client's profile. A's calls must still name the default, not B.
+        await rig.client.setProfile("bot-b")
+        _ = try await rig.client.send(
+            method: "prompt.submit", params: .object(["session_id": .string("live"), "profile": .string(pinned)]))
+        _ = try await rig.client.send(
+            method: "session.resume", params: .object(["session_id": .string("stored"), "profile": .string(pinned)]))
+        #expect(socket.requests("prompt.submit").first?.params?["profile"] as? String == "default")
+        #expect(socket.requests("session.resume").first?.params?["profile"] as? String == "default")
+        await rig.client.stop()
+    }
+
     @Test func activeProfileScopesCallsThatTakeIt() async throws {
         let rig = await Rig()
         let socket = FakeSocket()
