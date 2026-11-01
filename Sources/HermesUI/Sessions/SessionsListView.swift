@@ -99,7 +99,7 @@
                     VStack(alignment: .leading, spacing: 2) {
                         Text(hit.title ?? "Untitled chat")
                             .font(HermesFont.body.weight(.semibold))
-                            .lineLimit(1)
+                            .accessibleLineLimit()
                         if let snippet = hit.snippet {
                             Text(
                                 snippet.replacingOccurrences(of: ">>>", with: "").replacingOccurrences(
@@ -119,15 +119,15 @@
             Button {
                 onOpen(item)
             } label: {
-                HStack(spacing: 8) {
+                AccessibleHStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(item.title)
                             .font(HermesFont.body.weight(.semibold))
-                            .lineLimit(1)
+                            .accessibleLineLimit()
                         Text(item.serverName)
                             .font(HermesFont.footnote)
                             .foregroundStyle(HermesColor.secondaryText)
-                            .lineLimit(1)
+                            .accessibleLineLimit()
                     }
                     if needsApproval(item.id) {
                         ApprovalDot()

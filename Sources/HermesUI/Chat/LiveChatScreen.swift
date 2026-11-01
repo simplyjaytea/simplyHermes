@@ -227,6 +227,7 @@
                 } label: {
                     Image(systemName: "arrow.down")
                         .font(.body.weight(.semibold))
+                        .cappedSymbolSize()
                         .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                 }
                 .buttonStyle(.plain)
@@ -250,6 +251,7 @@
                     findFocused = true
                 } label: {
                     Image(systemName: "magnifyingglass")
+                        .cappedSymbolSize()
                         .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                 }
                 .buttonStyle(.plain)
