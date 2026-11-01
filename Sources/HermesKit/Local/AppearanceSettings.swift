@@ -84,17 +84,17 @@ public struct RGBColor: Equatable, Hashable, Sendable {
     public let green: Double
     public let blue: Double
 
-    public init(r: Double, g: Double, b: Double) {
-        self.red = min(max(r / 255.0, 0.0), 1.0)
-        self.green = min(max(g / 255.0, 0.0), 1.0)
-        self.blue = min(max(b / 255.0, 0.0), 1.0)
+    public init(red: Double, green: Double, blue: Double) {
+        self.red = min(max(red / 255.0, 0.0), 1.0)
+        self.green = min(max(green / 255.0, 0.0), 1.0)
+        self.blue = min(max(blue / 255.0, 0.0), 1.0)
     }
 
     public init(hex: Int) {
-        let r = Double((hex >> 16) & 0xFF)
-        let g = Double((hex >> 8) & 0xFF)
-        let b = Double(hex & 0xFF)
-        self.init(r: r, g: g, b: b)
+        let redComponent = Double((hex >> 16) & 0xFF)
+        let greenComponent = Double((hex >> 8) & 0xFF)
+        let blueComponent = Double(hex & 0xFF)
+        self.init(red: redComponent, green: greenComponent, blue: blueComponent)
     }
 
     /// Relative luminance in the sRGB color space according to WCAG 2.1 specifications.
@@ -114,10 +114,10 @@ public struct RGBColor: Equatable, Hashable, Sendable {
 
     /// Calculates the contrast ratio between this color and another color (range 1.0 to 21.0).
     public func contrastRatio(with other: RGBColor) -> Double {
-        let l1 = self.relativeLuminance
-        let l2 = other.relativeLuminance
-        let lighter = max(l1, l2)
-        let darker = min(l1, l2)
+        let lum1 = self.relativeLuminance
+        let lum2 = other.relativeLuminance
+        let lighter = max(lum1, lum2)
+        let darker = min(lum1, lum2)
         return (lighter + 0.05) / (darker + 0.05)
     }
 }
@@ -159,80 +159,32 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
     ) -> PresetPaletteDefinition {
         switch preset {
         case .system:
-            if isDark {
-                return PresetPaletteDefinition(
-                    preset: .system,
-                    background: RGBColor(hex: 0x000000),
-                    groupedBackground: RGBColor(hex: 0x000000),
-                    card: RGBColor(hex: 0x1C1C1E),
-                    fill: RGBColor(hex: 0x2C2C2E),
-                    separator: RGBColor(hex: 0x38383A),
-                    accent: RGBColor(hex: 0x0068D9),
-                    onAccent: RGBColor(hex: 0xFFFFFF),
-                    outgoingBubble: RGBColor(hex: 0x0068D9),
-                    incomingBubble: RGBColor(hex: 0x2C2C2E),
-                    primaryText: RGBColor(hex: 0xFFFFFF),
-                    secondaryText: highContrast ? RGBColor(hex: 0xEBEBF5) : RGBColor(hex: 0xA0A0A5),
-                    codeBackground: RGBColor(hex: 0x1C1C1E),
-                    codeText: RGBColor(hex: 0xF2F2F7),
-                    codeKeyword: highContrast ? RGBColor(hex: 0xE9D5FF) : RGBColor(hex: 0xC084FC),
-                    codeString: highContrast ? RGBColor(hex: 0xBBF7D0) : RGBColor(hex: 0x4ADE80),
-                    codeComment: highContrast ? RGBColor(hex: 0xCBD5E1) : RGBColor(hex: 0x94A3B8),
-                    codeNumber: highContrast ? RGBColor(hex: 0xBAE6FD) : RGBColor(hex: 0x38BDF8),
-                    statusConnected: RGBColor(hex: 0x30D158),
-                    statusWarning: RGBColor(hex: 0xFF9F0A),
-                    statusOffline: RGBColor(hex: 0x8E8E93),
-                    destructive: RGBColor(hex: 0xDC2626),
-                    onDestructive: RGBColor(hex: 0xFFFFFF),
-                    errorText: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
-                    errorBackground: highContrast ? RGBColor(hex: 0x221316) : RGBColor(hex: 0x2B191D)
-                )
-            } else {
-                return PresetPaletteDefinition(
-                    preset: .system,
-                    background: RGBColor(hex: 0xFFFFFF),
-                    groupedBackground: RGBColor(hex: 0xF2F2F7),
-                    card: RGBColor(hex: 0xFFFFFF),
-                    fill: RGBColor(hex: 0xE5E5EA),
-                    separator: RGBColor(hex: 0xC6C6C8),
-                    accent: RGBColor(hex: 0x0068D9),
-                    onAccent: RGBColor(hex: 0xFFFFFF),
-                    outgoingBubble: RGBColor(hex: 0x0068D9),
-                    incomingBubble: RGBColor(hex: 0xE5E5EA),
-                    primaryText: RGBColor(hex: 0x000000),
-                    secondaryText: highContrast ? RGBColor(hex: 0x3C3C43) : RGBColor(hex: 0x5C5C60),
-                    codeBackground: RGBColor(hex: 0xF2F2F7),
-                    codeText: RGBColor(hex: 0x000000),
-                    codeKeyword: highContrast ? RGBColor(hex: 0x581C87) : RGBColor(hex: 0x7E22CE),
-                    codeString: highContrast ? RGBColor(hex: 0x991B1B) : RGBColor(hex: 0xB91C1C),
-                    codeComment: highContrast ? RGBColor(hex: 0x3C3C43) : RGBColor(hex: 0x5C5C60),
-                    codeNumber: highContrast ? RGBColor(hex: 0x115E59) : RGBColor(hex: 0x0F766E),
-                    statusConnected: RGBColor(hex: 0x34C759),
-                    statusWarning: RGBColor(hex: 0xFF9500),
-                    statusOffline: RGBColor(hex: 0x8E8E93),
-                    destructive: RGBColor(hex: 0xDC2626),
-                    onDestructive: RGBColor(hex: 0xFFFFFF),
-                    errorText: highContrast ? RGBColor(hex: 0x991B1B) : RGBColor(hex: 0xB91C1C),
-                    errorBackground: highContrast ? RGBColor(hex: 0xFFF1F1) : RGBColor(hex: 0xFEF2F2)
-                )
-            }
-
+            return systemDefinition(isDark: isDark, highContrast: highContrast)
         case .dark:
-            // Dark graphite preset with light text and blue controls
+            return darkDefinition(highContrast: highContrast)
+        case .blue:
+            return blueDefinition(highContrast: highContrast)
+        case .white:
+            return whiteDefinition(highContrast: highContrast)
+        }
+    }
+
+    private static func systemDefinition(isDark: Bool, highContrast: Bool) -> PresetPaletteDefinition {
+        if isDark {
             return PresetPaletteDefinition(
-                preset: .dark,
-                background: RGBColor(hex: 0x18191B),
-                groupedBackground: RGBColor(hex: 0x121315),
-                card: RGBColor(hex: 0x242528),
-                fill: RGBColor(hex: 0x2F3136),
-                separator: RGBColor(hex: 0x383A40),
+                preset: .system,
+                background: RGBColor(hex: 0x000000),
+                groupedBackground: RGBColor(hex: 0x000000),
+                card: RGBColor(hex: 0x1C1C1E),
+                fill: RGBColor(hex: 0x2C2C2E),
+                separator: RGBColor(hex: 0x38383A),
                 accent: RGBColor(hex: 0x0068D9),
                 onAccent: RGBColor(hex: 0xFFFFFF),
                 outgoingBubble: RGBColor(hex: 0x0068D9),
-                incomingBubble: RGBColor(hex: 0x2C2D31),
-                primaryText: RGBColor(hex: 0xF2F2F7),
+                incomingBubble: RGBColor(hex: 0x2C2C2E),
+                primaryText: RGBColor(hex: 0xFFFFFF),
                 secondaryText: highContrast ? RGBColor(hex: 0xEBEBF5) : RGBColor(hex: 0xA0A0A5),
-                codeBackground: RGBColor(hex: 0x1E1F22),
+                codeBackground: RGBColor(hex: 0x1C1C1E),
                 codeText: RGBColor(hex: 0xF2F2F7),
                 codeKeyword: highContrast ? RGBColor(hex: 0xE9D5FF) : RGBColor(hex: 0xC084FC),
                 codeString: highContrast ? RGBColor(hex: 0xBBF7D0) : RGBColor(hex: 0x4ADE80),
@@ -246,67 +198,128 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                 errorText: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
                 errorBackground: highContrast ? RGBColor(hex: 0x221316) : RGBColor(hex: 0x2B191D)
             )
-
-        case .blue:
-            // Blue navy preset: deep navy surfaces with blue accents
+        } else {
             return PresetPaletteDefinition(
-                preset: .blue,
-                background: RGBColor(hex: 0x0F172A),
-                groupedBackground: RGBColor(hex: 0x0B1120),
-                card: RGBColor(hex: 0x162038),
-                fill: RGBColor(hex: 0x1E2E4A),
-                separator: RGBColor(hex: 0x2A3F66),
-                accent: RGBColor(hex: 0x0068D9),
-                onAccent: RGBColor(hex: 0xFFFFFF),
-                outgoingBubble: RGBColor(hex: 0x0068D9),
-                incomingBubble: RGBColor(hex: 0x1E2B45),
-                primaryText: RGBColor(hex: 0xF0F6FC),
-                secondaryText: highContrast ? RGBColor(hex: 0xC8DBF8) : RGBColor(hex: 0x96AFD2),
-                codeBackground: RGBColor(hex: 0x0A1020),
-                codeText: RGBColor(hex: 0xE0F2FE),
-                codeKeyword: highContrast ? RGBColor(hex: 0xE9D5FF) : RGBColor(hex: 0xC084FC),
-                codeString: highContrast ? RGBColor(hex: 0xBBF7D0) : RGBColor(hex: 0x4ADE80),
-                codeComment: highContrast ? RGBColor(hex: 0xCBD5E1) : RGBColor(hex: 0x94A3B8),
-                codeNumber: highContrast ? RGBColor(hex: 0xBAE6FD) : RGBColor(hex: 0x38BDF8),
-                statusConnected: RGBColor(hex: 0x38BDF8),
-                statusWarning: RGBColor(hex: 0xFBBF24),
-                statusOffline: RGBColor(hex: 0x64748B),
-                destructive: RGBColor(hex: 0xDC2626),
-                onDestructive: RGBColor(hex: 0xFFFFFF),
-                errorText: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
-                errorBackground: highContrast ? RGBColor(hex: 0x1C1220) : RGBColor(hex: 0x241828)
-            )
-
-        case .white:
-            // White light neutral preset: light neutral surfaces, dark text, blue accent
-            return PresetPaletteDefinition(
-                preset: .white,
+                preset: .system,
                 background: RGBColor(hex: 0xFFFFFF),
-                groupedBackground: RGBColor(hex: 0xF4F4F6),
+                groupedBackground: RGBColor(hex: 0xF2F2F7),
                 card: RGBColor(hex: 0xFFFFFF),
-                fill: RGBColor(hex: 0xEAEAEE),
-                separator: RGBColor(hex: 0xD1D1D6),
+                fill: RGBColor(hex: 0xE5E5EA),
+                separator: RGBColor(hex: 0xC6C6C8),
                 accent: RGBColor(hex: 0x0068D9),
                 onAccent: RGBColor(hex: 0xFFFFFF),
                 outgoingBubble: RGBColor(hex: 0x0068D9),
-                incomingBubble: RGBColor(hex: 0xEDEDF0),
-                primaryText: RGBColor(hex: 0x111827),
-                secondaryText: highContrast ? RGBColor(hex: 0x3C3C43) : RGBColor(hex: 0x646973),
-                codeBackground: RGBColor(hex: 0xF1F3F5),
-                codeText: RGBColor(hex: 0x111827),
+                incomingBubble: RGBColor(hex: 0xE5E5EA),
+                primaryText: RGBColor(hex: 0x000000),
+                secondaryText: highContrast ? RGBColor(hex: 0x3C3C43) : RGBColor(hex: 0x5C5C60),
+                codeBackground: RGBColor(hex: 0xF2F2F7),
+                codeText: RGBColor(hex: 0x000000),
                 codeKeyword: highContrast ? RGBColor(hex: 0x581C87) : RGBColor(hex: 0x7E22CE),
                 codeString: highContrast ? RGBColor(hex: 0x991B1B) : RGBColor(hex: 0xB91C1C),
-                codeComment: highContrast ? RGBColor(hex: 0x3C3C43) : RGBColor(hex: 0x646973),
+                codeComment: highContrast ? RGBColor(hex: 0x3C3C43) : RGBColor(hex: 0x5C5C60),
                 codeNumber: highContrast ? RGBColor(hex: 0x115E59) : RGBColor(hex: 0x0F766E),
-                statusConnected: RGBColor(hex: 0x16A34A),
-                statusWarning: RGBColor(hex: 0xD97706),
-                statusOffline: RGBColor(hex: 0x6B7280),
+                statusConnected: RGBColor(hex: 0x34C759),
+                statusWarning: RGBColor(hex: 0xFF9500),
+                statusOffline: RGBColor(hex: 0x8E8E93),
                 destructive: RGBColor(hex: 0xDC2626),
                 onDestructive: RGBColor(hex: 0xFFFFFF),
                 errorText: highContrast ? RGBColor(hex: 0x991B1B) : RGBColor(hex: 0xB91C1C),
                 errorBackground: highContrast ? RGBColor(hex: 0xFFF1F1) : RGBColor(hex: 0xFEF2F2)
             )
         }
+    }
+
+    private static func darkDefinition(highContrast: Bool) -> PresetPaletteDefinition {
+        // Dark graphite preset with light text and blue controls
+        PresetPaletteDefinition(
+            preset: .dark,
+            background: RGBColor(hex: 0x18191B),
+            groupedBackground: RGBColor(hex: 0x121315),
+            card: RGBColor(hex: 0x242528),
+            fill: RGBColor(hex: 0x2F3136),
+            separator: RGBColor(hex: 0x383A40),
+            accent: RGBColor(hex: 0x0068D9),
+            onAccent: RGBColor(hex: 0xFFFFFF),
+            outgoingBubble: RGBColor(hex: 0x0068D9),
+            incomingBubble: RGBColor(hex: 0x2C2D31),
+            primaryText: RGBColor(hex: 0xF2F2F7),
+            secondaryText: highContrast ? RGBColor(hex: 0xEBEBF5) : RGBColor(hex: 0xA0A0A5),
+            codeBackground: RGBColor(hex: 0x1E1F22),
+            codeText: RGBColor(hex: 0xF2F2F7),
+            codeKeyword: highContrast ? RGBColor(hex: 0xE9D5FF) : RGBColor(hex: 0xC084FC),
+            codeString: highContrast ? RGBColor(hex: 0xBBF7D0) : RGBColor(hex: 0x4ADE80),
+            codeComment: highContrast ? RGBColor(hex: 0xCBD5E1) : RGBColor(hex: 0x94A3B8),
+            codeNumber: highContrast ? RGBColor(hex: 0xBAE6FD) : RGBColor(hex: 0x38BDF8),
+            statusConnected: RGBColor(hex: 0x30D158),
+            statusWarning: RGBColor(hex: 0xFF9F0A),
+            statusOffline: RGBColor(hex: 0x8E8E93),
+            destructive: RGBColor(hex: 0xDC2626),
+            onDestructive: RGBColor(hex: 0xFFFFFF),
+            errorText: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
+            errorBackground: highContrast ? RGBColor(hex: 0x221316) : RGBColor(hex: 0x2B191D)
+        )
+    }
+
+    private static func blueDefinition(highContrast: Bool) -> PresetPaletteDefinition {
+        // Blue navy preset: deep navy surfaces with blue accents
+        PresetPaletteDefinition(
+            preset: .blue,
+            background: RGBColor(hex: 0x0F172A),
+            groupedBackground: RGBColor(hex: 0x0B1120),
+            card: RGBColor(hex: 0x162038),
+            fill: RGBColor(hex: 0x1E2E4A),
+            separator: RGBColor(hex: 0x2A3F66),
+            accent: RGBColor(hex: 0x0068D9),
+            onAccent: RGBColor(hex: 0xFFFFFF),
+            outgoingBubble: RGBColor(hex: 0x0068D9),
+            incomingBubble: RGBColor(hex: 0x1E2B45),
+            primaryText: RGBColor(hex: 0xF0F6FC),
+            secondaryText: highContrast ? RGBColor(hex: 0xC8DBF8) : RGBColor(hex: 0x96AFD2),
+            codeBackground: RGBColor(hex: 0x0A1020),
+            codeText: RGBColor(hex: 0xE0F2FE),
+            codeKeyword: highContrast ? RGBColor(hex: 0xE9D5FF) : RGBColor(hex: 0xC084FC),
+            codeString: highContrast ? RGBColor(hex: 0xBBF7D0) : RGBColor(hex: 0x4ADE80),
+            codeComment: highContrast ? RGBColor(hex: 0xCBD5E1) : RGBColor(hex: 0x94A3B8),
+            codeNumber: highContrast ? RGBColor(hex: 0xBAE6FD) : RGBColor(hex: 0x38BDF8),
+            statusConnected: RGBColor(hex: 0x38BDF8),
+            statusWarning: RGBColor(hex: 0xFBBF24),
+            statusOffline: RGBColor(hex: 0x64748B),
+            destructive: RGBColor(hex: 0xDC2626),
+            onDestructive: RGBColor(hex: 0xFFFFFF),
+            errorText: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
+            errorBackground: highContrast ? RGBColor(hex: 0x1C1220) : RGBColor(hex: 0x241828)
+        )
+    }
+
+    private static func whiteDefinition(highContrast: Bool) -> PresetPaletteDefinition {
+        // White light neutral preset: light neutral surfaces, dark text, blue accent
+        PresetPaletteDefinition(
+            preset: .white,
+            background: RGBColor(hex: 0xFFFFFF),
+            groupedBackground: RGBColor(hex: 0xF4F4F6),
+            card: RGBColor(hex: 0xFFFFFF),
+            fill: RGBColor(hex: 0xEAEAEE),
+            separator: RGBColor(hex: 0xD1D1D6),
+            accent: RGBColor(hex: 0x0068D9),
+            onAccent: RGBColor(hex: 0xFFFFFF),
+            outgoingBubble: RGBColor(hex: 0x0068D9),
+            incomingBubble: RGBColor(hex: 0xEDEDF0),
+            primaryText: RGBColor(hex: 0x111827),
+            secondaryText: highContrast ? RGBColor(hex: 0x3C3C43) : RGBColor(hex: 0x646973),
+            codeBackground: RGBColor(hex: 0xF1F3F5),
+            codeText: RGBColor(hex: 0x111827),
+            codeKeyword: highContrast ? RGBColor(hex: 0x581C87) : RGBColor(hex: 0x7E22CE),
+            codeString: highContrast ? RGBColor(hex: 0x991B1B) : RGBColor(hex: 0xB91C1C),
+            codeComment: highContrast ? RGBColor(hex: 0x3C3C43) : RGBColor(hex: 0x646973),
+            codeNumber: highContrast ? RGBColor(hex: 0x115E59) : RGBColor(hex: 0x0F766E),
+            statusConnected: RGBColor(hex: 0x16A34A),
+            statusWarning: RGBColor(hex: 0xD97706),
+            statusOffline: RGBColor(hex: 0x6B7280),
+            destructive: RGBColor(hex: 0xDC2626),
+            onDestructive: RGBColor(hex: 0xFFFFFF),
+            errorText: highContrast ? RGBColor(hex: 0x991B1B) : RGBColor(hex: 0xB91C1C),
+            errorBackground: highContrast ? RGBColor(hex: 0xFFF1F1) : RGBColor(hex: 0xFEF2F2)
+        )
     }
 
     /// Evaluates standard contrast ratios against WCAG 2.1 requirements.

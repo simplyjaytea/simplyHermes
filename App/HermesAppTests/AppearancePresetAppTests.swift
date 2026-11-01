@@ -130,14 +130,16 @@ struct AppearancePresetAppTests {
 
         // 2. Normal launch without reset argument preserves dirty state
         #expect(defaults.bool(forKey: "HermesResetAppearance") == false)
+        let normalLaunch = LaunchOptions(defaults: defaults)
+        HermesApp.applyLaunchReset(normalLaunch, defaults: defaults)
         let unresetSettings = AppearanceSettings(defaults: defaults)
         #expect(unresetSettings.preset == .blue)
 
-        // 3. Launch with -HermesResetAppearance YES (as evaluated by LaunchOptions and HermesApp.init)
+        // 3. Launch with -HermesResetAppearance YES (as evaluated by LaunchOptions and HermesApp.applyLaunchReset)
         defaults.set(true, forKey: "HermesResetAppearance")
-        if defaults.bool(forKey: "HermesResetAppearance") {
-            AppearanceSettings(defaults: defaults).reset()
-        }
+        let resetLaunch = LaunchOptions(defaults: defaults)
+        #expect(resetLaunch.resetAppearance)
+        HermesApp.applyLaunchReset(resetLaunch, defaults: defaults)
 
         // 4. Executable proof of isolation: preset is cleanly restored to system and key is removed
         let cleanSettings = AppearanceSettings(defaults: defaults)
@@ -193,9 +195,9 @@ struct AppearancePresetAppTests {
                 var capturedPreset: AppearancePreset?
                 var capturedPalette: HermesPalette?
 
-                let probe = EnvironmentProbe { p, pal in
-                    capturedPreset = p
-                    capturedPalette = pal
+                let probe = EnvironmentProbe { currentPreset, currentPalette in
+                    capturedPreset = currentPreset
+                    capturedPalette = currentPalette
                 }
                 .hermesAppearance(preset)
 

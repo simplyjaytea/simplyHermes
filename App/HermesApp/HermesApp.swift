@@ -17,11 +17,15 @@ struct HermesApp: App {
         AppearancePreset.fallback(for: storedPresetRaw)
     }
 
+    static func applyLaunchReset(_ launch: LaunchOptions, defaults: UserDefaults = .standard) {
+        if launch.resetAppearance {
+            AppearanceSettings(defaults: defaults).reset()
+        }
+    }
+
     init() {
         let launch = LaunchOptions(defaults: .standard)
-        if launch.resetAppearance {
-            AppearanceSettings(defaults: .standard).reset()
-        }
+        Self.applyLaunchReset(launch, defaults: .standard)
         self.launch = launch
         let connections = Self.makeConnections(launch)
         _connections = State(initialValue: connections)

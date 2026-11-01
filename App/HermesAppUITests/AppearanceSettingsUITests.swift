@@ -19,10 +19,6 @@
             continueAfterFailure = false
         }
 
-        override func tearDown() {
-            super.tearDown()
-        }
-
         @MainActor
         func testAppearancePresetSelectionAndRootPropagation() {
             let app = XCUIApplication()
@@ -180,6 +176,54 @@
 
             navigateToChats(app)
             XCTAssertEqual(activePreset(app), "system")
+        }
+
+        @MainActor
+        func testLaunchResetArgumentRestoresSystemPresetOnRelaunch() {
+            let app = XCUIApplication()
+            app.launchArguments += [
+                "-HermesResetAppearance", "YES",
+                "-HermesOnboarding", "skip",
+                "-HermesLayout", "compact",
+                "-HermesDebugLayoutSwitcher", "YES",
+            ]
+            app.launch()
+
+            XCTAssertEqual(activePreset(app), "system")
+
+            navigateToAppearance(app)
+
+            // Select Blue preset
+            let blueButton = element(app, "appearance.preset.blue")
+            XCTAssertTrue(blueButton.waitForExistence(timeout: 5))
+            blueButton.tap()
+            XCTAssertTrue(isSelected(blueButton))
+
+            navigateToChats(app)
+            XCTAssertEqual(activePreset(app), "blue")
+
+            // Terminate app and relaunch with -HermesResetAppearance YES
+            app.terminate()
+            if !app.launchArguments.contains("-HermesResetAppearance") {
+                app.launchArguments += ["-HermesResetAppearance", "YES"]
+            }
+            app.launch()
+
+            // Executable proof of isolation: app launch reset logic in HermesApp.init
+            // restores stored preset back to system without UI interaction.
+            XCTAssertEqual(
+                activePreset(app),
+                "system",
+                "App launch with -HermesResetAppearance YES should reset stored preset to system"
+            )
+
+            navigateToAppearance(app)
+            let systemButton = element(app, "appearance.preset.system")
+            XCTAssertTrue(systemButton.waitForExistence(timeout: 5))
+            XCTAssertTrue(
+                isSelected(systemButton),
+                "System preset button should be selected after relaunch with reset argument"
+            )
         }
 
         // MARK: - Navigation & Query Helpers

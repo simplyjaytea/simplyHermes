@@ -77,7 +77,7 @@ struct AppearanceSettingsTests {
         }
     }
 
-    @Test func wcagContrastRatiosMeetRequirements() {
+    @Test func wcagContrastRatiosMeetRequirements() throws {
         for preset in AppearancePreset.allCases {
             // Test both standard and dark variants (especially dynamic .system)
             let variants: [(Bool, Bool)] = [
@@ -92,24 +92,24 @@ struct AppearanceSettingsTests {
                 let checks = def.contrastChecks
 
                 // Normal body text on background must meet WCAG AA (>= 4.5:1)
-                let primaryOnBg = try! #require(checks["primaryOnBackground"])
+                let primaryOnBg = try #require(checks["primaryOnBackground"])
                 #expect(
                     primaryOnBg >= 4.5,
                     "Failed primaryOnBg for \(preset) (dark: \(isDark), hc: \(highContrast)): \(primaryOnBg)")
 
                 // Normal body text on incoming bubble must meet WCAG AA (>= 4.5:1)
-                let primaryOnBubble = try! #require(checks["primaryOnIncomingBubble"])
+                let primaryOnBubble = try #require(checks["primaryOnIncomingBubble"])
                 #expect(primaryOnBubble >= 4.5, "Failed primaryOnBubble for \(preset): \(primaryOnBubble)")
 
                 // Caption and secondary text must meet WCAG AA (>= 4.5:1)
-                let secOnBg = try! #require(checks["secondaryOnBackground"])
+                let secOnBg = try #require(checks["secondaryOnBackground"])
                 #expect(secOnBg >= 4.5, "Failed secOnBg for \(preset): \(secOnBg)")
 
-                let secOnBubble = try! #require(checks["secondaryOnIncomingBubble"])
+                let secOnBubble = try #require(checks["secondaryOnIncomingBubble"])
                 #expect(secOnBubble >= 4.5, "Failed secOnBubble for \(preset): \(secOnBubble)")
 
                 // Button pair 1: Primary button text (onAccent) on accent fill must meet WCAG AA (>= 4.5:1)
-                let onAccent = try! #require(checks["onAccentOnAccent"])
+                let onAccent = try #require(checks["onAccentOnAccent"])
                 #expect(onAccent >= 4.5, "Failed onAccent for \(preset): \(onAccent)")
 
                 // Button pair 2: Secondary button text (primaryText) on background must meet WCAG AA (>= 4.5:1)
@@ -121,45 +121,45 @@ struct AppearanceSettingsTests {
                 #expect(tintedBtnContrast >= 4.5, "Failed tinted button contrast for \(preset): \(tintedBtnContrast)")
 
                 // Button pair 4: Destructive button text (onDestructive) on destructive fill must meet WCAG AA (>= 4.5:1)
-                let onDestructive = try! #require(checks["onDestructiveOnDestructive"])
+                let onDestructive = try #require(checks["onDestructiveOnDestructive"])
                 #expect(onDestructive >= 4.5, "Failed onDestructive for \(preset): \(onDestructive)")
 
                 // Outgoing bubble text (onAccent) on bubble fill must meet WCAG AA (>= 4.5:1)
-                let onOutgoing = try! #require(checks["onAccentOnOutgoingBubble"])
+                let onOutgoing = try #require(checks["onAccentOnOutgoingBubble"])
                 #expect(onOutgoing >= 4.5, "Failed onOutgoing for \(preset): \(onOutgoing)")
 
                 // Code tokens on code background must all meet WCAG AA (>= 4.5:1)
-                let codeContrast = try! #require(checks["codeTextOnCodeBackground"])
+                let codeContrast = try #require(checks["codeTextOnCodeBackground"])
                 #expect(codeContrast >= 4.5, "Failed codeContrast for \(preset): \(codeContrast)")
 
-                let keywordContrast = try! #require(checks["codeKeywordOnCodeBackground"])
+                let keywordContrast = try #require(checks["codeKeywordOnCodeBackground"])
                 #expect(keywordContrast >= 4.5, "Failed keywordContrast for \(preset): \(keywordContrast)")
 
-                let stringContrast = try! #require(checks["codeStringOnCodeBackground"])
+                let stringContrast = try #require(checks["codeStringOnCodeBackground"])
                 #expect(stringContrast >= 4.5, "Failed stringContrast for \(preset): \(stringContrast)")
 
-                let commentContrast = try! #require(checks["codeCommentOnCodeBackground"])
+                let commentContrast = try #require(checks["codeCommentOnCodeBackground"])
                 #expect(commentContrast >= 4.5, "Failed commentContrast for \(preset): \(commentContrast)")
 
-                let numberContrast = try! #require(checks["codeNumberOnCodeBackground"])
+                let numberContrast = try #require(checks["codeNumberOnCodeBackground"])
                 #expect(numberContrast >= 4.5, "Failed numberContrast for \(preset): \(numberContrast)")
 
                 // Error text ink on background must meet WCAG AA (>= 4.5:1)
-                let errorOnBg = try! #require(checks["errorTextOnBackground"])
+                let errorOnBg = try #require(checks["errorTextOnBackground"])
                 #expect(
                     errorOnBg >= 4.5,
                     "Failed errorTextOnBackground for \(preset) (dark: \(isDark), hc: \(highContrast)): \(errorOnBg)"
                 )
 
                 // Error text on error background card must meet WCAG AA (>= 4.5:1)
-                let errorOnCard = try! #require(checks["errorTextOnErrorBackground"])
+                let errorOnCard = try #require(checks["errorTextOnErrorBackground"])
                 #expect(
                     errorOnCard >= 4.5,
                     "Failed errorTextOnErrorBackground for \(preset) (dark: \(isDark), hc: \(highContrast)): \(errorOnCard)"
                 )
 
                 // Secondary text on error background card must meet WCAG AA (>= 4.5:1)
-                let secOnErrorCard = try! #require(checks["secondaryTextOnErrorBackground"])
+                let secOnErrorCard = try #require(checks["secondaryTextOnErrorBackground"])
                 #expect(
                     secOnErrorCard >= 4.5,
                     "Failed secondaryTextOnErrorBackground for \(preset) (dark: \(isDark), hc: \(highContrast)): \(secOnErrorCard)"
@@ -267,7 +267,7 @@ struct AppearanceSettingsTests {
         #expect(blueContrast >= 5.0)
     }
 
-    @Test func allPresetsAdaptToHighContrastWithStrictlyHigherContrast() {
+    @Test func highContrastTokensDifferFromStandard() {
         for preset in AppearancePreset.allCases {
             let standardDefinition = PresetPaletteDefinition.definition(
                 for: preset,
@@ -309,8 +309,22 @@ struct AppearanceSettingsTests {
                 standardDefinition.errorBackground != highContrastDefinition.errorBackground,
                 "errorBackground should differ in high contrast for \(preset)"
             )
+        }
+    }
 
-            // 2. Contrast must strictly increase in high contrast mode
+    @Test func highContrastRatiosExceedStandard() {
+        for preset in AppearancePreset.allCases {
+            let standardDefinition = PresetPaletteDefinition.definition(
+                for: preset,
+                isDark: preset != .white,
+                highContrast: false
+            )
+            let highContrastDefinition = PresetPaletteDefinition.definition(
+                for: preset,
+                isDark: preset != .white,
+                highContrast: true
+            )
+
             let standardSecContrast = standardDefinition.secondaryText.contrastRatio(
                 with: standardDefinition.background
             )
@@ -319,7 +333,7 @@ struct AppearanceSettingsTests {
             )
             #expect(
                 highContrastSecContrast > standardSecContrast,
-                "High contrast secondaryText contrast (\(highContrastSecContrast)) should exceed standard (\(standardSecContrast)) for \(preset)"
+                "High contrast secondaryText (\(highContrastSecContrast)) should exceed standard (\(standardSecContrast))"
             )
 
             let standardKeywordContrast = standardDefinition.codeKeyword.contrastRatio(
@@ -330,7 +344,7 @@ struct AppearanceSettingsTests {
             )
             #expect(
                 highContrastKeywordContrast > standardKeywordContrast,
-                "High contrast codeKeyword contrast (\(highContrastKeywordContrast)) should exceed standard (\(standardKeywordContrast)) for \(preset)"
+                "High contrast codeKeyword (\(highContrastKeywordContrast)) should exceed standard (\(standardKeywordContrast))"
             )
 
             let standardStringContrast = standardDefinition.codeString.contrastRatio(
@@ -341,7 +355,7 @@ struct AppearanceSettingsTests {
             )
             #expect(
                 highContrastStringContrast > standardStringContrast,
-                "High contrast codeString contrast (\(highContrastStringContrast)) should exceed standard (\(standardStringContrast)) for \(preset)"
+                "High contrast codeString (\(highContrastStringContrast)) should exceed standard (\(standardStringContrast))"
             )
 
             let standardCommentContrast = standardDefinition.codeComment.contrastRatio(
@@ -352,7 +366,7 @@ struct AppearanceSettingsTests {
             )
             #expect(
                 highContrastCommentContrast > standardCommentContrast,
-                "High contrast codeComment contrast (\(highContrastCommentContrast)) should exceed standard (\(standardCommentContrast)) for \(preset)"
+                "High contrast codeComment (\(highContrastCommentContrast)) should exceed standard (\(standardCommentContrast))"
             )
 
             let standardNumberContrast = standardDefinition.codeNumber.contrastRatio(
@@ -363,7 +377,7 @@ struct AppearanceSettingsTests {
             )
             #expect(
                 highContrastNumberContrast > standardNumberContrast,
-                "High contrast codeNumber contrast (\(highContrastNumberContrast)) should exceed standard (\(standardNumberContrast)) for \(preset)"
+                "High contrast codeNumber (\(highContrastNumberContrast)) should exceed standard (\(standardNumberContrast))"
             )
 
             let standardErrorContrast = standardDefinition.errorText.contrastRatio(
@@ -374,22 +388,41 @@ struct AppearanceSettingsTests {
             )
             #expect(
                 highContrastErrorContrast > standardErrorContrast,
-                "High contrast errorText contrast (\(highContrastErrorContrast)) should exceed standard (\(standardErrorContrast)) for \(preset)"
+                "High contrast errorText (\(highContrastErrorContrast)) should exceed standard (\(standardErrorContrast))"
+            )
+        }
+    }
+
+    @Test func highContrastTokensMeetWCAGAA() {
+        for preset in AppearancePreset.allCases {
+            let standardDefinition = PresetPaletteDefinition.definition(
+                for: preset,
+                isDark: preset != .white,
+                highContrast: false
+            )
+            let highContrastDefinition = PresetPaletteDefinition.definition(
+                for: preset,
+                isDark: preset != .white,
+                highContrast: true
             )
 
-            // 3. Both standard and high contrast tokens must satisfy WCAG AA (>= 4.5:1)
-            #expect(standardSecContrast >= 4.5)
-            #expect(highContrastSecContrast >= 4.5)
-            #expect(standardKeywordContrast >= 4.5)
-            #expect(highContrastKeywordContrast >= 4.5)
-            #expect(standardStringContrast >= 4.5)
-            #expect(highContrastStringContrast >= 4.5)
-            #expect(standardCommentContrast >= 4.5)
-            #expect(highContrastCommentContrast >= 4.5)
-            #expect(standardNumberContrast >= 4.5)
-            #expect(highContrastNumberContrast >= 4.5)
-            #expect(standardErrorContrast >= 4.5)
-            #expect(highContrastErrorContrast >= 4.5)
+            let stdBg = standardDefinition.background
+            let stdCodeBg = standardDefinition.codeBackground
+            let hcBg = highContrastDefinition.background
+            let hcCodeBg = highContrastDefinition.codeBackground
+
+            #expect(standardDefinition.secondaryText.contrastRatio(with: stdBg) >= 4.5)
+            #expect(highContrastDefinition.secondaryText.contrastRatio(with: hcBg) >= 4.5)
+            #expect(standardDefinition.codeKeyword.contrastRatio(with: stdCodeBg) >= 4.5)
+            #expect(highContrastDefinition.codeKeyword.contrastRatio(with: hcCodeBg) >= 4.5)
+            #expect(standardDefinition.codeString.contrastRatio(with: stdCodeBg) >= 4.5)
+            #expect(highContrastDefinition.codeString.contrastRatio(with: hcCodeBg) >= 4.5)
+            #expect(standardDefinition.codeComment.contrastRatio(with: stdCodeBg) >= 4.5)
+            #expect(highContrastDefinition.codeComment.contrastRatio(with: hcCodeBg) >= 4.5)
+            #expect(standardDefinition.codeNumber.contrastRatio(with: stdCodeBg) >= 4.5)
+            #expect(highContrastDefinition.codeNumber.contrastRatio(with: hcCodeBg) >= 4.5)
+            #expect(standardDefinition.errorText.contrastRatio(with: stdBg) >= 4.5)
+            #expect(highContrastDefinition.errorText.contrastRatio(with: hcBg) >= 4.5)
         }
     }
 }
