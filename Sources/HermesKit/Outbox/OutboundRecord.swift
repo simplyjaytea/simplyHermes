@@ -1,5 +1,13 @@
 import Foundation
 
+/// The state of a message without its payload. The store and the user's actions compare states by this.
+public enum DeliveryKind: String, Sendable, Equatable {
+    case pending
+    case sending
+    case sent
+    case failed
+}
+
 /// Where an outgoing message is in its delivery. A message is saved as `.pending` before anything is sent.
 public enum DeliveryState: Sendable, Equatable, Codable {
     /// Saved and waiting for its chat to take it.
@@ -32,13 +40,13 @@ public enum DeliveryState: Sendable, Equatable, Codable {
         if case .sent = self { true } else { false }
     }
 
-    /// The state name without its payload, as stored in the `state` column.
-    var kind: String {
+    /// The state without its payload.
+    public var kind: DeliveryKind {
         switch self {
-        case .pending: "pending"
-        case .sending: "sending"
-        case .sent: "sent"
-        case .failed: "failed"
+        case .pending: .pending
+        case .sending: .sending
+        case .sent: .sent
+        case .failed: .failed
         }
     }
 }

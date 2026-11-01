@@ -128,9 +128,36 @@ struct OutboxStoreTests {
         try await cache.outbox.insert(kept)
         try await cache.outbox.insert(dropped)
 
-        try await cache.outbox.remove(id: dropped.id)
+        try await cache.outbox.remove(id: dropped.id, ifCurrently: .pending)
 
         #expect(try await cache.outbox.records(inChat: "c1") == [kept])
+    }
+
+    @Test func aStaleStateChangeIsRefusedAndLeavesTheRowAlone() async throws {
+        let cache = try HermesCache()
+        let saved = record("a")
+        try await cache.outbox.insert(saved)
+        // The send has started. A user's Retry that was tapped on the old, failed row must not move it.
+        try await cache.outbox.updateState(.sending, forID: saved.id)
+
+        await #expect(throws: OutboxError.self) {
+            try await cache.outbox.updateState(.pending, forID: saved.id, ifCurrently: .failed)
+        }
+
+        #expect(try await cache.outbox.records(inChat: "c1").map(\.state.kind) == [.sending])
+    }
+
+    @Test func aMessageBeingSentCannotBeRemoved() async throws {
+        let cache = try HermesCache()
+        let saved = record("a")
+        try await cache.outbox.insert(saved)
+        try await cache.outbox.updateState(.sending, forID: saved.id)
+
+        await #expect(throws: OutboxError.self) {
+            try await cache.outbox.remove(id: saved.id, ifCurrently: .failed)
+        }
+
+        #expect(try await cache.outbox.records(inChat: "c1").count == 1)
     }
 
     // MARK: - Purge

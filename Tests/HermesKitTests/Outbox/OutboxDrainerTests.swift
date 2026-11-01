@@ -100,6 +100,26 @@ struct OutboxDrainerTests {
         #expect(try await states(cache) == ["a:sent", "b:sent"])
     }
 
+    @Test func aRetryThatRacesASendInFlightIsRefusedAndTheMessageIsSentOnce() async throws {
+        let cache = try HermesCache()
+        let saved = record("a")
+        try await cache.outbox.insert(saved)
+        let submitter = ScriptedSubmitter()
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter)
+
+        await submitter.block(true)
+        let inFlight = Task { try await drainer.drain() }
+        while await submitter.delivered.isEmpty { try await Task.sleep(for: .milliseconds(2)) }
+
+        // A second tap on Retry while `a` is still in flight must change nothing.
+        await #expect(throws: OutboxError.self) { try await drainer.retry(saved.id) }
+
+        await submitter.block(false)
+        try await inFlight.value
+        #expect(await submitter.delivered == ["a"])
+        #expect(try await states(cache) == ["a:sent"])
+    }
+
     @Test func retryOnlyAppliesToAFailedMessage() async throws {
         let cache = try HermesCache()
         let saved = record("a")

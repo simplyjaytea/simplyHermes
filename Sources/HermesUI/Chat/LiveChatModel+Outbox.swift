@@ -59,7 +59,7 @@
                     if let drainer {
                         try await drainer.retry(id)
                     } else {
-                        try await outbox.updateState(.pending, forID: id)
+                        try await outbox.updateState(.pending, forID: id, ifCurrently: .failed)
                     }
                 } catch {
                     outboxError = Self.outboxMessage(for: error)
@@ -68,11 +68,11 @@
             }
         }
 
-        /// Drops a waiting or failed message the user no longer wants (WP-4).
+        /// Drops a failed message the user no longer wants (WP-4). A message that is being sent cannot be dropped.
         public func deleteOutbox(_ id: UUID) {
             Task {
                 do {
-                    try await outbox.remove(id: id)
+                    try await outbox.remove(id: id, ifCurrently: .failed)
                 } catch {
                     outboxError = Self.outboxMessage(for: error)
                 }

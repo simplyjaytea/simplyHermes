@@ -183,7 +183,9 @@
                 self.controller = controller
                 phase = .ready
                 // Messages that were mid-send when the app stopped go out again, once, and acknowledged ones are dropped.
-                let drainer = OutboxDrainer(store: outbox, chatID: storedSessionID, submitter: controller)
+                let drainer = OutboxDrainer(
+                    store: outbox, chatID: storedSessionID, submitter: controller,
+                    onChange: { @MainActor [weak self] in await self?.refreshOutbox() })
                 self.drainer = drainer
                 do {
                     try await drainer.recoverInterrupted()

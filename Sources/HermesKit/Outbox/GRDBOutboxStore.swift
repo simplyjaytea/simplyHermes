@@ -21,7 +21,7 @@ public struct GRDBOutboxStore: OutboxStore {
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
                 arguments: [
-                    record.id.uuidString, record.connectionID, record.chatID, record.state.kind,
+                    record.id.uuidString, record.connectionID, record.chatID, record.state.kind.rawValue,
                     record.createdAt.timeIntervalSince1970, json,
                 ])
         }
@@ -29,20 +29,14 @@ public struct GRDBOutboxStore: OutboxStore {
 
     @discardableResult
     public func updateState(_ state: DeliveryState, forID id: UUID) async throws -> OutboundRecord {
-        try await database.write { handle in
-            guard
-                let stored = try Data.fetchOne(
-                    handle, sql: "SELECT json FROM outbound_messages WHERE id = ?", arguments: [id.uuidString])
-            else {
-                throw OutboxError.notFound(id)
-            }
-            var record = try Self.decoder.decode(OutboundRecord.self, from: stored)
-            try record.move(to: state)
-            try handle.execute(
-                sql: "UPDATE outbound_messages SET state = ?, json = ? WHERE id = ?",
-                arguments: [record.state.kind, try Self.encoder.encode(record), id.uuidString])
-            return record
-        }
+        try await write(id: id, ifCurrently: nil, to: state)
+    }
+
+    @discardableResult
+    public func updateState(
+        _ state: DeliveryState, forID id: UUID, ifCurrently current: DeliveryKind
+    ) async throws -> OutboundRecord {
+        try await write(id: id, ifCurrently: current, to: state)
     }
 
     public func records(inChat chatID: String) async throws -> [OutboundRecord] {
@@ -64,9 +58,43 @@ public struct GRDBOutboxStore: OutboxStore {
         }
     }
 
-    public func remove(id: UUID) async throws {
+    public func remove(id: UUID, ifCurrently current: DeliveryKind) async throws {
         try await database.write { handle in
+            guard
+                let stored = try Data.fetchOne(
+                    handle, sql: "SELECT json FROM outbound_messages WHERE id = ?", arguments: [id.uuidString])
+            else {
+                throw OutboxError.notFound(id)
+            }
+            let record = try Self.decoder.decode(OutboundRecord.self, from: stored)
+            guard record.state.kind == current else {
+                throw OutboxError.unexpectedState(id, actual: record.state.kind)
+            }
             try handle.execute(sql: "DELETE FROM outbound_messages WHERE id = ?", arguments: [id.uuidString])
+        }
+    }
+
+    /// Reads one record, checks its state when `current` is given, applies `change`, and stores the result. All of it
+    /// runs in one write, so no other write can land between the check and the update.
+    private func write(
+        id: UUID, ifCurrently current: DeliveryKind?, to state: DeliveryState
+    ) async throws -> OutboundRecord {
+        try await database.write { handle in
+            guard
+                let stored = try Data.fetchOne(
+                    handle, sql: "SELECT json FROM outbound_messages WHERE id = ?", arguments: [id.uuidString])
+            else {
+                throw OutboxError.notFound(id)
+            }
+            var record = try Self.decoder.decode(OutboundRecord.self, from: stored)
+            if let current, record.state.kind != current {
+                throw OutboxError.unexpectedState(id, actual: record.state.kind)
+            }
+            try record.move(to: state)
+            try handle.execute(
+                sql: "UPDATE outbound_messages SET state = ?, json = ? WHERE id = ?",
+                arguments: [record.state.kind.rawValue, try Self.encoder.encode(record), id.uuidString])
+            return record
         }
     }
 

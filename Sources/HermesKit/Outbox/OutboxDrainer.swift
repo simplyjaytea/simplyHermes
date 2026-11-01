@@ -27,24 +27,28 @@ public actor OutboxDrainer {
     private let chatID: String
     private let submitter: any OutboxSubmitter
     private let clock: @Sendable () -> Date
+    private let onChange: @Sendable () async -> Void
     private var isDraining = false
     private var drainRequested = false
 
-    /// Creates a drainer for one chat.
+    /// Creates a drainer for one chat. `onChange` runs after every state the drainer writes, so the screen can show
+    /// the change at once instead of after the whole pass.
     public init(
         store: any OutboxStore, chatID: String, submitter: any OutboxSubmitter,
-        clock: @escaping @Sendable () -> Date = { Date() }
+        clock: @escaping @Sendable () -> Date = { Date() },
+        onChange: @escaping @Sendable () async -> Void = {}
     ) {
         self.store = store
         self.chatID = chatID
         self.submitter = submitter
         self.clock = clock
+        self.onChange = onChange
     }
 
     /// Puts messages that were being sent back to `pending`. Call it once per attach, before the first drain.
     public func recoverInterrupted() async throws {
-        for record in try await store.records(inChat: chatID) where record.state.kind == "sending" {
-            try await store.updateState(.pending, forID: record.id)
+        for record in try await store.records(inChat: chatID) where record.state.kind == .sending {
+            try await move(record.id, to: .pending)
         }
     }
 
@@ -69,24 +73,31 @@ public actor OutboxDrainer {
             // A failed message holds back the ones written after it, so they keep the order the user wrote them in.
             if case .failed = record.state { return }
             guard record.state == .pending else { continue }
-            try await store.updateState(.sending, forID: record.id)
+            try await move(record.id, to: .sending)
             switch await submitter.deliver(record) {
             case .acknowledged:
-                try await store.updateState(.sent(acknowledgedAt: clock()), forID: record.id)
+                try await move(record.id, to: .sent(acknowledgedAt: clock()))
             case .deferred:
-                try await store.updateState(.pending, forID: record.id)
+                try await move(record.id, to: .pending)
                 return
             case .failed(let reason):
                 // The user decides what happens next (Retry, Edit or Delete). Later messages wait behind it.
-                try await store.updateState(.failed(reason: reason), forID: record.id)
+                try await move(record.id, to: .failed(reason: reason))
                 return
             }
         }
     }
 
-    /// Retries a failed message, then sends the waiting messages. Only a failed message can be retried.
+    /// Retries a failed message, then sends the waiting messages. Only a failed message can be retried: a retry that
+    /// races a send in flight throws and changes nothing, so the message cannot go out twice.
     public func retry(_ id: UUID) async throws {
-        try await store.updateState(.pending, forID: id)
+        try await store.updateState(.pending, forID: id, ifCurrently: .failed)
+        await onChange()
         try await drain()
+    }
+
+    private func move(_ id: UUID, to state: DeliveryState) async throws {
+        try await store.updateState(state, forID: id)
+        await onChange()
     }
 }
