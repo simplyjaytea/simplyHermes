@@ -33,6 +33,8 @@
             case assistant
             case tool(command: String)
             case approval
+            /// A status line from the app, such as an approval outcome. Never a reply, so it is shown as a caption.
+            case notice
         }
 
         public let id: String
@@ -102,7 +104,7 @@
         public var sessionNotice: String?
 
         public init(
-            sessions: [ChatSessionSummary] = ShellModel.sampleSessions,
+            sessions: [ChatSessionSummary] = [],
             selectedSessionID: String? = nil,
             draftDefaults: UserDefaults? = .standard
         ) {
@@ -111,9 +113,12 @@
             drafts = Self.loadDrafts(from: draftDefaults)
             let initial = selectedSessionID ?? sessions.first?.id
             self.selectedSessionID = initial
-            for session in sessions {
-                transcripts[session.id] = ShellModel.sampleTranscript(for: session)
-            }
+            #if DEBUG
+                // Previews and UI tests only: a session given without a transcript gets a sample one.
+                for session in sessions {
+                    transcripts[session.id] = ShellModel.sampleTranscript(for: session)
+                }
+            #endif
             if let initial {
                 openSessionIDs = [initial]
             }
@@ -378,38 +383,49 @@
             streamingSessionIDs.contains(id)
         }
 
-        /// Sends the draft as a user message. The demo reply streams in word by word. A New chat's first message
-        /// creates its server chat instead, and the returned task ends once that message is sent or has failed.
+        /// Whether a chat with no live connection can take a message. Only a New chat can: its first message starts a
+        /// server chat. Any other placeholder chat shows "Not connected" and keeps its composer disabled.
+        public func canStartChat(_ id: String) -> Bool {
+            unstartedChatIDs.contains(id)
+        }
+
+        /// Sends the draft as a user message. A New chat's first message creates its server chat instead, and the
+        /// returned task ends once that message is sent or has failed. A placeholder chat has no server to answer
+        /// it, so nothing is sent and the draft stays.
         @discardableResult
         public func send(in id: String) -> Task<Void, Never>? {
             if unstartedChatIDs.contains(id) { return startFirstMessage(in: id) }
-            let text = drafts[id, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { return nil }
-            drafts[id] = ""
-            append(ShellMessage(id: UUID().uuidString, kind: .user, text: text), to: id)
-            startDemoStream(in: id)
+            #if DEBUG
+                let text = drafts[id, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { return nil }
+                drafts[id] = ""
+                append(ShellMessage(id: UUID().uuidString, kind: .user, text: text), to: id)
+                startDemoStream(in: id)
+            #endif
             return nil
         }
 
-        /// Streams a canned reply into a chat, a few words at a time, so fold changes can be tested mid-stream.
-        /// Words arrive five at a time, every 600 ms: the same pace, with a fifth of the view updates.
-        public func startDemoStream(in id: String, words: Int = 60) {
-            guard !streamingSessionIDs.contains(id) else { return }
-            streamingSessionIDs.insert(id)
-            let messageID = UUID().uuidString
-            append(ShellMessage(id: messageID, kind: .assistant, text: ""), to: id)
-            streamTasks[id] = Task { [weak self] in
-                for start in stride(from: 0, to: words, by: 5) {
-                    try? await Task.sleep(for: .milliseconds(600))
-                    if Task.isCancelled { break }
-                    for index in start..<min(start + 5, words) {
-                        self?.appendWord("word\(index)", to: messageID, in: id)
+        #if DEBUG
+            /// Streams a canned reply into a chat, a few words at a time, so fold changes can be tested mid-stream.
+            /// Words arrive five at a time, every 600 ms: the same pace, with a fifth of the view updates.
+            public func startDemoStream(in id: String, words: Int = 60) {
+                guard !streamingSessionIDs.contains(id) else { return }
+                streamingSessionIDs.insert(id)
+                let messageID = UUID().uuidString
+                append(ShellMessage(id: messageID, kind: .assistant, text: ""), to: id)
+                streamTasks[id] = Task { [weak self] in
+                    for start in stride(from: 0, to: words, by: 5) {
+                        try? await Task.sleep(for: .milliseconds(600))
+                        if Task.isCancelled { break }
+                        for index in start..<min(start + 5, words) {
+                            self?.appendWord("word\(index)", to: messageID, in: id)
+                        }
                     }
+                    self?.streamingSessionIDs.remove(id)
+                    self?.streamTasks[id] = nil
                 }
-                self?.streamingSessionIDs.remove(id)
-                self?.streamTasks[id] = nil
             }
-        }
+        #endif
 
         /// Stops the running turn in a chat.
         public func stop(in id: String) {
@@ -455,25 +471,27 @@
             return ApprovalAlert(id: approval.id, sessionID: id, sessionTitle: summary.title, command: approval.text)
         }
 
-        /// Answers the pending approval. WP-31 sends the answer to the server.
+        /// Answers the pending approval. WP-31 sends the answer to the server. The outcome is a notice row, never a reply.
         public func resolveApproval(in id: String, approved: Bool) {
             guard let approval = pendingApproval(in: id) else { return }
             transcripts[id]?.removeAll { $0.id == approval.id }
             let note = approved ? "Approved: \(approval.text)" : "Denied: \(approval.text)"
-            append(ShellMessage(id: UUID().uuidString, kind: .assistant, text: note), to: id)
-            if approved {
-                startDemoStream(in: id, words: 20)
-            }
+            append(ShellMessage(id: UUID().uuidString, kind: .notice, text: note), to: id)
+            #if DEBUG
+                if approved { startDemoStream(in: id, words: 20) }
+            #endif
         }
 
         private func append(_ message: ShellMessage, to id: String) {
             transcripts[id, default: []].append(message)
         }
 
-        private func appendWord(_ word: String, to messageID: String, in id: String) {
-            guard let index = transcripts[id]?.firstIndex(where: { $0.id == messageID }) else { return }
-            let current = transcripts[id]?[index].text ?? ""
-            transcripts[id]?[index].text = current.isEmpty ? word : current + " " + word
-        }
+        #if DEBUG
+            private func appendWord(_ word: String, to messageID: String, in id: String) {
+                guard let index = transcripts[id]?.firstIndex(where: { $0.id == messageID }) else { return }
+                let current = transcripts[id]?[index].text ?? ""
+                transcripts[id]?[index].text = current.isEmpty ? word : current + " " + word
+            }
+        #endif
     }
 #endif

@@ -29,7 +29,9 @@ struct HermesApp: App {
         _connections = State(initialValue: connections)
         _sessionsList = State(initialValue: Self.makeSessionsList(connections, launch))
         // UI tests keep drafts in memory, so a draft typed in one run is not in the field at the start of the next.
-        let model = ShellModel(draftDefaults: launch.onboarding == nil ? UserDefaults.standard : nil)
+        let model = ShellModel(
+            sessions: Self.placeholderSessions(launch),
+            draftDefaults: launch.onboarding == nil ? UserDefaults.standard : nil)
         _model = State(initialValue: model)
         // Set up before any scene: a Live Activity or widget button can launch the app in the background.
         let integration = AppIntegration(model: model)
@@ -60,6 +62,15 @@ struct HermesApp: App {
                 .hermesAppearance(activePreset)
                 .environment(\.onDeviceModels, OnDeviceModelServices.shared.model)
         }
+    }
+
+    /// Placeholder chats are fake, so only debug builds have them, and only when a UI test asks. A release build starts
+    /// with no chats.
+    private static func placeholderSessions(_ launch: LaunchOptions) -> [ChatSessionSummary] {
+        #if DEBUG
+            if launch.showsSampleChats { return ShellModel.sampleSessions }
+        #endif
+        return []
     }
 
     /// The chat list cache. UI tests keep it in memory so runs never share saved chats.
@@ -116,6 +127,8 @@ struct LaunchOptions {
     var section: AppSection?
     /// Resets appearance settings to system defaults on launch (pass as `-HermesResetAppearance YES`).
     var resetAppearance: Bool
+    /// Debug builds only: starts with the sample chats. UI tests that need them pass `-HermesSampleChats YES`.
+    var showsSampleChats: Bool
 
     enum Onboarding: String {
         case skip
@@ -130,6 +143,7 @@ struct LaunchOptions {
         onboarding = defaults.string(forKey: "HermesOnboarding").flatMap(Onboarding.init(rawValue:))
         section = defaults.string(forKey: "HermesSection").flatMap(AppSection.init(rawValue:))
         resetAppearance = defaults.bool(forKey: "HermesResetAppearance")
+        showsSampleChats = defaults.bool(forKey: "HermesSampleChats")
     }
 }
 
@@ -160,12 +174,14 @@ struct RootView: View {
             if let section = launch.section {
                 model.selectedSection = section
             }
-            if launch.demo == "stream", let id = model.selectedSessionID {
-                model.startDemoStream(in: id, words: 1500)
-            }
-            if launch.demo == "liveActivity", let id = model.selectedSessionID {
-                model.startDemoStream(in: id, words: 1500)
-            }
+            #if DEBUG
+                if launch.demo == "stream", let id = model.selectedSessionID {
+                    model.startDemoStream(in: id, words: 1500)
+                }
+                if launch.demo == "liveActivity", let id = model.selectedSessionID {
+                    model.startDemoStream(in: id, words: 1500)
+                }
+            #endif
         }
     }
 }

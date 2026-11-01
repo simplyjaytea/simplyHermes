@@ -1,4 +1,4 @@
-#if canImport(UIKit)
+#if canImport(UIKit) && DEBUG
     import SwiftUI
 
     /// Every design-system component on one page. Used for previews, snapshot tests and JT's review in the app.
