@@ -32,7 +32,22 @@ private final class FakeChatTransport: ChatTransport, @unchecked Sendable {
         attachResult = try object.decode(SessionAttachResult.self)
     }
 
-    func resumeSession(_ params: SessionResumeParams) async throws -> SessionAttachResult { attachResult }
+    /// Live ids by stored id, for tests with several chats on this one client. A stored id not listed gets the default.
+    var liveIDs: [String: String] = [:]
+
+    func resumeSession(_ params: SessionResumeParams) async throws -> SessionAttachResult {
+        if let live = liveIDs[params.sessionID] { return try attach(live: live) }
+        return attachResult
+    }
+
+    /// The attach result `session.resume` gives for a session whose live id is `live`.
+    func attach(live: String) throws -> SessionAttachResult {
+        let object: JSONValue = [
+            "session_id": .string(live), "message_count": .int(0), "messages": .array([]),
+            "info": ["model": "m"], "stored_session_id": "20261015_000000_aaaaaa",
+        ]
+        return try object.decode(SessionAttachResult.self)
+    }
 
     func clientEvents() async -> AsyncStream<GatewayClientEvent> {
         let (stream, continuation) = AsyncStream<GatewayClientEvent>.makeStream()
@@ -529,5 +544,34 @@ private func lines(_ state: TranscriptState) -> [String] {
         let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
         try await controller.attach()
         #expect(await controller.deliver(record("refused")) == .failed("Model is not available"))
+    }
+
+    // MARK: - Two chats on one client (review M3)
+
+    @Test func aChatIgnoresTheEventsAndResyncOfAnotherChat() async throws {
+        let transport = try FakeChatTransport()
+        transport.liveIDs = ["stored-a": "live-a", "stored-b": "live-b"]
+        let chatA = ChatSessionController(transport: transport, storedSessionID: "stored-a")
+        let chatB = ChatSessionController(transport: transport, storedSessionID: "stored-b")
+        try await chatA.attach()
+        try await chatB.attach()
+
+        // Chat A's events, a failed resync of A and a cold re-attach of A all reach chat B on the same client.
+        let start: JSONValue = ["type": "message.start", "session_id": "live-a", "payload": [:], "seq": 1]
+        await chatB.handle(.event(try start.decode(GatewayEventEnvelope.self), replayed: false))
+        await chatB.handle(.resyncFailed(sessionID: "live-a", message: "gone"))
+        await chatB.handle(
+            .sessionReattached(oldLiveID: "live-a", result: try transport.attach(live: "live-a2"), how: .cold))
+
+        let state = await chatB.current
+        #expect(state.liveSessionID == "live-b")
+        #expect(state.turn == nil)
+        #expect(state.connectionNote == nil)
+        #expect(state.items.isEmpty)
+
+        // Chat A takes its own cold re-attach.
+        await chatA.handle(
+            .sessionReattached(oldLiveID: "live-a", result: try transport.attach(live: "live-a2"), how: .cold))
+        #expect(await chatA.current.liveSessionID == "live-a2")
     }
 }

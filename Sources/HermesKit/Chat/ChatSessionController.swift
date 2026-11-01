@@ -436,6 +436,8 @@ public actor ChatSessionController: OutboxSubmitter {
 
     /// Feeds one client event to the transcript. Public so tests and replays can drive it.
     public func handle(_ event: GatewayClientEvent) async {
+        // One client carries every chat's events. Only this chat's events are applied (review M3).
+        if let owner = Self.owner(of: event), let live = state.liveSessionID, owner != live { return }
         // An edit that waits for the server keeps the events back until its cut is in.
         if heldEvents != nil {
             heldEvents?.append(event)
@@ -471,6 +473,18 @@ public actor ChatSessionController: OutboxSubmitter {
 
     private func removeSubscriber(_ id: UUID) {
         subscribers[id] = nil
+    }
+
+    /// The session a client event is about, when it names one. A cold re-attach names the live id it replaces.
+    private static func owner(of event: GatewayClientEvent) -> String? {
+        switch event {
+        case .event(let envelope, _): envelope.sessionID
+        case .sessionReattached(let oldLiveID, _, _): oldLiveID
+        case .resyncFailed(let sessionID, _): sessionID
+        case .replayTruncated(let sessionID, _): sessionID
+        case .openRequestReplayed(let sessionID, _): sessionID
+        default: nil
+        }
     }
 
     private static func message(for error: any Error) -> String {
