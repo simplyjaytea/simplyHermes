@@ -528,6 +528,15 @@ private func lines(_ state: TranscriptState) -> [String] {
         #expect(state.connectionNote == nil)
     }
 
+    @Test func aDetachedChatDefersADelivery() async throws {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        await controller.detach()
+        #expect(await controller.deliver(record("late")) == .deferred)
+        #expect(transport.submitted.isEmpty)
+    }
+
     // MARK: - Failure classification (review M2)
 
     @Test func aDroppedConnectionDefersTheMessageInsteadOfFailingIt() async throws {

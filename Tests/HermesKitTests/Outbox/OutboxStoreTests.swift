@@ -108,7 +108,7 @@ struct OutboxStoreTests {
         let first = record("one", at: 0)
         let second = record("two", at: 5)
         let elsewhere = record("elsewhere", chat: "c2", at: 1)
-        for message in [second, first, elsewhere] {
+        for message in [first, second, elsewhere] {
             try await cache.outbox.insert(message)
         }
         #expect(try await cache.outbox.records(inChat: "c1").map(\.text) == ["one", "two"])
@@ -131,6 +131,15 @@ struct OutboxStoreTests {
         try await cache.outbox.remove(id: dropped.id, ifCurrently: .pending)
 
         #expect(try await cache.outbox.records(inChat: "c1") == [kept])
+    }
+
+    @Test func messagesKeepTheOrderTheyWereWrittenEvenIfTheClockWentBack() async throws {
+        let cache = try HermesCache()
+        // Written second, but timed earlier: the queue follows the write order, not the wall clock.
+        try await cache.outbox.insert(record("later", at: 5))
+        try await cache.outbox.insert(record("earlier", at: 0))
+
+        #expect(try await cache.outbox.records(inChat: "c1").map(\.text) == ["later", "earlier"])
     }
 
     @Test func aStaleStateChangeIsRefusedAndLeavesTheRowAlone() async throws {

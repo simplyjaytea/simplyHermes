@@ -93,6 +93,8 @@ public actor ChatSessionController: OutboxSubmitter {
 
     private var isIdle: Bool { state.turn == nil && !isSubmitting && !awaitingTurn }
     private var eventTask: Task<Void, Never>?
+    /// True from ``detach()`` until the next ``attach()``. A detached chat delivers nothing (review minors).
+    private var isDetached = false
     private var subscribers: [UUID: AsyncStream<ChatSnapshot>.Continuation] = [:]
 
     /// Creates a controller for the stored session `storedSessionID`. Nothing happens until ``attach()``.
@@ -124,6 +126,7 @@ public actor ChatSessionController: OutboxSubmitter {
 
     /// Subscribes to events, then resumes the session and shows its history.
     public func attach() async throws {
+        isDetached = false
         guard eventTask == nil else { return }
         let events = await transport.clientEvents()
         eventTask = Task { [weak self] in
@@ -145,6 +148,7 @@ public actor ChatSessionController: OutboxSubmitter {
 
     /// Stops listening. The transcript stays readable.
     public func detach() {
+        isDetached = true
         eventTask?.cancel()
         eventTask = nil
     }
@@ -188,7 +192,8 @@ public actor ChatSessionController: OutboxSubmitter {
     /// session is not live yet, it answers ``SubmitOutcome/deferred``, and the outbox keeps the message. The echo row
     /// appears only once the server has accepted the prompt, so the message is never shown twice.
     public func deliver(_ record: OutboundRecord) async -> SubmitOutcome {
-        guard let live = state.liveSessionID, isIdle, queue.isEmpty else { return .deferred }
+        // A chat that was detached (closed, or its server changed) sends nothing. The outbox keeps the message.
+        guard !isDetached, let live = state.liveSessionID, isIdle, queue.isEmpty else { return .deferred }
         isSubmitting = true
         defer { isSubmitting = false }
         do {

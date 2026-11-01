@@ -53,7 +53,8 @@ public enum DeliveryState: Sendable, Equatable, Codable {
 
 /// One outgoing message, kept until the server has it. It is the outbox row the app shows as "Waiting" or "Not sent".
 public struct OutboundRecord: Sendable, Equatable, Identifiable, Codable {
-    /// The client id. It doubles as the idempotency key the server sees, so a retried send is not delivered twice.
+    /// The local id of this record. The server never receives it: `prompt.submit` carries no client id. So a message
+    /// whose acknowledgement was lost can reach the server twice.
     public let id: UUID
     /// The saved server connection the chat belongs to, so a removed server takes its waiting messages with it.
     public let connectionID: String

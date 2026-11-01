@@ -70,8 +70,11 @@ public actor OutboxDrainer {
 
     private func sendPending() async throws {
         for record in try await store.records(inChat: chatID) {
-            // A failed message holds back the ones written after it, so they keep the order the user wrote them in.
+            // A cancelled drain sends nothing more. The message in flight, if any, is already recorded.
+            if Task.isCancelled { return }
+            // A failed or stuck message holds back the ones written after it, so they keep the order the user wrote.
             if case .failed = record.state { return }
+            if record.state.kind == .sending { return }
             guard record.state == .pending else { continue }
             try await move(record.id, to: .sending)
             switch await submitter.deliver(record) {
@@ -97,7 +100,9 @@ public actor OutboxDrainer {
     }
 
     private func move(_ id: UUID, to state: DeliveryState) async throws {
-        try await store.updateState(state, forID: id)
+        // Written even when this drain was cancelled. A send the server accepted must not be left looking unsent, or
+        // the next attach would send it again. An unstructured task does not inherit the cancellation.
+        try await Task { try await store.updateState(state, forID: id) }.value
         await onChange()
     }
 }

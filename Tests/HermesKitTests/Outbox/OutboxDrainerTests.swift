@@ -120,6 +120,40 @@ struct OutboxDrainerTests {
         #expect(try await states(cache) == ["a:sent"])
     }
 
+    @Test func aCancelledDrainSendsNothingMoreAfterTheMessageInFlight() async throws {
+        let cache = try HermesCache()
+        for text in ["a", "b"] { try await cache.outbox.insert(record(text)) }
+        let submitter = ScriptedSubmitter()
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter)
+
+        await submitter.block(true)
+        let pass = Task { try await drainer.drain() }
+        while await submitter.delivered.isEmpty { try await Task.sleep(for: .milliseconds(2)) }
+        // The chat is closed while `a` is in flight. `a` finishes, and `b` is not sent.
+        pass.cancel()
+        await submitter.block(false)
+        try await pass.value
+
+        #expect(await submitter.delivered == ["a"])
+        #expect(try await states(cache) == ["a:sent", "b:pending"])
+    }
+
+    @Test func aStuckSendHoldsBackTheMessagesAfterIt() async throws {
+        let cache = try HermesCache()
+        let stuck = record("a")
+        try await cache.outbox.insert(stuck)
+        try await cache.outbox.insert(record("b"))
+        // The app stopped mid-send, and no attach has recovered the message yet.
+        try await cache.outbox.updateState(.sending, forID: stuck.id)
+        let submitter = ScriptedSubmitter()
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter)
+
+        try await drainer.drain()
+
+        #expect(await submitter.delivered.isEmpty)
+        #expect(try await states(cache) == ["a:sending", "b:pending"])
+    }
+
     @Test func retryOnlyAppliesToAFailedMessage() async throws {
         let cache = try HermesCache()
         let saved = record("a")

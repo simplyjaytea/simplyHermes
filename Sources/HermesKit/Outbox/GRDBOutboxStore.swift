@@ -43,7 +43,7 @@ public struct GRDBOutboxStore: OutboxStore {
         try await database.read { handle in
             let rows = try Data.fetchAll(
                 handle,
-                sql: "SELECT json FROM outbound_messages WHERE chat_id = ? ORDER BY created_at, rowid",
+                sql: "SELECT json FROM outbound_messages WHERE chat_id = ? ORDER BY rowid",
                 arguments: [chatID])
             return try rows.map { try Self.decoder.decode(OutboundRecord.self, from: $0) }
         }
