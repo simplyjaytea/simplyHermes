@@ -69,6 +69,24 @@ struct AppearanceSettingsTests {
         #expect(defaults.object(forKey: AppearanceSettings.key) == nil)
     }
 
+    @Test func applyLaunchResetRestoresSystemWhenRequested() {
+        let (defaults, suite) = makeCleanDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let settings = AppearanceSettings(defaults: defaults)
+        settings.preset = .blue
+        #expect(settings.preset == .blue)
+
+        // When resetAppearance is false, dirty preset remains
+        AppearanceSettings.applyLaunchReset(resetAppearance: false, defaults: defaults)
+        #expect(settings.preset == .blue)
+
+        // When resetAppearance is true, preset resets to system
+        AppearanceSettings.applyLaunchReset(resetAppearance: true, defaults: defaults)
+        #expect(settings.preset == .system)
+        #expect(defaults.object(forKey: AppearanceSettings.key) == nil)
+    }
+
     @Test func presetDescriptionsAndIdentifiersAreValid() {
         for preset in AppearancePreset.allCases {
             #expect(!preset.id.isEmpty)

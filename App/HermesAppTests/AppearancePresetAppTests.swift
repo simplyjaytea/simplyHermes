@@ -2,7 +2,6 @@ import HermesKit
 import HermesUI
 import SwiftUI
 import Testing
-@testable import simplyHermes
 
 @MainActor
 struct AppearancePresetAppTests {
@@ -117,35 +116,6 @@ struct AppearancePresetAppTests {
         // Simulated Relaunch 4
         let launch5Settings = AppearanceSettings(defaults: defaults)
         #expect(launch5Settings.preset == .system)
-    }
-
-    @Test func launchResetIsolatesDirtyPresetOnLaunch() {
-        let (defaults, suiteName) = makeIsolatedDefaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        // 1. Simulate dirty state from prior session
-        let dirtySettings = AppearanceSettings(defaults: defaults)
-        dirtySettings.preset = .blue
-        #expect(defaults.string(forKey: AppearanceSettings.key) == "blue")
-        #expect(dirtySettings.preset == .blue)
-
-        // 2. Normal launch without reset argument preserves dirty state
-        #expect(defaults.bool(forKey: "HermesResetAppearance") == false)
-        let normalLaunch = LaunchOptions(defaults: defaults)
-        HermesApp.applyLaunchReset(normalLaunch, defaults: defaults)
-        let unresetSettings = AppearanceSettings(defaults: defaults)
-        #expect(unresetSettings.preset == .blue)
-
-        // 3. Launch with -HermesResetAppearance YES (as evaluated by LaunchOptions and HermesApp.applyLaunchReset)
-        defaults.set(true, forKey: "HermesResetAppearance")
-        let resetLaunch = LaunchOptions(defaults: defaults)
-        #expect(resetLaunch.resetAppearance)
-        HermesApp.applyLaunchReset(resetLaunch, defaults: defaults)
-
-        // 4. Executable proof of isolation: preset is cleanly restored to system and key is removed
-        let cleanSettings = AppearanceSettings(defaults: defaults)
-        #expect(cleanSettings.preset == .system)
-        #expect(defaults.object(forKey: AppearanceSettings.key) == nil)
     }
 
     @Test func viewModifierAppliesPaletteAndScheme() {

@@ -76,6 +76,13 @@ public struct AppearanceSettings: @unchecked Sendable {
     public func reset() {
         defaults.removeObject(forKey: Self.key)
     }
+
+    /// Resets appearance settings when requested by launch options (e.g. -HermesResetAppearance YES).
+    public static func applyLaunchReset(resetAppearance: Bool, defaults: UserDefaults = .standard) {
+        if resetAppearance {
+            AppearanceSettings(defaults: defaults).reset()
+        }
+    }
 }
 
 /// A color representation in linear sRGB for contrast verification and palette definition in pure Swift.
