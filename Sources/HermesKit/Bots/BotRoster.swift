@@ -112,6 +112,48 @@ public struct BotRosterEntry: Identifiable, Sendable, Equatable {
     /// Sort key in milliseconds: the newer of creation and last activity.
     public let activity: Double
 
+    public init(
+        connectionID: UUID,
+        sourceLabel: String,
+        profile: String,
+        handle: String,
+        title: String,
+        monogram: String,
+        tint: String,
+        avatar: BotAvatar? = nil,
+        status: BotRosterStatus = .ready,
+        isRetained: Bool = false,
+        isPinned: Bool = false,
+        isHidden: Bool = false,
+        isDefault: Bool = false,
+        role: String? = nil,
+        preview: String? = nil,
+        lastActive: Double? = nil,
+        workerActiveAt: Double? = nil,
+        canonicalSessionID: String? = nil,
+        activity: Double = 0
+    ) {
+        self.connectionID = connectionID
+        self.sourceLabel = sourceLabel
+        self.profile = profile
+        self.handle = handle
+        self.title = title
+        self.monogram = monogram
+        self.tint = tint
+        self.avatar = avatar
+        self.status = status
+        self.isRetained = isRetained
+        self.isPinned = isPinned
+        self.isHidden = isHidden
+        self.isDefault = isDefault
+        self.role = role
+        self.preview = preview
+        self.lastActive = lastActive
+        self.workerActiveAt = workerActiveAt
+        self.canonicalSessionID = canonicalSessionID
+        self.activity = activity
+    }
+
     public var mention: String { BotNaming.mentionHandle(handle) }
 }
 
@@ -170,6 +212,20 @@ public enum BotRoster {
                 return lhs.offset < rhs.offset
             }
             .map(\.element.1)
+    }
+
+    /// The bots a new Group Chat can take: the ready bots of one gateway, once per profile, in roster order. A bot on
+    /// another gateway, an unavailable bot, or a bot still read over REST cannot join a room made here (WP-43).
+    public static func groupCandidates(
+        _ entries: [BotRosterEntry], connectionID: UUID
+    ) -> [RoomMember] {
+        var seen: Set<String> = []
+        return entries.compactMap { entry in
+            guard entry.connectionID == connectionID, entry.status == .ready, !entry.profile.isEmpty,
+                seen.insert(entry.profile).inserted
+            else { return nil }
+            return .local(profile: entry.profile, displayName: entry.title)
+        }
     }
 
     /// The roster as sections, the way the list draws it: one section per gateway when there are two or more, hidden

@@ -18,7 +18,7 @@
         /// The search text. Matching ignores case and one leading `@`.
         var query = ""
 
-        @ObservationIgnored private let connections: ConnectionsModel
+        @ObservationIgnored let connections: ConnectionsModel
         @ObservationIgnored private let profiles: ProfilesModel?
         @ObservationIgnored private let shell: ShellModel
         /// The last good read of each gateway, kept while it does not answer.
@@ -29,7 +29,7 @@
             let installID: String?
         }
 
-        init(connections: ConnectionsModel, profiles: ProfilesModel?, shell: ShellModel) {
+        init(connections: ConnectionsModel, profiles: ProfilesModel? = nil, shell: ShellModel = ShellModel()) {
             self.connections = connections
             self.profiles = profiles
             self.shell = shell
@@ -55,6 +55,13 @@
             let names = activeProfileNames
             let rest = names.subtracting(["default"]).sorted()
             return (names.contains("default") ? ["default"] : []) + rest
+        }
+
+        /// The bots a new Group Chat can take. Only the active gateway can host a room made here, and only a bot whose
+        /// live row is ready can join one (WP-43).
+        var groupCandidates: [RoomMember] {
+            guard let active = connections.active else { return [] }
+            return BotRoster.groupCandidates(entries, connectionID: active.id)
         }
 
         /// What a bot is doing right now. A running turn in its Bot Chat counts as active.

@@ -52,7 +52,7 @@ These are built as the recommended option. Each can change.
 | #60 | Tool output preview | Inline transcript card has the same fallback gap. |
 | #61 | Workspaces | Filesystem response shapes. |
 | #62 | File browser | Going up can leave the workspace root. |
-| #63 | Bots | Error code 4022 handling. Avatar colours. Reload triggers. |
+| #63 | Bots | Error code 4022 handling. Avatar colours. Reload triggers. Resetting customized bot toolsets to inherited global settings is desktop-only (OpenRPC profiles.configure does not support unpinning). |
 | #64 | Cron jobs | Detach, no active server, bot picker, edit prompt. |
 | #65 | Workspace picker | Server answer for a deleted folder. |
 | #66 | QuickLook | WP-37 UI test never runs in CI. Preview cap needs owner sign-off. |

@@ -3,10 +3,10 @@
     import HermesKit
     import Observation
 
-    /// The state of Bot settings (WP-41): the export of the bot the "Applies to" choice points at.
+    /// The state of bot export (WP-41): the export of the bot the "Applies to" choice points at.
     @MainActor
     @Observable
-    public final class BotSettingsModel {
+    public final class BotExportModel {
         /// True while an export runs.
         public private(set) var isWorking = false
         /// What went wrong last, as a sentence to show. Nil when nothing did.

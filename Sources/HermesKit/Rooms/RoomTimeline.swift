@@ -143,8 +143,103 @@ public enum RoomStatus {
         return nil
     }
 
+    /// How often the Bots roster polls room driver statuses while visible (5 seconds).
+    public static let listPollInterval: TimeInterval = 5
+
+    /// Whether a room waits on the user based on its driver status (an approval is pending).
+    public static func needsAttention(status: RoomDriverStatus?) -> Bool {
+        pendingApproval(in: status) != nil
+    }
+
+    /// Whether a room waits on the user given the dictionary of polled room driver statuses.
+    public static func needsAttention(roomID: String, in statuses: [String: RoomDriverStatus]) -> Bool {
+        needsAttention(status: statuses[roomID])
+    }
+
     /// Stop shows while the room runs or is blocked. The server keeps no hold state to show.
     public static func showsStop(_ status: RoomDriverStatus?) -> Bool {
         status?.working == true || status?.blocked == true
+    }
+}
+
+/// The outcome of sending a message in a group chat (WP-43 spec, section 3).
+public struct RoomSendOutcome: Sendable, Equatable {
+    /// Whether the user's typed draft should be cleared from the composer.
+    public var shouldClearDraft: Bool
+    /// Whether the queued outgoing message record (and its idempotency IDs) should be cleared.
+    public var shouldClearOutgoing: Bool
+    /// The user-visible error or warning message to surface, if any.
+    public var actionError: String?
+
+    public init(shouldClearDraft: Bool, shouldClearOutgoing: Bool, actionError: String? = nil) {
+        self.shouldClearDraft = shouldClearDraft
+        self.shouldClearOutgoing = shouldClearOutgoing
+        self.actionError = actionError
+    }
+
+    /// Evaluates the outcome of a `groups.send` RPC result.
+    public static func evaluate(result: GroupsSendResult) -> RoomSendOutcome {
+        if result.accepted {
+            return RoomSendOutcome(
+                shouldClearDraft: true,
+                shouldClearOutgoing: true,
+                actionError: result.driverStarted ? nil : "Message saved; the room did not start a turn."
+            )
+        } else {
+            // Keep the draft and outgoing IDs, so trying again reuses the same message.
+            return RoomSendOutcome(
+                shouldClearDraft: false,
+                shouldClearOutgoing: false,
+                actionError: "The room did not accept the message. Try again."
+            )
+        }
+    }
+
+    /// Determines the outgoing message for a send attempt.
+    /// When retrying with the same draft text as a pending message that was not cleared by an earlier outcome,
+    /// the pending message is preserved so its `eventID` and `threadID` are reused on retry.
+    public static func nextOutgoing(
+        for draft: String,
+        pending: RoomOutgoingMessage?,
+        previousOutcome: RoomSendOutcome? = nil
+    ) -> RoomOutgoingMessage? {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if let previousOutcome, previousOutcome.shouldClearOutgoing {
+            return RoomOutgoingMessage(text: trimmed)
+        }
+        if let pending, pending.text == trimmed {
+            return pending
+        }
+        return RoomOutgoingMessage(text: trimmed)
+    }
+
+    /// Evaluates the pending outgoing message to hold after evaluating `outcome`.
+    /// When `shouldClearOutgoing == false`, the current outgoing message (and its eventID) is retained for retry.
+    /// When `shouldClearOutgoing == true`, the outgoing message is cleared (returns nil).
+    public static func retainedOutgoing(
+        current: RoomOutgoingMessage?,
+        outcome: RoomSendOutcome
+    ) -> RoomOutgoingMessage? {
+        outcome.shouldClearOutgoing ? nil : current
+    }
+}
+
+/// Pure presentation logic for the Group Chats roster section (WP-43 spec, section 1).
+public enum RoomsListPresentation {
+    /// What the section displays when there are no visible rooms.
+    public enum EmptyState: Sendable, Equatable {
+        /// Shows the "New Group" action button.
+        case createAction
+        /// Shows the explanation text that two ready bots are needed.
+        case explanation(String)
+    }
+
+    /// Determines the empty state to display when `visibleRooms` is empty.
+    public static func emptyState(canCreate: Bool) -> EmptyState {
+        if canCreate {
+            return .createAction
+        }
+        return .explanation("Two ready bots are needed to make a group.")
     }
 }

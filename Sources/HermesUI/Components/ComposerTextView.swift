@@ -30,6 +30,7 @@
         @Binding var text: String
         /// The caret, or the selected range, in UTF-16 units.
         @Binding var selection: NSRange
+        var fieldAccessibilityIdentifier: String = "composer.field"
         var onRecall: ((ComposerRecallDirection) -> Bool)?
 
         func makeCoordinator() -> Coordinator {
@@ -46,7 +47,7 @@
             view.textContainerInset = UIEdgeInsets(
                 top: Self.verticalInset, left: 0, bottom: Self.verticalInset, right: 0)
             view.textContainer.lineFragmentPadding = 0
-            view.accessibilityIdentifier = "composer.field"
+            view.accessibilityIdentifier = fieldAccessibilityIdentifier
             view.accessibilityLabel = String(localized: "Message")
             return view
         }

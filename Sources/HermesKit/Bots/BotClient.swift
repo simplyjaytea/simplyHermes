@@ -219,6 +219,30 @@ public struct BotClient: Sendable {
         guard result.applied.description == true else { throw BotError.roleNotSaved(profile) }
     }
 
+    /// Describes a profile: its soul, model pin, skills, toolsets and MCP servers.
+    public func describeProfile(_ profile: String) async throws -> ProfilesDescribeResult {
+        try await gateway.call(
+            "profiles.describe",
+            params: ProfilesDescribeParams(profile: profile, name: profile),
+            as: ProfilesDescribeResult.self)
+    }
+
+    /// Configures a profile: writes only the sections in `params`.
+    public func configureProfile(_ params: ProfilesConfigureParams) async throws -> ProfilesConfigureResult {
+        try await gateway.call(
+            "profiles.configure",
+            params: params,
+            as: ProfilesConfigureResult.self)
+    }
+
+    /// Fetches available model and provider options for the profile.
+    public func modelOptions(profile: String) async throws -> ModelOptionsResult {
+        try await gateway.call(
+            "model.options",
+            params: ModelOptionsParams(profile: profile),
+            as: ModelOptionsResult.self)
+    }
+
     /// Roster rows from REST `/api/profiles`, for a gateway that is not connected. `default` is added when absent.
     public static func restRows(_ profiles: [HermesProfile]) -> [BotRosterRow] {
         var rows = profiles.map { profile in

@@ -436,6 +436,15 @@
                     .accessibilityIdentifier("settings.servers")
                 }
                 .listRowBackground(palette.card)
+                Section("Bots") {
+                    NavigationLink {
+                        SettingsBotsScreen(connections: connections)
+                    } label: {
+                        Label("Bots", systemImage: "person.2")
+                    }
+                    .accessibilityIdentifier("settings.bots")
+                }
+                .listRowBackground(palette.card)
                 Section("Models") {
                     NavigationLink {
                         ProvidersKeysScreen(connections: connections)
