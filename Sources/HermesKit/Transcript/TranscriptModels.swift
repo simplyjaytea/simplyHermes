@@ -245,4 +245,6 @@ public enum TranscriptAction: Sendable, Equatable {
     case requestAnswered(id: String)
     /// The replay ring overflowed; the watermark is now `latestSeq`.
     case replayTruncated(latestSeq: Int)
+    /// The session could not be read again after a reconnect. The message is for the user.
+    case resyncFailed(message: String)
 }

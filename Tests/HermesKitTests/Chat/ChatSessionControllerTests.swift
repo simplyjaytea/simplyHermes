@@ -463,4 +463,45 @@ private func lines(_ state: TranscriptState) -> [String] {
         #expect(composerText == "  keep me  ")
         #expect(transport.submitted.isEmpty)
     }
+
+    // MARK: - Stalls and resync (WP-5)
+
+    /// A session with no running turn, as a cold re-attach brings it back.
+    private func coldResult() throws -> SessionAttachResult {
+        let object: JSONValue = [
+            "session_id": "abcd1234", "message_count": .int(0), "messages": .array([]),
+            "info": ["model": "m"], "stored_session_id": "20261015_000000_aaaaaa",
+        ]
+        return try object.decode(SessionAttachResult.self)
+    }
+
+    /// A chat with one prompt awaiting its turn and one message queued behind it.
+    private func waitingChat() async throws -> (ChatSessionController, FakeChatTransport) {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        await controller.send("first")
+        await controller.send("second")
+        #expect(transport.submitted.map(\.text) == ["first"])
+        return (controller, transport)
+    }
+
+    @Test func aColdReattachWithNoTurnRunningLetsTheQueueGoOn() async throws {
+        let (controller, transport) = try await waitingChat()
+        await controller.handle(.sessionReattached(oldLiveID: "abcd1234", result: try coldResult(), how: .cold))
+        #expect(transport.submitted.map(\.text) == ["first", "second"])
+    }
+
+    @Test func aFailedResyncStopsWaitingAndTheQueueGoesOn() async throws {
+        let (controller, transport) = try await waitingChat()
+        await controller.handle(.resyncFailed(sessionID: "abcd1234", message: "gone"))
+        #expect(transport.submitted.map(\.text) == ["first", "second"])
+    }
+
+    @Test func aFailedResyncIsShownAsAChatError() throws {
+        var state = TranscriptState(storedSessionID: "20261015_000000_aaaaaa")
+        let action = try #require(TranscriptAction(.resyncFailed(sessionID: "abcd1234", message: "gone")))
+        state.apply(action)
+        #expect(state.lastError == "gone")
+    }
 }

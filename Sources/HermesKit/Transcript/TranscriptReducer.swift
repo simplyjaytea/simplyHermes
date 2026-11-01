@@ -32,6 +32,8 @@ extension TranscriptState {
         case .replayTruncated(let latestSeq):
             lastSeq = latestSeq
             needsHistoryReload = true
+        case .resyncFailed(let message):
+            lastError = message
         }
     }
 
