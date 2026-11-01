@@ -2,18 +2,18 @@
     import HermesKit
     import SwiftUI
 
-    /// Bot settings (WP-41), opened from the profile switcher: the "Applies to" choice, and export of the bot
+    /// Bot export (WP-41), opened from the profile switcher: the "Applies to" choice, and export of the bot
     /// it points at.
     public struct BotSettingsSheet: View {
         private let profiles: ProfilesModel
-        @State private var model: BotSettingsModel
+        @State private var model: BotExportModel
         @State private var shareFile: ShareFile?
         @Environment(\.dismiss) private var dismiss
 
         /// Creates the sheet over the profiles and servers the app already holds.
         public init(profiles: ProfilesModel, connections: ConnectionsModel) {
             self.profiles = profiles
-            _model = State(initialValue: BotSettingsModel(profiles: profiles, connections: connections))
+            _model = State(initialValue: BotExportModel(profiles: profiles, connections: connections))
         }
 
         public var body: some View {
@@ -40,7 +40,7 @@
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .background(HermesColor.groupedBackground)
-                .navigationTitle("Bot settings")
+                .navigationTitle("Export bot")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {

@@ -1,4 +1,6 @@
 #if canImport(UIKit)
+    import Foundation
+    import HermesKit
     import SwiftUI
 
     /// The app shell. Picks a layout from the screen and posture and keeps chat state in `ShellModel`,
@@ -19,6 +21,7 @@
         @State private var rooms: RoomsModel?
         @State private var terminals = TerminalModel()
         @State private var columnVisibility: NavigationSplitViewVisibility = .all
+        @State private var botSettingsEntryForChat: BotRosterEntry?
 
         /// `connections` fills Settings > Servers and the server switcher (WP-22). Nil shows placeholders.
         /// `sessionsList` lists the active server's chats (WP-40). Nil keeps the sample chats.
@@ -351,6 +354,16 @@
                 .navigationTitle(model.session(id: id)?.title ?? "Chat")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
+                    if model.botChatIDs.contains(id) {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                botSettingsEntryForChat = botEntry(for: id)
+                            } label: {
+                                Label("Bot Settings", systemImage: "slider.horizontal.3")
+                            }
+                            .accessibilityIdentifier("chat.botSettings")
+                        }
+                    }
                     ToolbarItem(placement: .primaryAction) {
                         Button {
                             model.isPalettePresented = true
@@ -359,6 +372,49 @@
                         }
                     }
                 }
+                .sheet(item: $botSettingsEntryForChat) { entry in
+                    if let connections {
+                        BotSettingsScreen(entry: entry, connections: connections, rosterModel: bots)
+                    }
+                }
+        }
+
+        private func botEntry(for sessionID: String) -> BotRosterEntry? {
+            if let entry = bots?.entries.first(where: { $0.canonicalSessionID == sessionID }) {
+                return entry
+            }
+            let sessionTitle = model.session(id: sessionID)?.title
+            if let sessionTitle, let entry = bots?.entries.first(where: { $0.title == sessionTitle }) {
+                return entry
+            }
+            if let chosen = profiles?.selection.chosen, let entry = bots?.entries.first(where: { $0.profile == chosen })
+            {
+                return entry
+            }
+            guard let connection = connections?.active else { return nil }
+            let profile = profiles?.selection.chosen ?? "default"
+            let title = sessionTitle ?? profiles?.selection.current?.title ?? profile
+            return BotRosterEntry(
+                connectionID: connection.id,
+                sourceLabel: connection.name,
+                profile: profile,
+                handle: profile,
+                title: title,
+                monogram: String(profile.prefix(2)).uppercased(),
+                tint: "accent",
+                avatar: nil,
+                status: .ready,
+                isRetained: true,
+                isPinned: false,
+                isHidden: false,
+                isDefault: profile == "default",
+                role: nil,
+                preview: nil,
+                lastActive: nil,
+                workerActiveAt: nil,
+                canonicalSessionID: sessionID,
+                activity: Date().timeIntervalSince1970 * 1000
+            )
         }
 
         @ViewBuilder

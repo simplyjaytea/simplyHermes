@@ -9,10 +9,20 @@
         @State private var draft = NewAgentDraft()
         @State private var isCreating = false
         @State private var isAdvancedExpanded = false
+        @State private var localError: String?
 
         var body: some View {
             NavigationStack {
                 Form {
+                    if let localError {
+                        Section {
+                            Text(localError)
+                                .font(HermesFont.footnote)
+                                .foregroundStyle(HermesColor.destructive)
+                                .accessibilityIdentifier("newAgent.error")
+                        }
+                    }
+
                     Section {
                         TextField("Name", text: $draft.name)
                             .textInputAutocapitalization(.never)
@@ -89,10 +99,13 @@
 
         private func create() async {
             isCreating = true
-            defer { isCreating = false }
+            localError = nil
             model.errorMessage = nil
+            defer { isCreating = false }
             if await model.createAgent(draft) != nil {
                 dismiss()
+            } else {
+                localError = model.errorMessage ?? "Could not create agent."
             }
         }
     }

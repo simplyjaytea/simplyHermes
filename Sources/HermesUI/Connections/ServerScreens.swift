@@ -420,6 +420,14 @@
                     }
                     .accessibilityIdentifier("settings.servers")
                 }
+                Section("Bots") {
+                    NavigationLink {
+                        SettingsBotsScreen(connections: connections)
+                    } label: {
+                        Label("Bots", systemImage: "person.2")
+                    }
+                    .accessibilityIdentifier("settings.bots")
+                }
                 Section("Models") {
                     NavigationLink {
                         ProvidersKeysScreen(connections: connections)

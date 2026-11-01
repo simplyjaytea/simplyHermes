@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+    import Foundation
     import HermesKit
     import SwiftUI
 
@@ -58,8 +59,39 @@
                 await profiles.refresh()
             }
             .sheet(isPresented: $showsBotSettings) {
-                BotSettingsSheet(profiles: profiles, connections: connections)
+                if let entry = activeBotEntry {
+                    BotSettingsScreen(entry: entry, connections: connections)
+                } else {
+                    BotSettingsSheet(profiles: profiles, connections: connections)
+                }
             }
+        }
+
+        private var activeBotEntry: BotRosterEntry? {
+            guard let connection = connections.active else { return nil }
+            let profile = profiles.selection.chosen ?? "default"
+            let title = profiles.selection.current?.title ?? profile
+            return BotRosterEntry(
+                connectionID: connection.id,
+                sourceLabel: connection.name,
+                profile: profile,
+                handle: profile,
+                title: title,
+                monogram: String(profile.prefix(2)).uppercased(),
+                tint: "accent",
+                avatar: nil,
+                status: .ready,
+                isRetained: true,
+                isPinned: false,
+                isHidden: false,
+                isDefault: profile == "default",
+                role: nil,
+                preview: nil,
+                lastActive: nil,
+                workerActiveAt: nil,
+                canonicalSessionID: nil,
+                activity: Date().timeIntervalSince1970 * 1000
+            )
         }
     }
 #endif
