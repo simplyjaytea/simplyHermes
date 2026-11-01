@@ -129,7 +129,7 @@
 
         @ViewBuilder
         private func identitySection(for draft: BotSettingsDraft) -> some View {
-            Section("Identity") {
+            Section {
                 TextField("Name", text: binding(for: \.title))
                     .accessibilityIdentifier("botSettings.title")
                 TextField("Role (optional)", text: binding(for: \.role), axis: .vertical)
@@ -142,6 +142,8 @@
                 )
                 Toggle("Pinned", isOn: binding(for: \.isPinned))
                 Toggle("Hidden", isOn: binding(for: \.isHidden))
+            } header: {
+                Text("Identity")
             } footer: {
                 if let problem = draft.problems.first(where: {
                     if case .titleTooLong = $0 { return true }
@@ -158,7 +160,7 @@
 
         @ViewBuilder
         private func modelSection(for draft: BotSettingsDraft) -> some View {
-            Section("Model & Provider") {
+            Section {
                 if !model.modelOptions.isEmpty {
                     Picker(
                         "Provider",
@@ -199,6 +201,8 @@
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 }
+            } header: {
+                Text("Model & Provider")
             } footer: {
                 if draft.problems.contains(.modelIncomplete) {
                     Text(BotSettingsProblem.modelIncomplete.userMessage)
@@ -211,10 +215,12 @@
 
         @ViewBuilder
         private func soulSection(for draft: BotSettingsDraft) -> some View {
-            Section("Personality (SOUL)") {
+            Section {
                 TextField("SOUL instructions", text: binding(for: \.soul), axis: .vertical)
                     .lineLimit(4...12)
                     .accessibilityIdentifier("botSettings.soul")
+            } header: {
+                Text("Personality (SOUL)")
             } footer: {
                 HStack {
                     if let soulProblem = draft.problems.first(where: {
