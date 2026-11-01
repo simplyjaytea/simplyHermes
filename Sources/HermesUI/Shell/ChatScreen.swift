@@ -19,6 +19,7 @@
         @State private var visibleIDs: [String] = []
         /// True from the user's touch until the scroll comes to rest; programmatic scrolls never set it.
         @State private var isUserScrolling = false
+        @Environment(\.hermesPalette) private var palette
 
         var body: some View {
             if let live = model.liveChat(for: sessionID) {
@@ -35,8 +36,9 @@
                 VStack(spacing: 0) {
                     transcript
                     Composer(text: model.draftBinding(for: sessionID)) { model.send(in: sessionID) }
-                        .background(HermesColor.background)
+                        .background(palette.background)
                 }
+                .background(palette.background)
             case .halfFold:
                 VStack(spacing: 0) {
                     transcript
@@ -49,8 +51,9 @@
                     }
                     .padding(.bottom, 8)
                     .frame(maxHeight: .infinity, alignment: .top)
-                    .background(HermesColor.groupedBackground)
+                    .background(palette.groupedBackground)
                 }
+                .background(palette.groupedBackground)
             }
         }
 

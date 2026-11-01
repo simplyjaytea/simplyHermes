@@ -21,6 +21,7 @@
         @Environment(\.scenePhase) private var scenePhase
         @State private var showsWorkspaces = false
         @State private var showsArtifacts = false
+        @Environment(\.hermesPalette) private var palette
 
         var body: some View {
             VStack(spacing: 0) {
@@ -47,8 +48,9 @@
                     onSteer: chat.isRunning && model.attachments[sessionID, default: []].isEmpty ? { steer() } : nil,
                     voice: voice
                 )
-                .background(HermesColor.background)
+                .background(palette.background)
             }
+            .background(palette.background)
             .task(id: sessionID) { await chat.attach() }
             .task(id: sessionID) {
                 // Voice (WP-60) dictates into this chat's draft and sends spoken messages through it. A chat change
@@ -150,7 +152,7 @@
                         .overlay {
                             if isFinding, item.id == currentMatch {
                                 RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
-                                    .strokeBorder(HermesColor.accent, lineWidth: 2)
+                                    .strokeBorder(palette.accent, lineWidth: 2)
                                     .padding(.horizontal, 6)
                             }
                         }

@@ -226,6 +226,7 @@
     /// Tent posture: a glance at the running task with big Stop, Deny and Approve buttons.
     struct GlanceView: View {
         let model: ShellModel
+        @Environment(\.hermesPalette) private var palette
 
         var body: some View {
             let sessionID = model.selectedSessionID
@@ -236,16 +237,18 @@
                 if InlineTipStore.isPending(.tent) { InlineTipCard(kind: .tent) }
                 Text(session?.title ?? "No chat")
                     .font(HermesFont.glanceTitle)
+                    .foregroundStyle(palette.primaryText)
                     .lineLimit(1)
                 Text(isStreaming ? "Hermes is replying" : (approval == nil ? "Idle" : "Waiting for you"))
                     .font(HermesFont.headline)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                 if let approval {
                     Text(approval.text)
                         .font(HermesFont.code)
+                        .foregroundStyle(palette.primaryText)
                         .padding(12)
                         .frame(maxWidth: .infinity)
-                        .background(HermesColor.fill, in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius))
+                        .background(palette.fill, in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius))
                 }
                 HStack(spacing: 12) {
                     Button("Stop") { if let sessionID { model.stop(in: sessionID) } }
@@ -263,7 +266,7 @@
             }
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(HermesColor.groupedBackground)
+            .background(palette.groupedBackground)
             .accessibilityIdentifier("glance")
         }
     }
@@ -273,6 +276,7 @@
         let model: ShellModel
         @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
         @Environment(\.hermesReduceMotion) private var reduceMotionOverride
+        @Environment(\.hermesPalette) private var palette
 
         var body: some View {
             let reduceMotion = HermesMotion.resolveReduceMotion(
@@ -306,7 +310,7 @@
                             ApprovalDot()
                         } else if model.isStreaming(session.id) {
                             Circle()
-                                .fill(HermesColor.accent)
+                                .fill(palette.accent)
                                 .frame(width: 6, height: 6)
                                 .accessibilityHidden(true)
                         }
@@ -328,7 +332,7 @@
                 } label: {
                     Image(systemName: "xmark")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                         .contentShape(Rectangle())
                 }
@@ -336,8 +340,8 @@
                 .accessibilityLabel(Text("Close \(session.title)"))
                 .padding(.trailing, 4)
             }
-            .foregroundStyle(isSelected ? HermesColor.accent : HermesColor.primaryText)
-            .glassEffect(isSelected ? .regular.tint(HermesColor.accent.opacity(0.15)) : .regular, in: Capsule())
+            .foregroundStyle(isSelected ? palette.accent : palette.primaryText)
+            .glassEffect(isSelected ? .regular.tint(palette.accent.opacity(0.15)) : .regular, in: Capsule())
             .accessibilityIdentifier("tab.\(session.id)")
         }
     }

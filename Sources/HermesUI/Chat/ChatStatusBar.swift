@@ -7,6 +7,7 @@
     struct ChatStatusBar: View {
         let strip: ChatStatusStrip
         @State private var showsDetails = false
+        @Environment(\.hermesPalette) private var palette
 
         var body: some View {
             Button {
@@ -18,7 +19,7 @@
                     if let context = strip.reading(.context) {
                         Text(context.value)
                             .font(HermesFont.caption.monospacedDigit())
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                     Circle().fill(dotColor).frame(width: 8, height: 8)
                     Spacer(minLength: 0)
@@ -36,9 +37,9 @@
 
         private var dotColor: Color {
             switch strip.connection {
-            case .online: HermesColor.statusConnected
-            case .reconnecting, .needsAttention: HermesColor.statusWarning
-            case .offline: HermesColor.statusOffline
+            case .online: palette.statusConnected
+            case .reconnecting, .needsAttention: palette.statusWarning
+            case .offline: palette.statusOffline
             }
         }
 
@@ -52,14 +53,14 @@
                 ForEach(strip.readings(ChatStatusStrip.defaultItems + [.tokens, .cost])) { reading in
                     HStack {
                         Text(reading.item.rawValue.capitalized)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                         Spacer(minLength: 16)
                         Text(reading.estimated ? "~\(reading.value)" : reading.value)
                     }
                     .font(HermesFont.footnote)
                 }
                 if strip.readings(ChatStatusStrip.defaultItems).isEmpty {
-                    Text("No usage yet").font(HermesFont.footnote).foregroundStyle(HermesColor.secondaryText)
+                    Text("No usage yet").font(HermesFont.footnote).foregroundStyle(palette.secondaryText)
                 }
             }
             .padding(16)
@@ -71,10 +72,11 @@
     struct ContextRing: View {
         let percent: Double?
         let level: ContextLevel?
+        @Environment(\.hermesPalette) private var palette
 
         var body: some View {
             ZStack {
-                Circle().stroke(HermesColor.fill, lineWidth: 3)
+                Circle().stroke(palette.fill, lineWidth: 3)
                 Circle()
                     .trim(from: 0, to: CGFloat(min(max((percent ?? 0) / 100, 0), 1)))
                     .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
@@ -85,9 +87,9 @@
 
         private var color: Color {
             switch level {
-            case .critical?: HermesColor.destructive
-            case .warning?: HermesColor.statusWarning
-            default: HermesColor.accent
+            case .critical?: palette.destructive
+            case .warning?: palette.statusWarning
+            default: palette.accent
             }
         }
     }

@@ -11,9 +11,19 @@ struct HermesApp: App {
     private let integration: AppIntegration
     private let entry: EntryIntegration
     @AppStorage(OnDeviceSettings.key) private var onDeviceEnabled = true
+    @AppStorage(AppearanceSettings.key) private var storedPresetRaw: String = AppearancePreset.system.rawValue
+
+    private var activePreset: AppearancePreset {
+        AppearancePreset.fallback(for: storedPresetRaw)
+    }
+
+    static func applyLaunchReset(_ launch: LaunchOptions, defaults: UserDefaults = .standard) {
+        AppearanceSettings.applyLaunchReset(resetAppearance: launch.resetAppearance, defaults: defaults)
+    }
 
     init() {
         let launch = LaunchOptions(defaults: .standard)
+        AppearanceSettings.applyLaunchReset(resetAppearance: launch.resetAppearance, defaults: .standard)
         self.launch = launch
         let connections = Self.makeConnections(launch)
         _connections = State(initialValue: connections)
@@ -34,7 +44,7 @@ struct HermesApp: App {
         WindowGroup {
             RootView(model: model, connections: connections, sessionsList: sessionsList, launch: launch)
                 .integrationHost(entry)
-                .tint(HermesColor.accent)
+                .hermesAppearance(activePreset)
                 .environment(\.onDeviceModels, OnDeviceModelServices.shared.model)
                 .onDeviceModelsSheet(OnDeviceModelServices.shared.model, isEnabled: $onDeviceEnabled)
                 .onOpenURL { url in
@@ -47,7 +57,7 @@ struct HermesApp: App {
         }
         WindowGroup(id: ShellWindow.chat, for: String.self) { $sessionID in
             ChatWindow(model: model, sessionID: sessionID)
-                .tint(HermesColor.accent)
+                .hermesAppearance(activePreset)
                 .environment(\.onDeviceModels, OnDeviceModelServices.shared.model)
         }
     }
@@ -104,6 +114,8 @@ struct LaunchOptions {
     var onboarding: Onboarding?
     /// Opens this section first, so a UI test can start on it without tapping the tab bar.
     var section: AppSection?
+    /// Resets appearance settings to system defaults on launch (pass as `-HermesResetAppearance YES`).
+    var resetAppearance: Bool
 
     enum Onboarding: String {
         case skip
@@ -117,6 +129,7 @@ struct LaunchOptions {
         demo = defaults.string(forKey: "HermesDemo")
         onboarding = defaults.string(forKey: "HermesOnboarding").flatMap(Onboarding.init(rawValue:))
         section = defaults.string(forKey: "HermesSection").flatMap(AppSection.init(rawValue:))
+        resetAppearance = defaults.bool(forKey: "HermesResetAppearance")
     }
 }
 

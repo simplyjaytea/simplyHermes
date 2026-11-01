@@ -8,6 +8,7 @@
         var isLast = false
         @Bindable var chat: LiveChatModel
         var onBranch: (SessionBranchResult) -> Void = { _ in }
+        @Environment(\.hermesPalette) private var palette
 
         var body: some View {
             switch item.content {
@@ -20,7 +21,7 @@
             case .other(let role, let text):
                 Text("\(role): \(text)")
                     .font(HermesFont.caption)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .bubbleRow(.leading)
             }
         }
@@ -31,13 +32,14 @@
         @Bindable var chat: LiveChatModel
         @State private var isEditing = false
         @State private var draft = ""
+        @Environment(\.hermesPalette) private var palette
 
         var body: some View {
             if let kind = entry.displayKind {
                 // Cron and delegation prompts are started by the gateway, not typed by the user.
                 Label(Self.title(for: kind), systemImage: "clock.arrow.circlepath")
                     .font(HermesFont.caption)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityLabel(Text("\(Self.title(for: kind)): \(entry.text)"))
@@ -57,7 +59,7 @@
                     if let note = Self.note(for: entry.delivery) {
                         Text(note.text)
                             .font(HermesFont.caption2)
-                            .foregroundStyle(note.isError ? HermesColor.destructive : HermesColor.secondaryText)
+                            .foregroundStyle(note.isError ? palette.errorText : palette.secondaryText)
                             .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
                     }
                 }
@@ -87,6 +89,7 @@
                         }
                     }
             }
+            .hermesAppearance(palette.preset)
         }
 
         private static func title(for kind: String) -> LocalizedStringKey {
@@ -113,6 +116,7 @@
         @Bindable var chat: LiveChatModel
         let onBranch: (SessionBranchResult) -> Void
         @State private var showsReasoning = false
+        @Environment(\.hermesPalette) private var palette
 
         var body: some View {
             VStack(alignment: .leading, spacing: 6) {
@@ -120,12 +124,12 @@
                     DisclosureGroup(isExpanded: $showsReasoning) {
                         Text(reasoning)
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } label: {
                         Label("Reasoning", systemImage: "brain")
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                     .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
                     .bubbleRow(.leading)
@@ -142,7 +146,7 @@
                 } else if entry.status == .interrupted {
                     Text("Stopped")
                         .font(HermesFont.caption)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
                 }
             }
@@ -166,6 +170,7 @@
     private struct ToolCallRow: View {
         let entry: ToolEntry
         @State private var isExpanded = false
+        @Environment(\.hermesPalette) private var palette
 
         var body: some View {
             VStack(alignment: .leading, spacing: 6) {
@@ -179,18 +184,18 @@
                         if let context = entry.context, !context.isEmpty {
                             Text(context)
                                 .font(HermesFont.codeSmall)
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .foregroundStyle(palette.secondaryText)
                                 .lineLimit(1)
                         }
                         Spacer(minLength: 8)
                         if let seconds = entry.durationSeconds {
                             Text(String(format: "%.1fs", seconds))
                                 .font(HermesFont.caption)
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .foregroundStyle(palette.secondaryText)
                         }
                         Image(systemName: "chevron.right")
                             .font(HermesFont.caption)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     }
                     .frame(minHeight: HermesMetrics.minTapTarget - 12)
@@ -202,7 +207,7 @@
                 if isExpanded, let body = detail {
                     Text(body)
                         .font(HermesFont.codeSmall)
-                        .foregroundStyle(HermesColor.primaryText)
+                        .foregroundStyle(palette.primaryText)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .transition(.opacity)
@@ -211,7 +216,7 @@
             .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
             .padding(.vertical, 6)
             .background(
-                HermesColor.incomingBubble,
+                palette.incomingBubble,
                 in: RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
             )
             .bubbleRow(.leading)
@@ -223,7 +228,7 @@
             case .generating, .running:
                 ProgressView().controlSize(.small)
             case .completed:
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(HermesColor.statusConnected)
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(palette.statusConnected)
             }
         }
 

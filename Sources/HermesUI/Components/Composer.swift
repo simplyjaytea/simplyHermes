@@ -27,6 +27,7 @@
         @State private var isFilesPresented = false
         @State private var isCameraPresented = false
         @State private var problem: String?
+        @Environment(\.hermesPalette) private var palette
 
         /// - Parameters:
         ///   - attachments: The files waiting in the composer. Nil hides the attach menu.
@@ -96,7 +97,7 @@
                     }
                     .overlay(
                         RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .strokeBorder(HermesColor.separator)
+                            .strokeBorder(palette.separator)
                     )
                 }
             }
@@ -169,7 +170,7 @@
                 if text.isEmpty {
                     Text(placeholder)
                         .font(HermesFont.body)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .padding(.vertical, 11)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
@@ -203,9 +204,9 @@
             } label: {
                 Image(systemName: "plus")
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(HermesColor.primaryText)
+                    .foregroundStyle(palette.primaryText)
                     .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
-                    .background(HermesColor.fill, in: Circle())
+                    .background(palette.fill, in: Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Attach"))
@@ -293,9 +294,9 @@
                 Image(systemName: "arrow.up")
                     .font(.body.weight(.bold))
                     // The idle button uses text-safe colors: white on system gray is below 4.5:1.
-                    .foregroundStyle(canSend ? HermesColor.onAccent : HermesColor.secondaryText)
+                    .foregroundStyle(canSend ? palette.onAccent : palette.secondaryText)
                     .frame(width: 32, height: 32)
-                    .background(canSend ? HermesColor.accent : HermesColor.fill, in: Circle())
+                    .background(canSend ? palette.accent : palette.fill, in: Circle())
                     .padding(6)
                     .contentShape(Rectangle())
             }

@@ -27,6 +27,7 @@
         private let role: Role
         private let text: String
         private let rendersMarkdown: Bool
+        @Environment(\.hermesPalette) private var palette
 
         public init(role: Role, text: String, rendersMarkdown: Bool = false) {
             self.role = role
@@ -37,11 +38,11 @@
         public var body: some View {
             Text(rendersMarkdown ? InlineMarkdown.attributed(text) : AttributedString(text))
                 .font(HermesFont.bubble)
-                .foregroundStyle(role == .user ? HermesColor.onAccent : HermesColor.primaryText)
+                .foregroundStyle(role == .user ? palette.onAccent : palette.primaryText)
                 .textSelection(.enabled)
                 .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
                 .padding(.vertical, HermesMetrics.bubbleVerticalPadding)
-                .background(role == .user ? HermesColor.outgoingBubble : HermesColor.incomingBubble, in: bubbleShape)
+                .background(role == .user ? palette.outgoingBubble : palette.incomingBubble, in: bubbleShape)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(role == .user ? Text("You") : Text("Hermes"))
                 .accessibilityValue(Text(text))
@@ -54,6 +55,7 @@
         private let command: String
         private let output: String
         private let duration: String?
+        @Environment(\.hermesPalette) private var palette
 
         public init(command: String, output: String, duration: String? = nil) {
             self.command = command
@@ -66,22 +68,22 @@
                 HStack(spacing: 8) {
                     Text(verbatim: "$ \(command)")
                         .font(HermesFont.codeSmall)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                     if let duration {
                         Spacer(minLength: 8)
                         Text(duration)
                             .font(HermesFont.caption)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                 }
                 Text(output)
                     .font(HermesFont.codeSmall)
-                    .foregroundStyle(HermesColor.primaryText)
+                    .foregroundStyle(palette.primaryText)
                     .textSelection(.enabled)
             }
             .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
             .padding(.vertical, 10)
-            .background(HermesColor.incomingBubble, in: bubbleShape)
+            .background(palette.incomingBubble, in: bubbleShape)
             .accessibilityElement(children: .combine)
             .bubbleRow(.leading)
         }
@@ -90,15 +92,26 @@
     /// A command waiting for the user's approval, with Deny and Approve buttons.
     public struct ApprovalBubble: View {
         private let command: String
+        private let isEnabled: Bool
+        private let allowsFeedback: Bool
         private let onDeny: () -> Void
         private let onApprove: () -> Void
 
         @State private var appeared = false
         @State private var denyCount = 0
         @State private var approveCount = 0
+        @Environment(\.hermesPalette) private var palette
 
-        public init(command: String, onDeny: @escaping () -> Void, onApprove: @escaping () -> Void) {
+        public init(
+            command: String,
+            isEnabled: Bool = true,
+            allowsFeedback: Bool = true,
+            onDeny: @escaping () -> Void,
+            onApprove: @escaping () -> Void
+        ) {
             self.command = command
+            self.isEnabled = isEnabled
+            self.allowsFeedback = allowsFeedback
             self.onDeny = onDeny
             self.onApprove = onApprove
         }
@@ -107,8 +120,10 @@
             VStack(alignment: .leading, spacing: 8) {
                 Text("Approve this command?")
                     .font(HermesFont.subheadline.weight(.semibold))
+                    .foregroundStyle(palette.primaryText)
                 Text(command)
                     .font(HermesFont.code)
+                    .foregroundStyle(palette.primaryText)
                     .textSelection(.enabled)
                 HStack(spacing: 8) {
                     Button("Deny") {
@@ -116,21 +131,25 @@
                         onDeny()
                     }
                     .buttonStyle(HermesButtonStyle(.secondary))
+                    .disabled(!isEnabled)
                     Button("Approve") {
                         approveCount += 1
                         onApprove()
                     }
                     .buttonStyle(HermesButtonStyle(.primary))
+                    .disabled(!isEnabled)
                 }
             }
             .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
             .padding(.vertical, 10)
-            .background(HermesColor.incomingBubble, in: bubbleShape)
+            .background(palette.incomingBubble, in: bubbleShape)
             .bubbleRow(.leading)
-            .onAppear { appeared = true }
-            .hermesFeedback(.approvalNeeded, trigger: appeared)
-            .hermesFeedback(.denied, trigger: denyCount)
-            .hermesFeedback(.approved, trigger: approveCount)
+            .onAppear {
+                if allowsFeedback { appeared = true }
+            }
+            .hermesFeedback(.approvalNeeded, trigger: allowsFeedback && appeared)
+            .hermesFeedback(.denied, trigger: allowsFeedback ? denyCount : 0)
+            .hermesFeedback(.approved, trigger: allowsFeedback ? approveCount : 0)
         }
     }
 #endif

@@ -8,6 +8,7 @@
         let text: String
         /// Fades in new characters at the end of the last paragraph while the reply streams (plan Q47).
         var fadesNewText = false
+        @Environment(\.hermesPalette) private var palette
 
         var body: some View {
             let blocks = MarkdownBlocks.parse(text)
@@ -40,17 +41,17 @@
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text(start.map { "\($0 + offset)." } ?? "•")
                                 .font(HermesFont.bubble.monospacedDigit())
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .foregroundStyle(palette.secondaryText)
                             Text(InlineMarkdown.attributed(item)).font(HermesFont.bubble)
                         }
                     }
                 }
             case .quote(let value):
                 HStack(spacing: 8) {
-                    Capsule().fill(HermesColor.separator).frame(width: 3)
+                    Capsule().fill(palette.separator).frame(width: 3)
                     Text(InlineMarkdown.attributed(value))
                         .font(HermesFont.bubble)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
             case .rule:
                 Divider()
@@ -63,13 +64,14 @@
         let language: String?
         let code: String
         @State private var copyCount = 0
+        @Environment(\.hermesPalette) private var palette
 
         var body: some View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
                     Text(language ?? "code")
                         .font(HermesFont.caption)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                     Spacer()
                     Button {
                         UIPasteboard.general.string = code
@@ -79,6 +81,7 @@
                             copyCount > 0 ? "Copied" : "Copy", systemImage: copyCount > 0 ? "checkmark" : "doc.on.doc"
                         )
                         .font(HermesFont.caption.weight(.semibold))
+                        .foregroundStyle(palette.secondaryText)
                         .frame(minHeight: HermesMetrics.minTapTarget - 12)
                     }
                     .buttonStyle(.plain)
@@ -86,7 +89,7 @@
                 }
                 .padding(.horizontal, 10)
                 ScrollView(.horizontal, showsIndicators: false) {
-                    Text(Self.highlighted(code, language: language))
+                    Text(Self.highlighted(code, language: language, palette: palette))
                         .font(HermesFont.code)
                         .textSelection(.enabled)
                         .padding(.horizontal, 10)
@@ -95,23 +98,22 @@
                 }
             }
             .background(
-                HermesColor.fill,
+                palette.codeBackground,
                 in: RoundedRectangle(cornerRadius: 10, style: .continuous)
             )
         }
 
-        /// The code with system colors for keywords, strings, comments and numbers. Closed blocks only change when
-        /// the text does, so streaming a long block re-scans it on each update; blocks are short in practice.
-        static func highlighted(_ code: String, language: String?) -> AttributedString {
+        /// The code highlighted with active palette colors for keywords, strings, comments and numbers.
+        static func highlighted(_ code: String, language: String?, palette: HermesPalette) -> AttributedString {
             var result = AttributedString()
             for token in SyntaxHighlighter.tokens(for: code, language: language) {
                 var piece = AttributedString(token.text)
                 switch token.kind {
-                case .plain: break
-                case .keyword: piece.foregroundColor = .purple
-                case .string: piece.foregroundColor = .red
-                case .comment: piece.foregroundColor = .secondary
-                case .number: piece.foregroundColor = .teal
+                case .plain: piece.foregroundColor = palette.codeText
+                case .keyword: piece.foregroundColor = palette.codeKeyword
+                case .string: piece.foregroundColor = palette.codeString
+                case .comment: piece.foregroundColor = palette.codeComment
+                case .number: piece.foregroundColor = palette.codeNumber
                 }
                 result.append(piece)
             }

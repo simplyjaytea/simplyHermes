@@ -15,6 +15,7 @@
         @Environment(\.hermesPosture) private var forcedPosture
         @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
         @Environment(\.hermesReduceMotion) private var reduceMotionOverride
+        @Environment(\.hermesPalette) private var palette
         @State private var postureMonitor = DevicePostureMonitor()
         @State private var profiles: ProfilesModel?
         @State private var bots: BotsModel?
@@ -139,6 +140,7 @@
                             VStack(alignment: .leading, spacing: 4) {
                                 debugLayoutMenu(current: layout)
                                 debugScrollAnchor
+                                debugPaletteProbe
                             }
                         }
                     }
@@ -260,8 +262,12 @@
                             needsApproval: model.needsApproval(session.id)
                         )
                     }
-                    .tint(HermesColor.primaryText)
+                    .tint(palette.primaryText)
+                    .listRowBackground(palette.card)
                 }
+                .scrollContentBackground(.hidden)
+                .background(palette.groupedBackground)
+                .toolbarBackground(palette.groupedBackground, for: .navigationBar)
             }
         }
 
@@ -474,6 +480,14 @@
                 .font(HermesFont.codeSmall)
                 .padding(.leading, 8)
                 .accessibilityIdentifier("debug.scrollAnchor")
+        }
+
+        /// The inherited environment palette preset, exposed only when debug UI tests are active.
+        private var debugPaletteProbe: some View {
+            Text(palette.preset.rawValue)
+                .font(HermesFont.codeSmall)
+                .padding(.leading, 8)
+                .accessibilityIdentifier("debug.activePreset")
         }
 
         private func debugLayoutMenu(current: DisplayLayout) -> some View {
