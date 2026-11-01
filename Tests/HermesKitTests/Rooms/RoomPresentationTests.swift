@@ -74,4 +74,51 @@ import Testing
     @Test func aChangeToAReadOnlyRoomIsRefusedInWords() {
         #expect(RoomError.readOnly.message == "This Group Chat is read-only here.")
     }
+
+    @Test func listBadgeAndPollIntervalFollowPolledRoomStatuses() throws {
+        #expect(RoomStatus.listPollInterval == 5)
+
+        let approvalJSON = #"""
+            {"running": true, "working": false, "blocked": true, "counts": {},
+             "pending_actions": [{"action_id": "act-1", "kind": "approval", "task_id": "task-1",
+                                  "approval": {"command": "git push"}}],
+             "peer_routes": []}
+            """#
+        let approval = try JSONDecoder().decode(RoomDriverStatus.self, from: Data(approvalJSON.utf8))
+        let pending = RoomStatus.pendingApproval(in: approval)
+        #expect(pending != nil)
+        #expect(pending?.kind == "approval")
+        #expect(pending?.approval?.command == "git push")
+        #expect(RoomStatus.line(for: approval) == "Waiting for your answer…")
+
+        let retryJSON = #"""
+            {"running": true, "working": false, "blocked": false, "counts": {},
+             "pending_actions": [{"action_id": "act-2", "kind": "retry", "task_id": "task-2"}],
+             "peer_routes": []}
+            """#
+        let retryOnly = try JSONDecoder().decode(RoomDriverStatus.self, from: Data(retryJSON.utf8))
+        let idle = try status(working: false)
+        let working = try status(working: true)
+
+        let statuses: [String: RoomDriverStatus] = [
+            "room-approval": approval,
+            "room-retry": retryOnly,
+            "room-idle": idle,
+            "room-working": working,
+        ]
+
+        #expect(RoomStatus.needsAttention(roomID: "room-approval", in: statuses) == true)
+        #expect(RoomStatus.needsAttention(roomID: "room-retry", in: statuses) == false)
+        #expect(RoomStatus.needsAttention(roomID: "room-idle", in: statuses) == false)
+        #expect(RoomStatus.needsAttention(roomID: "room-working", in: statuses) == false)
+        #expect(RoomStatus.needsAttention(roomID: "room-unpolled", in: statuses) == false)
+        #expect(RoomStatus.needsAttention(status: nil) == false)
+    }
+
+    @Test func emptyStatePresentationMatchesCapabilities() {
+        #expect(RoomsListPresentation.emptyState(canCreate: true) == .createAction)
+        #expect(
+            RoomsListPresentation.emptyState(canCreate: false)
+                == .explanation("Two ready bots are needed to make a group."))
+    }
 }

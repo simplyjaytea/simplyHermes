@@ -281,4 +281,167 @@ private func refusal(_ body: () async throws -> Void) async -> RoomError? {
         let params = try #require(await fake.calls.last?.params)
         #expect(params["task_id"]?.stringValue == "dtask:1")
     }
+
+    @Test func sendResultTruthTableHandlesAcceptedAndDriverStartedCombinations() async throws {
+        let truthTable: [(accepted: Bool, driverStarted: Bool)] = [
+            (true, true),
+            (true, false),
+            (false, false),
+            (false, true),
+        ]
+
+        for (accepted, driverStarted) in truthTable {
+            let sendJSON = #"""
+                {"event": \#(userEvent), "client_event_id": "ev-1", "accepted": \#(accepted), "driver_started": \#(driverStarted)}
+                """#
+            let decoded = try JSONDecoder().decode(GroupsSendResult.self, from: Data(sendJSON.utf8))
+            #expect(decoded.accepted == accepted)
+            #expect(decoded.driverStarted == driverStarted)
+            #expect(decoded.clientEventID == "ev-1")
+
+            let fake = FakeRoomGateway(["groups.send": [.json(sendJSON)]])
+            let client = RoomClient(gateway: fake)
+            let result = try await client.send(
+                roomID: "room-1", eventID: RoomIdentifier.newEventID(), text: "hello", threadID: "t1")
+            #expect(result.accepted == accepted)
+            #expect(result.driverStarted == driverStarted)
+        }
+    }
+
+    @Test func sendOutcomeHandlingMaintainsDraftAndIdempotencyAcrossTruthTable() throws {
+        // 1. Accepted and driver started: clear draft, clear outgoing, no error
+        let fullSuccess = GroupsSendResult(
+            event: try JSONDecoder().decode(RoomEvent.self, from: Data(userEvent.utf8)),
+            clientEventID: "ev-1",
+            accepted: true,
+            driverStarted: true
+        )
+        let fullOutcome = RoomSendOutcome.evaluate(result: fullSuccess)
+        #expect(fullOutcome.shouldClearDraft == true)
+        #expect(fullOutcome.shouldClearOutgoing == true)
+        #expect(fullOutcome.actionError == nil)
+
+        // 2. Accepted but driver did not start: clear draft, clear outgoing, warning note
+        let partialSuccess = GroupsSendResult(
+            event: try JSONDecoder().decode(RoomEvent.self, from: Data(userEvent.utf8)),
+            clientEventID: "ev-2",
+            accepted: true,
+            driverStarted: false
+        )
+        let partialOutcome = RoomSendOutcome.evaluate(result: partialSuccess)
+        #expect(partialOutcome.shouldClearDraft == true)
+        #expect(partialOutcome.shouldClearOutgoing == true)
+        #expect(partialOutcome.actionError == "Message saved; the room did not start a turn.")
+
+        // 3. Not accepted: keep draft, keep outgoing (same event ID for retry), error prompt
+        let refused = GroupsSendResult(
+            event: try JSONDecoder().decode(RoomEvent.self, from: Data(userEvent.utf8)),
+            clientEventID: "ev-3",
+            accepted: false,
+            driverStarted: false
+        )
+        let refusedOutcome = RoomSendOutcome.evaluate(result: refused)
+        #expect(refusedOutcome.shouldClearDraft == false)
+        #expect(refusedOutcome.shouldClearOutgoing == false)
+        #expect(refusedOutcome.actionError == "The room did not accept the message. Try again.")
+
+        // 4. Not accepted even if driver_started was true: draft & outgoing must be kept
+        let refusedWithDriver = GroupsSendResult(
+            event: try JSONDecoder().decode(RoomEvent.self, from: Data(userEvent.utf8)),
+            clientEventID: "ev-4",
+            accepted: false,
+            driverStarted: true
+        )
+        let refusedWithDriverOutcome = RoomSendOutcome.evaluate(result: refusedWithDriver)
+        #expect(refusedWithDriverOutcome.shouldClearDraft == false)
+        #expect(refusedWithDriverOutcome.shouldClearOutgoing == false)
+        #expect(refusedWithDriverOutcome.actionError == "The room did not accept the message. Try again.")
+    }
+
+    @Test func rejectedSendRetainsSameEventIDAcrossRetry() throws {
+        let draft = "Plan for group sync"
+        // 1. Initial send attempt mints an initial outgoing message with unique eventID and threadID
+        let initialMessage = try #require(RoomSendOutcome.nextOutgoing(for: draft, pending: nil))
+        let originalEventID = initialMessage.eventID
+        let originalThreadID = initialMessage.threadID
+        #expect(!originalEventID.isEmpty)
+        #expect(!originalThreadID.isEmpty)
+
+        // 2. Server rejects the send (accepted: false)
+        let rejectedResult = GroupsSendResult(
+            event: try JSONDecoder().decode(RoomEvent.self, from: Data(userEvent.utf8)),
+            clientEventID: originalEventID,
+            accepted: false,
+            driverStarted: false
+        )
+        let rejectedOutcome = RoomSendOutcome.evaluate(result: rejectedResult)
+        #expect(rejectedOutcome.shouldClearDraft == false)
+        #expect(rejectedOutcome.shouldClearOutgoing == false)
+
+        // 3. Pending outgoing message is retained
+        let retainedMessage = try #require(
+            RoomSendOutcome.retainedOutgoing(current: initialMessage, outcome: rejectedOutcome))
+        #expect(retainedMessage.eventID == originalEventID)
+        #expect(retainedMessage.threadID == originalThreadID)
+
+        // 4. Retrying the send with the same draft reuses the EXACT SAME eventID and threadID
+        let retryMessage = try #require(
+            RoomSendOutcome.nextOutgoing(for: draft, pending: retainedMessage, previousOutcome: rejectedOutcome))
+        #expect(retryMessage.eventID == originalEventID, "Retry must reuse the original eventID for idempotency")
+        #expect(retryMessage.threadID == originalThreadID, "Retry must reuse the original threadID")
+
+        // 5. Subsequent success clears the outgoing message
+        let successResult = GroupsSendResult(
+            event: try JSONDecoder().decode(RoomEvent.self, from: Data(userEvent.utf8)),
+            clientEventID: retryMessage.eventID,
+            accepted: true,
+            driverStarted: true
+        )
+        let successOutcome = RoomSendOutcome.evaluate(result: successResult)
+        #expect(successOutcome.shouldClearOutgoing == true)
+        let clearedMessage = RoomSendOutcome.retainedOutgoing(current: retryMessage, outcome: successOutcome)
+        #expect(clearedMessage == nil)
+
+        // 6. After success, the next send with new draft mints a fresh eventID
+        let nextMessage = try #require(
+            RoomSendOutcome.nextOutgoing(for: "Next message", pending: clearedMessage, previousOutcome: successOutcome))
+        #expect(nextMessage.eventID != originalEventID, "A new message after success must mint a fresh eventID")
+
+        // 7. Modifying the draft while a retry is pending also mints a fresh eventID
+        let modifiedMessage = try #require(RoomSendOutcome.nextOutgoing(for: "Changed text", pending: retainedMessage))
+        #expect(modifiedMessage.eventID != originalEventID, "Editing the draft must mint a fresh eventID")
+    }
+
+    @Test func listEmptyStateReturnsEmptyRoomsList() async throws {
+        let fake = FakeRoomGateway(["groups.list": [.json(#"{"rooms": [], "next_offset": null}"#)]])
+        let client = RoomClient(gateway: fake)
+
+        let rooms = try await client.rooms()
+        #expect(rooms.isEmpty)
+    }
+
+    @Test func listErrorPinsSpecificRPCErrorAndSurfacesMessage() async throws {
+        let driverError = RPCError(code: 4115, message: "Driver not running.")
+        let fake = FakeRoomGateway(["groups.list": [.failure(driverError)]])
+        let client = RoomClient(gateway: fake)
+
+        await #expect(throws: RPCError.self) {
+            _ = try await client.rooms()
+        }
+
+        do {
+            _ = try await client.rooms()
+            Issue.record("rooms() should have thrown")
+        } catch let error as RPCError {
+            #expect(error.code == 4115)
+            #expect(RoomFailure.message(for: error) == "The room's driver is not running. Try again in a moment.")
+        }
+
+        let managedError = RPCError(code: 5116, message: "Managed elsewhere.")
+        #expect(RoomFailure.message(for: managedError) == "This Group Chat is managed by another gateway.")
+
+        let authorityError = RPCError(
+            code: 5000, message: "Conflict", data: ["reason": JSONValue.string("authority_conflict")])
+        #expect(RoomFailure.message(for: authorityError) == "This Group Chat is managed by another gateway.")
+    }
 }

@@ -16,6 +16,8 @@
         private let onSend: () -> Void
         private let onSteer: (() -> Void)?
         private let voice: VoiceInputModel?
+        private let fieldAccessibilityIdentifier: String?
+        private let sendAccessibilityIdentifier: String?
 
         @State private var sendCount = 0
         @State private var selection = NSRange(location: 0, length: 0)
@@ -30,12 +32,16 @@
         ///   - attachments: The files waiting in the composer. Nil hides the attach menu.
         ///   - completer: Looks up the completions of a `/` command or an `@` mention. Nil turns completions off.
         ///   - history: The chat's sent messages and Undo text. Nil turns Up, Down and Undo off.
+        ///   - fieldAccessibilityIdentifier: The accessibility identifier for the typeable text field.
+        ///   - sendAccessibilityIdentifier: The accessibility identifier for the send button.
         public init(
             text: Binding<String>,
             placeholder: String = "Message Hermes",
             attachments: Binding<[ComposerAttachment]>? = nil,
             completer: CompletionLookup? = nil,
             history: Binding<ComposerHistory>? = nil,
+            fieldAccessibilityIdentifier: String? = nil,
+            sendAccessibilityIdentifier: String? = nil,
             onSend: @escaping () -> Void,
             onSteer: (() -> Void)? = nil,
             voice: VoiceInputModel? = nil
@@ -45,6 +51,8 @@
             self.attachments = attachments
             self.completer = completer
             self.history = history
+            self.fieldAccessibilityIdentifier = fieldAccessibilityIdentifier
+            self.sendAccessibilityIdentifier = sendAccessibilityIdentifier
             self.onSend = onSend
             self.onSteer = onSteer
             self.voice = voice
@@ -153,7 +161,11 @@
         /// The text view, with the placeholder shown while it is empty.
         private var field: some View {
             ZStack(alignment: .topLeading) {
-                ComposerTextView(text: $text, selection: $selection, onRecall: recall)
+                ComposerTextView(
+                    text: $text, selection: $selection,
+                    fieldAccessibilityIdentifier: fieldAccessibilityIdentifier ?? "composer.field",
+                    onRecall: recall
+                )
                 if text.isEmpty {
                     Text(placeholder)
                         .font(HermesFont.body)
@@ -290,6 +302,7 @@
             .buttonStyle(.plain)
             .disabled(!canSend)
             .accessibilityLabel(Text("Send"))
+            .accessibilityIdentifier(sendAccessibilityIdentifier ?? "composer.send")
             .popoverTip(onSteer == nil ? nil : SteerTip())
             // Long-press: steer the running reply instead of queueing (plan Q23).
             .contextMenu {

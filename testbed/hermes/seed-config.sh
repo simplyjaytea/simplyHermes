@@ -10,4 +10,12 @@ model:
   default: fake-model
   api_key: fake
 YAML
+mkdir -p "$home/profiles/ops"
+cat > "$home/profiles/ops/config.yaml" <<YAML
+model:
+  provider: custom
+  base_url: ${FAKE_LLM_URL:-http://fake-llm:8700/v1}
+  default: fake-model
+  api_key: fake
+YAML
 if [ -n "${2:-}" ]; then chown -R "$2" "$home"; fi
