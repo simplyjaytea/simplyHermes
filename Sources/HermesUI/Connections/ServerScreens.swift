@@ -478,6 +478,7 @@
                     }
                     .accessibilityIdentifier("settings.githubAccount")
                 }
+                AppUpdateSettingsSection()
                 Section {
                     Text("More settings arrive in WP-53.")
                         .foregroundStyle(HermesColor.secondaryText)
