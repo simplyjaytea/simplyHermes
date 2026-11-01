@@ -145,7 +145,8 @@
                             item: item, isLast: item.id == chat.state.items.last?.id, chat: chat,
                             onBranch: {
                                 model.openBranch($0, serverName: model.session(id: sessionID)?.serverName ?? "")
-                            }
+                            },
+                            onQuote: quote
                         )
                         .overlay {
                             if isFinding, item.id == currentMatch {
@@ -327,6 +328,11 @@
             guard let currentMatch else { return }
             isFollowing = false
             withAnimation(HermesMotion.snappy) { position.scrollTo(id: currentMatch, anchor: .center) }
+        }
+
+        /// "Quote in reply": the quote goes in front of this chat's draft. Nothing is sent.
+        private func quote(_ text: String) {
+            model.drafts[sessionID] = MessageQuote.inserting(text, into: model.drafts[sessionID, default: ""])
         }
 
         /// The folder this chat runs in: the one it moved to this run, else the one the server reported.

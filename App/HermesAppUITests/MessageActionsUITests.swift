@@ -1,0 +1,85 @@
+import XCTest
+
+/// Feature "Message actions": the long-press menu on a chat message offers Copy, Share, Quote in reply and Select
+/// text. Quote only fills the draft; nothing is sent.
+final class MessageActionsUITests: XCTestCase {
+    override func setUp() {
+        continueAfterFailure = false
+    }
+
+    @MainActor
+    func testMenuOffersCopyShareQuoteAndSelectText() {
+        let app = launch()
+        openMenu(on: visibleAnswer(app))
+        XCTAssertTrue(app.buttons["Copy"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Share…"].exists)
+        XCTAssertTrue(app.buttons["Quote in reply"].exists)
+        XCTAssertTrue(app.buttons["Select text"].exists)
+
+        app.buttons["Share…"].tap()
+        let shareSheet = app.otherElements["ActivityListView"]
+        XCTAssertTrue(shareSheet.waitForExistence(timeout: 10), "Share should open the system share sheet")
+    }
+
+    @MainActor
+    func testQuoteInReplyFillsTheDraftWithoutSending() {
+        let app = launch()
+        let answer = visibleAnswer(app)
+        let messageCount = messages(app).count
+        openMenu(on: answer)
+        XCTAssertTrue(app.buttons["Quote in reply"].waitForExistence(timeout: 5))
+        app.buttons["Quote in reply"].tap()
+
+        let field = app.textViews["composer.field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        let draft = field.value as? String ?? ""
+        XCTAssertTrue(draft.hasPrefix("> Answer"), "The draft should start with the quote, got: \(draft)")
+        XCTAssertEqual(messages(app).count, messageCount, "Quoting must not send anything")
+    }
+
+    @MainActor
+    func testSelectTextShowsTheWholeMessage() {
+        let app = launch()
+        openMenu(on: visibleAnswer(app))
+        XCTAssertTrue(app.buttons["Select text"].waitForExistence(timeout: 5))
+        app.buttons["Select text"].tap()
+
+        let body = app.descendants(matching: .any).matching(identifier: "message.selectText.body").firstMatch
+        XCTAssertTrue(body.waitForExistence(timeout: 5))
+        XCTAssertTrue(body.label.hasPrefix("Answer"), "The sheet should show the message, got: \(body.label)")
+        app.buttons["message.selectText.done"].tap()
+        XCTAssertFalse(body.waitForExistence(timeout: 2))
+    }
+
+    // MARK: Helpers
+
+    @MainActor
+    private func launch() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments += ["-HermesOnboarding", "skip", "-HermesLayout", "compact", "-HermesSampleChats", "YES"]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["transcript"].waitForExistence(timeout: 15))
+        return app
+    }
+
+    /// The sample chat's last answer that is on screen.
+    @MainActor
+    private func visibleAnswer(_ app: XCUIApplication) -> XCUIElement {
+        for index in stride(from: 24, through: 1, by: -1) {
+            let answer = app.descendants(matching: .any)["message.backup-a\(index)"]
+            if answer.exists, answer.isHittable { return answer }
+        }
+        XCTFail("No answer of the sample chat is on screen")
+        return app.descendants(matching: .any)["message.backup-a24"]
+    }
+
+    @MainActor
+    private func messages(_ app: XCUIApplication) -> XCUIElementQuery {
+        app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'message.backup-'"))
+    }
+
+    @MainActor
+    private func openMenu(on element: XCUIElement) {
+        element.press(forDuration: 1.2)
+    }
+}
