@@ -24,6 +24,26 @@ struct LiveChatSendTests {
         #expect(try await cache.outbox.records(inChat: "s1").map(\.text) == ["hello"])
     }
 
+    @Test func aFirstMessageIsSavedAtHandOffBeforeTheChatAttaches() async throws {
+        let cache = try HermesCache()
+        let model = chat(cache)
+
+        model.queueFirstMessage("hello", attachments: [])
+
+        // The save runs in a task. Wait for it, with a bound so a failure ends the test instead of hanging it.
+        var shown = false
+        for _ in 0..<200 {
+            if !model.outboxRows.isEmpty {
+                shown = true
+                break
+            }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(shown)
+        #expect(model.outboxRows.map(\.text) == ["hello"])
+        #expect(try await cache.outbox.records(inChat: "s1").map(\.text) == ["hello"])
+    }
+
     @Test func aBlankMessageIsNotSaved() async throws {
         let cache = try HermesCache()
         let model = chat(cache)

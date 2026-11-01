@@ -31,7 +31,7 @@
                     OutboundRecord(
                         connectionID: connectionID, chatID: storedSessionID, text: trimmed, createdAt: Date()))
             } catch {
-                outboxError = Self.outboxMessage(for: error)
+                outboxError = Self.saveFailureMessage
                 return false
             }
             outboxError = nil
@@ -104,8 +104,12 @@
             }
         }
 
+        /// A message could not be saved, so it was not sent. Where the text went is up to the path that failed.
+        static let saveFailureMessage = String(localized: "Couldn't save your message, so nothing was sent.")
+
+        /// The saved messages could not be read or updated. They are still in the outbox.
         static func outboxMessage(for error: any Error) -> String {
-            String(localized: "Couldn't update your waiting messages. Your text is still in the composer.")
+            String(localized: "Couldn't update your waiting messages. They are still saved.")
         }
     }
 #endif

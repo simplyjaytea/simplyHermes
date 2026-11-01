@@ -89,7 +89,12 @@
             return VoiceInputModel(
                 server: { await manager.rest(for: id) },
                 insertText: insertText,
-                sendMessage: { [weak self] text in Task { _ = await self?.send(text) } }
+                sendMessage: { [weak self] text in
+                    // Dictated text that could not be saved is handed back to the composer, so it is not lost (M6).
+                    Task {
+                        if await self?.send(text) != true { self?.prefill = text }
+                    }
+                }
             )
         }
 
@@ -237,9 +242,17 @@
             Task { await controller?.detach() }
         }
 
-        /// Holds a New chat's first message until the chat attaches, and ``attach()`` sends it then.
+        /// Holds a New chat's first message until the chat attaches, and ``attach()`` sends it then. Text is saved to the
+        /// outbox at hand-off, so it survives a relaunch before the chat attaches (M6). Files cannot be saved there yet,
+        /// so they wait in memory, and so does text whose save failed.
         public func queueFirstMessage(_ text: String, attachments: [ComposerAttachment]) {
-            firstMessage = (text, attachments)
+            guard attachments.isEmpty else {
+                firstMessage = (text, attachments)
+                return
+            }
+            Task {
+                if await send(text) != true { firstMessage = (text, []) }
+            }
         }
 
         /// Completions for a `/` command or an `@` mention, ranked by the server. Empty while the chat is not attached.
