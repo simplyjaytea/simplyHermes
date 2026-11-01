@@ -119,6 +119,18 @@ struct OutboxStoreTests {
         #expect(try await cache.outbox.records(inChat: "c2").map(\.text) == ["elsewhere"])
     }
 
+    @Test func removingOneMessageKeepsTheOthers() async throws {
+        let cache = try HermesCache()
+        let kept = record("kept", at: 0)
+        let dropped = record("dropped", at: 1)
+        try await cache.outbox.insert(kept)
+        try await cache.outbox.insert(dropped)
+
+        try await cache.outbox.remove(id: dropped.id)
+
+        #expect(try await cache.outbox.records(inChat: "c1") == [kept])
+    }
+
     // MARK: - Migration
 
     @Test func anExistingDatabaseGainsTheOutboxAndKeepsItsOfflineChats() async throws {

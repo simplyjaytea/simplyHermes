@@ -157,16 +157,28 @@
                         .id(item.id)
                         .accessibilityIdentifier("message.\(item.id)")
                     }
-                    if let failure = chat.state.lastError, !chat.isRunning, !Self.lastRowShowsError(chat.state) {
-                        ErrorCard(error: ChatError.classify(failure), isLast: true, chat: chat)
+                    if let note = chat.state.connectionNote {
+                        StatusNote(text: note)
                     }
-                    ForEach(chat.outboxRows) { OutboxRow(record: $0) }
+                    if let failure = chat.state.lastError, !chat.isRunning, !Self.lastRowShowsError(chat.state) {
+                        let error = ChatError.classify(failure)
+                        if error.layer == .network {
+                            // A connection problem is a status, not a failed turn (WP-4). Messages wait until it clears.
+                            StatusNote(
+                                text: String(localized: "Connection problem. Messages wait here until Hermes is back."))
+                        } else {
+                            ErrorCard(error: error, isLast: true, chat: chat)
+                        }
+                    }
+                    ForEach(chat.outboxRows) { record in
+                        OutboxRow(
+                            record: record,
+                            onRetry: { chat.retryOutbox(record.id) },
+                            onEdit: { editWaiting(record) },
+                            onDelete: { chat.deleteOutbox(record.id) })
+                    }
                     if let outboxError = chat.outboxError {
-                        Text(outboxError)
-                            .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
+                        StatusNote(text: outboxError)
                     }
                     if !chat.state.subagents.isEmpty {
                         SubagentBlock(chat: chat)
@@ -401,6 +413,14 @@
         /// Looks up completions on the chat. The closure captures only the chat, not the view.
         private static func completer(for chat: LiveChatModel) -> CompletionLookup {
             { trigger in await chat.complete(trigger) }
+        }
+
+        /// Puts a waiting or failed message back in the composer, so the user can change it and send it again (WP-4).
+        private func editWaiting(_ record: OutboundRecord) {
+            let draft = model.drafts[sessionID, default: ""]
+            model.drafts[sessionID] =
+                draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? record.text : draft + "\n" + record.text
+            chat.deleteOutbox(record.id)
         }
 
         private func send() {

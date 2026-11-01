@@ -25,4 +25,7 @@ public protocol OutboxStore: Sendable {
     /// Deletes a chat's acknowledged messages, which the server now has. Returns how many were removed.
     @discardableResult
     func pruneSent(inChat chatID: String) async throws -> Int
+
+    /// Deletes one message the user chose to drop. Other messages are untouched.
+    func remove(id: UUID) async throws
 }

@@ -6,6 +6,7 @@ extension TranscriptState {
             applyEvent(envelope)
         case .attached(let result):
             applyAttach(result)
+            connectionNote = nil
         case .history(let messages):
             items = Self.items(from: messages)
             needsHistoryReload = false
@@ -32,8 +33,9 @@ extension TranscriptState {
         case .replayTruncated(let latestSeq):
             lastSeq = latestSeq
             needsHistoryReload = true
-        case .resyncFailed(let message):
-            lastError = message
+        case .resyncFailed:
+            // The raw error is not for the user. The chat resumes once more, and the note says so.
+            connectionNote = "Couldn't read this chat again. Reconnecting."
         }
     }
 

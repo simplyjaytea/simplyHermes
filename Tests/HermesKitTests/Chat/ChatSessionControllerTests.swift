@@ -498,10 +498,14 @@ private func lines(_ state: TranscriptState) -> [String] {
         #expect(transport.submitted.map(\.text) == ["first", "second"])
     }
 
-    @Test func aFailedResyncIsShownAsAChatError() throws {
+    @Test func aFailedResyncIsShownAsAStatusNoteNotAnError() throws {
         var state = TranscriptState(storedSessionID: "20261015_000000_aaaaaa")
         let action = try #require(TranscriptAction(.resyncFailed(sessionID: "abcd1234", message: "gone")))
         state.apply(action)
-        #expect(state.lastError == "gone")
+        #expect(state.connectionNote == "Couldn't read this chat again. Reconnecting.")
+        #expect(state.lastError == nil)
+        // The next attach clears the note.
+        state.apply(.attached(try coldResult()))
+        #expect(state.connectionNote == nil)
     }
 }

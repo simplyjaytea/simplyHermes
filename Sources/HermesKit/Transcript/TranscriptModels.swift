@@ -33,6 +33,8 @@ public struct TranscriptState: Sendable, Equatable {
     public internal(set) var reclaimed: SessionReclaimedEvent?
     /// The last terminal `error` event text.
     public internal(set) var lastError: String?
+    /// A status line about the connection to this chat, such as a failed re-read. Cleared by the next attach.
+    public internal(set) var connectionNote: String?
 
     /// Counter for item ids that have no server id yet. Part of the state so ids stay deterministic.
     var nextLocalID = 0
