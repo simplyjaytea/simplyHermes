@@ -106,6 +106,15 @@ public struct OnDeviceModelStorage: Sendable {
         return model.files.allSatisfy { fileSize(at: folder.appendingPathComponent($0.path)) == $0.bytes }
     }
 
+    /// True when a finished folder of `model` was written before digests existed. Its files were never checked, so it
+    /// is downloaded again, and the folder stays until the new download replaces it.
+    public func hasEarlierDownload(_ model: OnDeviceModel) -> Bool {
+        guard let data = try? Data(contentsOf: folder(for: model).appendingPathComponent(Self.manifestName)),
+            let manifest = try? JSONDecoder().decode(Manifest.self, from: data)
+        else { return false }
+        return manifest.id == model.id && manifest.revision == model.revision && manifest.digests == nil
+    }
+
     /// True when `file` has finished downloading into the partial folder.
     public func hasPartialFile(_ file: OnDeviceModelFile, of model: OnDeviceModel) -> Bool {
         file.hasSafePath && fileSize(at: partialFolder(for: model).appendingPathComponent(file.path)) == file.bytes
@@ -220,7 +229,8 @@ public struct OnDeviceModelStorage: Sendable {
     public func removeOrphans(keeping catalog: OnDeviceModelCatalog) {
         let fileManager = FileManager.default
         guard let names = try? fileManager.contentsOfDirectory(atPath: root.path) else { return }
-        let valid = Set(catalog.models.filter(isDownloaded).map(\.id))
+        // An earlier download is kept until its re-download replaces it, so Settings can say why the model is fetched again.
+        let valid = Set(catalog.models.filter { isDownloaded($0) || hasEarlierDownload($0) }.map(\.id))
         let partials = Set(catalog.models.map { $0.id + Self.partialSuffix })
         for name in names where name != Self.selectionName && !valid.contains(name) && !partials.contains(name) {
             try? fileManager.removeItem(at: root.appendingPathComponent(name))

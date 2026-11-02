@@ -21,14 +21,15 @@ public struct OnDeviceModelController: Sendable {
 
     /// One row per catalog model, in catalog order. A model counts as selected only while it is the one that
     /// answers: after a memory warning the Apple model answers, and the row offers Use again.
-    public func rows(states: [String: OnDeviceModelState]) -> [OnDeviceModelRow] {
+    /// `rechecking` holds the ids of models whose earlier download is being fetched again.
+    public func rows(states: [String: OnDeviceModelState], rechecking: Set<String> = []) -> [OnDeviceModelRow] {
         let route = selection.route
         let canRun = selection.canRunDownloadedModels
         let memory = availableMemory()
         return catalog.models.map { model in
             OnDeviceModelRow(
                 model: model, state: states[model.id] ?? .notDownloaded, isSelected: route == .downloaded(model),
-                canRun: canRun, availableMemoryBytes: memory)
+                canRun: canRun, availableMemoryBytes: memory, isRechecking: rechecking.contains(model.id))
         }
     }
 

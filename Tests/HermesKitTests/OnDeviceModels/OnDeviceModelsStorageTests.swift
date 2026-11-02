@@ -121,6 +121,17 @@ struct OnDeviceModelsStorageTests {
         let legacy = #"{"id":"alpha","revision":"\#(alpha.revision)","bytes":110}"#
         try Data(legacy.utf8).write(to: env.storage.folder(for: alpha).appendingPathComponent(".complete.json"))
         #expect(!env.storage.isDownloaded(alpha))
+        #expect(env.storage.hasEarlierDownload(alpha))
+        // The folder stays until the re-download replaces it, so the reload does not delete it.
+        env.storage.removeOrphans(keeping: TestModels.catalog)
+        #expect(FileManager.default.fileExists(atPath: env.storage.folder(for: alpha).path))
+    }
+
+    @Test func aModelDownloadedWithDigestsIsNotAnEarlierDownload() throws {
+        let env = TestEnvironment()
+        try env.installFinished(alpha)
+        #expect(env.storage.isDownloaded(alpha))
+        #expect(!env.storage.hasEarlierDownload(alpha))
     }
 
     @Test func aFinishedModelWithAChangedDigestIsNotDownloaded() throws {

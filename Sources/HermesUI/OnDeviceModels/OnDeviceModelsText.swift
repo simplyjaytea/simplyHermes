@@ -58,6 +58,8 @@
         static func statusLine(_ row: OnDeviceModelRow) -> String? {
             switch row.state {
             case .notDownloaded: return nil
+            case .queued where row.isRechecking, .downloading where row.isRechecking, .paused where row.isRechecking:
+                return "Checking files from an earlier download. Downloading again so they can be verified."
             case .queued: return "Waiting for the download in front of it."
             case .downloading(let progress):
                 return "\(size(progress.receivedBytes)) of \(size(progress.totalBytes))"
@@ -76,7 +78,7 @@
             case .server(let status):
                 return "The download server answered with error \(status). Try again later."
             case .damaged:
-                return "A downloaded file was damaged and was removed. Try again."
+                return "A file didn't match its checksum and was removed. Download again."
             case .storage:
                 return "This device could not save the file. Free some space and try again."
             }

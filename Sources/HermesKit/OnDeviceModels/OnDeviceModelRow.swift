@@ -26,16 +26,19 @@ public struct OnDeviceModelRow: Sendable, Equatable, Identifiable {
     public let canRun: Bool
     /// What this app may still allocate right now, if the device says.
     public let availableMemoryBytes: Int64?
+    /// True while a model downloaded before digests existed is fetched again so its files can be verified.
+    public let isRechecking: Bool
 
     public init(
         model: OnDeviceModel, state: OnDeviceModelState, isSelected: Bool = false, canRun: Bool = true,
-        availableMemoryBytes: Int64? = nil
+        availableMemoryBytes: Int64? = nil, isRechecking: Bool = false
     ) {
         self.model = model
         self.state = state
         self.isSelected = isSelected
         self.canRun = canRun
         self.availableMemoryBytes = availableMemoryBytes
+        self.isRechecking = isRechecking
     }
 
     public var id: String { model.id }
