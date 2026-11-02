@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import Testing
 
 @testable import HermesKit
@@ -186,18 +187,25 @@ struct OutboxStoreTests {
 
     // MARK: - Migration
 
-    @Test func anExistingDatabaseGainsTheOutboxAndKeepsItsOfflineChats() async throws {
-        let url = temporaryURL()
-        var kept: OfflineChat?
+    @Test func anExistingDatabaseGainsTheOutboxAndKeepsItsOfflineChatsAsLocalChats() async throws {
+        let url = try temporaryDatabaseURL()
+        let kept = UUID()
         do {
-            // The schema before the outbox existed.
-            let older = try HermesCache.openSchema(url: url, upTo: "offline-chat-v1")
-            kept = try await older.offlineChats.openChat(
-                forSession: "s1", connection: "x", title: "Kept", at: start)
+            // The schema before the outbox existed, with one offline chat in it.
+            let older = try DatabaseQueue(path: url.path)
+            try HermesCache.migrator.migrate(older, upTo: "offline-chat-v1")
+            try await older.write { handle in
+                try handle.execute(
+                    sql: """
+                        INSERT INTO offline_chat (connection, chat_id, session_id, title, created_at, updated_at)
+                        VALUES ('x', ?, 's1', 'Kept', ?, ?)
+                        """,
+                    arguments: [kept.uuidString, start.timeIntervalSince1970, start.timeIntervalSince1970])
+            }
         }
 
         let upgraded = try HermesCache(url: url)
-        #expect(try await upgraded.offlineChats.currentChat(forSession: "s1", connection: "x") == kept)
+        #expect(try await upgraded.localChats.chat(kept)?.title == "Kept")
 
         let queued = record("queued after the upgrade")
         try await upgraded.outbox.insert(queued)

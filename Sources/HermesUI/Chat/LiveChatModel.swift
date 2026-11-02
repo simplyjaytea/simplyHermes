@@ -70,9 +70,6 @@
 
         public var isRunning: Bool { state.turn != nil }
 
-        /// The on-device side of this chat: where messages go while the server is out of reach (WP-65b).
-        public let offline: OfflineChatModel
-
         /// The newest assistant reply once it has finished streaming, with its item id. Voice speaks it (WP-60).
         public var newestFinishedReply: (id: String, text: String)? {
             for item in state.items.reversed() {
@@ -147,14 +144,11 @@
             self.storedSessionID = storedSessionID
             self.outbox = outbox
             state = TranscriptState(storedSessionID: storedSessionID)
-            offline = OfflineChatModel(
-                services: OfflineChatServices.shared, connections: connections, storedSessionID: storedSessionID)
         }
 
         /// Connects, resumes the session and starts following it. Safe to call again after a failure. A call made
         /// while another is still connecting waits for that one, so the session is never opened twice at once.
         public func attach() async {
-            offline.start()
             if let attempt = attaching {
                 await attempt.value
                 return
@@ -236,7 +230,6 @@
         public func detach() {
             for task in tasks { task.cancel() }
             retryTask?.cancel()
-            offline.stop()
             tasks = []
             drainer = nil
             drainTask?.cancel()
@@ -347,24 +340,6 @@
         /// Clears ``prefill`` once the composer has taken its text.
         public func clearPrefill() {
             prefill = nil
-        }
-
-        /// "Send to Hermes" (plan Q44): sends the prompt of `offer`, written offline, to this chat once the server is
-        /// back, then closes the offline chat. Opens the chat first when it never opened. While one send is under way
-        /// a second tap does nothing, so the prompt reaches Hermes once. When the chat cannot open, nothing is sent and
-        /// the offer stays.
-        public func sendToHermes(_ offer: SendToHermesOffer) async {
-            guard offline.beginSending(offer) else { return }
-            if controller == nil { await attach() }
-            guard controller != nil else {
-                offline.sendFailed()
-                return
-            }
-            guard await send(offer.prompt) else {
-                offline.sendFailed()
-                return
-            }
-            offline.resolveOffer(offer, as: .sent)
         }
 
         /// Sends the text into the running reply instead of queueing it. Falls back to a normal send, which saves the text
