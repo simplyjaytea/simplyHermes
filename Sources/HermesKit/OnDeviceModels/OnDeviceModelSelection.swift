@@ -12,6 +12,8 @@ public enum OnDeviceModelChoice: Sendable, Hashable, Codable {
 public enum OnDeviceModelError: Error, Sendable, Equatable {
     /// The phone does not have enough free memory to load the model.
     case notEnoughMemory(needed: Int64, available: Int64)
+    /// The chosen model is being checked or repaired, so it cannot answer yet.
+    case notReady
 }
 
 /// The part of the model runtime the selection needs. The app implements it with MLX; HermesKit never imports MLX, so
@@ -203,14 +205,27 @@ public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendab
 
     private func resolve() -> (route: Route, executor: any LocalModelExecutor) {
         let (choice, suspended) = lock.withLock { (savedChoice, suspendedByMemory) }
-        guard !suspended, let runtime, case .downloaded(let id) = choice, let model = catalog.model(id: id),
-            storage.isDownloaded(model)
-        else { return (.apple, apple) }
+        guard !suspended, let runtime, case .downloaded(let id) = choice, let model = catalog.model(id: id) else {
+            return (.apple, apple)
+        }
+        // A model whose earlier files are being checked stays the choice. It is not ready, and Apple does not answer
+        // in its place.
+        if storage.isAwaitingCheck(model) { return (.downloaded(model), NotReadyExecutor()) }
+        guard storage.isDownloaded(model) else { return (.apple, apple) }
         if let cached = lock.withLock({ downloadedExecutors[id] }) { return (.downloaded(model), cached) }
         guard let made = runtime.executor(for: model, folder: storage.folder(for: model)) else {
             return (.apple, apple)
         }
         lock.withLock { downloadedExecutors[id] = made }
         return (.downloaded(model), made)
+    }
+}
+
+/// Stands in for a downloaded model while its earlier files are checked: it is not ready, and it never answers.
+private struct NotReadyExecutor: LocalModelExecutor {
+    var availability: LocalModelAvailability { .unavailable(.notReady) }
+
+    func respond(instructions: String, prompt: String) async throws -> String {
+        throw OnDeviceModelError.notReady
     }
 }

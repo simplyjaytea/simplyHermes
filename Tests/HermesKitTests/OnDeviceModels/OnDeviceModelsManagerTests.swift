@@ -345,6 +345,52 @@ struct OnDeviceModelsManagerTests {
         #expect(configCalls == [Data("stale".utf8), nil])
     }
 
+    @Test func anEarlierDownloadThatMatchesIsCheckedAndNotDownloadedAgain() async throws {
+        let env = TestEnvironment()
+        try env.installEarlier(alpha)
+        let harness = Harness(env: env)
+        let recorder = UpdateRecorder(await harness.manager.updates())
+        await harness.manager.reload()
+        #expect(await harness.waitForDownloaded("alpha"))
+        #expect(await waitUntil { recorder.states(of: "alpha").contains(.downloaded) })
+        #expect(recorder.states(of: "alpha").contains(.checking))
+        #expect(harness.downloader.calls.isEmpty)
+        #expect(!env.storage.hasEarlierDownload(alpha))
+        #expect(env.storage.isDownloaded(alpha))
+    }
+
+    @Test func anEarlierDownloadWithOneBadFileFetchesOnlyThatFile() async throws {
+        let env = TestEnvironment()
+        try env.installEarlier(alpha)
+        let config = env.storage.folder(for: alpha).appendingPathComponent("config.json")
+        try Data(repeating: 0xFF, count: 10).write(to: config)
+        let harness = Harness(env: env)
+        await harness.manager.reload()
+        #expect(await harness.waitForDownloaded("alpha"))
+        #expect(harness.downloader.calledFiles == ["config.json"])
+        #expect(!env.storage.hasEarlierDownload(alpha))
+        #expect(env.storage.repairingFiles(alpha).isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: env.storage.partialFolder(for: alpha).path))
+    }
+
+    @Test func anEarlierDownloadThatCannotBeReadFailsAndKeepsItsFiles() async throws {
+        let fails = TestFlag(false)
+        let env = TestEnvironment(digest: { url in
+            if fails.value { throw TestFailure() }
+            return try OnDeviceModelDigest.sha256(of: url)
+        })
+        try env.installEarlier(alpha)
+        fails.value = true
+        let harness = Harness(env: env)
+        await harness.manager.reload()
+        #expect(await harness.waitForFailure("alpha"))
+        let state = await harness.manager.state(of: "alpha")
+        if case .failed(.storage, _) = state {} else { Issue.record("expected a storage failure, got \(state)") }
+        #expect(env.storage.hasEarlierDownload(alpha))
+        #expect(FileManager.default.fileExists(atPath: env.storage.folder(for: alpha).path))
+        #expect(harness.downloader.calls.isEmpty)
+    }
+
     @Test func aFileOfTheRightSizeWithTheWrongDigestIsDiscardedAndMarkedDamaged() async {
         let harness = Harness()
         harness.downloader.script(alpha, "model.safetensors", .wrongContent)

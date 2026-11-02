@@ -58,21 +58,36 @@ struct OnDeviceModelsStorageTests {
         #expect(!env.storage.hasPartialFile(file, of: alpha))
     }
 
-    @Test func completeChecksEveryDigestAgain() throws {
+    @Test func completeChecksFilesThatArrivedUnverified() throws {
         let env = TestEnvironment()
         try env.storage.preparePartialFolder(for: alpha)
         for file in alpha.files {
             try env.storage.store(env.makeTemporaryFile(bytes: file.bytes), as: file, of: alpha)
         }
-        // Changed on disk after it was stored, with the same size.
-        let weights = env.storage.partialFolder(for: alpha).appendingPathComponent("model.safetensors")
-        try Data(repeating: 0xFF, count: 100).write(to: weights)
+        // A partial folder from an earlier version has no record of what was verified. Its files are checked here.
+        let partial = env.storage.partialFolder(for: alpha)
+        try FileManager.default.removeItem(at: partial.appendingPathComponent(".verified.json"))
+        try Data(repeating: 0xFF, count: 100).write(to: partial.appendingPathComponent("model.safetensors"))
         #expect(throws: OnDeviceModelStorageError.digestMismatch(path: "model.safetensors")) {
             try env.storage.complete(alpha)
         }
         #expect(!env.storage.isDownloaded(alpha))
         #expect(!env.storage.hasPartialFile(alpha.files[1], of: alpha))
         #expect(env.storage.hasPartialFile(alpha.files[0], of: alpha))
+    }
+
+    @Test func eachFileIsHashedOnceAndCompletingDoesNotHashAgain() throws {
+        let counter = HashCounter()
+        let env = TestEnvironment(digest: counter.hash)
+        try env.storage.preparePartialFolder(for: alpha)
+        for file in alpha.files {
+            try env.storage.store(env.makeTemporaryFile(bytes: file.bytes), as: file, of: alpha)
+        }
+        #expect(counter.count == alpha.files.count)
+        counter.reset()
+        try env.storage.complete(alpha)
+        #expect(counter.count == 0)
+        #expect(env.storage.isDownloaded(alpha))
     }
 
     @Test func storeRejectsPathsThatLeaveTheFolder() throws {
@@ -112,6 +127,50 @@ struct OnDeviceModelsStorageTests {
         let weights = env.storage.folder(for: alpha).appendingPathComponent("model.safetensors")
         try Data(count: 5).write(to: weights)
         #expect(!env.storage.isDownloaded(alpha))
+    }
+
+    @Test func checkKeepsAnEarlierDownloadThatMatchesInPlace() throws {
+        let env = TestEnvironment()
+        try env.installEarlier(alpha)
+        #expect(env.storage.hasEarlierDownload(alpha))
+        #expect(try env.storage.checkEarlierDownload(alpha).isEmpty)
+        #expect(env.storage.isDownloaded(alpha))
+        #expect(!env.storage.hasEarlierDownload(alpha))
+        #expect(!env.storage.isAwaitingCheck(alpha))
+        #expect(env.storage.repairingFiles(alpha).isEmpty)
+    }
+
+    @Test func checkRemovesOnlyTheFileThatDoesNotMatchAndKeepsTheRest() throws {
+        let env = TestEnvironment()
+        try env.installEarlier(alpha)
+        // The same size as the catalog says, but other content.
+        let config = env.storage.folder(for: alpha).appendingPathComponent("config.json")
+        try Data(repeating: 0xFF, count: 10).write(to: config)
+        #expect(try env.storage.checkEarlierDownload(alpha) == ["config.json"])
+        // The old folder is gone: the good file moved into the partial folder, the bad one was left behind with it.
+        #expect(!FileManager.default.fileExists(atPath: env.storage.folder(for: alpha).path))
+        #expect(env.storage.hasPartialFile(alpha.files[1], of: alpha))
+        #expect(!env.storage.hasPartialFile(alpha.files[0], of: alpha))
+        #expect(env.storage.repairingFiles(alpha) == ["config.json"])
+        #expect(env.storage.isAwaitingCheck(alpha))
+        #expect(!env.storage.hasEarlierDownload(alpha))
+    }
+
+    @Test func checkThatCannotReadAFileChangesNothing() throws {
+        let fails = TestFlag(false)
+        let env = TestEnvironment(digest: { url in
+            if fails.value && url.lastPathComponent == "model.safetensors" { throw TestFailure() }
+            return try OnDeviceModelDigest.sha256(of: url)
+        })
+        try env.installEarlier(alpha)
+        fails.value = true
+        #expect(throws: (any Error).self) {
+            try env.storage.checkEarlierDownload(alpha)
+        }
+        #expect(env.storage.hasEarlierDownload(alpha))
+        #expect(env.storage.repairingFiles(alpha).isEmpty)
+        #expect(FileManager.default.fileExists(atPath: env.storage.folder(for: alpha).path))
+        #expect(env.storage.hasPartialFile(alpha.files[0], of: alpha) == false)
     }
 
     @Test func aFinishedModelWithoutDigestsIsNotDownloaded() throws {
@@ -241,5 +300,19 @@ struct OnDeviceModelsStorageTests {
             .appendingPathComponent("does-not-exist-\(UUID().uuidString)/deeper/still", isDirectory: true)
         let bytes = SystemDiskSpace().availableBytes(at: missing)
         #expect((bytes ?? 0) > 0)
+    }
+}
+
+/// Counts how many files were hashed.
+final class HashCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var hashed = 0
+
+    var count: Int { lock.withLock { hashed } }
+    func reset() { lock.withLock { hashed = 0 } }
+
+    @Sendable func hash(_ url: URL) throws -> String {
+        lock.withLock { hashed += 1 }
+        return try OnDeviceModelDigest.sha256(of: url)
     }
 }

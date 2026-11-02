@@ -37,7 +37,7 @@
         @ObservationIgnored private let controller: OnDeviceModelController
         @ObservationIgnored private let storage: OnDeviceModelStorage
         @ObservationIgnored private var states: [String: OnDeviceModelState] = [:]
-        @ObservationIgnored private var rechecking: Set<String> = []
+        @ObservationIgnored private var repairing: Set<String> = []
         @ObservationIgnored private var lastDiskRead = ContinuousClock.now.advanced(by: .seconds(-10))
         @ObservationIgnored private var isFrozen = false
 
@@ -67,10 +67,10 @@
         public func refresh(readDisk: Bool = true) {
             if readDisk {
                 usedBytes = storage.usedBytes()
-                rechecking = Set(controller.catalog.models.filter(storage.hasEarlierDownload).map(\.id))
+                repairing = Set(controller.catalog.models.filter { !storage.repairingFiles($0).isEmpty }.map(\.id))
                 lastDiskRead = .now
             }
-            rows = controller.rows(states: states, rechecking: rechecking)
+            rows = controller.rows(states: states, repairing: repairing)
             appleModelIsInUse = controller.appleModelIsInUse
             appleAvailability = controller.selection.apple.availability
             isSuspendedByMemoryWarning = controller.selection.isSuspendedByMemoryWarning

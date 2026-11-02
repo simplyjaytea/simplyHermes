@@ -214,7 +214,7 @@
                         .font(HermesFont.caption)
                         .foregroundStyle(HermesColor.statusWarning)
                 }
-            case .queued:
+            case .queued, .checking:
                 if let line = OnDeviceModelsText.statusLine(row) {
                     Text(line).font(HermesFont.caption).foregroundStyle(HermesColor.secondaryText)
                 }

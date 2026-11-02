@@ -30,15 +30,16 @@ final class TestEnvironment: @unchecked Sendable {
     let storage: OnDeviceModelStorage
     private let recorder: Recorder
 
-    init() {
+    /// `digest` hashes a file. Tests can fail a read through it.
+    init(digest: @escaping @Sendable (URL) throws -> String = { try OnDeviceModelDigest.sha256(of: $0) }) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "on-device-models-\(UUID().uuidString)", isDirectory: true)
         let recorder = Recorder()
         self.root = root
         self.recorder = recorder
-        storage = OnDeviceModelStorage(root: root.appendingPathComponent("models", isDirectory: true)) { url in
-            recorder.add(url)
-        }
+        storage = OnDeviceModelStorage(
+            root: root.appendingPathComponent("models", isDirectory: true),
+            excludeFromBackup: { url in recorder.add(url) }, digest: digest)
     }
 
     deinit {
@@ -63,6 +64,13 @@ final class TestEnvironment: @unchecked Sendable {
             try storage.store(makeTemporaryFile(bytes: file.bytes), as: file, of: model)
         }
         try storage.complete(model)
+    }
+
+    /// Puts a whole model on disk as an earlier version left it: the right files, and a manifest with no digests.
+    func installEarlier(_ model: OnDeviceModel) throws {
+        try installFinished(model)
+        let legacy = #"{"id":"\#(model.id)","revision":"\#(model.revision)","bytes":\#(model.totalBytes)}"#
+        try Data(legacy.utf8).write(to: storage.folder(for: model).appendingPathComponent(".complete.json"))
     }
 
     private final class Recorder: @unchecked Sendable {

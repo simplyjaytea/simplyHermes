@@ -26,19 +26,19 @@ public struct OnDeviceModelRow: Sendable, Equatable, Identifiable {
     public let canRun: Bool
     /// What this app may still allocate right now, if the device says.
     public let availableMemoryBytes: Int64?
-    /// True while a model downloaded before digests existed is fetched again so its files can be verified.
-    public let isRechecking: Bool
+    /// True while the files an earlier download failed to verify are fetched again.
+    public let isRepairing: Bool
 
     public init(
         model: OnDeviceModel, state: OnDeviceModelState, isSelected: Bool = false, canRun: Bool = true,
-        availableMemoryBytes: Int64? = nil, isRechecking: Bool = false
+        availableMemoryBytes: Int64? = nil, isRepairing: Bool = false
     ) {
         self.model = model
         self.state = state
         self.isSelected = isSelected
         self.canRun = canRun
         self.availableMemoryBytes = availableMemoryBytes
-        self.isRechecking = isRechecking
+        self.isRepairing = isRepairing
     }
 
     public var id: String { model.id }
@@ -48,6 +48,8 @@ public struct OnDeviceModelRow: Sendable, Equatable, Identifiable {
         switch state {
         case .notDownloaded:
             return [.download]
+        case .checking:
+            return []
         case .queued:
             return [.cancel]
         case .downloading:
@@ -77,14 +79,14 @@ public struct OnDeviceModelRow: Sendable, Equatable, Identifiable {
     public var receivedBytes: Int64 {
         switch state {
         case .downloading(let progress), .paused(let progress), .failed(_, let progress): return progress.receivedBytes
-        case .notDownloaded, .queued, .downloaded: return 0
+        case .notDownloaded, .checking, .queued, .downloaded: return 0
         }
     }
 
     /// True while bytes are moving or waiting to move.
     public var isBusy: Bool {
         switch state {
-        case .queued, .downloading: return true
+        case .checking, .queued, .downloading: return true
         case .notDownloaded, .paused, .failed, .downloaded: return false
         }
     }

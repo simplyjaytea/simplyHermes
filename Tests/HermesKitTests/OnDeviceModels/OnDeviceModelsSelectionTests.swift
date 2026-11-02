@@ -100,6 +100,30 @@ struct OnDeviceModelsSelectionTests {
 
     // MARK: Fallbacks
 
+    @Test func aModelBeingCheckedIsNotReadyAndAppleDoesNotAnswerForIt() async throws {
+        let setup = try Setup(installed: [])
+        try setup.env.installEarlier(alpha)
+        await setup.selection.select(.downloaded("alpha"))
+        #expect(setup.selection.route == .downloaded(alpha))
+        #expect(setup.selection.availability == .unavailable(.notReady))
+        await #expect(throws: OnDeviceModelError.notReady) {
+            _ = try await answer(setup.selection, "hi")
+        }
+        #expect(setup.apple.prompts.isEmpty)
+        #expect(setup.runtime.requestedModels.isEmpty)
+    }
+
+    @Test func aCheckedModelComesBackSelectedAndAnswers() async throws {
+        let setup = try Setup(installed: [])
+        try setup.env.installEarlier(alpha)
+        await setup.selection.select(.downloaded("alpha"))
+        #expect(try setup.env.storage.checkEarlierDownload(alpha).isEmpty)
+        #expect(setup.selection.route == .downloaded(alpha))
+        #expect(setup.selection.availability == .available)
+        #expect(try await answer(setup.selection, "hi") == "alpha: hi")
+        #expect(setup.apple.prompts.isEmpty)
+    }
+
     @Test func aModelThatIsNotOnThePhoneFallsBackToApple() async throws {
         let setup = try Setup(installed: [])
         await setup.selection.select(.downloaded("alpha"))

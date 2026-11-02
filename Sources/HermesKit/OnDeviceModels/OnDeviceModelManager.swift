@@ -33,6 +33,8 @@ public enum OnDeviceModelFailure: Sendable, Equatable {
 /// Where one model is in its life on this phone.
 public enum OnDeviceModelState: Sendable, Equatable {
     case notDownloaded
+    /// An earlier download is being checked against the catalog's digests. Nothing is downloaded yet.
+    case checking
     /// Waiting for the download in front of it.
     case queued
     case downloading(OnDeviceModelProgress)
@@ -138,11 +140,43 @@ public actor OnDeviceModelManager {
     }
 
     /// Reads the disk: which models are finished, which have a partial download. Removes folders the catalog no
-    /// longer lists. Call once at launch and when Settings opens.
+    /// longer lists. An earlier download is checked against the catalog, and a file that fails is fetched again. Call
+    /// once at launch and when Settings opens.
     public func reload() {
         storage.removeOrphans(keeping: catalog)
         for model in catalog.models where active?.id != model.id && !queue.contains(model.id) {
+            if states[model.id] == .checking { continue }
+            if storage.hasEarlierDownload(model) {
+                beginCheck(model)
+                continue
+            }
             setState(scan(model), for: model.id)
+            // A download that was repairing when the app closed goes on by itself.
+            if !storage.repairingFiles(model).isEmpty { start(model.id) }
+        }
+    }
+
+    /// Checks an earlier download off the actor, since it hashes gigabytes, then settles its state.
+    private func beginCheck(_ model: OnDeviceModel) {
+        setState(.checking, for: model.id)
+        let storage = self.storage
+        Task {
+            let outcome = await Task.detached { Result { try storage.checkEarlierDownload(model) } }.value
+            await self.finishCheck(model, outcome)
+        }
+    }
+
+    private func finishCheck(_ model: OnDeviceModel, _ outcome: Result<[String], Error>) {
+        guard states[model.id] == .checking else { return }
+        switch outcome {
+        case .success(let bad) where bad.isEmpty:
+            setState(scan(model), for: model.id)
+        case .success:
+            // The files that matched were kept. The files that did not are fetched again, automatically.
+            setState(.notDownloaded, for: model.id)
+            start(model.id)
+        case .failure(let error):
+            setState(.failed(failure(for: error), progress(of: model)), for: model.id)
         }
     }
 
@@ -156,7 +190,7 @@ public actor OnDeviceModelManager {
             return
         }
         switch states[id] ?? .notDownloaded {
-        case .queued, .downloading: return
+        case .queued, .downloading, .checking: return
         case .notDownloaded, .paused, .failed, .downloaded: break
         }
         let needed = max(0, model.totalBytes - storage.partialBytes(for: model)) + reserveBytes
