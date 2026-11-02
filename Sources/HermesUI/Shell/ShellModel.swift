@@ -243,17 +243,19 @@
             if startServerChat != nil { unstartedChatIDs.insert(id) }
         }
 
-        /// Starts a local chat (WP-7), or opens the empty one already open. It is listed at once and saved on its first
-        /// message. Nothing in it reaches a server.
         /// Opens a new Local chat that starts with `draft`, for the banner's "Continue in a new Local chat". The chat it
-        /// came from is left as it is. The draft moves here, so nothing is lost.
+        /// came from stays open and keeps its messages and attachments. The draft moves here, so the same text can't be
+        /// sent from both chats.
         public func continueInNewLocalChat(carrying draft: String) {
             let previous = selectedSessionID
             newLocalChat()
             guard let id = selectedSessionID, id != previous else { return }
             drafts[id] = draft
+            if let previous { drafts[previous] = nil }
         }
 
+        /// Starts a local chat (WP-7), or opens the empty one already open. It is listed at once and saved on its first
+        /// message. Nothing in it reaches a server.
         func newLocalChat() {
             guard LocalChatServices.shared != nil else {
                 newChatError = "Local chats can't be saved on this device, so none was started."

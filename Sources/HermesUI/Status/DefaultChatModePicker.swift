@@ -7,12 +7,17 @@
         @State private var mode = ChatModeDefault.current
 
         var body: some View {
-            Picker("New chats start as", selection: $mode) {
-                Text("Online").tag(ChatMode.online)
-                Text("Local").tag(ChatMode.local)
+            VStack(alignment: .leading, spacing: 4) {
+                Picker("New chats start as", selection: $mode) {
+                    Text("Online").tag(ChatMode.online)
+                    Text("Local").tag(ChatMode.local)
+                }
+                .onChange(of: mode) { _, new in ChatModeDefault.save(new, to: .standard) }
+                .accessibilityIdentifier("settings.defaultMode")
+                Text("Only new chats. A chat keeps its mode.")
+                    .font(HermesFont.footnote)
+                    .foregroundStyle(HermesColor.secondaryText)
             }
-            .onChange(of: mode) { _, new in ChatModeDefault.save(new, to: .standard) }
-            .accessibilityIdentifier("settings.defaultMode")
         }
     }
 #endif

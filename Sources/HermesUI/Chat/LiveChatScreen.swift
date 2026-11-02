@@ -363,7 +363,7 @@
             if let session = model.session(id: sessionID) {
                 VStack(alignment: .leading, spacing: 6) {
                     StatusStrip(
-                        connection: StripConnection(pill: chat.status.pill),
+                        connection: StatusStrip.Connection(chat.strip.connection),
                         serverName: session.serverName,
                         runningTurn: chat.isRunning ? "Hermes is replying" : nil,
                         onStop: chat.isRunning ? { chat.stop() } : nil

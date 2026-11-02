@@ -28,8 +28,8 @@ public enum OutageBanner {
         "Can't reach \(serverName)"
     }
 
-    /// The banner's message: the message the user wrote is kept and sends when the server is back.
-    public static let message = "Your message will send when it's back."
+    /// The banner's message (UX spec §5.2). It says what to check, and what a waiting message does.
+    public static let message = "Check that Tailscale is on. Messages you write here wait and send when it's back."
 
     /// The actions, in the order they show.
     public static let actions: [OutageAction] = [.tryAgain, .continueInNewLocalChat]

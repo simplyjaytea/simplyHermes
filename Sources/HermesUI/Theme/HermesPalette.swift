@@ -29,6 +29,10 @@
         public let statusConnected: Color
         public let statusWarning: Color
         public let statusOffline: Color
+        public let statusOnlineInk: Color
+        public let statusLocalInk: Color
+        public let statusWarningInk: Color
+        public let statusProblemInk: Color
         public let destructive: Color
         public let onDestructive: Color
         public let errorText: Color
@@ -142,6 +146,18 @@
                 statusOffline: Color(
                     red: def.statusOffline.red, green: def.statusOffline.green, blue: def.statusOffline.blue
                 ),
+                statusOnlineInk: Color(
+                    red: def.statusOnlineInk.red, green: def.statusOnlineInk.green, blue: def.statusOnlineInk.blue
+                ),
+                statusLocalInk: Color(
+                    red: def.statusLocalInk.red, green: def.statusLocalInk.green, blue: def.statusLocalInk.blue
+                ),
+                statusWarningInk: Color(
+                    red: def.statusWarningInk.red, green: def.statusWarningInk.green, blue: def.statusWarningInk.blue
+                ),
+                statusProblemInk: Color(
+                    red: def.statusProblemInk.red, green: def.statusProblemInk.green, blue: def.statusProblemInk.blue
+                ),
                 destructive: Color(
                     red: def.destructive.red, green: def.destructive.green, blue: def.destructive.blue
                 ),
@@ -184,6 +200,10 @@
                     statusConnected: Color(uiColor: .systemGreen),
                     statusWarning: Color(uiColor: .systemOrange),
                     statusOffline: Color(uiColor: .systemGray),
+                    statusOnlineInk: dynamicSystemColor(\.statusOnlineInk),
+                    statusLocalInk: dynamicSystemColor(\.statusLocalInk),
+                    statusWarningInk: dynamicSystemColor(\.statusWarningInk),
+                    statusProblemInk: dynamicSystemColor(\.statusProblemInk),
                     destructive: dynamicSystemColor(\.destructive),
                     onDestructive: dynamicSystemColor(\.onDestructive),
                     errorText: dynamicSystemColor(\.errorText),
@@ -214,6 +234,10 @@
                     statusConnected: dynamicColor(for: preset, \.statusConnected),
                     statusWarning: dynamicColor(for: preset, \.statusWarning),
                     statusOffline: dynamicColor(for: preset, \.statusOffline),
+                    statusOnlineInk: dynamicColor(for: preset, \.statusOnlineInk),
+                    statusLocalInk: dynamicColor(for: preset, \.statusLocalInk),
+                    statusWarningInk: dynamicColor(for: preset, \.statusWarningInk),
+                    statusProblemInk: dynamicColor(for: preset, \.statusProblemInk),
                     destructive: dynamicColor(for: preset, \.destructive),
                     onDestructive: Color.white,
                     errorText: dynamicColor(for: preset, \.errorText),

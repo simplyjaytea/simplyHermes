@@ -152,6 +152,10 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
     public let statusConnected: RGBColor
     public let statusWarning: RGBColor
     public let statusOffline: RGBColor
+    public let statusOnlineInk: RGBColor
+    public let statusLocalInk: RGBColor
+    public let statusWarningInk: RGBColor
+    public let statusProblemInk: RGBColor
     public let destructive: RGBColor
     public let onDestructive: RGBColor
     public let errorText: RGBColor
@@ -200,6 +204,10 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                 statusConnected: RGBColor(hex: 0x30D158),
                 statusWarning: RGBColor(hex: 0xFF9F0A),
                 statusOffline: RGBColor(hex: 0x8E8E93),
+                statusOnlineInk: highContrast ? RGBColor(hex: 0x86EFAC) : RGBColor(hex: 0x30D158),
+                statusLocalInk: highContrast ? RGBColor(hex: 0xDDD6FE) : RGBColor(hex: 0xC4B5FD),
+                statusWarningInk: highContrast ? RGBColor(hex: 0xFCD34D) : RGBColor(hex: 0xFF9F0A),
+                statusProblemInk: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
                 destructive: RGBColor(hex: 0xDC2626),
                 onDestructive: RGBColor(hex: 0xFFFFFF),
                 errorText: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
@@ -228,6 +236,10 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                 statusConnected: RGBColor(hex: 0x34C759),
                 statusWarning: RGBColor(hex: 0xFF9500),
                 statusOffline: RGBColor(hex: 0x8E8E93),
+                statusOnlineInk: RGBColor(hex: 0x15803D),
+                statusLocalInk: RGBColor(hex: 0x6D28D9),
+                statusWarningInk: RGBColor(hex: 0xB45309),
+                statusProblemInk: RGBColor(hex: 0xB91C1C),
                 destructive: RGBColor(hex: 0xDC2626),
                 onDestructive: RGBColor(hex: 0xFFFFFF),
                 errorText: highContrast ? RGBColor(hex: 0x991B1B) : RGBColor(hex: 0xB91C1C),
@@ -260,6 +272,10 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
             statusConnected: RGBColor(hex: 0x30D158),
             statusWarning: RGBColor(hex: 0xFF9F0A),
             statusOffline: RGBColor(hex: 0x8E8E93),
+            statusOnlineInk: highContrast ? RGBColor(hex: 0x86EFAC) : RGBColor(hex: 0x30D158),
+            statusLocalInk: highContrast ? RGBColor(hex: 0xDDD6FE) : RGBColor(hex: 0xC4B5FD),
+            statusWarningInk: highContrast ? RGBColor(hex: 0xFCD34D) : RGBColor(hex: 0xFF9F0A),
+            statusProblemInk: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
             destructive: RGBColor(hex: 0xDC2626),
             onDestructive: RGBColor(hex: 0xFFFFFF),
             errorText: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
@@ -291,6 +307,10 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
             statusConnected: RGBColor(hex: 0x38BDF8),
             statusWarning: RGBColor(hex: 0xFBBF24),
             statusOffline: RGBColor(hex: 0x64748B),
+            statusOnlineInk: highContrast ? RGBColor(hex: 0x86EFAC) : RGBColor(hex: 0x38BDF8),
+            statusLocalInk: highContrast ? RGBColor(hex: 0xDDD6FE) : RGBColor(hex: 0xC4B5FD),
+            statusWarningInk: highContrast ? RGBColor(hex: 0xFCD34D) : RGBColor(hex: 0xFBBF24),
+            statusProblemInk: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
             destructive: RGBColor(hex: 0xDC2626),
             onDestructive: RGBColor(hex: 0xFFFFFF),
             errorText: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
@@ -322,6 +342,10 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
             statusConnected: RGBColor(hex: 0x16A34A),
             statusWarning: RGBColor(hex: 0xD97706),
             statusOffline: RGBColor(hex: 0x6B7280),
+            statusOnlineInk: RGBColor(hex: 0x15803D),
+            statusLocalInk: RGBColor(hex: 0x6D28D9),
+            statusWarningInk: RGBColor(hex: 0xB45309),
+            statusProblemInk: RGBColor(hex: 0xB91C1C),
             destructive: RGBColor(hex: 0xDC2626),
             onDestructive: RGBColor(hex: 0xFFFFFF),
             errorText: highContrast ? RGBColor(hex: 0x991B1B) : RGBColor(hex: 0xB91C1C),
@@ -334,6 +358,10 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
         [
             "primaryOnBackground": primaryText.contrastRatio(with: background),
             "primaryOnIncomingBubble": primaryText.contrastRatio(with: incomingBubble),
+            "statusOnlineInkOnBackground": statusOnlineInk.contrastRatio(with: background),
+            "statusLocalInkOnBackground": statusLocalInk.contrastRatio(with: background),
+            "statusWarningInkOnBackground": statusWarningInk.contrastRatio(with: background),
+            "statusProblemInkOnBackground": statusProblemInk.contrastRatio(with: background),
             "secondaryOnBackground": secondaryText.contrastRatio(with: background),
             "secondaryOnIncomingBubble": secondaryText.contrastRatio(with: incomingBubble),
             "onAccentOnAccent": onAccent.contrastRatio(with: accent),

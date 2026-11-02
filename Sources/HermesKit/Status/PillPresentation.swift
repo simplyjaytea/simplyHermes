@@ -22,7 +22,7 @@ public enum PillPresentation {
         switch pill {
         case .connected: "Online"
         case .connecting, .reconnecting: pill == .connecting ? "Connecting…" : "Reconnecting…"
-        case .unreachable: "No server"
+        case .unreachable: "Can't reach"
         case .needsAttention(let reason): attentionShort(reason)
         case .noServer: "Set up"
         case .localReady(let model): model.displayName
@@ -56,7 +56,7 @@ public enum PillPresentation {
         case .connected: "point.3.connected.trianglepath.dotted"
         case .connecting, .reconnecting: "arrow.triangle.2.circlepath"
         case .unreachable: "wifi.exclamationmark"
-        case .needsAttention: "person.crop.circle.badge.exclamationmark"
+        case .needsAttention(let reason): attentionSymbol(reason)
         case .noServer: "server.rack"
         case .localReady, .localLoading: "iphone"
         case .localNoModel, .localOff: "iphone.slash"
@@ -68,8 +68,9 @@ public enum PillPresentation {
     public static func ink(_ pill: PillState) -> PillInk {
         switch pill {
         case .connected: .online
-        case .connecting, .reconnecting, .needsAttention, .localLoading: .warning
-        case .unreachable, .localNoModel, .localFailed: .problem
+        case .connecting, .reconnecting, .localLoading: .warning
+        case .needsAttention(.hostKey), .unreachable, .localNoModel, .localFailed: .problem
+        case .needsAttention: .warning
         case .noServer, .localOff: .neutral
         case .localReady: .local
         }
@@ -92,26 +93,36 @@ public enum PillPresentation {
         }
     }
 
-    /// True when VoiceOver announces the state as it is entered (O4, L3 and L4).
+    /// True when VoiceOver announces the state as it is entered (O4, L3, L4 and a changed host key).
     public static func announcesOnEntry(_ pill: PillState) -> Bool {
         switch pill {
-        case .unreachable, .localNoModel, .localFailed: true
+        case .unreachable, .localNoModel, .localFailed, .needsAttention(.hostKey): true
         default: false
         }
     }
 
-    /// True when the state gives a warning haptic on entry (O4 and L4).
+    /// True when the state gives a warning haptic on entry (O4, L4 and a changed host key).
     public static func warnsOnEntry(_ pill: PillState) -> Bool {
         switch pill {
-        case .unreachable, .localFailed: true
+        case .unreachable, .localFailed, .needsAttention(.hostKey): true
         default: false
+        }
+    }
+
+    /// Each reason has its own symbol, so a changed host key does not look like a routine sign-in.
+    private static func attentionSymbol(_ reason: AttentionReason) -> String {
+        switch reason {
+        case .signIn: "person.crop.circle.badge.exclamationmark"
+        case .serverUpdate: "arrow.up.circle"
+        case .hostKey: "lock.trianglebadge.exclamationmark"
+        case .settings: "gearshape"
         }
     }
 
     private static func attentionShort(_ reason: AttentionReason) -> String {
         switch reason {
         case .signIn: "Sign in"
-        case .serverUpdate: "Update"
+        case .serverUpdate: "Update Hermes"
         case .hostKey: "Check key"
         case .settings: "Fix settings"
         }

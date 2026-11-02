@@ -22,4 +22,12 @@ public enum NewChatChoice: Sendable, Equatable, CaseIterable {
         case .local: "New Local chat"
         }
     }
+
+    /// The menu symbol: the same one the chat's pill uses for its kind (UX spec §1.2).
+    public var symbol: String {
+        switch self {
+        case .online: "point.3.connected.trianglepath.dotted"
+        case .local: "iphone"
+        }
+    }
 }

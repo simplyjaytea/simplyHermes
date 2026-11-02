@@ -40,16 +40,36 @@ struct PillPresentationTests {
         #expect(PillPresentation.shortTitle(.localReady(Self.gemma), serverName: Self.server) == "Gemma 3 1B")
     }
 
-    @Test func onlyUnreachableNoModelAndLoadFailureAnnounceOnEntry() {
+    @Test func onlyUnreachableNoModelLoadFailureAndChangedHostKeyAnnounceOnEntry() {
         let announced = Self.all.filter(PillPresentation.announcesOnEntry)
-        #expect(announced == [.unreachable, .localNoModel, .localFailed(Self.gemma, reason: .runtimeUnavailable)])
+        #expect(
+            announced == [
+                .unreachable, .needsAttention(.hostKey), .localNoModel,
+                .localFailed(Self.gemma, reason: .runtimeUnavailable),
+            ])
         let warned = Self.all.filter(PillPresentation.warnsOnEntry)
-        #expect(warned == [.unreachable, .localFailed(Self.gemma, reason: .runtimeUnavailable)])
+        #expect(
+            warned == [.unreachable, .needsAttention(.hostKey), .localFailed(Self.gemma, reason: .runtimeUnavailable)])
+    }
+
+    @Test func shortTitlesAreTheCopyPoppyApproved() {
+        #expect(PillPresentation.shortTitle(.unreachable, serverName: Self.server) == "Can't reach")
+        #expect(PillPresentation.shortTitle(.needsAttention(.serverUpdate), serverName: Self.server) == "Update Hermes")
+    }
+
+    @Test func eachAttentionReasonHasItsOwnSymbol() {
+        let symbols = [AttentionReason.signIn, .serverUpdate, .hostKey, .settings].map {
+            PillPresentation.symbol(.needsAttention($0))
+        }
+        #expect(Set(symbols).count == 4)
+        #expect(PillPresentation.symbol(.needsAttention(.hostKey)) == "lock.trianglebadge.exclamationmark")
     }
 
     @Test func inkFollowsTheSpecFamilies() {
         #expect(PillPresentation.ink(.connected) == .online)
         #expect(PillPresentation.ink(.reconnecting) == .warning)
+        #expect(PillPresentation.ink(.needsAttention(.signIn)) == .warning)
+        #expect(PillPresentation.ink(.needsAttention(.hostKey)) == .problem)
         #expect(PillPresentation.ink(.unreachable) == .problem)
         #expect(PillPresentation.ink(.noServer) == .neutral)
         #expect(PillPresentation.ink(.localReady(Self.gemma)) == .local)
