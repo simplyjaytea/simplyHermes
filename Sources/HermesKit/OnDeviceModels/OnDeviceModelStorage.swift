@@ -4,6 +4,8 @@ import Foundation
 public enum OnDeviceModelStorageError: Error, Sendable, Equatable {
     /// The file on disk is not the size the catalog says. The file is deleted.
     case sizeMismatch(path: String, expected: Int64, actual: Int64)
+    /// The file has the right size but not the catalog's SHA-256. The file is deleted.
+    case digestMismatch(path: String)
     /// The catalog path would leave the model folder.
     case unsafePath(String)
     /// A file is missing when the model is finished.
@@ -31,7 +33,7 @@ public struct OnDeviceModelResumeRecord: Sendable, Equatable, Codable {
 /// Where downloaded models live on disk, and what is in each folder.
 ///
 /// Layout under `root` (the app uses Application Support/simplyHermes/OnDeviceModels):
-/// - `<id>/` is a finished model. It exists only when every file is there with the right size.
+/// - `<id>/` is a finished model. It exists only when every file is there with the right size and SHA-256.
 /// - `<id>.partial/` is a download in progress. Finished files stay in it, so a restart skips them.
 /// - `selection.json` is the model the user picked.
 ///
@@ -49,6 +51,9 @@ public struct OnDeviceModelStorage: Sendable {
         var id: String
         var revision: String
         var bytes: Int64
+        /// The SHA-256 of each file, as checked when the model was completed. Missing in folders written before
+        /// digests existed, and those are not trusted.
+        var digests: [String: String]?
     }
 
     /// `excludeFromBackup` marks a folder as not to be backed up. Tests replace it to see which folders get it.
@@ -89,12 +94,14 @@ public struct OnDeviceModelStorage: Sendable {
 
     // MARK: State on disk
 
-    /// True when the manifest is there and every file has the catalog's size.
+    /// True when the manifest is there with the catalog's digests and every file has the catalog's size. Digests are
+    /// checked when a model is completed, not on every call, because hashing gigabytes on each Settings open is too slow.
     public func isDownloaded(_ model: OnDeviceModel) -> Bool {
         let folder = folder(for: model)
         guard let data = try? Data(contentsOf: folder.appendingPathComponent(Self.manifestName)),
             let manifest = try? JSONDecoder().decode(Manifest.self, from: data),
-            manifest.id == model.id, manifest.revision == model.revision
+            manifest.id == model.id, manifest.revision == model.revision,
+            manifest.digests == digests(of: model)
         else { return false }
         return model.files.allSatisfy { fileSize(at: folder.appendingPathComponent($0.path)) == $0.bytes }
     }
@@ -130,7 +137,7 @@ public struct OnDeviceModelStorage: Sendable {
         excludeFromBackup(folder)
     }
 
-    /// Moves a finished download into the partial folder as `file`, after checking its size.
+    /// Moves a finished download into the partial folder as `file`, after checking its size and SHA-256.
     public func store(_ temporary: URL, as file: OnDeviceModelFile, of model: OnDeviceModel) throws {
         let fileManager = FileManager.default
         guard file.hasSafePath else {
@@ -142,6 +149,17 @@ public struct OnDeviceModelStorage: Sendable {
             try? fileManager.removeItem(at: temporary)
             throw OnDeviceModelStorageError.sizeMismatch(path: file.path, expected: file.bytes, actual: actual)
         }
+        let digest: String
+        do {
+            digest = try verifiedDigest(of: temporary)
+        } catch {
+            try? fileManager.removeItem(at: temporary)
+            throw error
+        }
+        guard digest == file.sha256 else {
+            try? fileManager.removeItem(at: temporary)
+            throw OnDeviceModelStorageError.digestMismatch(path: file.path)
+        }
         let destination = partialFolder(for: model).appendingPathComponent(file.path)
         do {
             try createDirectory(destination.deletingLastPathComponent())
@@ -152,14 +170,24 @@ public struct OnDeviceModelStorage: Sendable {
         }
     }
 
-    /// Turns the partial folder into the finished model folder. Throws when a file is missing or the wrong size.
+    /// Turns the partial folder into the finished model folder. Throws when a file is missing, the wrong size or the
+    /// wrong digest. Every digest is checked again here, because a partial folder from an earlier version was only
+    /// checked by size.
     public func complete(_ model: OnDeviceModel) throws {
         let fileManager = FileManager.default
-        for file in model.files where !hasPartialFile(file, of: model) {
-            throw OnDeviceModelStorageError.incomplete(path: file.path)
-        }
         let partial = partialFolder(for: model)
-        let manifest = Manifest(id: model.id, revision: model.revision, bytes: model.totalBytes)
+        for file in model.files {
+            guard hasPartialFile(file, of: model) else {
+                throw OnDeviceModelStorageError.incomplete(path: file.path)
+            }
+            let url = partial.appendingPathComponent(file.path)
+            guard try verifiedDigest(of: url) == file.sha256 else {
+                try? fileManager.removeItem(at: url)
+                throw OnDeviceModelStorageError.digestMismatch(path: file.path)
+            }
+        }
+        let manifest = Manifest(
+            id: model.id, revision: model.revision, bytes: model.totalBytes, digests: digests(of: model))
         do {
             try JSONEncoder().encode(manifest).write(to: partial.appendingPathComponent(Self.manifestName))
             try? fileManager.removeItem(at: partial.appendingPathComponent(Self.resumeName))
@@ -260,6 +288,19 @@ public struct OnDeviceModelStorage: Sendable {
     private func removeIfPresent(_ url: URL) throws {
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         try FileManager.default.removeItem(at: url)
+    }
+
+    private func digests(of model: OnDeviceModel) -> [String: String] {
+        Dictionary(model.files.map { ($0.path, $0.sha256) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// The SHA-256 of `url`. A file that cannot be read is a file-system failure, not a digest mismatch.
+    private func verifiedDigest(of url: URL) throws -> String {
+        do {
+            return try OnDeviceModelDigest.sha256(of: url)
+        } catch {
+            throw OnDeviceModelStorageError.fileSystem(error.localizedDescription)
+        }
     }
 
     private func fileSize(at url: URL) -> Int64? {

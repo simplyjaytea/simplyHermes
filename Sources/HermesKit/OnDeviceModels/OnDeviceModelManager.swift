@@ -24,7 +24,7 @@ public enum OnDeviceModelFailure: Sendable, Equatable {
     case network(String)
     /// Hugging Face answered with this HTTP status.
     case server(status: Int)
-    /// A finished file was the wrong size and was thrown away.
+    /// A finished file had the wrong size or SHA-256 and was thrown away.
     case damaged(file: String)
     /// The phone's file system refused a write.
     case storage(String)
@@ -349,6 +349,7 @@ public actor OnDeviceModelManager {
         case ModelFileDownloadError.network(let message, _): return .network(message)
         case ModelFileDownloadError.fileSystem(let message): return .storage(message)
         case OnDeviceModelStorageError.sizeMismatch(let path, _, _): return .damaged(file: path)
+        case OnDeviceModelStorageError.digestMismatch(let path): return .damaged(file: path)
         case OnDeviceModelStorageError.incomplete(let path): return .damaged(file: path)
         case OnDeviceModelStorageError.unsafePath(let path): return .damaged(file: path)
         case OnDeviceModelStorageError.fileSystem(let message): return .storage(message)

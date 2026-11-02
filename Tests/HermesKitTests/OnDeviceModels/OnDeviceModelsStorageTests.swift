@@ -44,10 +44,41 @@ struct OnDeviceModelsStorageTests {
         #expect(!env.storage.hasPartialFile(file, of: alpha))
     }
 
+    @Test func storeRejectsADigestMismatchAndDeletesTheFile() throws {
+        let env = TestEnvironment()
+        try env.storage.preparePartialFolder(for: alpha)
+        let file = alpha.files[0]
+        // The right size with other content: a size check alone would let this through to MLX.
+        let temporary = try env.makeTemporaryFile(bytes: file.bytes)
+        try Data(repeating: 0xFF, count: Int(file.bytes)).write(to: temporary)
+        #expect(throws: OnDeviceModelStorageError.digestMismatch(path: file.path)) {
+            try env.storage.store(temporary, as: file, of: alpha)
+        }
+        #expect(!FileManager.default.fileExists(atPath: temporary.path))
+        #expect(!env.storage.hasPartialFile(file, of: alpha))
+    }
+
+    @Test func completeChecksEveryDigestAgain() throws {
+        let env = TestEnvironment()
+        try env.storage.preparePartialFolder(for: alpha)
+        for file in alpha.files {
+            try env.storage.store(env.makeTemporaryFile(bytes: file.bytes), as: file, of: alpha)
+        }
+        // Changed on disk after it was stored, with the same size.
+        let weights = env.storage.partialFolder(for: alpha).appendingPathComponent("model.safetensors")
+        try Data(repeating: 0xFF, count: 100).write(to: weights)
+        #expect(throws: OnDeviceModelStorageError.digestMismatch(path: "model.safetensors")) {
+            try env.storage.complete(alpha)
+        }
+        #expect(!env.storage.isDownloaded(alpha))
+        #expect(!env.storage.hasPartialFile(alpha.files[1], of: alpha))
+        #expect(env.storage.hasPartialFile(alpha.files[0], of: alpha))
+    }
+
     @Test func storeRejectsPathsThatLeaveTheFolder() throws {
         let env = TestEnvironment()
         try env.storage.preparePartialFolder(for: alpha)
-        let evil = OnDeviceModelFile("../escape.json", 4)
+        let evil = OnDeviceModelFile.zeros("../escape.json", 4)
         let temporary = try env.makeTemporaryFile(bytes: 4)
         #expect(throws: OnDeviceModelStorageError.unsafePath("../escape.json")) {
             try env.storage.store(temporary, as: evil, of: alpha)
@@ -81,6 +112,31 @@ struct OnDeviceModelsStorageTests {
         let weights = env.storage.folder(for: alpha).appendingPathComponent("model.safetensors")
         try Data(count: 5).write(to: weights)
         #expect(!env.storage.isDownloaded(alpha))
+    }
+
+    @Test func aFinishedModelWithoutDigestsIsNotDownloaded() throws {
+        let env = TestEnvironment()
+        try env.installFinished(alpha)
+        // The manifest a version before digests wrote: same id, revision and size, no digests.
+        let legacy = #"{"id":"alpha","revision":"\#(alpha.revision)","bytes":110}"#
+        try Data(legacy.utf8).write(to: env.storage.folder(for: alpha).appendingPathComponent(".complete.json"))
+        #expect(!env.storage.isDownloaded(alpha))
+    }
+
+    @Test func aFinishedModelWithAChangedDigestIsNotDownloaded() throws {
+        let env = TestEnvironment()
+        try env.installFinished(alpha)
+        let config = alpha.files[0]
+        let repinned = OnDeviceModel(
+            id: alpha.id, displayName: alpha.displayName, summary: alpha.summary, repository: alpha.repository,
+            revision: alpha.revision,
+            files: [
+                OnDeviceModelFile(config.path, config.bytes, sha256: OnDeviceModelDigest.sha256(of: Data("x".utf8))),
+                alpha.files[1],
+            ],
+            license: alpha.license)
+        #expect(env.storage.isDownloaded(alpha))
+        #expect(!env.storage.isDownloaded(repinned))
     }
 
     @Test func aFinishedModelFromAnotherRevisionIsNotDownloaded() throws {

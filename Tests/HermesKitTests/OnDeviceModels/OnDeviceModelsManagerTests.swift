@@ -345,6 +345,20 @@ struct OnDeviceModelsManagerTests {
         #expect(configCalls == [Data("stale".utf8), nil])
     }
 
+    @Test func aFileOfTheRightSizeWithTheWrongDigestIsDiscardedAndMarkedDamaged() async {
+        let harness = Harness()
+        harness.downloader.script(alpha, "model.safetensors", .wrongContent)
+        await harness.manager.start("alpha")
+        #expect(await harness.waitForFailure("alpha"))
+        #expect(
+            await harness.manager.state(of: "alpha")
+                == .failed(.damaged(file: "model.safetensors"), progress(10, of: 110)))
+        #expect(!harness.env.storage.hasPartialFile(alpha.files[1], of: alpha))
+        #expect(harness.env.storage.hasPartialFile(alpha.files[0], of: alpha))
+        await harness.manager.start("alpha")
+        #expect(await harness.waitForDownloaded("alpha"))
+    }
+
     @Test func aFileOfTheWrongSizeIsDiscardedAndMarkedDamaged() async {
         let harness = Harness()
         harness.downloader.script(alpha, "config.json", .wrongSize(11))

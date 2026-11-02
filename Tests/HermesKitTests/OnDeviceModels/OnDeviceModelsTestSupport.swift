@@ -2,17 +2,24 @@ import Foundation
 
 @testable import HermesKit
 
+extension OnDeviceModelFile {
+    /// A file whose content is `bytes` zero bytes, the way `MockModelDownloader` and `TestEnvironment` write it.
+    static func zeros(_ path: String, _ bytes: Int64) -> OnDeviceModelFile {
+        OnDeviceModelFile(path, bytes, sha256: OnDeviceModelDigest.sha256(of: Data(count: Int(bytes))))
+    }
+}
+
 /// Two tiny models, so tests move bytes in the tens, not gigabytes.
 enum TestModels {
     static let alpha = OnDeviceModel(
         id: "alpha", displayName: "Alpha", summary: "The first.", repository: "test/alpha",
         revision: String(repeating: "a", count: 40),
-        files: [OnDeviceModelFile("config.json", 10), OnDeviceModelFile("model.safetensors", 100)],
+        files: [OnDeviceModelFile.zeros("config.json", 10), OnDeviceModelFile.zeros("model.safetensors", 100)],
         license: "MIT", stopTokens: ["<end>"])
     static let beta = OnDeviceModel(
         id: "beta", displayName: "Beta", summary: "The second.", repository: "test/beta",
         revision: String(repeating: "b", count: 40),
-        files: [OnDeviceModelFile("config.json", 10), OnDeviceModelFile("model.safetensors", 50)],
+        files: [OnDeviceModelFile.zeros("config.json", 10), OnDeviceModelFile.zeros("model.safetensors", 50)],
         license: "MIT", isRecommended: true)
     static let catalog = OnDeviceModelCatalog(models: [alpha, beta])
 }
@@ -73,6 +80,8 @@ final class MockModelDownloader: ModelFileDownloader, @unchecked Sendable {
         case succeed
         /// Succeeds, but the file has a different size than the catalog says.
         case wrongSize(Int64)
+        /// Succeeds with the catalog's size, but every byte differs from the zeros the catalog's digest is for.
+        case wrongContent
         case failStatus(Int)
         case failNetwork(String, resumeData: Data?)
         case failFileSystem(String)
@@ -138,6 +147,10 @@ final class MockModelDownloader: ModelFileDownloader, @unchecked Sendable {
             return try makeFile(bytes: size)
         case .wrongSize(let bytes):
             return try makeFile(bytes: bytes)
+        case .wrongContent:
+            let url = try makeFile(bytes: size)
+            try Data(repeating: 0xFF, count: Int(size)).write(to: url)
+            return url
         case .failStatus(let status):
             throw ModelFileDownloadError.badStatus(status)
         case .failNetwork(let message, let data):
