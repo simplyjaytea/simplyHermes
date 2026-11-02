@@ -26,7 +26,7 @@
             .foregroundStyle(palette.primaryText)
             .padding(.horizontal, 10)
             .frame(minHeight: 24)
-            .background(Capsule().fill(ink.opacity(0.12)))
+            .background(Capsule().fill(ink.opacity(PresetPaletteDefinition.pillTintAlpha)))
             .accessibilityElement(children: .combine)
             .accessibilityLabel(Text(PillPresentation.voiceOverLabel(pill, serverName: serverName)))
             .accessibilityHint(Text("Shows details about this chat."))

@@ -111,8 +111,8 @@ struct AppearanceSettingsTests {
 
                 // The status inks colour the pill's symbol on the background, so each must meet AA in every variant (WP-8, §2.3).
                 for key in [
-                    "statusOnlineInkOnBackground", "statusLocalInkOnBackground",
-                    "statusWarningInkOnBackground", "statusProblemInkOnBackground",
+                    "statusOnlineInkOnPill", "statusLocalInkOnPill",
+                    "statusWarningInkOnPill", "statusProblemInkOnPill",
                 ] {
                     let ratio = try #require(checks[key])
                     #expect(
