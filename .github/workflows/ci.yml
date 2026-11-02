@@ -44,10 +44,13 @@ jobs:
     container: swift:6.1
     steps:
       - uses: actions/checkout@v4
-      - name: System SQLite for GRDB
-        run: apt-get update && apt-get install -y libsqlite3-dev
+      - name: System SQLite for GRDB, and Python for the CI scripts
+        # The swift image has no python3; tools/ci/check_assistant_rows.py needs it.
+        run: apt-get update && apt-get install -y libsqlite3-dev python3
       - name: Format lint
         run: swift format lint --strict -r Sources Tests App
+      - name: Assistant rows come only from model output (AT-4a source lint)
+        run: python3 -I tools/ci/check_assistant_rows.py
       - name: Build
         run: swift build
       - name: Test
@@ -211,6 +214,23 @@ jobs:
           udid="${{ steps.sim.outputs.udid }}"
           xcrun simctl boot "$udid" || true
           xcrun simctl bootstatus "$udid" -b
+      - name: Boot simulator
+        # The hosted iOS 27.1 runtime sometimes cannot boot a device, and xcodebuild then fails the Test step with no
+        # test run (runs 41365833433, 41385043820). Boot it here, erase and retry, and name the failure if it persists.
+        run: |
+          udid="${{ steps.sim.outputs.udid }}"
+          for attempt in 1 2 3; do
+            xcrun simctl boot "$udid" 2>/dev/null || true
+            if xcrun simctl bootstatus "$udid" -b; then
+              exit 0
+            fi
+            echo "Attempt $attempt: simulator $udid did not boot. Erasing it and trying again."
+            xcrun simctl shutdown "$udid" 2>/dev/null || true
+            xcrun simctl erase "$udid" 2>/dev/null || true
+            sleep 15
+          done
+          echo "::error::Simulator $udid did not boot after 3 attempts. This is the runner, not the app."
+          exit 1
       - name: Test
         env:
           # xcodebuild passes TEST_RUNNER_* variables to the UI test runner without the prefix.
@@ -293,6 +313,35 @@ jobs:
           cp -R "$app" build/ipa/Payload/
           (cd build/ipa && zip -qr simplyHermes-unsigned.ipa Payload && rm -rf Payload)
           ls -l build/ipa
+      - name: No sample conversation text in the Release app (AT-4a)
+        # Every assistant message must come from Hermes or the on-device model. The sample chats, their fake replies
+        # and the fake approval are DEBUG-only; this fails if any of their text reaches the Release build.
+        run: |
+          set -eo pipefail
+          app=$(find build/ddi/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1 | head -1)
+          found=0
+          for text in "Backup cron fix" "Blog post draft" "Router firmware" "ssh-copy-id backup@nas.local" \
+            "The NAS rejected the SSH key" "Checked the logs and the config"; do
+            if grep -r -a -l -F -- "$text" "$app"; then
+              echo "::error::Release app contains sample text: $text"
+              found=1
+            fi
+          done
+          # The demo stream and the sample data must not be compiled into Release (AT-4a). Read the symbol table, and
+          # first prove it is readable, so a stripped binary cannot pass this check without looking.
+          exe="$app/$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$app/Info.plist")"
+          xcrun nm "$exe" | xcrun swift-demangle > "$RUNNER_TEMP/release-symbols.txt"
+          if ! grep -q -F "HermesKit.ChatSessionController" "$RUNNER_TEMP/release-symbols.txt"; then
+            echo "::error::Release symbols are unreadable (stripped?), so AT-4a cannot check them."
+            exit 1
+          fi
+          for symbol in "startDemoStream(" "appendWord(" "sampleTranscript(" "sampleSessions"; do
+            if grep -F -m 3 -- "$symbol" "$RUNNER_TEMP/release-symbols.txt"; then
+              echo "::error::Release app contains the DEBUG-only symbol $symbol"
+              found=1
+            fi
+          done
+          exit $found
       - name: Upload unsigned .ipa
         uses: actions/upload-artifact@v4
         with:

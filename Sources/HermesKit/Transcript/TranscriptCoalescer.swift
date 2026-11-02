@@ -50,6 +50,7 @@ extension TranscriptAction {
         case .event(let envelope, let replayed): self = .event(envelope, replayed: replayed)
         case .sessionReattached(_, let result, .cold): self = .attached(result)
         case .replayTruncated(_, let latestSeq): self = .replayTruncated(latestSeq: latestSeq)
+        case .resyncFailed(_, let message): self = .resyncFailed(message: message)
         case .openRequestReplayed(_, let request): self = .openRequestReplayed(request)
         default: return nil
         }

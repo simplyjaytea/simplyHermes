@@ -308,7 +308,21 @@
 
 #if canImport(UIKit)
     extension WidgetSnapshot {
-        /// Widget gallery placeholder and snapshot-test data.
+        /// The widget's placeholder while no snapshot exists. It shows no conversation, approval or reply: a release
+        /// build must not carry fake chat text (canned-content audit C9).
+        public static func placeholder(now: Date) -> WidgetSnapshot {
+            WidgetSnapshot(
+                bots: [.init(id: "placeholder", name: "Your bot", isActive: false, statusLine: "Idle")],
+                approvals: [],
+                updatedAt: now
+            )
+        }
+    }
+#endif
+
+#if canImport(UIKit) && DEBUG
+    extension WidgetSnapshot {
+        /// Snapshot-test data only. It is not compiled into release builds.
         public static func sample(now: Date) -> WidgetSnapshot {
             WidgetSnapshot(
                 bots: [

@@ -8,7 +8,7 @@ final class HermesAppUITests: XCTestCase {
     @MainActor
     func testLaunchOpensChatFirst() {
         let app = XCUIApplication()
-        app.launchArguments += ["-HermesOnboarding", "skip"]
+        app.launchArguments += ["-HermesOnboarding", "skip", "-HermesSampleChats", "YES"]
         app.launchArguments += ["-HermesLayout", "compact"]
         app.launch()
         XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 10))
@@ -18,7 +18,7 @@ final class HermesAppUITests: XCTestCase {
     @MainActor
     func testInnerScreenShowsSidebar() {
         let app = XCUIApplication()
-        app.launchArguments += ["-HermesOnboarding", "skip"]
+        app.launchArguments += ["-HermesOnboarding", "skip", "-HermesSampleChats", "YES"]
         app.launchArguments += ["-HermesLayout", "innerPortrait"]
         app.launch()
         XCTAssertTrue(element(app, "transcript").waitForExistence(timeout: 10))
@@ -30,7 +30,7 @@ final class HermesAppUITests: XCTestCase {
     @MainActor
     func testFoldMidStreamKeepsSessionScrollAndDraft() {
         let app = XCUIApplication()
-        app.launchArguments += ["-HermesOnboarding", "skip"]
+        app.launchArguments += ["-HermesOnboarding", "skip", "-HermesSampleChats", "YES"]
         app.launchArguments += [
             "-HermesLayout", "compact",
             "-HermesDebugLayoutSwitcher", "YES",
@@ -87,7 +87,7 @@ final class HermesAppUITests: XCTestCase {
     @MainActor
     func testTranscriptScrollHitches() {
         let app = XCUIApplication()
-        app.launchArguments += ["-HermesOnboarding", "skip"]
+        app.launchArguments += ["-HermesOnboarding", "skip", "-HermesSampleChats", "YES"]
         app.launchArguments += ["-HermesLayout", "compact"]
         app.launch()
         let transcript = transcriptScrollView(app)

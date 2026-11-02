@@ -19,12 +19,14 @@ private struct Rig {
     }
 
     /// Connects the first socket, tracks session `s1` at watermark 5, then drops it and reconnects on `second`.
-    func dropAndReconnect(first: FakeSocket, second: FakeSocket, watermark: Int = 5) async throws {
+    func dropAndReconnect(
+        first: FakeSocket, second: FakeSocket, watermark: Int = 5, profile: String? = nil
+    ) async throws {
         first.serve()
         transport.enqueue(.socket(first))
         await client.start()
         try await waitUntil("first connected") { log.states.contains(.connected) }
-        await client.track(liveID: "s1", storedID: "stored-1", watermark: watermark)
+        await client.track(liveID: "s1", storedID: "stored-1", watermark: watermark, profile: profile)
         transport.enqueue(.socket(second))
         first.drop()
         try await waitUntil("waiting") { !log.waits.isEmpty }
@@ -230,6 +232,27 @@ private struct Rig {
         try await waitUntil("failure") {
             rig.log.all.contains { if case .resyncFailed("s1", _) = $0 { true } else { false } }
         }
+        await rig.client.stop()
+    }
+
+    @Test func resyncCarriesTheProfileTheSessionWasPinnedTo() async throws {
+        let rig = await Rig()
+        let first = FakeSocket()
+        let second = FakeSocket()
+        second.serve { frame in
+            guard let id = frame.id else { return [] }
+            switch frame.method {
+            case "session.activate": return [Frames.result(id: id, Frames.attach(live: "s1", stored: "stored-1"))]
+            case "session.events.since": return [Frames.result(id: id, Frames.since(events: [], latest: 5))]
+            default: return []
+            }
+        }
+        // The client's profile moves on (another bot was opened). The pinned chat's re-attach must not follow it.
+        try await rig.dropAndReconnect(first: first, second: second, profile: "ops")
+        await rig.client.setProfile("other-bot")
+        try await waitUntil("resynced") { !second.requests("session.events.since").isEmpty }
+        #expect(second.requests("session.activate").first?.params?["profile"] as? String == "ops")
+        #expect(second.requests("session.events.since").first?.params?["profile"] as? String == "ops")
         await rig.client.stop()
     }
 }
