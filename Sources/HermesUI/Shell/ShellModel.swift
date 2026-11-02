@@ -289,7 +289,7 @@
             deletes.delete(id: id, title: session.title) { [weak self] in
                 try await store?.deleteChat(chatID)
                 self?.forget(id)
-                return 0
+                return .deleted(discardedMessages: 0)
             }
         }
 

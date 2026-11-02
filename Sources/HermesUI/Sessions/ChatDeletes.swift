@@ -16,6 +16,11 @@
         public private(set) var hiddenIDs: Set<String> = []
         /// Why the last delete failed. The chat is back in its list; the toast shows this until dismissed.
         public private(set) var errorText: String?
+        /// A quiet note after a delete that worked but left saved data to clear at the next launch.
+        public private(set) var noticeText: String?
+
+        static let cleanupPendingNotice =
+            "Chat deleted. Some saved data couldn't be cleared and will be cleaned up on next launch."
 
         @ObservationIgnored private let queue: ChatDeleteQueue
         @ObservationIgnored private var timer: Task<Void, Never>?
@@ -24,17 +29,28 @@
             self.queue = queue
         }
 
-        /// Hides a chat and starts its Undo window. `commit` runs the real delete when the window ends and returns how
-        /// many waiting messages went with it.
+        /// Hides a chat, pauses its outbox and starts its Undo window. `countWaiting` runs after the pause, so the toast
+        /// never counts a message that already went out. `commit` runs the real delete when the window ends.
         public func delete(
-            id: String, title: String, waitingMessages: Int = 0, commit: @escaping ChatDeleteQueue.Commit
+            id: String, title: String, countWaiting: (@MainActor () async -> Int)? = nil,
+            commit: @escaping ChatDeleteQueue.Commit
         ) {
-            guard let item = queue.delete(id: id, title: title, waitingMessages: waitingMessages, commit: commit)
-            else { return }
+            guard queue.delete(id: id, title: title, commit: commit) != nil else { return }
             errorText = nil
+            noticeText = nil
             sync()
-            AccessibilityNotification.Announcement(item.announcement).post()
             schedule()
+            Task { [weak self] in
+                if let countWaiting {
+                    let count = await countWaiting()
+                    self?.queue.setWaitingMessages(id, count)
+                    self?.sync()
+                }
+                // Announce the final text once, with the count when there is one.
+                if let item = self?.queue.pending.first(where: { $0.id == id }) {
+                    AccessibilityNotification.Announcement(item.announcement).post()
+                }
+            }
         }
 
         /// Undo on the toast: the newest pending chat comes back.
@@ -62,6 +78,7 @@
 
         public func dismissError() {
             errorText = nil
+            noticeText = nil
         }
 
         private func sync() {
@@ -84,9 +101,17 @@
         private func runDue() async {
             let outcomes = await queue.tick()
             sync()
-            for case .restored(_, let title, let reason) in outcomes {
-                errorText = "Couldn't delete “\(title)”: \(reason) It's back in the list."
-                AccessibilityNotification.Announcement(errorText ?? "").post()
+            for outcome in outcomes {
+                switch outcome {
+                case .restored(_, let title, let reason):
+                    errorText = "Couldn't delete “\(title)”: \(reason) It's back in the list."
+                    AccessibilityNotification.Announcement(errorText ?? "").post()
+                case .deletedCleanupPending:
+                    noticeText = Self.cleanupPendingNotice
+                    AccessibilityNotification.Announcement(Self.cleanupPendingNotice).post()
+                case .deleted:
+                    break
+                }
             }
             schedule()
         }
@@ -115,7 +140,7 @@
                     .accessibilityIdentifier("chatDelete.toast")
                     .accessibilityFocused($isFocused)
                     .id(pending.id)
-                } else if let error = deletes.errorText {
+                } else if let error = deletes.errorText ?? deletes.noticeText {
                     toast(error) {
                         Button("OK") { deletes.dismissError() }
                             .buttonStyle(HermesButtonStyle(.tinted, fillsWidth: false))

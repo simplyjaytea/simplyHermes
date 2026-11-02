@@ -75,7 +75,9 @@ public actor OutboxDrainer {
         for record in try await store.records(inChat: chatID) {
             // A cancelled drain sends nothing more. The message in flight, if any, is already recorded.
             if Task.isCancelled { return }
-            // The chat is waiting out its Undo window after Delete: nothing more goes to it until Undo resumes it.
+            // The chat is waiting out its Undo window after Delete: nothing more goes to it until Undo resumes it. The
+            // check and the move to `sending` below are not one step, so a pause that lands in between lets this one
+            // message go out. That is safe: it is sent, not lost (see OutboxPauses).
             if pauses.isPaused(chatID) { return }
             // A failed or stuck message holds back the ones written after it, so they keep the order the user wrote.
             if case .failed = record.state { return }

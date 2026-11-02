@@ -38,7 +38,7 @@ struct ChatDeleteQueueTests {
     private func commit(_ id: String, _ log: Log, discarded: Int = 0) -> ChatDeleteQueue.Commit {
         {
             log.deleted.append(id)
-            return discarded
+            return .deleted(discardedMessages: discarded)
         }
     }
 
@@ -168,7 +168,7 @@ struct ChatDeleteQueueTests {
         var seenWhileRunning: Set<String> = []
         subject.delete(id: "s1", title: "Trip") {
             seenWhileRunning = subject.hiddenIDs
-            return 0
+            return .deleted(discardedMessages: 0)
         }
         clock.advance(ChatDeleteQueue.window)
         _ = await subject.tick()
@@ -181,8 +181,8 @@ struct ChatDeleteQueueTests {
 struct ChatDeleteOutboxTests {
     private let start = Date(timeIntervalSince1970: 1_800_000_000)
 
-    private func record(_ text: String, chat: String) -> OutboundRecord {
-        OutboundRecord(connectionID: "x", chatID: chat, text: text, createdAt: start)
+    private func record(_ text: String, chat: String, connection: String = "x") -> OutboundRecord {
+        OutboundRecord(connectionID: connection, chatID: chat, text: text, createdAt: start)
     }
 
     @Test func aPausedChatSendsNothingAndResumeLetsItGo() async throws {
@@ -203,24 +203,32 @@ struct ChatDeleteOutboxTests {
         #expect(await submitter.delivered == ["b", "a"])
     }
 
-    @Test func removeChatPurgesOneChatAndCountsWhatWasWaiting() async throws {
+    @Test func removeChatPurgesOneServersChatAndCountsWhatWasWaiting() async throws {
         let cache = try HermesCache()
         let store = cache.outbox
         let sent = record("sent", chat: "c1")
         let failed = record("failed", chat: "c1")
-        for item in [sent, failed, record("pending", chat: "c1"), record("other", chat: "c2")] {
+        let sending = record("sending", chat: "c1")
+        for item in [
+            sent, failed, sending, record("pending", chat: "c1"), record("other chat", chat: "c2"),
+            record("other server", chat: "c1", connection: "y"),
+        ] {
             try await store.insert(item)
         }
         try await store.updateState(.sending, forID: sent.id)
         try await store.updateState(.sent(acknowledgedAt: start), forID: sent.id)
         try await store.updateState(.sending, forID: failed.id)
         try await store.updateState(.failed(reason: "no"), forID: failed.id)
-        #expect(try await store.waitingCount(inChat: "c1") == 2)
+        try await store.updateState(.sending, forID: sending.id)
+        // m2: only pending and failed count; a message already going out is never promised as discarded.
+        #expect(try await store.waitingCount(inChat: "c1", connection: "x") == 2)
 
-        #expect(try await store.removeChat("c1") == 2, "The sent message isn't counted as discarded")
-        #expect(try await store.records(inChat: "c1").isEmpty)
+        #expect(try await store.removeChat("c1", connection: "x") == 2, "Sent and sending aren't counted")
+        // m3: the other server's chat with the same id keeps its message.
+        #expect(try await store.records(inChat: "c1").map(\.text) == ["other server"])
         #expect(try await store.records(inChat: "c2").count == 1, "Other chats are untouched")
-        #expect(try await store.removeChat("c1") == 0)
+        #expect(try await store.removeChat("c1", connection: "x") == 0)
+        #expect(try await store.waitingCount(inChat: "c1", connection: "y") == 1)
     }
 
     @Test @MainActor func aCompletedDeletePurgesTheOutboxAndReportsTheCount() async throws {
@@ -230,8 +238,12 @@ struct ChatDeleteOutboxTests {
         var now = start
         let pauses = OutboxPauses()
         let subject = ChatDeleteQueue(now: { now }, pauses: pauses)
-        let waiting = try await store.waitingCount(inChat: "s1")
-        subject.delete(id: "s1", title: "Trip", waitingMessages: waiting) { try await store.removeChat("s1") }
+        subject.delete(id: "s1", title: "Trip") {
+            .deleted(discardedMessages: try await store.removeChat("s1", connection: "x"))
+        }
+        // m2: counted after the pause started.
+        #expect(pauses.isPaused("s1"))
+        subject.setWaitingMessages("s1", try await store.waitingCount(inChat: "s1", connection: "x"))
         #expect(subject.latest?.message == "Chat deleted · 1 waiting message discarded")
         #expect(pauses.isPaused("s1"))
         now = now.addingTimeInterval(ChatDeleteQueue.window)
@@ -245,10 +257,84 @@ struct ChatDeleteOutboxTests {
         try await store.insert(record("waiting", chat: "s1"))
         var now = start
         let subject = ChatDeleteQueue(now: { now }, pauses: OutboxPauses())
-        subject.delete(id: "s1", title: "Trip", waitingMessages: 1) { try await store.removeChat("s1") }
+        subject.delete(id: "s1", title: "Trip", waitingMessages: 1) {
+            .deleted(discardedMessages: try await store.removeChat("s1", connection: "x"))
+        }
         subject.undo("s1")
         now = now.addingTimeInterval(60)
         _ = await subject.tick()
         #expect(try await store.records(inChat: "s1").map(\.text) == ["waiting"], "Never lose a message")
     }
+
+    /// M1: the server delete worked but the purge failed. The chat never comes back, stays paused, and nothing is sent
+    /// to it; the tombstone lets the next launch finish the purge.
+    @Test @MainActor func aFailedPurgeAfterTheServerDeleteKeepsTheChatGoneAndPaused() async throws {
+        let cache = try HermesCache()
+        try await cache.outbox.insert(record("waiting", chat: "s1"))
+        var now = start
+        let pauses = OutboxPauses()
+        let defaults = UserDefaults(suiteName: "tombstones-\(UUID().uuidString)")!
+        let tombstones = OutboxTombstones(defaults: defaults)
+        let entry = OutboxTombstones.Entry(connection: "x", chatID: "s1")
+        let subject = ChatDeleteQueue(now: { now }, pauses: pauses)
+        subject.delete(id: "s1", title: "Trip") {
+            // The server delete succeeded (nothing thrown before this point), then the purge fails.
+            tombstones.add(entry)
+            return .deletedCleanupPending
+        }
+        now = now.addingTimeInterval(ChatDeleteQueue.window)
+        #expect(await subject.tick() == [.deletedCleanupPending(id: "s1")])
+        #expect(subject.hiddenIDs == ["s1"], "The row stays hidden; it is not 'back in the list'")
+        #expect(pauses.isPaused("s1"), "The pause holds")
+        let submitter = CountingSubmitter()
+        try await OutboxDrainer(store: cache.outbox, chatID: "s1", submitter: submitter, pauses: pauses).drain()
+        #expect(await submitter.delivered.isEmpty, "Nothing is submitted to a deleted chat")
+        #expect(tombstones.entries == [entry])
+    }
+
+    /// m1: the launch sweep finishes a purge left by a failure or a crash between the server delete and the purge. It
+    /// touches only tombstoned chats of that server.
+    @Test func theLaunchSweepPurgesOnlyTombstonedChats() async throws {
+        let cache = try HermesCache()
+        let store = cache.outbox
+        for item in [
+            record("deleted chat", chat: "s1"), record("live chat", chat: "s2"),
+            record("same id, other server", chat: "s1", connection: "y"),
+        ] {
+            try await store.insert(item)
+        }
+        let defaults = UserDefaults(suiteName: "tombstones-\(UUID().uuidString)")!
+        let tombstones = OutboxTombstones(defaults: defaults)
+        tombstones.add(.init(connection: "x", chatID: "s1"))
+        // As after a relaunch: a new value over the same defaults.
+        let relaunched = OutboxTombstones(defaults: defaults)
+        #expect(relaunched.entries.count == 1)
+        #expect(await relaunched.sweep(store: store) == 1)
+        #expect(try await store.records(inChat: "s1").map(\.text) == ["same id, other server"])
+        #expect(try await store.records(inChat: "s2").map(\.text) == ["live chat"], "A live chat is never swept")
+        #expect(relaunched.entries.isEmpty)
+    }
+
+    @Test func aSweepThatFailsKeepsItsTombstone() async {
+        let defaults = UserDefaults(suiteName: "tombstones-\(UUID().uuidString)")!
+        let tombstones = OutboxTombstones(defaults: defaults)
+        let entry = OutboxTombstones.Entry(connection: "x", chatID: "s1")
+        tombstones.add(entry)
+        #expect(await tombstones.sweep(store: FailingPurgeStore()) == 0)
+        #expect(tombstones.entries == [entry])
+    }
+}
+
+/// An outbox whose purge always fails, for the sweep's failure path.
+private struct FailingPurgeStore: OutboxStore {
+    struct Failed: Error {}
+    func insert(_ record: OutboundRecord) async throws { throw Failed() }
+    func updateState(_ state: DeliveryState, forID id: UUID) async throws -> OutboundRecord { throw Failed() }
+    func updateState(
+        _ state: DeliveryState, forID id: UUID, ifCurrently current: DeliveryKind
+    ) async throws -> OutboundRecord { throw Failed() }
+    func records(inChat chatID: String) async throws -> [OutboundRecord] { [] }
+    func pruneSent(inChat chatID: String) async throws -> Int { 0 }
+    func remove(id: UUID, ifCurrently current: DeliveryKind) async throws { throw Failed() }
+    func removeChat(_ chatID: String, connection: String) async throws -> Int { throw Failed() }
 }

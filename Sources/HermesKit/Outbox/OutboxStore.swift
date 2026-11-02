@@ -39,15 +39,19 @@ public protocol OutboxStore: Sendable {
     /// Deletes one message only while it is in the state `current`. A message that is being sent cannot be deleted.
     func remove(id: UUID, ifCurrently current: DeliveryKind) async throws
 
-    /// Deletes every message of a chat in one write, for a chat the user deleted. Returns how many of them the server
-    /// didn't have yet (any state but `sent`), so the app can say how many waiting messages were discarded.
+    /// Deletes every message of one server's chat in one write, for a chat the user deleted. Two servers can reuse a
+    /// chat id, so `connection` scopes it: another server's messages are never touched. Returns how many of the
+    /// removed messages were waiting (pending or failed), so the app can say how many were discarded.
     @discardableResult
-    func removeChat(_ chatID: String) async throws -> Int
+    func removeChat(_ chatID: String, connection: String) async throws -> Int
 }
 
 extension OutboxStore {
-    /// How many of a chat's messages the server doesn't have yet: pending, sending or failed.
-    public func waitingCount(inChat chatID: String) async throws -> Int {
-        try await records(inChat: chatID).filter { $0.state.kind != .sent }.count
+    /// How many of one server's chat messages are waiting: pending or failed. A message already sending is not counted,
+    /// so the Undo toast never promises to discard a message that is going out.
+    public func waitingCount(inChat chatID: String, connection: String) async throws -> Int {
+        try await records(inChat: chatID).filter {
+            $0.connectionID == connection && ($0.state.kind == .pending || $0.state.kind == .failed)
+        }.count
     }
 }
