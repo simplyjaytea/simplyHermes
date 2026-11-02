@@ -41,8 +41,10 @@ final class LocalChatUITests: XCTestCase {
         app.launchArguments += arguments
         app.launch()
 
-        let newChat = app.buttons["New chat"].firstMatch
+        // The toolbar button carries the identifier. A label lookup would also match the hidden keyboard-shortcut button.
+        let newChat = app.buttons.matching(identifier: "shell.newChat").firstMatch
         XCTAssertTrue(newChat.waitForExistence(timeout: 15), "New chat should be in the shell")
+        XCTAssertTrue(newChat.isHittable, "New chat should be on screen")
         newChat.tap()
 
         for (index, text) in messages.enumerated() {

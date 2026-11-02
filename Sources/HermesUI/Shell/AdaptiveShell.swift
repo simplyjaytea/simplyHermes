@@ -472,6 +472,7 @@
                 } label: {
                     Label("New chat", systemImage: "square.and.pencil")
                 }
+                .accessibilityIdentifier("shell.newChat")
             }
         }
 
