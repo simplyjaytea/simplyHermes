@@ -70,19 +70,28 @@ fi
 SNAPSHOT="$(mktemp)"
 git ls-files --others --exclude-standard -z > "$SNAPSHOT"
 remove_compiler_debris() {
-    python3 -I - "$SNAPSHOT" <<'PY' || true
+    # Two sweeps: the second, about 2 seconds later, catches a file the compiler writes after the first one.
+    local pass
+    for pass in 1 2; do
+        python3 -I - "$SNAPSHOT" "$ROOT" <<'PY' || true
 import os, subprocess, sys
-before = set(open(sys.argv[1], "rb").read().split(b"\0"))
+snapshot, root = sys.argv[1], sys.argv[2]
+os.chdir(root)
+before = set(open(snapshot, "rb").read().split(b"\0"))
 listing = subprocess.run(
     ["git", "ls-files", "--others", "--exclude-standard", "-z"], capture_output=True, check=True
 ).stdout
+removed = 0
 for name in listing.split(b"\0"):
-    if not name or b"/" in name or name in before:
+    # Only untracked files directly in the package root, that were not there before the build started.
+    if not name or b"/" in name or name in before or not os.path.isfile(name):
         continue
-    if os.path.isfile(name):
-        os.remove(name)
-        print("prepush: removed stray root file created by the build", name)
+    os.remove(name)
+    removed += 1
+print(f"prepush: removed {removed} stray root file(s) created by the build")
 PY
+        if [ "$pass" -eq 1 ]; then sleep 2; fi
+    done
     rm -f "$SNAPSHOT"
 }
 trap remove_compiler_debris EXIT
