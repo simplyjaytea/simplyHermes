@@ -13,8 +13,8 @@ private func feedJSON(build: Int = 3, url: String = signulous, notes: String = "
         let config = AppUpdateConfig()
         #expect(
             config.feedURL.absoluteString
-                == "https://github.com/simplyjaytea/simplyHermes/releases/latest/download/version.json")
-        // The /latest/download redirect lands on these hosts, and release pages live on github.com.
+                == "https://github.com/simplyjaytea/simplyHermes/releases/download/app-update-feed/version.json")
+        // The release-asset download redirects to these hosts, and release pages live on github.com.
         for host in ["github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"] {
             #expect(config.allowedHosts.contains(host))
         }

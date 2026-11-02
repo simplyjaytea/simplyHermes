@@ -11,9 +11,10 @@ import Foundation
 /// (`HermesAppUpdateFeedURL`, `HermesAppUpdateInstallHosts`), so the feed and the Signulous host are configuration,
 /// not code.
 public struct AppUpdateConfig: Sendable, Equatable {
-    /// `version.json` on the latest GitHub release of the public repo. No sign-in needed.
+    /// `version.json` on the standing release `app-update-feed` of the public repo. A fixed tag, so a later full
+    /// release can't break the feed. No sign-in needed.
     public static let defaultFeedURL = URL(
-        string: "https://github.com/simplyjaytea/simplyHermes/releases/latest/download/version.json")!
+        string: "https://github.com/simplyjaytea/simplyHermes/releases/download/app-update-feed/version.json")!
     /// Hosts the feed redirect and GitHub release assets resolve to.
     public static let gitHubHosts: Set<String> = [
         "github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com",
