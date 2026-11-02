@@ -12,13 +12,35 @@ import SwiftUI
 /// - `-uiTestNetworkProbe` (with the trap) opens one real HTTP connection at launch, to a closed local port. The UI test
 ///   uses it as a positive control: the counter must read at least 1 when the probe runs, or the zero it reports for a
 ///   local chat means nothing.
+/// - `-uiTestPersistentCache` keeps the chat list on disk across launches, in a file of its own (`uitest-cache.sqlite`),
+///   even when the launch skips onboarding. `-uiTestResetCache` deletes that file before the first open.
 enum UITestSeams {
     #if DEBUG
         private static let executorPrefix = "-uiTestLocalExecutor="
         private static let trapFlag = "-uiTestNetworkTrap"
         private static let probeFlag = "-uiTestNetworkProbe"
+        private static let persistentFlag = "-uiTestPersistentCache"
+        private static let resetFlag = "-uiTestResetCache"
+        nonisolated(unsafe) private static var didResetCache = false
 
         private static var arguments: [String] { ProcessInfo.processInfo.arguments }
+
+        /// The test-only cache file, when the launch asks for a persistent cache; nil otherwise, so the app keeps its
+        /// usual choice. A reset deletes the file, with its write-ahead log, once per process.
+        static var persistentCacheURL: URL? {
+            guard arguments.contains(persistentFlag),
+                let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+                    .appendingPathComponent("simplyHermes", isDirectory: true)
+            else { return nil }
+            let url = folder.appendingPathComponent("uitest-cache.sqlite")
+            if arguments.contains(resetFlag), !didResetCache {
+                didResetCache = true
+                for suffix in ["", "-wal", "-shm"] {
+                    try? FileManager.default.removeItem(at: URL(fileURLWithPath: url.path + suffix))
+                }
+            }
+            return url
+        }
 
         /// The fake model's name, from `-uiTestLocalExecutor=<name>`.
         static var localExecutorName: String? {
@@ -55,6 +77,9 @@ enum UITestSeams {
         }
     #else
         static func install() {}
+
+        /// Release builds never keep a test cache.
+        static var persistentCacheURL: URL? { nil }
 
         @ViewBuilder
         static func readout() -> some View {

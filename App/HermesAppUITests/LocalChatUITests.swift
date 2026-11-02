@@ -30,15 +30,17 @@ final class LocalChatUITests: XCTestCase {
 
     @MainActor
     func testLocalChatWithNoServerAnswersOnDeviceAndKeepsItsMessages() {
-        // `skip` keeps the saved chat list on disk, so the relaunch below can find the chat again.
-        let arguments = [
+        // `-HermesOnboarding skip` gives no server and keeps the welcome screen away. Only `-uiTestPersistentCache`
+        // puts the chat list on disk, so the relaunch below finds the chat. The first launch also resets that file.
+        let app = XCUIApplication()
+        app.launchArguments += [
             "-HermesOnboarding", "skip",
             "-chatModeDefault", "local",
             "-uiTestNetworkTrap",
             "-uiTestLocalExecutor=\(fakeName)",
+            "-uiTestPersistentCache",
+            "-uiTestResetCache",
         ]
-        let app = XCUIApplication()
-        app.launchArguments += arguments
         app.launch()
 
         // The toolbar button carries the identifier. A label lookup would also match the hidden keyboard-shortcut button.
@@ -65,7 +67,9 @@ final class LocalChatUITests: XCTestCase {
         XCTAssertEqual(labels.firstMatch.label, "On this iPhone · \(fakeName)")
         XCTAssertEqual(element(app, "uiTest.networkRequests").label, "0", "A local chat must make no request")
 
+        // The relaunch keeps the same arguments, minus the reset: the saved chat must survive.
         app.terminate()
+        app.launchArguments.removeAll { $0 == "-uiTestResetCache" }
         app.launch()
 
         let row = app.descendants(matching: .any)
