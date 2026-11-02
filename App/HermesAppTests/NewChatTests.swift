@@ -69,13 +69,23 @@ struct NewChatTests {
         return id
     }
 
-    @Test func newChatWithoutServerMakesPlaceholder() {
+    @Test func newChatWithoutServerMakesPlaceholder() throws {
         let model = ShellModel(sessions: [], selectedSessionID: nil)
 
         model.newChat()
 
         #expect(model.selectedSessionID?.hasPrefix("new-") == true)
         #expect(model.serverSessionIDs.isEmpty)
+        // Nothing can be sent from it, so its composer stays disabled behind "Not connected".
+        #expect(try !model.canStartChat(#require(model.selectedSessionID)))
+    }
+
+    @Test func newChatWithServerCanStartFromItsComposer() throws {
+        let (model, _) = serverShell()
+
+        model.newChat()
+
+        #expect(try model.canStartChat(#require(model.selectedSessionID)))
     }
 
     @Test func newChatWithServerCreatesNothingUntilTheFirstMessage() {
@@ -128,7 +138,7 @@ struct NewChatTests {
     }
 
     @Test func failedFirstMessageKeepsTheOtherOpenChatsAndTheirDrafts() async throws {
-        let model = ShellModel(selectedSessionID: "blog")
+        let model = ShellModel(sessions: ShellModel.sampleSessions, selectedSessionID: "blog")
         model.drafts["blog"] = "half a thought"
         model.startServerChat = { throw Offline() }
         let id = try typeInNewChat("hello", in: model)

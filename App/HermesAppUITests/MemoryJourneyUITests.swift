@@ -12,6 +12,7 @@ final class MemoryJourneyUITests: XCTestCase {
     func testMemoryScreenShowsListOrEmptyState() {
         let app = XCUIApplication()
         app.launchArguments += ["-HermesScreen", "memory", "-HermesOnboarding", "skip", "-HermesLayout", "compact"]
+        app.launchArguments += ["-HermesSampleChats", "YES"]
         app.launch()
 
         let shown = NSPredicate(format: "identifier IN %@", ["memory.list", "memory.empty"])

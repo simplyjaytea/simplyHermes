@@ -4,7 +4,7 @@ import Testing
 @MainActor
 struct ApprovalAlertTests {
     @Test func approvalInAnotherChatAlerts() throws {
-        let model = ShellModel(selectedSessionID: "blog")
+        let model = ShellModel(sessions: ShellModel.sampleSessions, selectedSessionID: "blog")
 
         #expect(model.needsApproval("backup"))
         let alert = try #require(model.approvalAlerts.first)
@@ -13,21 +13,21 @@ struct ApprovalAlertTests {
     }
 
     @Test func approvalInOpenChatDoesNotAlert() {
-        let model = ShellModel(selectedSessionID: "backup")
+        let model = ShellModel(sessions: ShellModel.sampleSessions, selectedSessionID: "backup")
 
         #expect(model.needsApproval("backup"))
         #expect(model.approvalAlerts.isEmpty)
     }
 
     @Test func settingsSectionAlertsForEveryChat() {
-        let model = ShellModel(selectedSessionID: "backup")
+        let model = ShellModel(sessions: ShellModel.sampleSessions, selectedSessionID: "backup")
         model.selectedSection = .settings
 
         #expect(model.approvalAlerts.map(\.sessionID) == ["backup"])
     }
 
     @Test func openingAlertedChatClearsBannerButKeepsBadge() {
-        let model = ShellModel(selectedSessionID: "blog")
+        let model = ShellModel(sessions: ShellModel.sampleSessions, selectedSessionID: "blog")
 
         model.open("backup")
 
@@ -36,7 +36,7 @@ struct ApprovalAlertTests {
     }
 
     @Test func approveAnswersAndClearsApproval() throws {
-        let model = ShellModel(selectedSessionID: "blog")
+        let model = ShellModel(sessions: ShellModel.sampleSessions, selectedSessionID: "blog")
         let alert = try #require(model.approvalAlerts.first)
 
         model.answer(alert, approved: true)

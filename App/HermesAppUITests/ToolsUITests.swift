@@ -9,7 +9,7 @@ final class ToolsUITests: XCTestCase {
     @MainActor
     func testToolsTabOpensSkillsToolsetsAndPlugins() {
         let app = XCUIApplication()
-        app.launchArguments += ["-HermesOnboarding", "skip"]
+        app.launchArguments += ["-HermesOnboarding", "skip", "-HermesSampleChats", "YES"]
         app.launchArguments += ["-HermesLayout", "compact"]
         app.launch()
 

@@ -159,8 +159,28 @@
                         .id(item.id)
                         .accessibilityIdentifier("message.\(item.id)")
                     }
+                    if let note = chat.state.connectionNote {
+                        StatusNote(text: note)
+                    }
                     if let failure = chat.state.lastError, !chat.isRunning, !Self.lastRowShowsError(chat.state) {
-                        ErrorCard(error: ChatError.classify(failure), isLast: true, chat: chat)
+                        let error = ChatError.classify(failure)
+                        if error.layer == .network {
+                            // A connection problem is a status, not a failed turn (WP-4). Messages wait until it clears.
+                            StatusNote(
+                                text: String(localized: "Connection problem. Messages wait here until Hermes is back."))
+                        } else {
+                            ErrorCard(error: error, isLast: true, chat: chat)
+                        }
+                    }
+                    ForEach(chat.outboxRows) { record in
+                        OutboxRow(
+                            record: record,
+                            onRetry: { chat.retryOutbox(record.id) },
+                            onEdit: { editWaiting(record) },
+                            onDelete: { chat.deleteOutbox(record.id) })
+                    }
+                    if let outboxError = chat.outboxError {
+                        StatusNote(text: outboxError)
                     }
                     if !chat.state.subagents.isEmpty {
                         SubagentBlock(chat: chat)
@@ -397,17 +417,31 @@
             { trigger in await chat.complete(trigger) }
         }
 
+        /// Puts a waiting or failed message back in the composer, so the user can change it and send it again (WP-4).
+        private func editWaiting(_ record: OutboundRecord) {
+            let draft = model.drafts[sessionID, default: ""]
+            model.drafts[sessionID] =
+                draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? record.text : draft + "\n" + record.text
+            chat.deleteOutbox(record.id)
+        }
+
         private func send() {
             let text = model.drafts[sessionID, default: ""]
             let files = model.attachments[sessionID, default: []]
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !files.isEmpty else { return }
-            model.clearDraft(in: sessionID)
-            model.attachments[sessionID] = []
-            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                model.rememberSent(text, in: sessionID)
-            }
             isFollowing = true
-            chat.send(text, attachments: files)
+            // A second tap while this save runs is refused, so the same draft is not saved twice (review M5).
+            guard chat.beginComposerSend() else { return }
+            // The draft clears only once the message is saved (WP-3). Text typed meanwhile stays in the composer.
+            Task {
+                defer { chat.endComposerSend() }
+                guard await chat.send(text, attachments: files) else { return }
+                if model.drafts[sessionID, default: ""] == text { model.clearDraft(in: sessionID) }
+                if model.attachments[sessionID, default: []] == files { model.attachments[sessionID] = [] }
+                if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    model.rememberSent(text, in: sessionID)
+                }
+            }
         }
     }
 #endif
