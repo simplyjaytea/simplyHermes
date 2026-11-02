@@ -8,6 +8,9 @@ public enum ComposerSendOutcome: Sendable, Equatable {
     case prefill(String)
     /// Nothing went out: the session is not live, or Hermes is busy. The composer keeps the text and files.
     case notSent
+    /// A file or the prompt was refused, or the connection failed, so the message did not reach Hermes. The reason is
+    /// for the user. The transcript shows the failed attempt, and the composer keeps the text and files to send again.
+    case failed(String)
 }
 
 /// What the controller needs from a gateway connection. ``GatewayClient`` conforms; tests use a fake.
@@ -191,7 +194,9 @@ public actor ChatSessionController: OutboxSubmitter {
         }
         // A queue in memory would lose the message if the app stopped before the turn ended (Moss, 54b698d).
         guard isIdle, queue.isEmpty else { return .notSent }
-        await submit(prompt, attachments: attachments, shownAs: shownAs)
+        if let failure = await submit(prompt, attachments: attachments, shownAs: shownAs) {
+            return .failed(failure)
+        }
         await drainIfIdle()
         return .sent
     }
@@ -369,8 +374,13 @@ public actor ChatSessionController: OutboxSubmitter {
         publish()
     }
 
-    private func submit(_ text: String, attachments: [ComposerAttachment] = [], shownAs: String? = nil) async {
-        guard let live = state.liveSessionID else { return }
+    /// Uploads the files, then sends the prompt. Returns why it failed, or nil once Hermes accepted the prompt. A failure
+    /// also marks the message's row as failed.
+    @discardableResult
+    private func submit(
+        _ text: String, attachments: [ComposerAttachment] = [], shownAs: String? = nil
+    ) async -> String? {
+        guard let live = state.liveSessionID else { return Self.notLiveMessage }
         isSubmitting = true
         defer { isSubmitting = false }
         submitCount += 1
@@ -380,10 +390,11 @@ public actor ChatSessionController: OutboxSubmitter {
         do {
             outgoing = try await upload(attachments, text: text, live: live)
         } catch {
+            let reason = Self.message(for: error)
             state.apply(.userSubmitted(localID: localID, text: Self.displayText(text, attachments)))
-            state.apply(.submitFailed(localID: localID, message: Self.message(for: error)))
+            state.apply(.submitFailed(localID: localID, message: reason))
             publish()
-            return
+            return reason
         }
         state.apply(.userSubmitted(localID: localID, text: shownAs ?? outgoing))
         publish()
@@ -392,10 +403,14 @@ public actor ChatSessionController: OutboxSubmitter {
                 PromptSubmitParams(sessionID: live, text: outgoing, profile: profile))
             state.apply(.submitAcknowledged(localID: localID, result))
             awaitingTurn = result.status != .queued && state.turn == nil
+            publish()
+            return nil
         } catch {
-            state.apply(.submitFailed(localID: localID, message: Self.message(for: error)))
+            let reason = Self.message(for: error)
+            state.apply(.submitFailed(localID: localID, message: reason))
+            publish()
+            return reason
         }
-        publish()
     }
 
     /// Uploads the files in order. Returns the prompt text: the message, then the `@file:` references of the staged
@@ -499,6 +514,9 @@ public actor ChatSessionController: OutboxSubmitter {
         default: nil
         }
     }
+
+    /// Why nothing was sent when the session stopped being live before the prompt went out.
+    private static let notLiveMessage = "This chat isn't connected, so nothing was sent."
 
     private static func message(for error: any Error) -> String {
         if let rpc = error as? RPCError { return rpc.message }
