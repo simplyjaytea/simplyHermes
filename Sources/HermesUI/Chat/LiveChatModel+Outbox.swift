@@ -13,15 +13,25 @@
             // Plan Q44: while the server is out of reach, text goes to the on-device model. Files need Hermes.
             if attachments.isEmpty, offline.send(text) { return true }
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            // Files and slash commands run on the controller at once. They are not saved to the outbox yet.
+            // Files and slash commands are not saved to the outbox, so they go out only when the chat can take them now.
+            // Otherwise the composer keeps them, and the user is told why (Moss, 54b698d).
             if !attachments.isEmpty || SlashCommand(trimmed) != nil {
-                guard let controller else { return false }
-                HermesSounds.play(.send)
-                if let composerText = await controller.send(text, attachments: attachments) {
-                    prefill = composerText
+                guard let controller else {
+                    outboxError = Self.notNowMessage
                     return false
                 }
-                return true
+                switch await controller.send(text, attachments: attachments) {
+                case .sent:
+                    outboxError = nil
+                    HermesSounds.play(.send)
+                    return true
+                case .prefill(let composerText):
+                    prefill = composerText
+                    return false
+                case .notSent:
+                    outboxError = Self.notNowMessage
+                    return false
+                }
             }
             guard !trimmed.isEmpty else { return false }
             // Without durable storage a message would be lost on relaunch, so it is not sent, and the text stays (M6).
@@ -111,6 +121,10 @@
 
         /// A message could not be saved, so it was not sent. Where the text went is up to the path that failed.
         static let saveFailureMessage = String(localized: "Couldn't save your message, so nothing was sent.")
+
+        /// Files and commands cannot wait to be sent, so they stay in the composer until Hermes is ready.
+        static let notNowMessage = String(
+            localized: "Files and commands go out only when Hermes is ready. Nothing was sent. Try again soon.")
 
         /// The saved messages could not be read or updated. They are still in the outbox.
         static func outboxMessage(for error: any Error) -> String {

@@ -367,10 +367,13 @@
             offline.resolveOffer(offer, as: .sent)
         }
 
-        /// Sends the text into the running reply instead of queueing it. Falls back to sending normally.
+        /// Sends the text into the running reply instead of queueing it. Falls back to a normal send, which saves the text
+        /// to the outbox. Text that could not be sent or saved goes back to the composer.
         public func steer(_ text: String) {
-            guard let controller else { return }
-            Task { if await !controller.steer(text) { await controller.send(text) } }
+            Task {
+                if let controller, await controller.steer(text) { return }
+                if await !send(text) { prefill = text }
+            }
         }
 
         /// Replaces the user turn at `rowID` and everything after it with `text`, then sends it (WP-34).

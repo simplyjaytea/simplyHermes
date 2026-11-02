@@ -48,6 +48,8 @@ jobs:
         run: apt-get update && apt-get install -y libsqlite3-dev
       - name: Format lint
         run: swift format lint --strict -r Sources Tests App
+      - name: Assistant rows come only from model output (AT-4a source lint)
+        run: python3 -I tools/ci/check_assistant_rows.py
       - name: Build
         run: swift build
       - name: Test
@@ -296,6 +298,20 @@ jobs:
             "The NAS rejected the SSH key" "Checked the logs and the config"; do
             if grep -r -a -l -F -- "$text" "$app"; then
               echo "::error::Release app contains sample text: $text"
+              found=1
+            fi
+          done
+          # The demo stream and the sample data must not be compiled into Release (AT-4a). Read the symbol table, and
+          # first prove it is readable, so a stripped binary cannot pass this check without looking.
+          exe="$app/$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$app/Info.plist")"
+          xcrun nm "$exe" | xcrun swift-demangle > "$RUNNER_TEMP/release-symbols.txt"
+          if ! grep -q -F "HermesKit.ChatSessionController" "$RUNNER_TEMP/release-symbols.txt"; then
+            echo "::error::Release symbols are unreadable (stripped?), so AT-4a cannot check them."
+            exit 1
+          fi
+          for symbol in "startDemoStream(" "appendWord(" "sampleTranscript(" "sampleSessions"; do
+            if grep -F -m 3 -- "$symbol" "$RUNNER_TEMP/release-symbols.txt"; then
+              echo "::error::Release app contains the DEBUG-only symbol $symbol"
               found=1
             fi
           done

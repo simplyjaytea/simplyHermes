@@ -192,30 +192,18 @@ private func lines(_ state: TranscriptState) -> [String] {
         #expect(transport.interrupts == 1)
     }
 
-    @Test func messageWhileBusyWaitsThenSendsWhenTurnEnds() async throws {
+    /// Regression (Moss, 54b698d): a message sent while Hermes is busy used to wait in a memory queue and report
+    /// success, so the composer cleared and the message was lost if the app stopped. Now nothing is held, and nothing
+    /// goes out later on its own.
+    @Test func messageWhileBusyIsNotSentAndNotHeldInMemory() async throws {
         let transport = try FakeChatTransport()
         let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
         try await controller.attach()
         await controller.handle(try envelope("message.start", [:], seq: 1))
-        await controller.send("later")
-        #expect(transport.submitted.isEmpty)
-        #expect(await controller.pendingMessages.entries.map(\.text) == ["later"])
-        await controller.handle(try envelope("message.complete", ["text": "done", "status": "complete"], seq: 2))
-        #expect(transport.submitted.map(\.text) == ["later"])
+        #expect(await controller.send("later") == .notSent)
         #expect(await controller.pendingMessages.isEmpty)
-    }
-
-    @Test func pausedQueueHoldsUntilResumed() async throws {
-        let transport = try FakeChatTransport()
-        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
-        try await controller.attach()
-        await controller.handle(try envelope("message.start", [:], seq: 1))
-        await controller.send("held")
-        await controller.setQueuePaused(true)
         await controller.handle(try envelope("message.complete", ["text": "done", "status": "complete"], seq: 2))
         #expect(transport.submitted.isEmpty)
-        await controller.setQueuePaused(false)
-        #expect(transport.submitted.map(\.text) == ["held"])
     }
 
     @Test func steerNeedsARunningTurn() async throws {
@@ -274,18 +262,49 @@ private func lines(_ state: TranscriptState) -> [String] {
         #expect(entry.delivery == .failed("IMG_1.jpg: too large"))
     }
 
-    @Test func queuedMessageKeepsItsFilesUntilItSends() async throws {
+    /// Regression (Moss, 54b698d): files sent while Hermes is busy are refused, not queued in memory, so the composer
+    /// keeps them. Sent again once the turn ends, they go out with the text.
+    @Test func filesWhileBusyAreRefusedAndGoOutWhenSentAgain() async throws {
         let transport = try FakeChatTransport()
         let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
         try await controller.attach()
         await controller.handle(try envelope("message.start", [:], seq: 1))
         let photo = ComposerAttachment(kind: .image, name: "IMG_1.jpg", data: Data([1]))
-        await controller.send("later", attachments: [photo])
-        #expect(transport.uploads.isEmpty)
-        #expect(await controller.pendingMessages.entries.first?.attachments.map(\.name) == ["IMG_1.jpg"])
+        #expect(await controller.send("later", attachments: [photo]) == .notSent)
+        #expect(await controller.pendingMessages.isEmpty)
         await controller.handle(try envelope("message.complete", ["text": "done", "status": "complete"], seq: 2))
+        #expect(transport.uploads.isEmpty)
+        #expect(transport.submitted.isEmpty)
+        #expect(await controller.send("later", attachments: [photo]) == .sent)
         #expect(transport.uploads == ["image:IMG_1.jpg"])
         #expect(transport.submitted.map(\.text) == ["later"])
+    }
+
+    /// Regression (Moss, 54b698d): a slash command whose prompt cannot go out while Hermes is busy is refused, not
+    /// queued. A command that only prints still runs.
+    @Test func commandPromptWhileBusyIsRefusedButPrintingCommandsStillRun() async throws {
+        let transport = try FakeChatTransport()
+        transport.dispatchReplies["review"] = CommandDispatchResult(type: .send, message: "Review the staged diff")
+        transport.dispatchReplies["usage"] = CommandDispatchResult(type: .exec, output: "12 tokens today")
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        await controller.handle(try envelope("message.start", [:], seq: 1))
+        #expect(await controller.send("/review staged") == .notSent)
+        #expect(await controller.pendingMessages.isEmpty)
+        #expect(await controller.send("/usage") == .sent)
+        await controller.handle(try envelope("message.complete", ["text": "done", "status": "complete"], seq: 2))
+        #expect(transport.submitted.isEmpty)
+    }
+
+    @Test func aDetachedChatSendsNothingAndTheComposerKeepsTheText() async throws {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        await controller.detach()
+        let photo = ComposerAttachment(kind: .image, name: "IMG_1.jpg", data: Data([1]))
+        #expect(await controller.send("look", attachments: [photo]) == .notSent)
+        #expect(transport.uploads.isEmpty)
+        #expect(transport.submitted.isEmpty)
     }
 
     @Test func editCutsTheOldTurnAndKeepsTheReplyBelowTheEditedMessage() async throws {
@@ -398,8 +417,7 @@ private func lines(_ state: TranscriptState) -> [String] {
         transport.dispatchReplies["summarize"] = CommandDispatchResult(type: .prefill, message: "Summarize this: ")
         let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
         try await controller.attach()
-        let composerText = await controller.send("/summarize")
-        #expect(composerText == "Summarize this: ")
+        #expect(await controller.send("/summarize") == .prefill("Summarize this: "))
         #expect(transport.submitted.isEmpty)
     }
 
@@ -429,10 +447,9 @@ private func lines(_ state: TranscriptState) -> [String] {
         transport.dispatchReplies["quit"] = CommandDispatchResult(type: .prefill, message: "Goodbye")
         let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
         try await controller.attach()
-        let composerText = await controller.send("/q now")
+        #expect(await controller.send("/q now") == .prefill("Goodbye"))
         #expect(transport.dispatched.map(\.name) == ["q", "quit"])
         #expect(transport.dispatched.last?.arg == "now")
-        #expect(composerText == "Goodbye")
     }
 
     // MARK: - Persisted sends (WP-3)
@@ -478,8 +495,7 @@ private func lines(_ state: TranscriptState) -> [String] {
     @Test func sendBeforeTheSessionIsLiveReturnsTheTextToTheComposer() async throws {
         let transport = try FakeChatTransport()
         let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
-        let composerText = await controller.send("  keep me  ")
-        #expect(composerText == "  keep me  ")
+        #expect(await controller.send("  keep me  ") == .notSent)
         #expect(transport.submitted.isEmpty)
     }
 
@@ -494,26 +510,28 @@ private func lines(_ state: TranscriptState) -> [String] {
         return try object.decode(SessionAttachResult.self)
     }
 
-    /// A chat with one prompt awaiting its turn and one message queued behind it.
+    /// A chat with one prompt awaiting its turn and a second saved message that had to wait behind it.
     private func waitingChat() async throws -> (ChatSessionController, FakeChatTransport) {
         let transport = try FakeChatTransport()
         let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
         try await controller.attach()
-        await controller.send("first")
-        await controller.send("second")
+        #expect(await controller.deliver(record("first")) == .acknowledged)
+        #expect(await controller.deliver(record("second")) == .deferred)
         #expect(transport.submitted.map(\.text) == ["first"])
         return (controller, transport)
     }
 
-    @Test func aColdReattachWithNoTurnRunningLetsTheQueueGoOn() async throws {
+    @Test func aColdReattachWithNoTurnRunningLetsTheNextMessageGo() async throws {
         let (controller, transport) = try await waitingChat()
         await controller.handle(.sessionReattached(oldLiveID: "abcd1234", result: try coldResult(), how: .cold))
+        #expect(await controller.deliver(record("second")) == .acknowledged)
         #expect(transport.submitted.map(\.text) == ["first", "second"])
     }
 
-    @Test func aFailedResyncStopsWaitingAndTheQueueGoesOn() async throws {
+    @Test func aFailedResyncStopsWaitingAndTheNextMessageGoes() async throws {
         let (controller, transport) = try await waitingChat()
         await controller.handle(.resyncFailed(sessionID: "abcd1234", message: "gone"))
+        #expect(await controller.deliver(record("second")) == .acknowledged)
         #expect(transport.submitted.map(\.text) == ["first", "second"])
     }
 

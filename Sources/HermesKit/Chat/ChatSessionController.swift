@@ -1,5 +1,15 @@
 import Foundation
 
+/// What became of a composer send that ran on the controller at once (files and slash commands).
+public enum ComposerSendOutcome: Sendable, Equatable {
+    /// The prompt went out, or the command ran. The composer may clear.
+    case sent
+    /// A command handed this text back to the composer, unsent.
+    case prefill(String)
+    /// Nothing went out: the session is not live, or Hermes is busy. The composer keeps the text and files.
+    case notSent
+}
+
 /// What the controller needs from a gateway connection. ``GatewayClient`` conforms; tests use a fake.
 public protocol ChatTransport: PromptSession {
     /// Calls `session.steer`: the text joins the next tool result without interrupting the turn.
@@ -153,15 +163,16 @@ public actor ChatSessionController: OutboxSubmitter {
         eventTask = nil
     }
 
-    /// Sends a prompt with its files. A slash command runs on the server first, and its directive decides what goes
-    /// out: a prompt, text for the composer, or a line in the transcript. While Hermes is busy the message waits in the
-    /// queue and goes out when the turn ends, with its files. Returns the text the composer should take back, if any.
+    /// Sends a prompt with its files at once. A slash command runs on the server first, and its directive decides what
+    /// goes out: a prompt, text for the composer, or a line in the transcript. Nothing is held in memory: when the
+    /// session is not live, or Hermes is busy, the answer is ``ComposerSendOutcome/notSent`` and the composer keeps the
+    /// text and files. Typed text that must survive a relaunch goes through the outbox and ``deliver(_:)`` instead.
     @discardableResult
-    public func send(_ text: String, attachments: [ComposerAttachment] = []) async -> String? {
+    public func send(_ text: String, attachments: [ComposerAttachment] = []) async -> ComposerSendOutcome {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty || !attachments.isEmpty else { return nil }
-        // Not live yet: the text goes back to the composer, so nothing the user typed is discarded (WP-3).
-        guard let live = state.liveSessionID else { return text }
+        guard !trimmed.isEmpty || !attachments.isEmpty else { return .sent }
+        // Not live yet: the composer keeps what the user typed, so nothing is discarded (WP-3).
+        guard !isDetached, let live = state.liveSessionID else { return .notSent }
         var prompt = trimmed
         var shownAs: String?
         if attachments.isEmpty, let command = SlashCommand(trimmed) {
@@ -170,22 +181,19 @@ public actor ChatSessionController: OutboxSubmitter {
                 prompt = message
                 shownAs = display
             case .prefill(let composerText):
-                return composerText
+                return .prefill(composerText)
             case .printed(let line):
                 if let line { addNotice(line) }
-                return nil
+                return .sent
             case .unknown:
                 break
             }
         }
-        if !isIdle || !queue.isEmpty {
-            queue.enqueue(prompt, attachments: attachments)
-            publish()
-            return nil
-        }
+        // A queue in memory would lose the message if the app stopped before the turn ended (Moss, 54b698d).
+        guard isIdle, queue.isEmpty else { return .notSent }
         await submit(prompt, attachments: attachments, shownAs: shownAs)
         await drainIfIdle()
-        return nil
+        return .sent
     }
 
     /// Sends one persisted message (WP-3). Unlike ``send(_:attachments:)`` it never queues: when Hermes is busy, or the
