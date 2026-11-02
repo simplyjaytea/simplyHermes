@@ -45,24 +45,44 @@ case "$mode" in
     [ -n "$current" ] && usable_runtimes | cut -f1 | grep -x -- "$current" > /dev/null
     ;;
   pick)
-    choice=$(usable_runtimes | awk -F'\t' -v skip="$current" '$1 != skip { print; exit }')
-    if [ -z "$choice" ]; then
-      echo "::error::The simulator runtime ${current:-of $udid} is unusable and no other iOS 27 runtime is installed."
+    # Try each other usable iOS 27 runtime, newest first. On each, reuse an available iPhone device, or create one
+    # from the device types that runtime supports (a Duo when it can): a type the runtime does not support fails with
+    # "Incompatible device" (main run 41448899995).
+    picked=""
+    while IFS=$'\t' read -r runtime version runtime_name; do
+      [ -n "$runtime" ] || continue
+      device=$(xcrun simctl list devices available -j | python3 -c '
+import json, sys
+devices = json.load(sys.stdin)["devices"].get(sys.argv[1], [])
+phones = [d for d in devices if "iPhone" in d["name"]]
+phones.sort(key=lambda d: ("Duo" not in d["name"], d["name"]))
+print(phones[0]["udid"] + "\t" + phones[0]["name"] if phones else "")
+' "$runtime")
+      if [ -n "$device" ]; then
+        IFS=$'\t' read -r new name <<< "$device"
+      else
+        type=$(xcrun simctl list runtimes -j | python3 -c '
+import json, sys
+runtime = next((r for r in json.load(sys.stdin)["runtimes"] if r["identifier"] == sys.argv[1]), {})
+types = [t for t in runtime.get("supportedDeviceTypes", []) if t.get("productFamily", "iPhone") == "iPhone"]
+duo = [t for t in types if "duo" in t["name"].lower()]
+print((duo or types)[-1]["identifier"] if (duo or types) else "")
+' "$runtime")
+        [ -n "$type" ] || continue
+        name="iPhone CI fallback"
+        new=$(xcrun simctl create "$name" "$type" "$runtime" 2>/dev/null < /dev/null) || continue
+      fi
+      xcrun simctl boot "$new" 2>/dev/null < /dev/null || true
+      if xcrun simctl bootstatus "$new" -b >&2 < /dev/null; then
+        picked=$runtime
+        break
+      fi
+    done < <(usable_runtimes | awk -F'\t' -v skip="$current" '$1 != skip')
+    if [ -z "$picked" ]; then
+      echo "::error::The simulator runtime ${current:-of $udid} is unusable and no other iOS 27 runtime gave a device."
       exit 1
     fi
-    IFS=$'\t' read -r runtime version runtime_name <<< "$choice"
-    type=$(xcrun simctl list devicetypes -j | python3 -c '
-import json, sys
-types = json.load(sys.stdin)["devicetypes"]
-duo = [t["identifier"] for t in types if "duo" in t["name"].lower()]
-phone = [t["identifier"] for t in types if t["name"].startswith("iPhone")]
-print((duo or phone)[-1])
-')
-    name="iPhone Duo CI fallback"
-    new=$(xcrun simctl create "$name" "$type" "$runtime")
-    xcrun simctl boot "$new" 2>/dev/null || true
-    xcrun simctl bootstatus "$new" -b >&2
-    message="Simulator fallback: ${current:-the picked runtime} was unusable, so tests ran on $runtime_name ($runtime)."
+    message="Simulator fallback: ${current:-the picked runtime} was unusable, so tests ran on $name, $runtime_name ($runtime)."
     echo "::warning::$message" >&2
     if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
       printf '### Simulator fallback\n%s\n' "$message" >> "$GITHUB_STEP_SUMMARY"
