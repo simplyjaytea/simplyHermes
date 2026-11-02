@@ -21,8 +21,12 @@ jobs:
     if: ${{ github.event.action != 'labeled' || github.event.label.name == 'ci:app' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       code: ${{ steps.filter.outputs.code }}
+      app: ${{ steps.candidate.outputs.app }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,6 +49,24 @@ jobs:
             fi
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
+      - name: Is this the merge candidate (live PR state)
+        id: candidate
+        # Read the PR's draft flag and labels now, not from the event. A push and a ci:app label a second apart start
+        # two runs, and the later one cancels the earlier. The event that started the surviving run may predate the
+        # label, so its payload can miss ci:app (race seen on #102). The live state includes both changes.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          app=true
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            IFS=$'\t' read -r draft labels < <(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json isDraft,labels \
+              --jq '[(.isDraft|tostring), ([.labels[].name] | join(","))] | @tsv')
+            app=false
+            if [ "$draft" = false ] || [[ ",$labels," == *",ci:app,"* ]]; then app=true; fi
+            echo "draft=$draft labels=$labels"
+          fi
+          echo "app=$app" >> "$GITHUB_OUTPUT"
 
   linux:
     name: Packages (Linux)
@@ -61,6 +83,8 @@ jobs:
         run: swift format lint --strict -r Sources Tests App
       - name: Assistant rows come only from model output (AT-4a source lint)
         run: python3 -I tools/ci/check_assistant_rows.py
+      - name: Merge gate refuses what it must (fake gh)
+        run: bash tools/ci/test_merge_gate.sh
       - name: Simulator fallback picks a device its runtime supports (fake xcrun)
         run: bash tools/ci/test_sim_fallback.sh
       - name: Build
@@ -113,14 +137,18 @@ jobs:
   macos:
     name: App (Xcode 27, simulator)
     needs: changes
-    # One macOS runner, so only the merge candidate uses it: pushes to main, non-draft PRs, or a draft labelled
-    # ci:app (one run; the label is removed at the end). Also skipped when the changes job sets code=false. If that job
-    # fails, this job still runs. The merge gate (tools/ci/merge_gate.sh) treats a skipped App job as a failure.
+    # Only the merge candidate uses the macOS runner: pushes to main, non-draft PRs, or a draft labelled ci:app (one
+    # run; the label is removed at the end). The changes job decides from the PR's live state (output `app`). It is
+    # also skipped when the changes job sets code=false. If that job fails, this job falls back to the event payload.
+    # The merge gate (tools/ci/merge_gate.sh) treats a skipped App job as a failure.
     if: >-
-      ${{ !cancelled() && needs.changes.outputs.code != 'false'
+      ${{ !cancelled()
       && (github.event.action != 'labeled' || github.event.label.name == 'ci:app')
+      && (needs.changes.result == 'success'
+      && needs.changes.outputs.code != 'false' && needs.changes.outputs.app == 'true'
+      || needs.changes.result == 'failure'
       && (github.event_name == 'push' || !github.event.pull_request.draft
-      || contains(github.event.pull_request.labels.*.name, 'ci:app')) }}
+      || contains(github.event.pull_request.labels.*.name, 'ci:app'))) }}
     runs-on: xcode-27
     # Passing runs took 62-84 min (runs 41360146274, 41351410493). This stops a hung simulator from holding the only
     # macOS runner for the 6 h default.
@@ -407,12 +435,16 @@ jobs:
           name: xcresult
           path: build/test.xcresult
       - name: ci:app is for one run
-        # A draft keeps its labels, so without this every later push would take the macOS runner again.
-        if: >-
-          ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.draft
-          && contains(github.event.pull_request.labels.*.name, 'ci:app') }}
+        # A draft keeps its labels, so without this every later push would take the macOS runner again. Checked live,
+        # like the candidate decision, because the event payload can predate the label.
+        if: ${{ always() && github.event_name == 'pull_request' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
-        run: gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --remove-label ci:app
+        run: |
+          IFS=$'\t' read -r draft labels < <(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json isDraft,labels \
+            --jq '[(.isDraft|tostring), ([.labels[].name] | join(","))] | @tsv')
+          if [ "$draft" = true ] && [[ ",$labels," == *",ci:app,"* ]]; then
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --remove-label ci:app
+          fi
