@@ -181,8 +181,13 @@ public actor OnDeviceModelManager {
             setState(.notDownloaded, for: model.id)
             start(model.id)
         case .failure(let error):
-            setState(.failed(.checkFailed(error.localizedDescription), progress(of: model)), for: model.id)
+            setState(.failed(checkFailure(error), progress(of: model)), for: model.id)
         }
+    }
+
+    private func checkFailure(_ error: Error) -> OnDeviceModelFailure {
+        if case OnDeviceModelStorageError.unreadable(let path) = error { return .checkFailed(path) }
+        return failure(for: error)
     }
 
     /// Checks an earlier download again, after its check failed. Nothing is downloaded except files that do not match.

@@ -373,6 +373,21 @@ struct OnDeviceModelsManagerTests {
         #expect(!FileManager.default.fileExists(atPath: env.storage.partialFolder(for: alpha).path))
     }
 
+    @Test func aWriteFailureDuringACheckIsAStorageFailureAndKeepsTheFolder() async throws {
+        let env = TestEnvironment()
+        try env.installEarlier(alpha)
+        let config = env.storage.folder(for: alpha).appendingPathComponent("config.json")
+        try Data(repeating: 0xFF, count: 10).write(to: config)
+        // A file where the partial folder should be: the check needs that folder to repair, and cannot create it.
+        try Data().write(to: env.storage.partialFolder(for: alpha))
+        let harness = Harness(env: env)
+        await harness.manager.reload()
+        #expect(await harness.waitForFailure("alpha"))
+        let state = await harness.manager.state(of: "alpha")
+        if case .failed(.storage, _) = state {} else { Issue.record("expected a storage failure, got \(state)") }
+        #expect(env.storage.hasEarlierDownload(alpha))
+    }
+
     @Test func anEarlierDownloadThatCannotBeReadFailsAndKeepsItsFiles() async throws {
         let fails = TestFlag(false)
         let env = TestEnvironment(digest: { url in

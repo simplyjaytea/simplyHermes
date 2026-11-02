@@ -245,7 +245,7 @@
 
         private func style(of action: OnDeviceModelRow.Action) -> HermesButtonStyle.Kind {
             switch action {
-            case .download, .resume, .retry, .use: .primary
+            case .download, .resume, .retry, .check, .use: .primary
             case .pause, .cancel, .delete: .tinted
             }
         }

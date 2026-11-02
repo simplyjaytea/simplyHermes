@@ -12,6 +12,8 @@ public enum OnDeviceModelStorageError: Error, Sendable, Equatable {
     case incomplete(path: String)
     /// The file system refused.
     case fileSystem(String)
+    /// A file of an earlier download could not be read to check it. Nothing was changed.
+    case unreadable(path: String)
 }
 
 /// What the app remembers about a download that was stopped part way through a file.
@@ -257,7 +259,13 @@ public struct OnDeviceModelStorage: Sendable {
                 bad.append(file.path)
                 continue
             }
-            if try verifiedDigest(of: url) == file.sha256 {
+            let actual: String
+            do {
+                actual = try digest(url)
+            } catch {
+                throw OnDeviceModelStorageError.unreadable(path: file.path)
+            }
+            if actual == file.sha256 {
                 good.append(file)
             } else {
                 bad.append(file.path)
@@ -291,6 +299,28 @@ public struct OnDeviceModelStorage: Sendable {
             for: model)
         try? fileManager.removeItem(at: folder)
         return bad
+    }
+
+    /// The bytes on disk that deleting the model would free: its finished folder and its partial folder. Nil when a
+    /// file cannot be measured, so the caller can leave the number out.
+    public func measuredBytes(for model: OnDeviceModel) -> Int64? {
+        measuredBytes(for: model, sizeOf: { self.fileSize(at: $0) })
+    }
+
+    func measuredBytes(for model: OnDeviceModel, sizeOf: (URL) -> Int64?) -> Int64? {
+        let fileManager = FileManager.default
+        var total: Int64 = 0
+        let folders = [folder(for: model), partialFolder(for: model)]
+        for folder in folders where fileManager.fileExists(atPath: folder.path) {
+            guard let walker = fileManager.enumerator(at: folder, includingPropertiesForKeys: [.isRegularFileKey])
+            else { return nil }
+            for case let item as URL in walker {
+                guard (try? item.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+                guard let bytes = sizeOf(item) else { return nil }
+                total += bytes
+            }
+        }
+        return total
     }
 
     /// Deletes the finished model and any partial download of it.

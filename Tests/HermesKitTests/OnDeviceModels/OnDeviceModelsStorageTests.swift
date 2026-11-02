@@ -164,13 +164,39 @@ struct OnDeviceModelsStorageTests {
         })
         try env.installEarlier(alpha)
         fails.value = true
-        #expect(throws: (any Error).self) {
+        #expect(throws: OnDeviceModelStorageError.unreadable(path: "model.safetensors")) {
             try env.storage.checkEarlierDownload(alpha)
         }
         #expect(env.storage.hasEarlierDownload(alpha))
         #expect(env.storage.repairingFiles(alpha).isEmpty)
         #expect(FileManager.default.fileExists(atPath: env.storage.folder(for: alpha).path))
         #expect(env.storage.hasPartialFile(alpha.files[0], of: alpha) == false)
+    }
+
+    @Test func measuredBytesCountsAFinishedModel() throws {
+        let env = TestEnvironment()
+        try env.installFinished(alpha)
+        // The files, plus the manifest that delete also removes.
+        #expect(env.storage.measuredBytes(for: alpha) == env.storage.usedBytes(for: alpha))
+        #expect(env.storage.measuredBytes(for: alpha)! >= alpha.totalBytes)
+    }
+
+    @Test func measuredBytesCountsAPartialDownload() throws {
+        let env = TestEnvironment()
+        try env.storage.preparePartialFolder(for: alpha)
+        try env.storage.store(env.makeTemporaryFile(bytes: 10), as: alpha.files[0], of: alpha)
+        #expect(env.storage.measuredBytes(for: alpha) == env.storage.usedBytes(for: alpha))
+        #expect(env.storage.measuredBytes(for: alpha)! >= 10)
+    }
+
+    @Test func measuredBytesIsZeroWhenNothingIsOnDisk() {
+        #expect(TestEnvironment().storage.measuredBytes(for: alpha) == 0)
+    }
+
+    @Test func measuredBytesIsNilWhenAFileCannotBeMeasured() throws {
+        let env = TestEnvironment()
+        try env.installFinished(alpha)
+        #expect(env.storage.measuredBytes(for: alpha, sizeOf: { _ in nil }) == nil)
     }
 
     @Test func aFinishedModelWithoutDigestsIsNotDownloaded() throws {

@@ -15,6 +15,8 @@
             public let model: OnDeviceModel
             /// Bytes that arrived so far, for the "discard" question.
             public let receivedBytes: Int64
+            /// Bytes on disk that deleting the model frees, for the "delete" question. Nil when they cannot be measured.
+            public var freedBytes: Int64?
 
             public var id: String { "\(action)-\(model.id)" }
         }
@@ -85,7 +87,9 @@
         /// A row button was tapped. Big steps ask first.
         public func tap(_ action: OnDeviceModelRow.Action, on row: OnDeviceModelRow) {
             if row.needsConfirmation(action) {
-                question = Question(action: action, model: row.model, receivedBytes: row.receivedBytes)
+                question = Question(
+                    action: action, model: row.model, receivedBytes: row.receivedBytes,
+                    freedBytes: action == .delete ? storage.measuredBytes(for: row.model) : nil)
             } else {
                 perform(action, on: row.model)
             }

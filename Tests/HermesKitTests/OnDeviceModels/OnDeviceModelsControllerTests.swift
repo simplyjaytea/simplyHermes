@@ -168,7 +168,7 @@ struct OnDeviceModelsControllerTests {
         #expect(filesWereThereAtUnload.value)
         #expect(!FileManager.default.fileExists(atPath: folder.path))
         #expect(await setup.manager.state(of: "alpha") == .notDownloaded)
-        #expect(setup.selection.choice == .none)
+        #expect(setup.selection.choice == .noModel)
         #expect(!setup.controller.appleModelIsInUse)
         #expect(setup.controller.noModelInUse)
     }

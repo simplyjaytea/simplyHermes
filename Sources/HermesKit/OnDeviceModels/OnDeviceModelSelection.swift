@@ -8,7 +8,7 @@ public enum OnDeviceModelChoice: Sendable, Hashable, Codable {
     case downloaded(String)
     /// No on-device model. Set when the model in use is deleted: nothing answers on the device, and the Apple model
     /// does not step in silently.
-    case none
+    case noModel
 }
 
 /// Why a downloaded model cannot answer.
@@ -98,7 +98,7 @@ public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendab
         case apple
         case downloaded(OnDeviceModel)
         /// No on-device model: the model in use was deleted. Nothing answers on the device.
-        case none
+        case noModel
     }
 
     /// The Apple model, for callers that want it whatever the user picked (titles, for example).
@@ -136,7 +136,7 @@ public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendab
         lock.withLock { savedChoice }
     }
 
-    /// Which model answers right now, after the fallbacks. It is `.none` when the model in use was deleted.
+    /// Which model answers right now, after the fallbacks. It is `.noModel` when the model in use was deleted.
     public var route: Route {
         resolve().route
     }
@@ -174,7 +174,7 @@ public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendab
             downloadedExecutors[id] = nil
             return savedChoice == .downloaded(id)
         }
-        if wasInUse { setChoice(.none) }
+        if wasInUse { setChoice(.noModel) }
         await runtime?.unloadAll()
     }
 
@@ -213,7 +213,7 @@ public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendab
     private func resolve() -> (route: Route, executor: any LocalModelExecutor) {
         let (choice, suspended) = lock.withLock { (savedChoice, suspendedByMemory) }
         // The model in use was deleted: nothing answers on the device, and Apple does not step in.
-        if choice == .none { return (.none, UnavailableExecutor(reason: .noModelChosen, error: .noModelChosen)) }
+        if choice == .noModel { return (.noModel, UnavailableExecutor(reason: .noModelChosen, error: .noModelChosen)) }
         guard !suspended, let runtime, case .downloaded(let id) = choice, let model = catalog.model(id: id) else {
             return (.apple, apple)
         }

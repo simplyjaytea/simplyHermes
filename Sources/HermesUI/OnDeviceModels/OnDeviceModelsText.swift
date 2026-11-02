@@ -122,7 +122,10 @@
                     "\(size(model.totalBytes)) will be downloaded to this device, so Wi-Fi is best. "
                     + "You can pause it and delete the model at any time."
             case .delete:
-                return "This frees \(size(model.totalBytes)). You can download it again later."
+                guard let bytes = question.freedBytes else {
+                    return "This deletes \(model.displayName) from this iPhone. You can download it again later."
+                }
+                return "This frees \(size(bytes)). You can download it again later."
             default:
                 return "The \(size(question.receivedBytes)) that arrived will be deleted."
             }

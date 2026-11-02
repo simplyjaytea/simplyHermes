@@ -376,9 +376,9 @@ struct OnDeviceModelsSelectionTests {
 
         await setup.selection.modelWillBeDeleted("alpha")
 
-        #expect(setup.selection.choice == .none)
-        #expect(setup.env.storage.loadChoice() == OnDeviceModelChoice.none)
-        #expect(setup.selection.route == .none)
+        #expect(setup.selection.choice == .noModel)
+        #expect(setup.env.storage.loadChoice() == OnDeviceModelChoice.noModel)
+        #expect(setup.selection.route == .noModel)
         #expect(setup.selection.availability == .unavailable(.noModelChosen))
         await #expect(throws: OnDeviceModelError.noModelChosen) {
             _ = try await answer(setup.selection, "hi")
