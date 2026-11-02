@@ -17,7 +17,8 @@ import sys
 # The only Release files allowed to build assistant rows, and why.
 PRODUCERS = {
     "Sources/HermesKit/Transcript/TranscriptReducer+Turn.swift",  # gateway events
-    "Sources/HermesKit/OfflineChat/OfflineChatController.swift",  # on-device model output
+    "Sources/HermesKit/LocalChat/LocalChatController.swift",  # on-device model output (WP-7)
+    "Sources/HermesKit/LocalChat/LocalChatStore.swift",  # saves and reads back only a LocalReply (WP-7)
 }
 
 ROW = re.compile(r"(kind|role):\s*\.assistant\b|(?<![\w.])\.assistant\(")

@@ -106,6 +106,9 @@ public actor SSHTunnel {
     private func bringUp(progress: (@Sendable (SSHTunnelStep) -> Void)?) async throws -> SSHTunnelEndpoint {
         let config = configuration
         progress?(.connecting)
+        #if DEBUG
+            NetworkTrap.record("ssh")
+        #endif
         let validator = HostKeyValidator(policy: config.hostKey)
         let client: SSHClient
         do {
@@ -201,6 +204,9 @@ public actor SSHTunnel {
     private static func adoptServedToken(baseURL: URL) async -> String? {
         var request = URLRequest(url: baseURL)
         request.timeoutInterval = 15
+        #if DEBUG
+            NetworkTrap.record("http")
+        #endif
         guard let (data, _) = try? await URLSession.shared.data(for: request),
             let html = String(bytes: data, encoding: .utf8)
         else { return nil }

@@ -10,8 +10,6 @@
         /// clear. False leaves the draft where it is.
         @discardableResult
         public func send(_ text: String, attachments: [ComposerAttachment] = []) async -> Bool {
-            // Plan Q44: while the server is out of reach, text goes to the on-device model. Files need Hermes.
-            if attachments.isEmpty, offline.send(text) { return true }
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             // Files and slash commands are not saved to the outbox, so they go out only when the chat can take them now.
             // Otherwise the composer keeps them, and the user is told why (Moss, 54b698d).

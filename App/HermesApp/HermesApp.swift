@@ -84,13 +84,22 @@ struct HermesApp: App {
         // file would not open, the outbox is in memory and sending is refused, rather than losing messages silently.
         // UI tests keep the cache in memory on purpose, so they count as durable.
         OutboxServices.install(cache.outbox, durable: file != nil || launch.onboarding != nil)
-        // WP-65b: offline chats are kept in the same cache file as the chat list. They exist nowhere else, so they stay
-        // off when the file would not open and the cache fell back to memory. UI tests keep it in memory on purpose.
+        // WP-7: local chats are kept in the same cache file as the chat list. They exist nowhere else, so they stay off
+        // when the file would not open and the cache fell back to memory. UI tests keep it in memory on purpose.
         if file != nil || launch.onboarding != nil {
-            OfflineChatServices.install(cache: cache, executor: OnDeviceModelServices.shared.executor)
-            OfflineChatServices.shared?.onGetBetterModel = { OnDeviceModelServices.shared.presentModelList() }
+            LocalChatServices.install(cache: cache, answerer: localAnswerer())
         }
+        UITestSeams.install()
         return SessionsListModel(connections: saved, cache: cache)
+    }
+
+    /// The model local chats answer with. A UI test can name a fixed fake; release builds never can.
+    @MainActor
+    private static func localAnswerer() -> @Sendable () -> any LocalChatAnswerer {
+        #if DEBUG
+            if let name = UITestSeams.localExecutorName { return UITestSeams.answerer(named: name) }
+        #endif
+        return OnDeviceModelServices.shared.answerer
     }
 
     private static func cacheFileURL() -> URL? {
@@ -171,6 +180,7 @@ struct RootView: View {
         }
         .animation(HermesMotion.animation(HermesMotion.gentle, reduceMotion: reduceMotion), value: connections.isEmpty)
         .environment(\.hermesPosture, launch.posture ?? .flat)
+        .overlay(alignment: .topLeading) { UITestSeams.readout() }
         .task {
             if let layout = launch.layout {
                 model.layoutOverride = layout

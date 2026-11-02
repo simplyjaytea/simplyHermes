@@ -55,6 +55,9 @@ public protocol TerminalSocketTransport: Sendable {
         }
 
         func open(_ request: URLRequest) async throws {
+            #if DEBUG
+                NetworkTrap.record("terminal")
+            #endif
             let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
             let task = session.webSocketTask(with: request)
             lock.withLock {

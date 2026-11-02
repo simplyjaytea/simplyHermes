@@ -41,18 +41,6 @@ struct OfflineChatSettingsTests {
         }
     }
 
-    @Test func turningTheSwitchOffMakesTheRouteUnavailableInAnOutage() throws {
-        try withDefaults { defaults in
-            let settings = OnDeviceSettings(defaults: defaults)
-            var router = OfflineRouter()
-            router.observe(.unreachable, at: 0)
-            #expect(router.route(onDeviceEnabled: settings.isEnabled, availability: .available, at: 5) == .offline)
-            settings.isEnabled = false
-            let route = router.route(onDeviceEnabled: settings.isEnabled, availability: .available, at: 5)
-            #expect(route == .unavailable(.switchedOff))
-        }
-    }
-
     @Test func aSwitchedOffExecutorAnswersNothingToTheHelpers() async throws {
         // The shape the Apple executor uses: its availability reads the switch.
         struct SwitchedExecutor: LocalModelExecutor {

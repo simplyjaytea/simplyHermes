@@ -131,6 +131,9 @@ public final class URLSessionHTTPTransport: HTTPTransport, CookieImporting, @unc
                 }
             }
         #endif
+        #if DEBUG
+            NetworkTrap.record("http")
+        #endif
         let (data, response) = try await session.data(for: urlRequest)
         guard let http = response as? HTTPURLResponse else { throw RESTError.transport("not an HTTP response") }
         #if !canImport(Darwin)
