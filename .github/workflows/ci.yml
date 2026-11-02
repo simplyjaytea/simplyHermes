@@ -44,8 +44,9 @@ jobs:
     container: swift:6.1
     steps:
       - uses: actions/checkout@v4
-      - name: System SQLite for GRDB
-        run: apt-get update && apt-get install -y libsqlite3-dev
+      - name: System SQLite for GRDB, and Python for the CI scripts
+        # The swift image has no python3; tools/ci/check_assistant_rows.py needs it.
+        run: apt-get update && apt-get install -y libsqlite3-dev python3
       - name: Format lint
         run: swift format lint --strict -r Sources Tests App
       - name: Assistant rows come only from model output (AT-4a source lint)
@@ -213,6 +214,23 @@ jobs:
           udid="${{ steps.sim.outputs.udid }}"
           xcrun simctl boot "$udid" || true
           xcrun simctl bootstatus "$udid" -b
+      - name: Boot simulator
+        # The hosted iOS 27.1 runtime sometimes cannot boot a device, and xcodebuild then fails the Test step with no
+        # test run (runs 41365833433, 41385043820). Boot it here, erase and retry, and name the failure if it persists.
+        run: |
+          udid="${{ steps.sim.outputs.udid }}"
+          for attempt in 1 2 3; do
+            xcrun simctl boot "$udid" 2>/dev/null || true
+            if xcrun simctl bootstatus "$udid" -b; then
+              exit 0
+            fi
+            echo "Attempt $attempt: simulator $udid did not boot. Erasing it and trying again."
+            xcrun simctl shutdown "$udid" 2>/dev/null || true
+            xcrun simctl erase "$udid" 2>/dev/null || true
+            sleep 15
+          done
+          echo "::error::Simulator $udid did not boot after 3 attempts. This is the runner, not the app."
+          exit 1
       - name: Test
         env:
           # xcodebuild passes TEST_RUNNER_* variables to the UI test runner without the prefix.
