@@ -44,6 +44,10 @@ final class QuickActionAppDelegate: NSObject, UIApplicationDelegate {
         options: UIScene.ConnectionOptions
     ) -> UISceneConfiguration {
         if let item = options.shortcutItem { _ = QuickActionCenter.shared.receive(item) }
+        // Only the app's own window scenes get the quick-action delegate. Every other role, such as the second
+        // display of the CI's iPhone Duo, keeps SwiftUI's own configuration, since this delegate makes no window.
+        // (Suspected cause of run 41525155659 hitting its 110-minute limit on that device.)
+        guard connectingSceneSession.role == .windowApplication else { return connectingSceneSession.configuration }
         let configuration = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
         configuration.delegateClass = QuickActionSceneDelegate.self
         return configuration
