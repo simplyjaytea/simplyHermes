@@ -31,7 +31,17 @@
                 if !chat.queue.isEmpty {
                     QueuedMessagesView(chat: chat)
                 }
-                ChatStatusBar(strip: chat.strip)
+                ChatStatusBar(strip: chat.strip, pill: chat.status.pill, serverName: chat.serverName)
+                if OutageBanner.shows(chat.status) {
+                    OutageBannerView(
+                        serverName: chat.serverName,
+                        onTryAgain: { Task { await chat.attach() } },
+                        onContinueInNewLocalChat: {
+                            model.continueInNewLocalChat(carrying: model.drafts[sessionID, default: ""])
+                        }
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
                 if chat.isRunning, let tasks = TaskProgress(chat.state.todos?.todos ?? []) {
                     TaskProgressPill(progress: tasks)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -353,7 +363,7 @@
             if let session = model.session(id: sessionID) {
                 VStack(alignment: .leading, spacing: 6) {
                     StatusStrip(
-                        connection: .connected,
+                        connection: StripConnection(pill: chat.status.pill),
                         serverName: session.serverName,
                         runningTurn: chat.isRunning ? "Hermes is replying" : nil,
                         onStop: chat.isRunning ? { chat.stop() } : nil

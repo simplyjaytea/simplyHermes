@@ -13,4 +13,9 @@ public enum ChatModeDefault {
     public static func load(from defaults: UserDefaults) -> ChatMode {
         defaults.string(forKey: key).flatMap(ChatMode.init(rawValue:)) ?? .online
     }
+
+    /// Saves the default. Settings writes it here, so the next New chat starts in that mode.
+    public static func save(_ mode: ChatMode, to defaults: UserDefaults) {
+        defaults.set(mode.rawValue, forKey: key)
+    }
 }

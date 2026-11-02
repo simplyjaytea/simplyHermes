@@ -97,9 +97,20 @@
 
         /// The status strip readings for this chat: context fill, cache, speed and the connection.
         public var strip: ChatStatusStrip {
-            let phase = connections.active.flatMap { connections.phases[$0.id] }
-            return ChatStatusStrip(usage: state.usage, connection: Self.connection(for: phase))
+            ChatStatusStrip(usage: state.usage, connection: StripConnection(pill: status.pill))
         }
+
+        /// This chat's status (WP-8): the one source for the pill, the composer and the banner. The network path comes
+        /// from the shared monitor, so a missing network shows at once.
+        public var status: ChatStatus {
+            guard let connection = connections.active else { return ChatStatusDeriver.noServer }
+            return ChatStatusDeriver.derive(
+                backend: .server(connectionID: connection.id, profile: nil, sessionID: storedSessionID),
+                phase: connections.phases[connection.id], path: NetworkMonitor.shared.path, local: .off)
+        }
+
+        /// The server's name for the pill and the banner.
+        public var serverName: String { connections.active?.name ?? "the server" }
 
         /// Delegated helpers of this chat, running ones first.
         public func subagentRows(now: Date) -> [SubagentRow] {
@@ -482,15 +493,6 @@
         /// The server's folder wins once it changes, for example when another device moves the chat.
         private func noteWorkspace(_ cwd: String?) {
             if cwd != state.info?.cwd { workspaceCwd = nil }
-        }
-
-        private static func connection(for phase: ConnectionPhase?) -> StripConnection {
-            switch phase {
-            case .connected?: .online
-            case .reconnecting?, .connecting?, .openingTunnel?, .checkingServer?, .unlocking?: .reconnecting
-            case .signInRequired?, .updateRequired?, .failed?: .needsAttention
-            case .idle?, nil: .offline
-            }
         }
 
         /// Sends the last prompt again.

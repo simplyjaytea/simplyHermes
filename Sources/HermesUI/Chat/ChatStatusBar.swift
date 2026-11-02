@@ -6,6 +6,9 @@
     /// token breakdown in a popover.
     struct ChatStatusBar: View {
         let strip: ChatStatusStrip
+        /// The chat's pill. It replaces the bare connection dot, so the strip and the pill can't disagree.
+        let pill: PillState
+        let serverName: String
         @State private var showsDetails = false
         @Environment(\.hermesPalette) private var palette
 
@@ -21,7 +24,7 @@
                             .font(HermesFont.caption.monospacedDigit())
                             .foregroundStyle(palette.secondaryText)
                     }
-                    Circle().fill(dotColor).frame(width: 8, height: 8)
+                    StatusPill(pill: pill, serverName: serverName)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 14)
@@ -33,14 +36,6 @@
             .accessibilityLabel(Text(accessibilityText))
             .accessibilityHint(Text("Shows token details"))
             .popover(isPresented: $showsDetails) { details.presentationCompactAdaptation(.popover) }
-        }
-
-        private var dotColor: Color {
-            switch strip.connection {
-            case .online: palette.statusConnected
-            case .reconnecting, .needsAttention: palette.statusWarning
-            case .offline: palette.statusOffline
-            }
         }
 
         private var accessibilityText: String {

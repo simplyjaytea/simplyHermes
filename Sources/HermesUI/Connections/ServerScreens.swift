@@ -424,6 +424,7 @@
                 }
                 .listRowBackground(palette.card)
                 Section("Connection") {
+                    DefaultChatModePicker()
                     NavigationLink {
                         ServerListView(connections: connections)
                     } label: {
