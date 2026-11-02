@@ -22,10 +22,14 @@
                             .scaleEffect(0.6)
                     }
                 }
-                Text("\(session.serverName) · \(session.subtitle)")
-                    .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.secondaryText)
-                    .lineLimit(1)
+                if session.id.hasPrefix("local-") {
+                    LocalChatBadge()
+                } else {
+                    Text("\(session.serverName) · \(session.subtitle)")
+                        .font(HermesFont.footnote)
+                        .foregroundStyle(HermesColor.secondaryText)
+                        .lineLimit(1)
+                }
             }
             .padding(.vertical, 2)
             .accessibilityElement(children: .combine)

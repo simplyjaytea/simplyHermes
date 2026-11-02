@@ -80,7 +80,7 @@ public final class URLSessionHTTPTransport: HTTPTransport, CookieImporting, @unc
             if configuration.httpCookieStorage == nil { configuration.httpCookieStorage = HTTPCookieStorage.shared }
         #endif
         configuration.httpCookieAcceptPolicy = .always
-        session = URLSession(configuration: configuration, delegate: blocker, delegateQueue: nil)
+        session = NetworkSessions.make(configuration: configuration, delegate: blocker, delegateQueue: nil)
     }
 
     /// A transport for requests that must not authenticate, such as health probes of fallback addresses.
@@ -97,7 +97,7 @@ public final class URLSessionHTTPTransport: HTTPTransport, CookieImporting, @unc
         configuration.httpCookieAcceptPolicy = .never
         configuration.httpCookieStorage = nil
         return URLSessionHTTPTransport(
-            session: URLSession(configuration: configuration, delegate: blocker, delegateQueue: nil),
+            session: NetworkSessions.make(configuration: configuration, delegate: blocker, delegateQueue: nil),
             redirectBlocker: blocker, allowsCookies: false)
     }
 
@@ -130,6 +130,9 @@ public final class URLSessionHTTPTransport: HTTPTransport, CookieImporting, @unc
                     urlRequest.setValue(value, forHTTPHeaderField: name)
                 }
             }
+        #endif
+        #if DEBUG
+            NetworkTrap.record("http")
         #endif
         let (data, response) = try await session.data(for: urlRequest)
         guard let http = response as? HTTPURLResponse else { throw RESTError.transport("not an HTTP response") }

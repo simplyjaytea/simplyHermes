@@ -18,9 +18,10 @@ final class OnDeviceModelServices {
     /// The model behind the Settings screen. The app puts it in the environment as `onDeviceModels`.
     let model: OnDeviceModelsModel
 
-    /// The model that answers on-device chats and helpers. It follows the choice made in Settings, so hand this to
-    /// `OfflineChatServices.install(cache:executor:)` (WP-65b) instead of the Apple model.
+    /// The model that answers on-device chats and helpers. It follows the choice made in Settings.
     nonisolated let executor: @Sendable () -> any LocalModelExecutor
+    /// The same model, for local chats (WP-7). Each reply names the model that wrote it.
+    nonisolated let answerer: @Sendable () -> any LocalChatAnswerer
 
     private var observers: [any NSObjectProtocol] = []
 
@@ -37,6 +38,7 @@ final class OnDeviceModelServices {
         self.manager = manager
         self.selection = selection
         executor = { selection }
+        answerer = { selection }
         model = OnDeviceModelsModel(
             controller: OnDeviceModelController(
                 manager: manager, selection: selection, availableMemory: gate.availableBytes),

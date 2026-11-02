@@ -170,7 +170,9 @@
         /// WP-30, so a synced chat opens empty for now.
         public func syncSessions(_ items: [SessionListItem]) {
             let started = startedChatsToKeep(listed: Set(items.map(\.id)))
-            let local = sessions.filter { $0.id.hasPrefix("new-") || botChatIDs.contains($0.id) }
+            let local = sessions.filter {
+                $0.id.hasPrefix("new-") || $0.id.hasPrefix("local-") || botChatIDs.contains($0.id)
+            }
             let synced = items.map {
                 ChatSessionSummary(id: $0.id, title: $0.title, subtitle: $0.time ?? "", serverName: $0.serverName)
             }
@@ -226,6 +228,10 @@
         /// Starts a chat. With a server saved it is a placeholder until its first message creates the server chat, so
         /// New chat never waits on the network. An empty chat not yet started is shown again, so repeat taps make one.
         public func newChat() {
+            if ChatModeDefault.current == .local {
+                newLocalChat()
+                return
+            }
             if let empty = sessions.first(where: { session in
                 unstartedChatIDs.contains(session.id) && drafts[session.id, default: ""].isEmpty
                     && attachments[session.id, default: []].isEmpty && transcripts[session.id, default: []].isEmpty
@@ -235,6 +241,51 @@
             }
             let id = addPlaceholderChat()
             if startServerChat != nil { unstartedChatIDs.insert(id) }
+        }
+
+        /// Starts a local chat (WP-7), or opens the empty one already open. It is listed at once and saved on its first
+        /// message. Nothing in it reaches a server.
+        func newLocalChat() {
+            guard LocalChatServices.shared != nil else {
+                newChatError = "Local chats can't be saved on this device, so none was started."
+                return
+            }
+            if let empty = sessions.first(where: { session in
+                session.id.hasPrefix("local-") && localChatModels[session.id]?.snapshot.messages.isEmpty == true
+                    && localChatModels[session.id]?.snapshot.chat == nil && drafts[session.id, default: ""].isEmpty
+            }) {
+                open(empty.id)
+                return
+            }
+            let id = "local-\(UUID().uuidString)"
+            sessions.insert(ChatSessionSummary(id: id, title: "New chat", subtitle: "Now", serverName: ""), at: 0)
+            transcripts[id] = []
+            open(id)
+        }
+
+        /// Lists the local chats saved on this iPhone (WP-7), with no server. Called when the shell starts and when the
+        /// server list changes, so they stay in the list either way.
+        public func loadLocalChats() async {
+            guard let store = LocalChatServices.shared?.store, let saved = try? await store.chats(limit: 200) else {
+                return
+            }
+            let listed = Set(sessions.map(\.id))
+            let rows = saved.map {
+                ChatSessionSummary(id: "local-\($0.id.uuidString)", title: $0.title, subtitle: "", serverName: "")
+            }
+            sessions.insert(contentsOf: rows.filter { !listed.contains($0.id) }, at: 0)
+            for row in rows where transcripts[row.id] == nil { transcripts[row.id] = [] }
+        }
+
+        /// The local chat for a sidebar id, or nil when the id names a server chat or a placeholder.
+        func localChat(for id: String) -> LocalChatModel? {
+            guard id.hasPrefix("local-"), let services = LocalChatServices.shared,
+                let chatID = UUID(uuidString: String(id.dropFirst("local-".count)))
+            else { return nil }
+            if let existing = localChatModels[id] { return existing }
+            let model = LocalChatModel(chatID: chatID, services: services)
+            localChatModels[id] = model
+            return model
         }
 
         /// Creates the server chat for a first message and sends the message there. A send in the same chat while that
@@ -307,6 +358,9 @@
             open(id)
             return id
         }
+
+        /// Local chats by sidebar id. They are made when a screen first shows one.
+        @ObservationIgnored private var localChatModels: [String: LocalChatModel] = [:]
 
         /// The live chat for a listed server session, or nil for a placeholder chat.
         func liveChat(for id: String) -> LiveChatModel? {

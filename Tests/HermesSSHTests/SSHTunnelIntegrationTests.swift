@@ -17,7 +17,11 @@ import Testing
 /// (CI's `ssh-integration` job sets it after `testbed/scripts/up.sh`).
 @Suite(.enabled(if: SSHTestbed.keyPath != nil), .serialized, .timeLimit(.minutes(5)))
 struct SSHTunnelIntegrationTests {
-    @Test func chatTurnThroughTunnel() async throws {
+    // Quarantined (board row quarantine-ssh-tunnel-chat-turn, until 2026-11-09): hit the 5-minute time limit in Testbed
+    // smoke runs 41351410493 (main) and 41458357870, with no inner timeout to show which step hung. Not a user-rule
+    // guard; the other SSH tests here still run. Re-enable with the fix.
+    @Test(.disabled("Quarantined: hangs to the 5-minute limit in CI (row quarantine-ssh-tunnel-chat-turn)"))
+    func chatTurnThroughTunnel() async throws {
         let configuration = try SSHTestbed.configuration(hostKey: .trustOnFirstUse { _ in true })
         let tunnel = SSHTunnel(configuration: configuration)
         let endpoint = try await tunnel.start()

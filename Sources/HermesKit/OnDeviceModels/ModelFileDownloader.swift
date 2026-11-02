@@ -83,7 +83,7 @@ public final class URLSessionModelFileDownloader: NSObject, ModelFileDownloader,
     /// A session that waits for a connection instead of failing at once, with no URL cache (the files are large).
     public init(configuration: URLSessionConfiguration = URLSessionModelFileDownloader.defaultConfiguration()) {
         super.init()
-        session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        session = NetworkSessions.make(configuration: configuration, delegate: self, delegateQueue: nil)
     }
 
     public static func defaultConfiguration() -> URLSessionConfiguration {
@@ -101,6 +101,9 @@ public final class URLSessionModelFileDownloader: NSObject, ModelFileDownloader,
         from url: URL, resumeData: Data?, progress: @escaping @Sendable (Int64) -> Void
     ) async throws -> URL {
         guard let session else { throw ModelFileDownloadError.fileSystem("The download session is closed.") }
+        #if DEBUG
+            NetworkTrap.record("download")
+        #endif
         let box = TaskBox()
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in

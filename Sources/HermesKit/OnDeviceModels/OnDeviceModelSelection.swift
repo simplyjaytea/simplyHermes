@@ -92,7 +92,7 @@ public final class OnDeviceMemoryGate: @unchecked Sendable {
 /// - or loading the model fails for lack of memory.
 ///
 /// The Settings switch for on-device features (plan WP-65b) is `isEnabled`: when it is off, nothing answers.
-public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendable {
+public final class OnDeviceModelSelection: LocalModelExecutor, LocalChatAnswerer, @unchecked Sendable {
     /// Which model would answer right now.
     public enum Route: Sendable, Equatable {
         case apple
@@ -192,6 +192,30 @@ public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendab
         } catch OnDeviceModelError.notEnoughMemory where route != .apple {
             await handleMemoryWarning()
             return try await apple.respond(instructions: instructions, prompt: prompt)
+        }
+    }
+
+    /// Answers like ``respond(instructions:prompt:)`` and names the model that wrote the reply (WP-7). After a memory
+    /// fallback the name is the Apple model's, because that is the model that answered.
+    public func answer(instructions: String, prompt: String) async throws -> LocalAnswer {
+        let (route, executor) = resolve()
+        do {
+            let text = try await executor.respond(instructions: instructions, prompt: prompt)
+            return LocalAnswer(text: text, answeredBy: Self.identity(of: route))
+        } catch OnDeviceModelError.notEnoughMemory where route != .apple {
+            await handleMemoryWarning()
+            let text = try await apple.respond(instructions: instructions, prompt: prompt)
+            return LocalAnswer(text: text, answeredBy: .apple)
+        }
+    }
+
+    private static func identity(of route: Route) -> ModelIdentity {
+        switch route {
+        case .apple: .apple
+        case .downloaded(let model): .downloaded(id: model.id, displayName: model.displayName)
+        // Not reached: the no-model route's executor throws before any answer is attributed (see `answer`), and
+        // `answeringModel` checks availability first. Apple here only satisfies the switch; it names no reply.
+        case .noModel: .apple
         }
     }
 
