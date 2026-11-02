@@ -127,6 +127,30 @@ private func feedJSON(build: Int = 3, url: String = signulous, notes: String = "
         #expect(AppUpdateRules.isDue(lastCheck: start, now: start.addingTimeInterval(-60)), "A clock moved back is due")
     }
 
+    @Test func aFailedTryIsRetriedAfterAnHourNotADay() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let good = start.addingTimeInterval(-25 * 3600)
+        #expect(!AppUpdateRules.isDue(lastCheck: good, lastAttempt: start, now: start.addingTimeInterval(59 * 60)))
+        #expect(AppUpdateRules.isDue(lastCheck: good, lastAttempt: start, now: start.addingTimeInterval(3600)))
+        #expect(
+            !AppUpdateRules.isDue(lastCheck: start, lastAttempt: start, now: start.addingTimeInterval(2 * 3600)),
+            "A check that worked still holds for 24 h")
+    }
+
+    @Test func redirectHopsMustStayOnTheAllowList() throws {
+        let base = try #require(URL(string: "https://github.com/simplyjaytea/simplyHermes/releases/download/x/v.json"))
+        let asset = "https://release-assets.githubusercontent.com/github-production-release-asset/1"
+        #expect(AppUpdateRules.redirectFailure(location: asset, base: base, allowedHosts: hosts) == nil)
+        #expect(AppUpdateRules.redirectFailure(location: "/simplyjaytea/other", base: base, allowedHosts: hosts) == nil)
+        #expect(
+            AppUpdateRules.redirectFailure(location: "https://evil.example/v.json", base: base, allowedHosts: hosts)
+                == .untrustedHost("evil.example"))
+        #expect(
+            AppUpdateRules.redirectFailure(location: "http://github.com/v.json", base: base, allowedHosts: hosts)
+                == .insecureLink)
+        #expect(AppUpdateRules.redirectFailure(location: nil, base: base, allowedHosts: hosts) == .malformed)
+    }
+
     @Test func readsTheInstalledBuild() {
         #expect(AppUpdateRules.installedBuild("2") == 2)
         #expect(AppUpdateRules.installedBuild(" 12 ") == 12)
@@ -241,7 +265,8 @@ private func feedJSON(build: Int = 3, url: String = signulous, notes: String = "
             return
         }
         #expect(AppUpdateRecord(defaults: defaults).lastError?.isEmpty == false)
-        #expect(AppUpdateRecord(defaults: defaults).lastCheck != nil, "A failed check still counts for the throttle")
+        #expect(AppUpdateRecord(defaults: defaults).lastAttempt != nil)
+        #expect(AppUpdateRecord(defaults: defaults).lastCheck == nil, "Only a check that worked counts as checked")
     }
 
     @Test func aMissingFeedSaysNothingIsPublished() async {
@@ -258,6 +283,80 @@ private func feedJSON(build: Int = 3, url: String = signulous, notes: String = "
         #expect(AppUpdateRecord(defaults: defaults).lastError != nil)
         _ = await checker(defaults: defaults).check(force: true)
         #expect(AppUpdateRecord(defaults: defaults).lastError == nil)
+    }
+
+    @Test func aRelaunchWithin24HoursOffersTheCachedUpdate() async {
+        let defaults = makeDefaults()
+        let clock = Clock()
+        let calls = Calls()
+        guard case .available = await checker(defaults: defaults, clock: clock, calls: calls).check() else {
+            Issue.record("Expected an update")
+            return
+        }
+        // Killed and reopened an hour later: no fetch, and the same build is offered from the cache.
+        clock.now = clock.now.addingTimeInterval(3600)
+        let relaunched = checker(defaults: defaults, clock: clock, calls: calls)
+        #expect(relaunched.cachedOffer()?.build == 3)
+        #expect(await relaunched.check() == .skipped)
+        #expect(calls.urls.count == 1)
+    }
+
+    @Test func laterHoldsForTheCachedUpdateAcrossARelaunch() async {
+        let defaults = makeDefaults()
+        let first = checker(defaults: defaults)
+        guard case .available(let feed) = await first.check() else {
+            Issue.record("Expected an update")
+            return
+        }
+        first.dismiss(feed)
+        #expect(checker(defaults: defaults).cachedOffer() == nil, "Later holds after a relaunch")
+        // A higher build replaces the cache and is offered again.
+        _ = await checker(defaults: defaults, result: { feedJSON(build: 4) }).check(force: true)
+        #expect(checker(defaults: defaults).cachedOffer()?.build == 4)
+    }
+
+    @Test func theCacheIsNotOfferedOnceThatBuildIsInstalled() async {
+        let defaults = makeDefaults()
+        _ = await checker(installed: 2, defaults: defaults).check()
+        #expect(checker(installed: 3, defaults: defaults).cachedOffer() == nil)
+    }
+
+    @Test func aFailedCheckKeepsTheCacheAndTheLastGoodCheck() async {
+        let defaults = makeDefaults()
+        let clock = Clock()
+        _ = await checker(defaults: defaults, clock: clock).check()
+        let good = AppUpdateRecord(defaults: defaults).lastCheck
+        clock.now = clock.now.addingTimeInterval(AppUpdateRules.interval)
+        let offline = checker(defaults: defaults, clock: clock, result: { throw URLError(.notConnectedToInternet) })
+        guard case .failed = await offline.check() else {
+            Issue.record("Expected a failure")
+            return
+        }
+        #expect(AppUpdateRecord(defaults: defaults).lastCheck == good)
+        #expect(offline.cachedOffer()?.build == 3, "Going offline doesn't hide a known update")
+        // The failed try is retried an hour later, not a day later.
+        clock.now = clock.now.addingTimeInterval(AppUpdateRules.retryInterval - 1)
+        #expect(await offline.check() == .skipped)
+        clock.now = clock.now.addingTimeInterval(1)
+        #expect(await offline.check() != .skipped)
+    }
+
+    @Test func aCachedLinkThatIsNoLongerAllowedIsNotOffered() async {
+        let defaults = makeDefaults()
+        _ = await checker(defaults: defaults).check()
+        let narrower = AppUpdateChecker(
+            installedBuild: 2,
+            config: AppUpdateConfig(installHosts: ["sign.example.com"]),
+            record: AppUpdateRecord(defaults: defaults))
+        #expect(narrower.cachedOffer() == nil)
+    }
+
+    @Test func resetForgetsTheCache() async {
+        let defaults = makeDefaults()
+        _ = await checker(defaults: defaults).check()
+        AppUpdateRecord(defaults: defaults).reset()
+        #expect(AppUpdateRecord(defaults: defaults).cachedFeed == nil)
+        #expect(AppUpdateRecord(defaults: defaults).lastAttempt == nil)
     }
 
     @Test func anUntrustedFeedIsNeverOffered() async {

@@ -129,8 +129,12 @@ public enum AppUpdateFeedError: Error, Sendable, Equatable {
 
 /// The pure rules: read the feed, check its link, decide whether it is newer and whether a check is due.
 public enum AppUpdateRules {
-    /// Automatic checks run at most this often.
+    public typealias FeedError = AppUpdateFeedError
+
+    /// Automatic checks run at most this often after a check that worked.
     public static let interval: TimeInterval = 24 * 60 * 60
+    /// After a failed check (offline, 404), the next automatic try waits this long instead of a full day.
+    public static let retryInterval: TimeInterval = 60 * 60
 
     static func isSecure(_ url: URL) -> Bool {
         url.scheme?.lowercased() == "https"
@@ -164,11 +168,28 @@ public enum AppUpdateRules {
         return feed
     }
 
-    /// True when an automatic check should run now. A clock that went back counts as due.
-    public static func isDue(lastCheck: Date?, now: Date) -> Bool {
-        guard let lastCheck else { return true }
-        let elapsed = now.timeIntervalSince(lastCheck)
-        return elapsed < 0 || elapsed >= interval
+    /// True when an automatic check should run now: 24 h after the last check that worked, and at least an hour
+    /// after the last failed try. A clock that went back counts as elapsed.
+    public static func isDue(lastCheck: Date?, lastAttempt: Date? = nil, now: Date) -> Bool {
+        func elapsed(_ date: Date?, _ wait: TimeInterval) -> Bool {
+            guard let date else { return true }
+            let seconds = now.timeIntervalSince(date)
+            return seconds < 0 || seconds >= wait
+        }
+        return elapsed(lastCheck, interval) && elapsed(lastAttempt, retryInterval)
+    }
+
+    /// Why a redirect hop is refused, or nil when it may be followed. `location` may be relative to `base`.
+    public static func redirectFailure(location: String?, base: URL, allowedHosts: Set<String>) -> FeedError? {
+        guard let location, let target = URL(string: location, relativeTo: base)?.absoluteURL else {
+            return .malformed
+        }
+        do {
+            try validate(target, allowedHosts: allowedHosts)
+            return nil
+        } catch {
+            return error
+        }
     }
 
     /// The installed build from `CFBundleVersion`. Zero when it is missing or not a whole number.
@@ -182,6 +203,8 @@ public struct AppUpdateRecord: @unchecked Sendable {
     static let lastCheckKey = "appUpdate.lastCheck"
     static let dismissedBuildKey = "appUpdate.dismissedBuild"
     static let lastErrorKey = "appUpdate.lastError"
+    static let lastAttemptKey = "appUpdate.lastAttempt"
+    static let cachedFeedKey = "appUpdate.cachedFeed"
 
     private let defaults: UserDefaults
 
@@ -189,7 +212,7 @@ public struct AppUpdateRecord: @unchecked Sendable {
         self.defaults = defaults
     }
 
-    /// When the feed was last fetched, whether or not that worked.
+    /// When a check last worked. Settings shows it as the last check time.
     public var lastCheck: Date? {
         get { defaults.object(forKey: Self.lastCheckKey) as? Date }
         nonmutating set { defaults.set(newValue, forKey: Self.lastCheckKey) }
@@ -201,6 +224,23 @@ public struct AppUpdateRecord: @unchecked Sendable {
         nonmutating set { defaults.set(newValue, forKey: Self.dismissedBuildKey) }
     }
 
+    /// When a check last ran, whether or not it worked. Spaces out retries after a failure.
+    public var lastAttempt: Date? {
+        get { defaults.object(forKey: Self.lastAttemptKey) as? Date }
+        nonmutating set { defaults.set(newValue, forKey: Self.lastAttemptKey) }
+    }
+
+    /// The last feed that was fetched and passed validation. Re-offered at launch so the banner survives a relaunch,
+    /// and kept for the What's new sheet.
+    public var cachedFeed: AppUpdateFeed? {
+        get {
+            defaults.data(forKey: Self.cachedFeedKey).flatMap {
+                try? JSONDecoder().decode(AppUpdateFeed.self, from: $0)
+            }
+        }
+        nonmutating set { defaults.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: Self.cachedFeedKey) }
+    }
+
     /// Why the last check failed. Nil after a check that worked.
     public var lastError: String? {
         get { defaults.string(forKey: Self.lastErrorKey) }
@@ -209,7 +249,9 @@ public struct AppUpdateRecord: @unchecked Sendable {
 
     /// Forgets everything. UI tests start here.
     public func reset() {
-        for key in [Self.lastCheckKey, Self.dismissedBuildKey, Self.lastErrorKey] {
+        for key in [
+            Self.lastCheckKey, Self.dismissedBuildKey, Self.lastErrorKey, Self.lastAttemptKey, Self.cachedFeedKey,
+        ] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -248,23 +290,39 @@ public struct AppUpdateChecker: Sendable {
         self.fetch = fetch ?? Self.download(allowedHosts: config.allowedHosts)
     }
 
-    /// Runs a check. Without `force`, it fetches at most once every 24 hours.
+    /// Runs a check. Without `force`, it fetches at most once every 24 hours, or an hour after a failed try.
+    /// A failed check keeps the cached feed and the last good check time.
     public func check(force: Bool = false) async -> AppUpdateResult {
         let time = now()
-        guard force || AppUpdateRules.isDue(lastCheck: record.lastCheck, now: time) else { return .skipped }
-        record.lastCheck = time
+        guard force || AppUpdateRules.isDue(lastCheck: record.lastCheck, lastAttempt: record.lastAttempt, now: time)
+        else { return .skipped }
+        record.lastAttempt = time
         do {
             let data = try await fetch(config.feedURL)
             let feed = try AppUpdateRules.decode(data, allowedHosts: config.allowedHosts)
+            record.lastCheck = time
             record.lastError = nil
-            let offer = AppUpdateRules.offer(
-                feed, installedBuild: installedBuild, dismissedBuild: record.dismissedBuild)
-            return offer.map(AppUpdateResult.available) ?? .upToDate
+            record.cachedFeed = feed
+            return offerResult(feed)
         } catch let error as AppUpdateFeedError {
             return fail(error)
         } catch {
             return fail(.unreachable(error.localizedDescription))
         }
+    }
+
+    /// The cached feed's offer, for launch: nil when there is none, it is not newer, the user chose Later for it, or
+    /// its link is no longer on the allow-list.
+    public func cachedOffer() -> AppUpdateFeed? {
+        guard let feed = record.cachedFeed,
+            (try? AppUpdateRules.validate(feed.installURL, allowedHosts: config.allowedHosts)) != nil
+        else { return nil }
+        return AppUpdateRules.offer(feed, installedBuild: installedBuild, dismissedBuild: record.dismissedBuild)
+    }
+
+    private func offerResult(_ feed: AppUpdateFeed) -> AppUpdateResult {
+        AppUpdateRules.offer(feed, installedBuild: installedBuild, dismissedBuild: record.dismissedBuild)
+            .map(AppUpdateResult.available) ?? .upToDate
     }
 
     /// Later: this build is not offered again, a higher one is.
@@ -277,21 +335,49 @@ public struct AppUpdateChecker: Sendable {
         return .failed(error)
     }
 
-    /// Fetches over HTTPS without the local cache or credentials. The final URL after redirects must still be on an
-    /// allowed host, and anything but HTTP 200 is an error.
+    /// Fetches over HTTPS on an ephemeral session: no cache, no cookies, no credentials. Every redirect hop must stay
+    /// `https` on an allowed host (a refused hop is not followed), so must the final URL, and anything but HTTP 200
+    /// is an error.
     public static func download(allowedHosts: Set<String>) -> Fetch {
         { url in
             var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
             request.httpMethod = "GET"
             request.httpShouldHandleCookies = false
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let session = URLSession(
+                configuration: .ephemeral, delegate: RedirectGuard(allowedHosts: allowedHosts), delegateQueue: nil)
+            defer { session.finishTasksAndInvalidate() }
+            let (data, response) = try await session.data(for: request)
             if let final = response.url { try AppUpdateRules.validate(final, allowedHosts: allowedHosts) }
             if let http = response as? HTTPURLResponse {
+                // A hop the guard refused comes back as the redirect itself.
+                if (300..<400).contains(http.statusCode), let final = response.url {
+                    let location = http.value(forHTTPHeaderField: "Location")
+                    let failure = AppUpdateRules.redirectFailure(
+                        location: location, base: final, allowedHosts: allowedHosts)
+                    throw failure ?? AppUpdateFeedError.httpStatus(http.statusCode)
+                }
                 if http.statusCode == 404 { throw AppUpdateFeedError.notPublished }
                 if http.statusCode != 200 { throw AppUpdateFeedError.httpStatus(http.statusCode) }
             }
             return data
         }
+    }
+}
+
+/// Refuses a redirect hop that leaves `https` or the allowed hosts. The refused redirect is returned as the response.
+private final class RedirectGuard: NSObject, URLSessionTaskDelegate, Sendable {
+    let allowedHosts: Set<String>
+
+    init(allowedHosts: Set<String>) {
+        self.allowedHosts = allowedHosts
+    }
+
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        let allowed = request.url.map { (try? AppUpdateRules.validate($0, allowedHosts: allowedHosts)) != nil } ?? false
+        completionHandler(allowed ? request : nil)
     }
 }
 

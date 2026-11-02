@@ -51,6 +51,8 @@
                 record: record, fetch: fetch)
             lastError = record.lastError
             lastCheck = record.lastCheck
+            // A relaunch within 24 h skips the fetch, so offer the last good feed again (Later still applies).
+            available = checker.cachedOffer()
         }
 
         #if DEBUG
@@ -89,7 +91,8 @@
             switch result {
             case .available(let feed): available = feed
             case .upToDate: available = nil
-            case .skipped, .failed: break
+            case .skipped: available = checker.cachedOffer()
+            case .failed: break
             }
         }
 
