@@ -81,21 +81,31 @@ struct HermesApp: App {
     /// The chat list cache. UI tests keep it in memory so runs never share saved chats.
     @MainActor
     private static func makeSessionsList(_ saved: ConnectionsModel, _ launch: LaunchOptions) -> SessionsListModel {
-        let url = launch.onboarding == nil ? Self.cacheFileURL() : nil
+        // UI tests use an in-memory cache unless they ask for a persistent one (DEBUG seam, UITestSeams).
+        let url = UITestSeams.persistentCacheURL ?? (launch.onboarding == nil ? Self.cacheFileURL() : nil)
         let file = url.flatMap { try? HermesCache(url: $0) }
         let cache = file ?? (try? HermesCache())
         guard let cache else { preconditionFailure("The in-memory cache cannot fail to open") }
         // WP-3: messages waiting to reach the server are kept in the same file, so they survive a relaunch. When the
         // file would not open, the outbox is in memory and sending is refused, rather than losing messages silently.
-        // UI tests keep the cache in memory on purpose, so they count as durable.
+        // UI tests keep the cache in memory on purpose, so they count as durable. A test's on-disk cache is durable too.
         OutboxServices.install(cache.outbox, durable: file != nil || launch.onboarding != nil)
-        // WP-65b: offline chats are kept in the same cache file as the chat list. They exist nowhere else, so they stay
-        // off when the file would not open and the cache fell back to memory. UI tests keep it in memory on purpose.
+        // WP-7: local chats are kept in the same cache file as the chat list. They exist nowhere else, so they stay off
+        // when the file would not open and the cache fell back to memory. UI tests keep it in memory on purpose.
         if file != nil || launch.onboarding != nil {
-            OfflineChatServices.install(cache: cache, executor: OnDeviceModelServices.shared.executor)
-            OfflineChatServices.shared?.onGetBetterModel = { OnDeviceModelServices.shared.presentModelList() }
+            LocalChatServices.install(cache: cache, answerer: localAnswerer())
         }
+        UITestSeams.install()
         return SessionsListModel(connections: saved, cache: cache)
+    }
+
+    /// The model local chats answer with. A UI test can name a fixed fake; release builds never can.
+    @MainActor
+    private static func localAnswerer() -> @Sendable () -> any LocalChatAnswerer {
+        #if DEBUG
+            if let name = UITestSeams.localExecutorName { return UITestSeams.answerer(named: name) }
+        #endif
+        return OnDeviceModelServices.shared.answerer
     }
 
     private static func cacheFileURL() -> URL? {
@@ -176,6 +186,7 @@ struct RootView: View {
         }
         .animation(HermesMotion.animation(HermesMotion.gentle, reduceMotion: reduceMotion), value: connections.isEmpty)
         .environment(\.hermesPosture, launch.posture ?? .flat)
+        .overlay(alignment: .topLeading) { UITestSeams.readout() }
         .task {
             if let layout = launch.layout {
                 model.layoutOverride = layout

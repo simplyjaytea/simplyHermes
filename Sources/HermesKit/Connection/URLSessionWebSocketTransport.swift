@@ -32,7 +32,10 @@
         }
 
         func open(_ request: URLRequest) async throws {
-            let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+            #if DEBUG
+                NetworkTrap.record("websocket")
+            #endif
+            let session = NetworkSessions.make(configuration: .default, delegate: self, delegateQueue: nil)
             let task = session.webSocketTask(with: request)
             lock.withLock {
                 self.session = session
