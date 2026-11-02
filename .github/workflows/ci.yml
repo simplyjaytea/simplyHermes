@@ -4,15 +4,23 @@ on:
   push:
     branches: [main]
   pull_request:
+    # ready_for_review starts the App job when a draft becomes the merge candidate. labeled lets `ci:app` run it on a
+    # draft. Any other label does nothing.
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
 
+# A label other than ci:app gets its own group, so it can't cancel the PR's running CI.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: >-
+    ci-${{ github.ref }}${{ github.event.action == 'labeled' && github.event.label.name != 'ci:app'
+    && format('-ignored-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 jobs:
   changes:
     name: Changed files
+    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'ci:app' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     outputs:
       code: ${{ steps.filter.outputs.code }}
     steps:
@@ -40,7 +48,9 @@ jobs:
 
   linux:
     name: Packages (Linux)
+    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'ci:app' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     container: swift:6.1
     steps:
       - uses: actions/checkout@v4
@@ -58,7 +68,9 @@ jobs:
 
   testbed:
     name: Testbed smoke (Docker)
+    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'ci:app' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -99,9 +111,21 @@ jobs:
   macos:
     name: App (Xcode 27, simulator)
     needs: changes
-    # Skipped only when the changes job sets code=false. If that job fails, this job still runs.
-    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
+    # One macOS runner, so only the merge candidate uses it: pushes to main, non-draft PRs, or a draft labelled
+    # ci:app (one run; the label is removed at the end). Also skipped when the changes job sets code=false. If that job
+    # fails, this job still runs. The merge gate (tools/ci/merge_gate.sh) treats a skipped App job as a failure.
+    if: >-
+      ${{ !cancelled() && needs.changes.outputs.code != 'false'
+      && (github.event.action != 'labeled' || github.event.label.name == 'ci:app')
+      && (github.event_name == 'push' || !github.event.pull_request.draft
+      || contains(github.event.pull_request.labels.*.name, 'ci:app')) }}
     runs-on: xcode-27
+    # Passing runs took 62-84 min (runs 41360146274, 41351410493). This stops a hung simulator from holding the only
+    # macOS runner for the 6 h default.
+    timeout-minutes: 110
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode 27.1
@@ -348,3 +372,13 @@ jobs:
         with:
           name: xcresult
           path: build/test.xcresult
+      - name: ci:app is for one run
+        # A draft keeps its labels, so without this every later push would take the macOS runner again.
+        if: >-
+          ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.draft
+          && contains(github.event.pull_request.labels.*.name, 'ci:app') }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --remove-label ci:app
