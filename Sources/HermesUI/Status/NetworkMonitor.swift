@@ -41,5 +41,12 @@
             @unknown default: .unknown
             }
         }
+
+        #if DEBUG
+            /// Sets the path a UI test needs, with no network. The system's own reports still arrive and replace it.
+            public func setPathForTesting(_ path: NetworkPath) {
+                self.path = path
+            }
+        #endif
     }
 #endif

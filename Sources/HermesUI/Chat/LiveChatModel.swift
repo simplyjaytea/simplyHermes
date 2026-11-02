@@ -106,7 +106,13 @@
             guard let connection = connections.active else { return ChatStatusDeriver.noServer }
             return ChatStatusDeriver.derive(
                 backend: .server(connectionID: connection.id, profile: nil, sessionID: storedSessionID),
-                phase: connections.phases[connection.id], path: NetworkMonitor.shared.path, local: .off)
+                phase: phase(of: connection.id), path: NetworkMonitor.shared.path, local: .off)
+        }
+
+        /// The connection phase the status reads. A test passes `phaseSource` to drive it; the app never does.
+        private func phase(of id: UUID) -> ConnectionPhase? {
+            if let phaseSource { return phaseSource() }
+            return connections.phases[id]
         }
 
         /// The server's name for the pill and the banner.
@@ -136,6 +142,8 @@
         @ObservationIgnored private var firstMessage: (text: String, attachments: [ComposerAttachment])?
         @ObservationIgnored private var isMovingWorkspace = false
         @ObservationIgnored let outbox: any OutboxStore
+        /// Replaces the connection phases the status reads. Nil in the app; a test sets it to drive the pill.
+        @ObservationIgnored let phaseSource: (@MainActor () -> ConnectionPhase?)?
         /// Sends the outbox's messages through the attached controller. Nil while the chat is detached.
         @ObservationIgnored var drainer: OutboxDrainer?
         /// Set while the composer's send is saving. A second send starts only after it ends (review M5).
@@ -148,12 +156,13 @@
 
         init(
             connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String,
-            outbox: any OutboxStore
+            outbox: any OutboxStore, phaseSource: (@MainActor () -> ConnectionPhase?)? = nil
         ) {
             self.connections = connections
             self.broker = broker
             self.storedSessionID = storedSessionID
             self.outbox = outbox
+            self.phaseSource = phaseSource
             state = TranscriptState(storedSessionID: storedSessionID)
         }
 

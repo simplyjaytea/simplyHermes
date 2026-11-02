@@ -4,12 +4,17 @@
 
     /// The status pill in a chat's header: one symbol and one short title, taken from `PillPresentation`. It reads the
     /// chat's status, so it can't say something the composer doesn't do.
-    struct StatusPill: View {
+    public struct StatusPill: View {
         let pill: PillState
         let serverName: String
         @Environment(\.hermesPalette) private var palette
 
-        var body: some View {
+        public init(pill: PillState, serverName: String) {
+            self.pill = pill
+            self.serverName = serverName
+        }
+
+        public var body: some View {
             HStack(spacing: 6) {
                 Image(systemName: PillPresentation.symbol(pill))
                     .symbolRenderingMode(.hierarchical)

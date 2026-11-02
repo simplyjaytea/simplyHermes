@@ -34,6 +34,7 @@
         func open(_ request: URLRequest) async throws {
             #if DEBUG
                 NetworkTrap.record("websocket")
+                try NetworkTrap.failIfGatewayStopped()
             #endif
             let session = NetworkSessions.make(configuration: .default, delegate: self, delegateQueue: nil)
             let task = session.webSocketTask(with: request)

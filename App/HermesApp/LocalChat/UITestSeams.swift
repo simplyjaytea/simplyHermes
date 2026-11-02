@@ -22,6 +22,7 @@ enum UITestSeams {
         private static let probeFlag = "-uiTestNetworkProbe"
         private static let persistentFlag = "-uiTestPersistentCache"
         private static let resetFlag = "-uiTestResetCache"
+        private static let gatewayToggleFlag = "-uiTestGatewayToggle"
         nonisolated(unsafe) private static var didResetCache = false
 
         private static var arguments: [String] { ProcessInfo.processInfo.arguments }
@@ -109,6 +110,21 @@ enum UITestSeams {
                 .font(.system(size: 1))
                 .opacity(0.01)
             }
+            if arguments.contains(gatewayToggleFlag) {
+                GatewayToggle()
+            }
+        }
+
+        /// Replies the fake on-device executor has given. A server chat must leave it at zero.
+        nonisolated(unsafe) private static var localReplies = 0
+        private static let replyLock = NSLock()
+
+        static var localReplyCount: Int {
+            replyLock.withLock { localReplies }
+        }
+
+        static func countLocalReply() {
+            replyLock.withLock { localReplies += 1 }
         }
     #else
         static func install() {}
@@ -131,7 +147,29 @@ enum UITestSeams {
         var availability: LocalModelAvailability { .available }
 
         func respond(instructions: String, prompt: String) async throws -> String {
-            "Reply from \(name)"
+            UITestSeams.countLocalReply()
+            return "Reply from \(name)"
+        }
+    }
+
+    /// The gateway switch for WP-8 AT-1b and AT-3b (`-uiTestGatewayToggle`). Stopping the gateway makes new HTTP and
+    /// WebSocket connections refuse, and sets the network path to none, so the chat shows "Can't reach" at once.
+    /// Starting it does both in reverse. The button's label shows the next action.
+    struct GatewayToggle: View {
+        @State private var stopped = NetworkTrap.isGatewayStopped
+
+        var body: some View {
+            VStack(alignment: .leading) {
+                Button(stopped ? "Start gateway" : "Stop gateway") {
+                    stopped.toggle()
+                    NetworkTrap.setGatewayStopped(stopped)
+                    NetworkMonitor.shared.setPathForTesting(stopped ? .unsatisfied : .satisfied)
+                }
+                .accessibilityIdentifier("uiTest.gatewayToggle")
+                Text("\(UITestSeams.localReplyCount)")
+                    .accessibilityIdentifier("uiTest.localReplies")
+            }
+            .font(.caption)
         }
     }
 #endif
