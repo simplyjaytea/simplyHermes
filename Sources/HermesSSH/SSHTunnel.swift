@@ -106,12 +106,12 @@ public actor SSHTunnel {
     private func bringUp(progress: (@Sendable (SSHTunnelStep) -> Void)?) async throws -> SSHTunnelEndpoint {
         let config = configuration
         progress?(.connecting)
-        #if DEBUG
-            NetworkTrap.record("ssh")
-        #endif
         let validator = HostKeyValidator(policy: config.hostKey)
         let client: SSHClient
         do {
+            #if DEBUG
+                NetworkTrap.record("ssh")
+            #endif
             client = try await SSHClient.connect(
                 host: config.host,
                 port: config.port,
@@ -200,6 +200,9 @@ public actor SSHTunnel {
         return String(buffer: output)
     }
 
+    /// The session for the token fetch: a factory session, so the trap counts it like every other.
+    private static let tokenSession = NetworkSessions.make(configuration: .default)
+
     /// `GET /` through the tunnel and read `window.__HERMES_SESSION_TOKEN__`. Desktop trusts it over its own.
     private static func adoptServedToken(baseURL: URL) async -> String? {
         var request = URLRequest(url: baseURL)
@@ -207,7 +210,7 @@ public actor SSHTunnel {
         #if DEBUG
             NetworkTrap.record("http")
         #endif
-        guard let (data, _) = try? await URLSession.shared.data(for: request),
+        guard let (data, _) = try? await tokenSession.data(for: request),
             let html = String(bytes: data, encoding: .utf8)
         else { return nil }
         return RemoteDashboard.parseServedToken(html: html)

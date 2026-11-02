@@ -23,7 +23,7 @@ final class LocalChatUITests: XCTestCase {
 
         let sites = element(app, "uiTest.networkSites")
         XCTAssertTrue(sites.waitForExistence(timeout: 15), "The trap readout should be in the shell")
-        let everySite = ["http", "websocket", "terminal", "ssh", "download"]
+        let everySite = ["http", "websocket", "terminal", "ssh", "download", "intercepted"]
             .map { "label CONTAINS '\($0)=1'" }
             .joined(separator: " AND ")
         let counted = XCTNSPredicateExpectation(predicate: NSPredicate(format: everySite), object: sites)

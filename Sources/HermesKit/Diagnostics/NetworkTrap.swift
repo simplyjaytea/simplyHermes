@@ -8,7 +8,7 @@
     /// compiled in debug builds only, and every call site is wrapped the same way, so release builds never count.
     public enum NetworkTrap {
         /// Every site that records. The readout lists them in this order.
-        public static let sites = ["http", "websocket", "terminal", "ssh", "download"]
+        public static let sites = ["http", "websocket", "terminal", "ssh", "download", "intercepted"]
 
         private static let lock = NSLock()
         nonisolated(unsafe) private static var openings: [String: Int] = [:]

@@ -164,8 +164,9 @@ public actor LocalChatController {
     }
 
     /// Asks the model again for one unanswered question (see ``LocalChatSnapshot/unansweredIDs``). It adds one reply at
-    /// most, answering that question, and writes no user row. Ids that are not unanswered questions are ignored. A
-    /// retry that arrives while another reply is written waits its turn. It returns when the attempt has finished.
+    /// most, answering that question, and writes no user row. Ids that are not unanswered questions are ignored. When no
+    /// reply is being written, it returns once the attempt has finished. When one is, it queues this question and returns
+    /// at once; the running reply loop writes the queued reply later.
     public func retry(messageID: Int) async {
         guard let question = messages.first(where: { $0.id == messageID }), question.author == .user,
             unansweredQuestionIDs().contains(messageID)

@@ -58,7 +58,7 @@ public protocol TerminalSocketTransport: Sendable {
             #if DEBUG
                 NetworkTrap.record("terminal")
             #endif
-            let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+            let session = NetworkSessions.make(configuration: .default, delegate: self, delegateQueue: nil)
             let task = session.webSocketTask(with: request)
             lock.withLock {
                 self.session = session

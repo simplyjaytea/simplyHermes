@@ -83,7 +83,7 @@ public final class URLSessionModelFileDownloader: NSObject, ModelFileDownloader,
     /// A session that waits for a connection instead of failing at once, with no URL cache (the files are large).
     public init(configuration: URLSessionConfiguration = URLSessionModelFileDownloader.defaultConfiguration()) {
         super.init()
-        session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        session = NetworkSessions.make(configuration: configuration, delegate: self, delegateQueue: nil)
     }
 
     public static func defaultConfiguration() -> URLSessionConfiguration {

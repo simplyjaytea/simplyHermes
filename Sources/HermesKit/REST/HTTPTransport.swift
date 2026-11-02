@@ -80,7 +80,7 @@ public final class URLSessionHTTPTransport: HTTPTransport, CookieImporting, @unc
             if configuration.httpCookieStorage == nil { configuration.httpCookieStorage = HTTPCookieStorage.shared }
         #endif
         configuration.httpCookieAcceptPolicy = .always
-        session = URLSession(configuration: configuration, delegate: blocker, delegateQueue: nil)
+        session = NetworkSessions.make(configuration: configuration, delegate: blocker, delegateQueue: nil)
     }
 
     /// A transport for requests that must not authenticate, such as health probes of fallback addresses.
@@ -97,7 +97,7 @@ public final class URLSessionHTTPTransport: HTTPTransport, CookieImporting, @unc
         configuration.httpCookieAcceptPolicy = .never
         configuration.httpCookieStorage = nil
         return URLSessionHTTPTransport(
-            session: URLSession(configuration: configuration, delegate: blocker, delegateQueue: nil),
+            session: NetworkSessions.make(configuration: configuration, delegate: blocker, delegateQueue: nil),
             redirectBlocker: blocker, allowsCookies: false)
     }
 
