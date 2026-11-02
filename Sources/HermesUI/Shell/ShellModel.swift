@@ -277,6 +277,34 @@
             for row in rows where transcripts[row.id] == nil { transcripts[row.id] = [] }
         }
 
+        /// Delete with Undo for a local chat (feature C), through the same window and toast as server chats. The row
+        /// hides at once; the chat and its messages are deleted from this iPhone only when the window ends. Local chats
+        /// have no outbox, so nothing waiting is discarded.
+        public func deleteLocalChat(_ id: String, deletes: ChatDeletes = .shared) {
+            guard id.hasPrefix("local-"), let chatID = UUID(uuidString: String(id.dropFirst("local-".count))),
+                let session = session(id: id)
+            else { return }
+            let store = LocalChatServices.shared?.store
+            if selectedSessionID == id || openSessionIDs.contains(id) { close(id) }
+            deletes.delete(id: id, title: session.title) { [weak self] in
+                try await store?.deleteChat(chatID)
+                self?.forget(id)
+                return 0
+            }
+        }
+
+        /// Drops every trace of a deleted chat from the shell.
+        private func forget(_ id: String) {
+            sessions.removeAll { $0.id == id }
+            openSessionIDs.removeAll { $0 == id }
+            closedSessionIDs.removeAll { $0 == id }
+            if selectedSessionID == id { selectedSessionID = openSessionIDs.last }
+            transcripts[id] = nil
+            drafts[id] = nil
+            attachments[id] = nil
+            localChatModels[id] = nil
+        }
+
         /// The local chat for a sidebar id, or nil when the id names a server chat or a placeholder.
         func localChat(for id: String) -> LocalChatModel? {
             guard id.hasPrefix("local-"), let services = LocalChatServices.shared,

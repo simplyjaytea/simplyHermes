@@ -52,6 +52,8 @@
 
         @ObservationIgnored private let connections: ConnectionsModel
         @ObservationIgnored private let cache: HermesCache
+        /// Undo for delete, shared with the local chats so both lists use one window and one toast.
+        @ObservationIgnored private let deletes: ChatDeletes
         @ObservationIgnored private var library: SessionLibrary?
         /// The connection and the profile the list is attached to. A change of either starts a new list.
         @ObservationIgnored private var attachedKey: String?
@@ -64,9 +66,22 @@
 
         private static let untitled = "Untitled chat"
 
-        public init(connections: ConnectionsModel, cache: HermesCache) {
+        public init(connections: ConnectionsModel, cache: HermesCache, deletes: ChatDeletes = .shared) {
             self.connections = connections
             self.cache = cache
+            self.deletes = deletes
+        }
+
+        /// The sections the list shows: chats inside their Undo window, or being deleted, are left out. The filter is
+        /// here, not in the cache, so a refresh or sync can't bring a pending row back.
+        public var visibleSections: [SessionListSection] {
+            let hidden = deletes.hiddenIDs
+            guard !hidden.isEmpty else { return sections }
+            return sections.compactMap { section in
+                var section = section
+                section.items.removeAll { hidden.contains($0.id) }
+                return section.items.isEmpty ? nil : section
+            }
         }
 
         /// Called with all rows, in display order, after every change.
@@ -128,8 +143,20 @@
             await run { try await $0.setArchived(id, true) }
         }
 
+        /// Delete with Undo (feature C): the row hides at once and the toast offers Undo for 5 s. Sending to the chat
+        /// pauses meanwhile. When the window ends the server deletes the chat, then its waiting messages are removed
+        /// from the outbox; the toast has already said how many. A failed server delete brings the row back with the
+        /// reason and discards nothing.
         public func delete(_ id: String) async {
-            await run { try await $0.delete(id) }
+            guard let library, let item = items.first(where: { $0.id == id }) else { return }
+            let outbox = cache.outbox
+            let waiting = (try? await outbox.waitingCount(inChat: id)) ?? 0
+            deletes.delete(id: id, title: item.title, waitingMessages: waiting) { [weak self] in
+                try await library.delete(id)
+                let discarded = try await outbox.removeChat(id)
+                await self?.showCached()
+                return discarded
+            }
         }
 
         public func rename(_ id: String, to title: String) async {

@@ -58,6 +58,18 @@ public struct GRDBOutboxStore: OutboxStore {
         }
     }
 
+    @discardableResult
+    public func removeChat(_ chatID: String) async throws -> Int {
+        try await database.write { handle in
+            let waiting =
+                try Int.fetchOne(
+                    handle, sql: "SELECT COUNT(*) FROM outbound_messages WHERE chat_id = ? AND state != 'sent'",
+                    arguments: [chatID]) ?? 0
+            try handle.execute(sql: "DELETE FROM outbound_messages WHERE chat_id = ?", arguments: [chatID])
+            return waiting
+        }
+    }
+
     public func remove(id: UUID, ifCurrently current: DeliveryKind) async throws {
         try await database.write { handle in
             guard
