@@ -5,7 +5,11 @@ import Testing
 /// Runs against the WP-03 testbed when `HERMES_TESTBED_URL` is set. Without it the test passes without doing anything.
 /// Opens a real `/api/pty` with the testbed's sign-in, sends the window size, and waits for the PTY to write something.
 @Suite struct TerminalLiveTests {
-    @Test func ptyWritesOutputAfterTheWindowSizeArrives() async throws {
+    // Quarantined (board row quarantine-terminal-live-pty, until 2026-11-09): the testbed PTY wrote nothing within 60 s in
+    // Testbed smoke runs 39224003870, 41282852345 and 41394939027 (CancellationError from withTerminalTimeout). Not a
+    // user-rule guard. Re-enable with the fix.
+    @Test(.disabled("Quarantined: testbed PTY sometimes writes nothing within 60 s (row quarantine-terminal-live-pty)"))
+    func ptyWritesOutputAfterTheWindowSizeArrives() async throws {
         guard let base = ProcessInfo.processInfo.environment["HERMES_TESTBED_URL"],
             let endpoint = HermesEndpoint(string: base)
         else { return }
