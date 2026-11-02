@@ -44,6 +44,7 @@ final class AccessibilityMatrixUITests: XCTestCase {
     private func check(_ variant: Variant) throws {
         let app = XCUIApplication()
         app.launchArguments += ["-HermesOnboarding", "skip", "-HermesLayout", variant.layout]
+        app.launchArguments += ["-HermesSampleChats", "YES"]
         app.launchArguments += ["-AppleInterfaceStyle", variant.style]
         if let size = variant.textSize {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", size]

@@ -12,7 +12,7 @@ struct BotsEntry: WidgetKit.TimelineEntry {
 /// Reads the snapshot the app writes to the shared container. Widgets never open a connection.
 struct BotsProvider: TimelineProvider {
     func placeholder(in context: Context) -> BotsEntry {
-        BotsEntry(date: .now, content: .snapshot(.sample(now: .now)))
+        BotsEntry(date: .now, content: .snapshot(.placeholder(now: .now)))
     }
 
     func getSnapshot(in context: Context, completion: @escaping (BotsEntry) -> Void) {

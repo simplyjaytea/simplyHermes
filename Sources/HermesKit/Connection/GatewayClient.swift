@@ -32,7 +32,7 @@ public actor GatewayClient {
     private var lastInbound = 0.0
     private var lastEpoch: String?
     private var readyEvent: GatewayReadyEvent?
-    private var sessions: [String: TrackedSession] = [:]
+    private var sessions: [String: GatewayTrackedSession] = [:]
     private var resyncing: Set<String> = []
     private var buffered: [String: [GatewayEventEnvelope]] = [:]
     private var setupTask: Task<Void, Never>?
@@ -41,13 +41,6 @@ public actor GatewayClient {
         var method: String
         var continuation: CheckedContinuation<RPCResponse, any Error>
         var timeout: Task<Void, Never>?
-    }
-
-    private struct TrackedSession {
-        var liveID: String
-        var storedID: String
-        var watermark: Int?
-        var reclaimed = false
     }
 
     /// Creates a client. Nothing happens until ``start()``.
@@ -111,9 +104,11 @@ public actor GatewayClient {
     }
 
     /// Starts tracking a session so it is re-attached and replayed after a reconnect.
-    /// `watermark` is the last `seq` already shown. Nil means none.
-    public func track(liveID: String, storedID: String, watermark: Int? = nil) {
-        sessions[liveID] = TrackedSession(liveID: liveID, storedID: storedID, watermark: watermark)
+    /// `watermark` is the last `seq` already shown. Nil means none. `profile` is the profile the session was resumed
+    /// under; the re-attach calls carry it, so they never follow a profile change made in the meantime.
+    public func track(liveID: String, storedID: String, watermark: Int? = nil, profile: String? = nil) {
+        sessions[liveID] = GatewayTrackedSession(
+            liveID: liveID, storedID: storedID, watermark: watermark, profile: profile)
     }
 
     /// Stops tracking a session.
@@ -464,14 +459,18 @@ public actor GatewayClient {
             var attach: SessionAttachResult?
             if !cold {
                 do {
-                    attach = try await callAttach("session.activate", SessionActivateParams(sessionID: liveID))
+                    attach = try await callAttach(
+                        "session.activate", SessionActivateParams(sessionID: liveID, profile: tracked.profile))
                 } catch let error as RPCError where Self.isSessionNotFound(error) {
                     cold = true
                 }
             }
             if cold {
-                let result = try await callAttach("session.resume", SessionResumeParams(sessionID: tracked.storedID))
-                rekey(old: liveID, new: result.sessionID, storedID: result.storedSessionID ?? tracked.storedID)
+                let result = try await callAttach(
+                    "session.resume", SessionResumeParams(sessionID: tracked.storedID, profile: tracked.profile))
+                rekey(
+                    old: liveID, new: result.sessionID, storedID: result.storedSessionID ?? tracked.storedID,
+                    profile: tracked.profile)
                 buffered[liveID] = nil
                 emit(.sessionReattached(oldLiveID: liveID, result: result, how: .cold))
                 resyncing.insert(result.sessionID)
@@ -480,7 +479,8 @@ public actor GatewayClient {
             }
             let since: SessionEventsSinceResult = try await callTyped(
                 "session.events.since",
-                SessionEventsSinceParams(sessionID: liveID, lastSeen: sessions[liveID]?.watermark))
+                SessionEventsSinceParams(
+                    sessionID: liveID, profile: tracked.profile, lastSeen: sessions[liveID]?.watermark))
             replay(since, liveID: liveID)
             if let attach { emit(.sessionReattached(oldLiveID: liveID, result: attach, how: .live)) }
             flush(liveID: liveID)
@@ -511,9 +511,9 @@ public actor GatewayClient {
         for envelope in queued { deliver(envelope, replayed: false) }
     }
 
-    private func rekey(old: String, new: String, storedID: String) {
+    private func rekey(old: String, new: String, storedID: String, profile: String?) {
         sessions[old] = nil
-        sessions[new] = TrackedSession(liveID: new, storedID: storedID, watermark: nil)
+        sessions[new] = GatewayTrackedSession(liveID: new, storedID: storedID, watermark: nil, profile: profile)
     }
 
     private static func isSessionNotFound(_ error: RPCError) -> Bool {
@@ -597,4 +597,15 @@ public actor GatewayClient {
     private func removeSubscriber(_ id: UUID) {
         subscribers[id] = nil
     }
+}
+
+/// What the client keeps about one live session it must re-attach after a reconnect. Lives outside the actor so the
+/// actor body stays under the lint limit.
+private struct GatewayTrackedSession {
+    var liveID: String
+    var storedID: String
+    var watermark: Int?
+    /// The profile the session was resumed under. A re-attach uses it, not the client's current profile (WP-5).
+    var profile: String?
+    var reclaimed = false
 }

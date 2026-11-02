@@ -148,59 +148,61 @@
         }
     }
 
-    private struct OfflineSamples: View {
-        var body: some View {
-            VStack(spacing: 12) {
-                OfflineBanner(notice: .offline, onGetBetterModel: {})
-                OfflineBanner(notice: .unavailable(.disabled))
-                OfflineBanner(notice: .unavailable(.switchedOff))
-                SendToHermesBar(
-                    offer: SendToHermesOffer(chatID: "c", messageID: 3, prompt: "Why did the backup job fail?"),
-                    onSend: {}, onDismiss: {})
-                OfflineChatTranscript(messages: OfflineSamples.messages, isReplying: true)
-                HStack {
-                    OfflineBadge()
-                    Text("Offline chat")
-                        .font(HermesFont.body)
-                    Spacer()
+    #if DEBUG
+        private struct OfflineSamples: View {
+            var body: some View {
+                VStack(spacing: 12) {
+                    OfflineBanner(notice: .offline, onGetBetterModel: {})
+                    OfflineBanner(notice: .unavailable(.disabled))
+                    OfflineBanner(notice: .unavailable(.switchedOff))
+                    SendToHermesBar(
+                        offer: SendToHermesOffer(chatID: "c", messageID: 3, prompt: "Why did the backup job fail?"),
+                        onSend: {}, onDismiss: {})
+                    OfflineChatTranscript(messages: OfflineSamples.messages, isReplying: true)
+                    HStack {
+                        OfflineBadge()
+                        Text("Offline chat")
+                            .font(HermesFont.body)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
                 }
-                .padding(.horizontal, 16)
+                .padding(.vertical, 16)
+                .background(HermesColor.background)
             }
-            .padding(.vertical, 16)
-            .background(HermesColor.background)
+
+            static let messages: [OfflineChatMessage] = [
+                OfflineChatMessage(
+                    chatID: "c", id: 1, role: .user, text: "How do I list the biggest folders in a directory?",
+                    createdAt: Date(timeIntervalSince1970: 1_800_000_000)),
+                OfflineChatMessage(
+                    chatID: "c", id: 2, role: .assistant, text: "Use `du -sh *` and sort the output with `sort -h`.",
+                    createdAt: Date(timeIntervalSince1970: 1_800_000_010)),
+                OfflineChatMessage(
+                    chatID: "c", id: 3, role: .user, text: "Now check the backup job.",
+                    createdAt: Date(timeIntervalSince1970: 1_800_000_020)),
+            ]
         }
 
-        static let messages: [OfflineChatMessage] = [
-            OfflineChatMessage(
-                chatID: "c", id: 1, role: .user, text: "How do I list the biggest folders in a directory?",
-                createdAt: Date(timeIntervalSince1970: 1_800_000_000)),
-            OfflineChatMessage(
-                chatID: "c", id: 2, role: .assistant, text: "Use `du -sh *` and sort the output with `sort -h`.",
-                createdAt: Date(timeIntervalSince1970: 1_800_000_010)),
-            OfflineChatMessage(
-                chatID: "c", id: 3, role: .user, text: "Now check the backup job.",
-                createdAt: Date(timeIntervalSince1970: 1_800_000_020)),
-        ]
-    }
+        #Preview("Offline, outer", traits: .fixedLayout(width: 466, height: 678)) {
+            OfflineSamples()
+        }
 
-    #Preview("Offline, outer", traits: .fixedLayout(width: 466, height: 678)) {
-        OfflineSamples()
-    }
+        #Preview("Offline, inner portrait", traits: .fixedLayout(width: 626, height: 890)) {
+            OfflineSamples()
+        }
 
-    #Preview("Offline, inner portrait", traits: .fixedLayout(width: 626, height: 890)) {
-        OfflineSamples()
-    }
+        #Preview("Offline, inner landscape", traits: .fixedLayout(width: 890, height: 626)) {
+            OfflineSamples()
+        }
 
-    #Preview("Offline, inner landscape", traits: .fixedLayout(width: 890, height: 626)) {
-        OfflineSamples()
-    }
+        #Preview("Offline, half-fold", traits: .fixedLayout(width: 890, height: 313)) {
+            OfflineSamples()
+        }
 
-    #Preview("Offline, half-fold", traits: .fixedLayout(width: 890, height: 313)) {
-        OfflineSamples()
-    }
-
-    #Preview("Offline, outer, dark", traits: .fixedLayout(width: 466, height: 678)) {
-        OfflineSamples()
-            .preferredColorScheme(.dark)
-    }
+        #Preview("Offline, outer, dark", traits: .fixedLayout(width: 466, height: 678)) {
+            OfflineSamples()
+                .preferredColorScheme(.dark)
+        }
+    #endif
 #endif

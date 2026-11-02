@@ -8,7 +8,7 @@ final class AutomationsUITests: XCTestCase {
     @MainActor
     func testAutomationsTabOpensItsList() {
         let app = XCUIApplication()
-        app.launchArguments += ["-HermesOnboarding", "skip"]
+        app.launchArguments += ["-HermesOnboarding", "skip", "-HermesSampleChats", "YES"]
         app.launchArguments += ["-HermesLayout", "compact"]
         app.launch()
         // Launch opens the newest chat, which pushes over the tab bar. Back out to reach the tabs.

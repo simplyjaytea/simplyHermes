@@ -8,7 +8,7 @@ final class HermesAppUITests: XCTestCase {
     @MainActor
     func testLaunchOpensChatFirst() {
         let app = XCUIApplication()
-        app.launchArguments += ["-HermesOnboarding", "skip"]
+        app.launchArguments += ["-HermesOnboarding", "skip", "-HermesSampleChats", "YES"]
         app.launchArguments += ["-HermesLayout", "compact"]
         app.launch()
         XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 10))
@@ -18,7 +18,7 @@ final class HermesAppUITests: XCTestCase {
     @MainActor
     func testInnerScreenShowsSidebar() {
         let app = XCUIApplication()
-        app.launchArguments += ["-HermesOnboarding", "skip"]
+        app.launchArguments += ["-HermesOnboarding", "skip", "-HermesSampleChats", "YES"]
         app.launchArguments += ["-HermesLayout", "innerPortrait"]
         app.launch()
         XCTAssertTrue(element(app, "transcript").waitForExistence(timeout: 10))
@@ -30,7 +30,7 @@ final class HermesAppUITests: XCTestCase {
     @MainActor
     func testFoldMidStreamKeepsSessionScrollAndDraft() {
         let app = XCUIApplication()
-        app.launchArguments += ["-HermesOnboarding", "skip"]
+        app.launchArguments += ["-HermesOnboarding", "skip", "-HermesSampleChats", "YES"]
         app.launchArguments += [
             "-HermesLayout", "compact",
             "-HermesDebugLayoutSwitcher", "YES",
@@ -66,20 +66,17 @@ final class HermesAppUITests: XCTestCase {
         field.typeText(draft)
         XCTAssertEqual(scrollAnchor(app), anchor, "Showing the keyboard should keep the scroll position")
 
-        switchLayout(app, to: "innerPortrait")
         // The inner screen names the chat in its tab strip, not a navigation bar.
-        XCTAssertTrue(element(app, "tab.backup").waitForExistence(timeout: 5))
+        switchLayout(app, to: "innerPortrait", until: element(app, "tab.backup"))
         XCTAssertTrue(app.staticTexts["Hermes is replying"].exists, "The reply should still be streaming")
         XCTAssertEqual(element(app, "composer.field").value as? String, draft)
         XCTAssertEqual(scrollAnchor(app), anchor, "Scroll position should survive the layout change")
 
-        switchLayout(app, to: "halfFold")
-        XCTAssertTrue(element(app, "quick.stop").waitForExistence(timeout: 5))
+        switchLayout(app, to: "halfFold", until: element(app, "quick.stop"))
         XCTAssertEqual(element(app, "composer.field").value as? String, draft)
         XCTAssertEqual(scrollAnchor(app), anchor)
 
-        switchLayout(app, to: "compact")
-        XCTAssertTrue(app.navigationBars["Backup cron fix"].waitForExistence(timeout: 5))
+        switchLayout(app, to: "compact", until: app.navigationBars["Backup cron fix"])
         XCTAssertEqual(element(app, "composer.field").value as? String, draft)
     }
 
@@ -87,7 +84,7 @@ final class HermesAppUITests: XCTestCase {
     @MainActor
     func testTranscriptScrollHitches() {
         let app = XCUIApplication()
-        app.launchArguments += ["-HermesOnboarding", "skip"]
+        app.launchArguments += ["-HermesOnboarding", "skip", "-HermesSampleChats", "YES"]
         app.launchArguments += ["-HermesLayout", "compact"]
         app.launch()
         let transcript = transcriptScrollView(app)
@@ -105,21 +102,36 @@ final class HermesAppUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
+    /// Switches the debug layout and waits for `marker`, which only the new layout shows. With the keyboard up, the
+    /// first tap on the menu can be taken by the keyboard dismissal and the layout never changes (runs 41345522916,
+    /// 41400876569, 41407961940). So a switch that did not happen is tried once more. The test's assertions on the
+    /// draft, the stream and the scroll position are unchanged.
     @MainActor
-    private func switchLayout(_ app: XCUIApplication, to layout: String) {
+    private func switchLayout(_ app: XCUIApplication, to layout: String, until marker: XCUIElement) {
+        var problem = ""
+        for attempt in 1...2 {
+            problem = pickFromLayoutMenu(app, layout) ?? "the layout did not change"
+            if marker.waitForExistence(timeout: 5) { return }
+            if attempt == 1 { add(XCTAttachment(string: app.debugDescription)) }
+        }
+        XCTFail("Switching to \(layout) did not show its layout after two tries: \(problem)")
+    }
+
+    /// Opens the debug layout menu and taps `layout`. Returns what went wrong, or nil when the item was tapped. It
+    /// records no failure itself, so a first try that misses can be retried.
+    @MainActor
+    private func pickFromLayoutMenu(_ app: XCUIApplication, _ layout: String) -> String? {
         let menu = element(app, "debugLayoutMenu")
-        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        guard menu.waitForExistence(timeout: 5) else { return "the debug layout menu is missing" }
         menu.tap()
         let item = app.buttons[layout]
-        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        guard item.waitForExistence(timeout: 5) else { return "the \(layout) item did not appear" }
         // The item can exist before the menu lays it out. Wait until it can be tapped.
         let hittable = NSPredicate(format: "isHittable == true")
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hittable, object: item)], timeout: 10),
-            .completed,
-            "The \(layout) item should be tappable in the debug menu"
-        )
+        let ready = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hittable, object: item)], timeout: 10)
+        guard ready == .completed else { return "the \(layout) item was not tappable" }
         item.tap()
+        return nil
     }
 
     /// The chat's scroll view. Falls back to the first scroll view if the identifier is not exposed.

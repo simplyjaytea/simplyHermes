@@ -35,7 +35,9 @@
             case .standard:
                 VStack(spacing: 0) {
                     transcript
+                    notConnectedNote
                     Composer(text: model.draftBinding(for: sessionID)) { model.send(in: sessionID) }
+                        .disabled(!model.canStartChat(sessionID))
                         .background(palette.background)
                 }
                 .background(palette.background)
@@ -45,7 +47,9 @@
                         .frame(maxHeight: .infinity)
                     Divider()
                     VStack(spacing: 8) {
+                        notConnectedNote
                         Composer(text: model.draftBinding(for: sessionID)) { model.send(in: sessionID) }
+                            .disabled(!model.canStartChat(sessionID))
                         QuickActions(model: model, sessionID: sessionID)
                             .padding(.horizontal, 12)
                     }
@@ -121,6 +125,20 @@
             }
         }
 
+        /// Shown above the composer of a chat with no server behind it. It replaces any reply: the app never answers
+        /// in its place.
+        @ViewBuilder
+        private var notConnectedNote: some View {
+            if !model.canStartChat(sessionID) {
+                Text("Not connected")
+                    .font(HermesFont.footnote)
+                    .foregroundStyle(palette.secondaryText)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .accessibilityIdentifier("chat.notConnected")
+            }
+        }
+
         /// The first message on screen, in transcript order. Restoring puts it back at the top.
         private var topVisibleID: String? {
             let messages = model.transcripts[sessionID] ?? []
@@ -142,6 +160,11 @@
                     onDeny: { model.resolveApproval(in: sessionID, approved: false) },
                     onApprove: { model.resolveApproval(in: sessionID, approved: true) }
                 )
+            case .notice:
+                Text(message.text)
+                    .font(HermesFont.caption)
+                    .foregroundStyle(palette.secondaryText)
+                    .frame(maxWidth: .infinity)
             }
         }
     }
