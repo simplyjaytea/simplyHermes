@@ -126,8 +126,14 @@ final class LocalChatUITests: XCTestCase {
         element(app, "composer.send").tap()
         XCTAssertTrue(element(app, "local.message.model").waitForExistence(timeout: 20), "The chat is saved")
 
-        let back = app.navigationBars.buttons["Chats"]
-        if back.waitForExistence(timeout: 5) { back.tap() }
+        // Back to the list. The chat screen's back button is `BackButton` with no title on the Duo layout (CI run
+        // 41461489107 had no "Chats" button), so try that first, as AppearanceSettingsUITests does.
+        let back = app.buttons["BackButton"]
+        if back.waitForExistence(timeout: 5) {
+            back.tap()
+        } else if app.navigationBars.buttons["Chats"].exists {
+            app.navigationBars.buttons["Chats"].tap()
+        }
         let row = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH 'session.local-'")).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10), "The local chat is listed")
