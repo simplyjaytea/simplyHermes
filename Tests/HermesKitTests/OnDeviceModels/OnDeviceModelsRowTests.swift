@@ -20,9 +20,13 @@ struct OnDeviceModelsRowTests {
         #expect(row(.paused(someProgress)).actions == [.resume, .cancel])
         #expect(row(.failed(.network("lost"), someProgress)).actions == [.retry, .cancel])
         #expect(row(.failed(.server(status: 500), someProgress)).actions == [.retry, .cancel])
-        #expect(row(.failed(.checkFailed("unreadable"), someProgress)).actions == [.check, .delete])
-        #expect(!row(.failed(.checkFailed("x"), someProgress)).needsConfirmation(.check))
-        #expect(row(.failed(.checkFailed("x"), someProgress)).needsConfirmation(.delete))
+        #expect(
+            row(.failed(.checkFailed(.unreadable(path: "model.safetensors")), someProgress)).actions == [
+                .check, .delete,
+            ])
+        #expect(row(.failed(.checkFailed(.storage("No room")), someProgress)).actions == [.check, .delete])
+        #expect(!row(.failed(.checkFailed(.storage("No room")), someProgress)).needsConfirmation(.check))
+        #expect(row(.failed(.checkFailed(.storage("No room")), someProgress)).needsConfirmation(.delete))
         #expect(row(.failed(.damaged(file: "config.json"), someProgress)).actions == [.retry, .cancel])
         #expect(row(.downloaded).actions == [.use, .delete])
     }

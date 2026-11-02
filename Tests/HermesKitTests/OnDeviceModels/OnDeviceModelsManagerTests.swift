@@ -384,7 +384,14 @@ struct OnDeviceModelsManagerTests {
         await harness.manager.reload()
         #expect(await harness.waitForFailure("alpha"))
         let state = await harness.manager.state(of: "alpha")
-        if case .failed(.storage, _) = state {} else { Issue.record("expected a storage failure, got \(state)") }
+        // A write failure during a check is still a failed check: Check again and Delete, and no re-run on reload.
+        if case .failed(.checkFailed(.storage), _) = state {
+        } else {
+            Issue.record("expected a failed check with a storage reason, got \(state)")
+        }
+        await harness.manager.reload()
+        #expect(await harness.manager.state(of: "alpha") == state)
+        #expect(harness.downloader.calls.isEmpty)
         #expect(env.storage.hasEarlierDownload(alpha))
     }
 

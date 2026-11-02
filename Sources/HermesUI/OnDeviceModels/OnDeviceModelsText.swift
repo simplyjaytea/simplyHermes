@@ -84,9 +84,12 @@
                 return "A file didn't match its checksum and was removed. Download again."
             case .storage:
                 return "This device could not save the file. Free some space and try again."
-            case .checkFailed:
+            case .checkFailed(.unreadable):
                 return
                     "A file could not be read, so the download could not be checked. Check again, or delete the model."
+            case .checkFailed(.storage):
+                return
+                    "This device could not save the file while checking it. Free some space, then check again or delete the model."
             }
         }
 

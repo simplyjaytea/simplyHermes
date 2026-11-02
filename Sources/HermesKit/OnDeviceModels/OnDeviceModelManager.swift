@@ -28,9 +28,16 @@ public enum OnDeviceModelFailure: Sendable, Equatable {
     case damaged(file: String)
     /// The phone's file system refused a write.
     case storage(String)
-    /// A downloaded file could not be read, so the earlier download could not be checked. Nothing was removed: check
-    /// again, or delete the model.
-    case checkFailed(String)
+    /// An earlier download could not be checked. Nothing was removed: check again, or delete the model.
+    case checkFailed(CheckFailure)
+}
+
+/// Why an earlier download could not be checked.
+public enum CheckFailure: Sendable, Equatable {
+    /// A file could not be read.
+    case unreadable(path: String)
+    /// The phone could not write while checking, for example because it is out of space.
+    case storage(String)
 }
 
 /// Where one model is in its life on this phone.
@@ -185,9 +192,10 @@ public actor OnDeviceModelManager {
         }
     }
 
+    /// Every failure of a check stays a failed check, so its row offers Check again and Delete, never Discard.
     private func checkFailure(_ error: Error) -> OnDeviceModelFailure {
-        if case OnDeviceModelStorageError.unreadable(let path) = error { return .checkFailed(path) }
-        return failure(for: error)
+        if case OnDeviceModelStorageError.unreadable(let path) = error { return .checkFailed(.unreadable(path: path)) }
+        return .checkFailed(.storage(error.localizedDescription))
     }
 
     /// Checks an earlier download again, after its check failed. Nothing is downloaded except files that do not match.
