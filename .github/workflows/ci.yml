@@ -253,6 +253,14 @@ jobs:
           xcrun simctl launch "$udid" "$bundle" -HermesScreen postureDebug -HermesOnboarding skip
           sleep 4
           xcrun simctl io "$udid" screenshot --display=1 build/shots/posture-debug.png
+          # App update banner with a stub feed (debug-only launch arguments). Best effort.
+          xcrun simctl terminate "$udid" "$bundle" || true
+          feed='{"version":"9.0.0-alpha.99","build":99,"installURL":"https://www.signulous.com/dashboard","notes":"Stub build for the screenshot"}'
+          hex=$(printf '%s' "$feed" | xxd -p | tr -d '\n')
+          xcrun simctl launch "$udid" "$bundle" -HermesOnboarding skip -HermesLayout compact \
+            -HermesAppUpdateReset YES -HermesAppUpdateStubOpen YES -HermesAppUpdateFeedHex "$hex" || true
+          sleep 5
+          xcrun simctl io "$udid" screenshot --display=1 build/shots/app-update-banner.png || true
           # Live Activity (WP-63/64): run a long demo turn, then switch to Safari so the
           # Dynamic Island shows the activity. Best effort: older simulators have no island.
           xcrun simctl terminate "$udid" "$bundle" || true

@@ -66,6 +66,10 @@ targets:
         # Without these two keys the generated plist says 1.0 (1), whatever the build settings say.
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # App update feed (not the Hermes server update). Update opens the feed's installURL only when its host is
+        # GitHub's or one listed here (space-separated): the Signulous install host.
+        HermesAppUpdateFeedURL: https://github.com/simplyjaytea/simplyHermes/releases/latest/download/version.json
+        HermesAppUpdateInstallHosts: www.signulous.com signulous.com
         UILaunchScreen: {}
         # Lets SwiftUI animations run at 120 Hz on ProMotion screens.
         CADisableMinimumFrameDurationOnPhone: true
