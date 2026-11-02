@@ -27,7 +27,13 @@ while [ $# -gt 0 ]; do
     --red-main-ok)
       shift
       red_main_ok="${1:-}"
-      [ -n "$red_main_ok" ] || { echo "--red-main-ok needs a reason" >&2; exit 2; }
+      # A reason is who approved and why. A blank one, or a flag that follows by mistake (`--red-main-ok --dry-run`),
+      # is refused before anything else runs, so a dry run can never turn into a merge.
+      trimmed="${red_main_ok//[[:space:]]/}"
+      if [ -z "$trimmed" ] || [[ "$red_main_ok" == -* ]]; then
+        echo "--red-main-ok needs a reason: who approved, and why (got '${red_main_ok}')" >&2
+        exit 2
+      fi
       ;;
     -h | --help) sed -n '2,17p' "$0"; exit 0 ;;
     *) pr="$1" ;;
@@ -75,11 +81,12 @@ for job in "${REQUIRED_JOBS[@]}"; do
   fi
 done
 
-# Main must be green: the newest push run on main, for main's current head, with every job `success`.
+# Main must be green: the newest push run of the CI workflow on main, for main's current head, with every job `success`.
 main_head=$(gh api "repos/$REPO/commits/main" --jq '.sha') || exit 2
+main_run="" main_run_sha="" main_status="" main_conclusion=""
 IFS=$'\t' read -r main_run main_run_sha main_status main_conclusion < <(gh run list --repo "$REPO" --branch main \
-  --event push --limit 1 --json databaseId,headSha,status,conclusion \
-  --jq '.[0] | [(.databaseId|tostring), .headSha, .status, (.conclusion // "none")] | @tsv') || exit 2
+  --event push --workflow CI --limit 1 --json databaseId,headSha,status,conclusion \
+  --jq '.[0] // empty | [(.databaseId|tostring), .headSha, .status, (.conclusion // "none")] | @tsv') || true
 echo "main ${main_head:0:7}: push run ${main_run:-none} ${main_status:-}/${main_conclusion:-}"
 main_problem=""
 if [ -z "${main_run:-}" ]; then
@@ -110,6 +117,18 @@ if [ "$dry_run" -eq 1 ]; then
   exit 0
 fi
 
+# Main must not have moved since it was checked: a push that landed in between was not part of the green check.
+main_now=$(gh api "repos/$REPO/commits/main" --jq '.sha') || exit 2
+if [ "$main_now" != "$main_head" ]; then
+  echo "REFUSED: main moved from ${main_head:0:7} to ${main_now:0:7} during the check. Run the gate again."
+  exit 1
+fi
+
 gh pr merge "$pr" --repo "$REPO" --merge --match-head-commit "$sha"
 merge_sha=$(gh pr view "$pr" --repo "$REPO" --json mergeCommit --jq '.mergeCommit.oid')
 echo "MERGED: PR #$pr at head $sha, merge commit $merge_sha"
+# The merge commit's first parent is the main it landed on. If that is not the main the gate checked, say so.
+parent=$(gh api "repos/$REPO/commits/$merge_sha" --jq '.parents[0].sha' 2>/dev/null || true)
+if [ -n "$parent" ] && [ "$parent" != "$main_head" ]; then
+  echo "WARNING: main moved to ${parent:0:7} just before the merge; the gate checked ${main_head:0:7}."
+fi

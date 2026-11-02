@@ -83,6 +83,8 @@ jobs:
         run: swift format lint --strict -r Sources Tests App
       - name: Assistant rows come only from model output (AT-4a source lint)
         run: python3 -I tools/ci/check_assistant_rows.py
+      - name: Merge gate refuses what it must (fake gh)
+        run: bash tools/ci/test_merge_gate.sh
       - name: Build
         run: swift build
       - name: Test
