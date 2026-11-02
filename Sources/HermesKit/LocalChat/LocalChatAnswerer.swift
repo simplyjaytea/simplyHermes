@@ -6,7 +6,7 @@ public protocol LocalChatAnswerer: Sendable {
     /// Whether a model can answer now.
     var availability: LocalModelAvailability { get }
     /// Answers `prompt` guided by `instructions`, with the model that answered.
-    func answer(instructions: String, prompt: String) async throws -> LocalReply
+    func answer(instructions: String, prompt: String) async throws -> LocalAnswer
 }
 
 /// Answers with one fixed executor and names it. Used for the Apple model, for a test fake, and for a fake the UI
@@ -23,8 +23,8 @@ public struct FixedModelAnswerer: LocalChatAnswerer {
 
     public var availability: LocalModelAvailability { executor.availability }
 
-    public func answer(instructions: String, prompt: String) async throws -> LocalReply {
+    public func answer(instructions: String, prompt: String) async throws -> LocalAnswer {
         let text = try await executor.respond(instructions: instructions, prompt: prompt)
-        return LocalReply(text: text, answeredBy: identity)
+        return LocalAnswer(text: text, answeredBy: identity)
     }
 }

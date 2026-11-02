@@ -24,7 +24,7 @@ struct LocalChatControllerTests {
             await controller.send("first question")
             let snapshot = await controller.snapshot
             #expect(snapshot.messages.map(\.text) == ["first question", "first reply"])
-            #expect(snapshot.messages.last?.author == .assistant(answeredBy: .apple))
+            #expect(snapshot.messages.last?.author == .assistant(answeredBy: .apple, inReplyTo: 1))
             #expect(snapshot.failure == nil)
         }
 
@@ -38,7 +38,7 @@ struct LocalChatControllerTests {
 
         let messages = try await reopened.messages(inChat: id)
         #expect(messages.map(\.text) == ["first question", "first reply", "second question", "second reply"])
-        #expect(messages[3].author == .assistant(answeredBy: gemma))
+        #expect(messages[3].author == .assistant(answeredBy: gemma, inReplyTo: 3))
     }
 
     // AT-5b: each saved reply names the executor that produced it, and the next reply names the next one.
@@ -54,10 +54,16 @@ struct LocalChatControllerTests {
 
         let replies = await controller.snapshot.messages.filter { $0.author != .user }
         #expect(replies.map(\.text) == ["from A", "from B"])
-        #expect(replies.map(\.author) == [.assistant(answeredBy: .apple), .assistant(answeredBy: gemma)])
+        #expect(
+            replies.map(\.author) == [
+                .assistant(answeredBy: .apple, inReplyTo: 1), .assistant(answeredBy: gemma, inReplyTo: 3),
+            ])
         let chatID = try #require(await controller.snapshot.chat?.id)
         let stored = try await store.messages(inChat: chatID).filter { $0.author != .user }
-        #expect(stored.map(\.author) == [.assistant(answeredBy: .apple), .assistant(answeredBy: gemma)])
+        #expect(
+            stored.map(\.author) == [
+                .assistant(answeredBy: .apple, inReplyTo: 1), .assistant(answeredBy: gemma, inReplyTo: 3),
+            ])
     }
 
     // Executor throws or returns only whitespace: the question is kept, no assistant row is created, and the failure

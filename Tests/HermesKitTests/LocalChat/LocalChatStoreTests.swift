@@ -14,19 +14,20 @@ struct LocalChatStoreTests {
             _ = try await store.createChat(id: id, title: "Trip", at: localChatStart)
             _ = try await store.appendUserMessage("Hello", toChat: id, at: localChatStart)
             _ = try await store.appendReply(
-                LocalReply(text: "Hi from Apple", answeredBy: .apple), toChat: id, at: localChatStart)
+                LocalReply(text: "Hi from Apple", answeredBy: .apple, inReplyTo: 1), toChat: id, at: localChatStart)
+            _ = try await store.appendUserMessage("Again", toChat: id, at: localChatStart)
             _ = try await store.appendReply(
-                LocalReply(text: "Hi from Gemma", answeredBy: gemma), toChat: id, at: localChatStart)
+                LocalReply(text: "Hi from Gemma", answeredBy: gemma, inReplyTo: 3), toChat: id, at: localChatStart)
         }
 
         // A new database queue on the same file, as after a relaunch.
         let reopened = GRDBLocalChatStore(database: try DatabaseQueue(path: url.path))
         let messages = try await reopened.messages(inChat: id)
-        #expect(messages.map(\.text) == ["Hello", "Hi from Apple", "Hi from Gemma"])
-        #expect(messages.map(\.id) == [1, 2, 3])
+        #expect(messages.map(\.text) == ["Hello", "Hi from Apple", "Again", "Hi from Gemma"])
+        #expect(messages.map(\.id) == [1, 2, 3, 4])
         #expect(messages[0].author == .user)
-        #expect(messages[1].author == .assistant(answeredBy: .apple))
-        #expect(messages[2].author == .assistant(answeredBy: gemma))
+        #expect(messages[1].author == .assistant(answeredBy: .apple, inReplyTo: 1))
+        #expect(messages[3].author == .assistant(answeredBy: gemma, inReplyTo: 3))
         #expect(try await reopened.chat(id)?.title == "Trip")
     }
 
@@ -37,7 +38,26 @@ struct LocalChatStoreTests {
         }
         await #expect(throws: LocalChatError.chatNotFound) {
             _ = try await store.appendReply(
-                LocalReply(text: "orphan", answeredBy: .apple), toChat: UUID(), at: localChatStart)
+                LocalReply(text: "orphan", answeredBy: .apple, inReplyTo: 1), toChat: UUID(), at: localChatStart)
+        }
+    }
+
+    // A reply can only answer a user message of its own chat. Otherwise the question could never be found again.
+    @Test func aReplyMustAnswerAUserMessageOfItsChat() async throws {
+        let store = try HermesCache().localChats
+        let id = UUID()
+        _ = try await store.createChat(id: id, title: "Q", at: localChatStart)
+        _ = try await store.appendUserMessage("question", toChat: id, at: localChatStart)
+        let answer = try await store.appendReply(
+            LocalReply(text: "a", answeredBy: .apple, inReplyTo: 1), toChat: id, at: localChatStart)
+        #expect(answer.author == .assistant(answeredBy: .apple, inReplyTo: 1))
+        await #expect(throws: LocalChatError.questionNotFound) {
+            _ = try await store.appendReply(
+                LocalReply(text: "b", answeredBy: .apple, inReplyTo: 2), toChat: id, at: localChatStart)
+        }
+        await #expect(throws: LocalChatError.questionNotFound) {
+            _ = try await store.appendReply(
+                LocalReply(text: "c", answeredBy: .apple, inReplyTo: 99), toChat: id, at: localChatStart)
         }
     }
 
@@ -87,7 +107,10 @@ struct LocalChatMigrationTests {
                             localChatStart.addingTimeInterval(5).timeIntervalSince1970, resolution,
                         ])
                 }
-                for (message, role, text) in [(1, "user", "question"), (2, "assistant", "answer")] {
+                // Question, answer, then a second question that was never answered.
+                for (message, role, text) in [
+                    (1, "user", "question"), (2, "assistant", "answer"), (3, "user", "later"),
+                ] {
                     try handle.execute(
                         sql: """
                             INSERT INTO offline_message (connection, chat_id, message_id, role, text, created_at)
@@ -104,10 +127,12 @@ struct LocalChatMigrationTests {
         #expect(chats.first { $0.id == open }?.title == "Open offline")
 
         let messages = try await upgraded.localChats.messages(inChat: open)
-        #expect(messages.map(\.text) == ["question", "answer"])
+        #expect(messages.map(\.text) == ["question", "answer", "later"])
         #expect(messages[0].author == .user)
-        // The offline chat never recorded which model answered, so the reply keeps no model rather than a guess.
-        #expect(messages[1].author == .assistant(answeredBy: nil))
+        // The offline chat never recorded which model answered, so the reply keeps no model rather than a guess. Its
+        // question is the nearest earlier user message, so the unanswered "later" stays unanswered.
+        #expect(messages[1].author == .assistant(answeredBy: nil, inReplyTo: 1))
+        #expect(messages[2].author == .user)
 
         let tables = try tableNames(at: url)
         #expect(!tables.contains("offline_chat"))

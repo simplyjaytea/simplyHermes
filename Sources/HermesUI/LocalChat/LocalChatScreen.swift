@@ -16,9 +16,7 @@
         public var body: some View {
             VStack(spacing: 0) {
                 transcript
-                if model.snapshot.needsReply {
-                    noReplyRow
-                } else if let note = failureNote {
+                if let note = failureNote {
                     Text(note)
                         .font(HermesFont.footnote)
                         .foregroundStyle(palette.errorText)
@@ -33,19 +31,48 @@
             .onDisappear { model.stop() }
         }
 
-        /// The newest message has no reply: it failed, or the app stopped before one came. Retry asks again.
-        private var noReplyRow: some View {
+        /// A question with no reply: its reply failed, or the app stopped before one came. Retry asks again for it alone.
+        private func noReplyRow(_ question: Int) -> some View {
             HStack {
-                Text(failureNote ?? "No reply to this message.")
+                Text("No reply")
                     .font(HermesFont.footnote)
                     .foregroundStyle(palette.errorText)
-                    .accessibilityIdentifier("local.failure")
+                    .accessibilityIdentifier("local.noReply")
                 Spacer()
-                Button("Retry") { model.retry() }
+                Button("Retry") { model.retry(messageID: question) }
                     .buttonStyle(HermesButtonStyle(.primary, fillsWidth: false))
                     .accessibilityIdentifier("local.retry")
             }
             .padding(.horizontal)
+        }
+
+        /// "Reply to: <first line of the question>", shown above a reply that does not directly follow its question, so
+        /// a late answer below a newer one still says what it answers.
+        private func replyHeader(_ question: Int) -> some View {
+            Text("Reply to: \(Self.preview(of: questionText(question)))")
+                .font(HermesFont.caption)
+                .foregroundStyle(palette.secondaryText)
+                .lineLimit(1)
+                .accessibilityIdentifier("local.replyTo")
+        }
+
+        private func questionText(_ question: Int) -> String? {
+            model.snapshot.messages.first { $0.id == question }?.text
+        }
+
+        /// The first line of `text`, cut to 60 characters. Nil text reads as an earlier message.
+        static func preview(of text: String?) -> String {
+            guard
+                let line = text?.split(whereSeparator: \.isNewline).first.map(String.init)?
+                    .trimmingCharacters(in: .whitespaces), !line.isEmpty
+            else { return "an earlier message" }
+            return line.count > 60 ? String(line.prefix(60)) + "…" : line
+        }
+
+        /// The question a reply answers, or nil for a user message.
+        private func questionOf(_ message: LocalChatMessage) -> Int? {
+            if case .assistant(_, let question) = message.author { return question }
+            return nil
         }
 
         private var transcript: some View {
@@ -57,8 +84,15 @@
                             .foregroundStyle(palette.secondaryText)
                             .accessibilityIdentifier("local.empty")
                     }
-                    ForEach(model.snapshot.messages) { message in
+                    let messages = model.snapshot.messages
+                    ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                        if let question = questionOf(message), index == 0 || messages[index - 1].id != question {
+                            replyHeader(question)
+                        }
                         row(message)
+                        if model.snapshot.unansweredIDs.contains(message.id) {
+                            noReplyRow(message.id)
+                        }
                     }
                     if model.snapshot.isReplying {
                         ProgressView()
@@ -84,7 +118,7 @@
                         .background(palette.outgoingBubble, in: RoundedRectangle(cornerRadius: 16))
                         .accessibilityIdentifier("local.message.user")
                 }
-            case .assistant(let identity):
+            case .assistant(let identity, _):
                 VStack(alignment: .leading, spacing: 4) {
                     Text(message.text)
                         .textSelection(.enabled)

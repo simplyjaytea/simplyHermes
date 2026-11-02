@@ -5,6 +5,8 @@ import GRDB
 public enum LocalChatError: Error, Sendable, Equatable {
     /// The chat does not exist (it was deleted, or never created).
     case chatNotFound
+    /// A reply names a message that is not a user message in the same chat.
+    case questionNotFound
 }
 
 /// Where local chats are kept. ``HermesCache/localChats`` is the app's implementation; tests may use another.
@@ -89,7 +91,8 @@ public struct GRDBLocalChatStore: LocalChatStore {
     }
 
     public func appendReply(_ reply: LocalReply, toChat id: UUID, at date: Date) async throws -> LocalChatMessage {
-        try await append(.assistant(answeredBy: reply.answeredBy), text: reply.text, toChat: id, at: date)
+        let author = LocalChatMessage.Author.assistant(answeredBy: reply.answeredBy, inReplyTo: reply.inReplyTo)
+        return try await append(author, text: reply.text, toChat: id, at: date)
     }
 
     public func deleteChat(_ id: UUID) async throws {
@@ -109,6 +112,15 @@ public struct GRDBLocalChatStore: LocalChatStore {
                 try Int.fetchOne(
                     handle, sql: "SELECT 1 FROM local_chats WHERE chat_id = ?", arguments: [id.uuidString]) != nil
             else { throw LocalChatError.chatNotFound }
+            // A reply must answer a user message of the same chat, or the question it answers cannot be found again.
+            if let question = Self.questionID(author) {
+                guard
+                    try Int.fetchOne(
+                        handle,
+                        sql: "SELECT 1 FROM local_messages WHERE chat_id = ? AND message_id = ? AND role = 'user'",
+                        arguments: [id.uuidString, question]) != nil
+                else { throw LocalChatError.questionNotFound }
+            }
             let next =
                 try Int.fetchOne(
                     handle,
@@ -117,10 +129,13 @@ public struct GRDBLocalChatStore: LocalChatStore {
             try handle.execute(
                 sql: """
                     INSERT INTO local_messages
-                        (chat_id, message_id, role, text, answered_by_kind, answered_by_id, answered_by_name, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        (chat_id, message_id, role, text, answered_by_kind, answered_by_id, answered_by_name, reply_to,
+                         created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                arguments: [id.uuidString, next, role, text, model.kind, model.id, model.name, stamp])
+                arguments: [
+                    id.uuidString, next, role, text, model.kind, model.id, model.name, Self.questionID(author), stamp,
+                ])
             try handle.execute(
                 sql: "UPDATE local_chats SET updated_at = ? WHERE chat_id = ?", arguments: [stamp, id.uuidString])
             return LocalChatMessage(
@@ -138,7 +153,7 @@ public struct GRDBLocalChatStore: LocalChatStore {
         switch author {
         case .user:
             return ("user", ModelColumns(kind: nil, id: nil, name: nil))
-        case .assistant(let identity):
+        case .assistant(let identity, _):
             switch identity {
             case .apple:
                 return ("assistant", ModelColumns(kind: "apple", id: nil, name: nil))
@@ -148,6 +163,12 @@ public struct GRDBLocalChatStore: LocalChatStore {
                 return ("assistant", ModelColumns(kind: nil, id: nil, name: nil))
             }
         }
+    }
+
+    /// The question a reply answers, or nil for a user message.
+    private static func questionID(_ author: LocalChatMessage.Author) -> Int? {
+        if case .assistant(_, let question) = author { return question }
+        return nil
     }
 
     /// A chat from its row. A row whose id is not a UUID is skipped, not given a new id: a new id would make its
@@ -167,7 +188,7 @@ public struct GRDBLocalChatStore: LocalChatStore {
         case "user":
             author = .user
         case "assistant":
-            author = .assistant(answeredBy: identity(row))
+            author = .assistant(answeredBy: identity(row), inReplyTo: row["reply_to"] as Int?)
         default:
             return nil
         }

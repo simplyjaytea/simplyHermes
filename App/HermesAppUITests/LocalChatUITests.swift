@@ -13,18 +13,22 @@ final class LocalChatUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Positive control: the trap must see a real connection, or its zero below proves nothing.
+    /// Positive control: the trap must see a real connection at every transport, or the zero a local chat reports means
+    /// nothing. The probe opens one connection per site; each site must read at least 1.
     @MainActor
-    func testNetworkTrapCountsARealConnection() {
+    func testNetworkTrapCountsARealConnectionAtEverySite() {
         let app = XCUIApplication()
         app.launchArguments += ["-HermesOnboarding", "skip", "-uiTestNetworkTrap", "-uiTestNetworkProbe"]
         app.launch()
 
-        let readout = element(app, "uiTest.networkRequests")
-        XCTAssertTrue(readout.waitForExistence(timeout: 15), "The trap readout should be in the shell")
-        let counted = NSPredicate(format: "label != '0'")
-        let wait = XCTNSPredicateExpectation(predicate: counted, object: readout)
-        XCTAssertEqual(XCTWaiter().wait(for: [wait], timeout: 15), .completed, "The probe connection should be counted")
+        let sites = element(app, "uiTest.networkSites")
+        XCTAssertTrue(sites.waitForExistence(timeout: 15), "The trap readout should be in the shell")
+        let everySite = ["http", "websocket", "terminal", "ssh", "download"]
+            .map { "label CONTAINS '\($0)=1'" }
+            .joined(separator: " AND ")
+        let counted = XCTNSPredicateExpectation(predicate: NSPredicate(format: everySite), object: sites)
+        let result = XCTWaiter().wait(for: [counted], timeout: 30)
+        XCTAssertEqual(result, .completed, "Every probed site should be counted; last readout: \(sites.label)")
         app.terminate()
     }
 

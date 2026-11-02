@@ -39,11 +39,11 @@
             return await open.submit(text)
         }
 
-        /// Asks the model again for the newest message, when that message has no reply. Adds one reply at most.
-        public func retry() {
+        /// Asks the model again for one question that has no reply. Adds one reply at most, to that question.
+        public func retry(messageID: Int) {
             Task {
                 let open = await controller.value
-                await open.retry()
+                await open.retry(messageID: messageID)
             }
         }
 

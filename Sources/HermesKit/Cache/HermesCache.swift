@@ -117,6 +117,8 @@ public final class HermesCache: Sendable {
         // WP-7: local chats stand alone. They have no server session and no connection, so the per-server offline
         // chats move into `local_chats` and `local_messages`, and the offline tables go. Migrated replies have no
         // record of the model that wrote them (`answered_by_kind` stays null), because the offline chat never kept one.
+        // Each migrated reply answers the nearest earlier user message in its chat (`reply_to`), so a question that
+        // never got a reply stays unanswered.
         migrator.registerMigration("local-chat-v1") { handle in
             try handle.execute(
                 sql: """
@@ -135,6 +137,7 @@ public final class HermesCache: Sendable {
                         answered_by_kind TEXT,
                         answered_by_id TEXT,
                         answered_by_name TEXT,
+                        reply_to INTEGER,
                         created_at REAL NOT NULL,
                         PRIMARY KEY (chat_id, message_id)
                     ) WITHOUT ROWID;
@@ -142,6 +145,11 @@ public final class HermesCache: Sendable {
                         SELECT chat_id, title, created_at, updated_at FROM offline_chat;
                     INSERT OR IGNORE INTO local_messages (chat_id, message_id, role, text, created_at)
                         SELECT chat_id, message_id, role, text, created_at FROM offline_message;
+                    UPDATE local_messages SET reply_to = (
+                        SELECT MAX(question.message_id) FROM local_messages AS question
+                        WHERE question.chat_id = local_messages.chat_id AND question.role = 'user'
+                            AND question.message_id < local_messages.message_id)
+                    WHERE role = 'assistant';
                     DROP TABLE offline_message;
                     DROP TABLE offline_chat;
                     """)

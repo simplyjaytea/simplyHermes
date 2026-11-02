@@ -20,22 +20,24 @@ public struct LocalChatSnapshot: Sendable, Equatable {
     public var isReplying: Bool
     /// Why the last reply failed, if it did.
     public var failure: LocalChatFailure?
+    /// The user messages that have no reply, and are not waiting for one: a question whose reply threw, came back
+    /// blank, or was cut off by a relaunch. Each can be retried. Computed from the stored messages, so it survives a
+    /// reopen.
+    public var unansweredIDs: [Int]
 
-    /// True when the newest message is the user's and has no reply, and none is being written. That is the state a
-    /// reply that threw, came back blank, or was cut off by a relaunch leaves behind. Retry asks again.
-    public var needsReply: Bool {
-        !isReplying && messages.last?.author == .user
-    }
+    /// True when some user message has no reply. Retry asks again for each one.
+    public var needsReply: Bool { !unansweredIDs.isEmpty }
 
     /// Creates a snapshot. The default is an empty new chat.
     public init(
         chat: LocalChat? = nil, messages: [LocalChatMessage] = [], isReplying: Bool = false,
-        failure: LocalChatFailure? = nil
+        failure: LocalChatFailure? = nil, unansweredIDs: [Int] = []
     ) {
         self.chat = chat
         self.messages = messages
         self.isReplying = isReplying
         self.failure = failure
+        self.unansweredIDs = unansweredIDs
     }
 }
 
@@ -66,6 +68,8 @@ public actor LocalChatController {
     private var chat: LocalChat?
     private var messages: [LocalChatMessage] = []
     private var unanswered: [LocalChatMessage] = []
+    /// The question whose reply is being written now. It is neither waiting nor unanswered until its reply is saved.
+    private var answering: Int?
     private var isReplying = false
     private var failure: LocalChatFailure?
     private var subscribers: [UUID: AsyncStream<LocalChatSnapshot>.Continuation] = [:]
@@ -91,7 +95,24 @@ public actor LocalChatController {
 
     /// The chat as it is now.
     public var snapshot: LocalChatSnapshot {
-        LocalChatSnapshot(chat: chat, messages: messages, isReplying: isReplying, failure: failure)
+        LocalChatSnapshot(
+            chat: chat, messages: messages, isReplying: isReplying, failure: failure,
+            unansweredIDs: unansweredQuestionIDs())
+    }
+
+    /// The user messages with no reply that are not waiting for one (queued, or being answered now). A reply names the
+    /// question it answers, so this is read from the stored rows.
+    private func unansweredQuestionIDs() -> [Int] {
+        let answered = Set(
+            messages.compactMap { message -> Int? in
+                if case .assistant(_, let question) = message.author { return question }
+                return nil
+            })
+        let waiting = Set(unanswered.map(\.id)).union(answering.map { [$0] } ?? [])
+        return messages.compactMap { message in
+            message.author == .user && !answered.contains(message.id) && !waiting.contains(message.id)
+                ? message.id : nil
+        }
     }
 
     /// A stream of the chat, starting with the current value and yielding after every change.
@@ -142,13 +163,20 @@ public actor LocalChatController {
         return true
     }
 
-    /// Asks the model again for the newest message when it has no reply (see ``LocalChatSnapshot/needsReply``). It adds
-    /// one reply at most and writes no user row again. It returns when the attempt has finished.
-    public func retry() async {
-        guard !isReplying, let last = messages.last, last.author == .user else { return }
+    /// Asks the model again for one unanswered question (see ``LocalChatSnapshot/unansweredIDs``). It adds one reply at
+    /// most, answering that question, and writes no user row. Ids that are not unanswered questions are ignored. A
+    /// retry that arrives while another reply is written waits its turn. It returns when the attempt has finished.
+    public func retry(messageID: Int) async {
+        guard let question = messages.first(where: { $0.id == messageID }), question.author == .user,
+            unansweredQuestionIDs().contains(messageID)
+        else { return }
         failure = nil
+        unanswered.append(question)
+        guard !isReplying else {
+            publish()
+            return
+        }
         isReplying = true
-        unanswered.append(last)
         publish()
         replyTask = Task { await self.drainReplies() }
         await replyTask?.value
@@ -182,34 +210,43 @@ public actor LocalChatController {
         return started
     }
 
+    private enum Attempt {
+        case answered(LocalAnswer)
+        case failed(LocalChatFailure)
+    }
+
+    /// Writes the reply to one question. The question stays out of the unanswered list until its reply is saved, so the
+    /// screen never shows Retry for a question that is being answered.
     private func answer(_ prompt: LocalChatMessage) async {
-        let model = answerer()
-        if case .unavailable(let reason) = model.availability {
-            failure = .unavailable(reason)
-            publish()
-            return
+        answering = prompt.id
+        switch await attempt(prompt) {
+        case .failed(let reason):
+            failure = reason
+        case .answered(let answer):
+            do {
+                let reply = LocalReply(text: answer.text, answeredBy: answer.answeredBy, inReplyTo: prompt.id)
+                let saved = try await store.appendReply(reply, toChat: prompt.chatID, at: now())
+                messages.append(saved)
+                failure = nil
+            } catch {
+                failure = .notSaved
+            }
         }
-        // The chat so far, without this message and without messages that still wait for their turn.
-        let waiting = Set(unanswered.map(\.id))
-        let history = messages.filter { $0.id != prompt.id && !waiting.contains($0.id) }
-        // WP-9 replaces `try?` with a typed failure that keeps the model's error.
-        let reply = try? await model.answer(
-            instructions: Self.instructions, prompt: Self.prompt(history: history, message: prompt.text))
-        let text = reply?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard let reply, !text.isEmpty else {
-            failure = .modelFailed
-            publish()
-            return
-        }
-        do {
-            let saved = try await store.appendReply(
-                LocalReply(text: text, answeredBy: reply.answeredBy), toChat: prompt.chatID, at: now())
-            messages.append(saved)
-            failure = nil
-        } catch {
-            failure = .notSaved
-        }
+        answering = nil
         publish()
+    }
+
+    private func attempt(_ prompt: LocalChatMessage) async -> Attempt {
+        let model = answerer()
+        if case .unavailable(let reason) = model.availability { return .failed(.unavailable(reason)) }
+        // The chat before this question. Later messages, which wait for their own turn, are not part of it.
+        let history = messages.filter { $0.id < prompt.id }
+        // WP-9 replaces `try?` with a typed failure that keeps the model's error.
+        let answer = try? await model.answer(
+            instructions: Self.instructions, prompt: Self.prompt(history: history, message: prompt.text))
+        let text = answer?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard let answer, !text.isEmpty else { return .failed(.modelFailed) }
+        return .answered(LocalAnswer(text: text, answeredBy: answer.answeredBy))
     }
 
     /// The text sent to the model: as much of the chat so far as fits in ``historyLimit`` (the newest turns win),

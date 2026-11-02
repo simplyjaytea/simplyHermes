@@ -1,5 +1,6 @@
 import Foundation
 import HermesKit
+import HermesSSH
 import HermesUI
 import SwiftUI
 
@@ -7,11 +8,11 @@ import SwiftUI
 /// build can neither name a fake model nor count its own connections.
 ///
 /// - `-uiTestLocalExecutor=<name>` answers local chats with a fixed string that names the fake.
-/// - `-uiTestNetworkTrap` shows the number of connections the app has opened (every HTTP request, WebSocket, terminal
-///   socket and SSH connection, counted in `NetworkTrap`) in the hidden element `uiTest.networkRequests`.
-/// - `-uiTestNetworkProbe` (with the trap) opens one real HTTP connection at launch, to a closed local port. The UI test
-///   uses it as a positive control: the counter must read at least 1 when the probe runs, or the zero it reports for a
-///   local chat means nothing.
+/// - `-uiTestNetworkTrap` shows the connections the app has opened, counted per transport in `NetworkTrap`: the total in
+///   `uiTest.networkRequests`, the per-site counts in `uiTest.networkSites`.
+/// - `-uiTestNetworkProbe` (with the trap) opens one real connection per transport at launch, each to the closed local
+///   port 127.0.0.1:9. The UI test uses it as a positive control: every site must read at least 1, or the zero a local
+///   chat reports means nothing.
 /// - `-uiTestPersistentCache` keeps the chat list on disk across launches, in a file of its own (`uitest-cache.sqlite`),
 ///   even when the launch skips onboarding. `-uiTestResetCache` deletes that file before the first open.
 enum UITestSeams {
@@ -50,9 +51,39 @@ enum UITestSeams {
         /// Runs the positive control when the launch arguments ask for it.
         static func install() {
             guard arguments.contains(probeFlag) else { return }
-            Task {
-                let probe = HTTPRequest(method: "GET", url: URL(string: "http://127.0.0.1:9/")!, timeout: 2)
-                _ = try? await URLSessionHTTPTransport(timeout: 2).send(probe)
+            Task { await probeEverySite() }
+        }
+
+        /// One real connection per transport, all to a closed loopback port, so each fails at once and nothing leaves
+        /// the phone. The counter moves when a transport opens, before the connection fails.
+        private static func probeEverySite() async {
+            let closed = URL(string: "http://127.0.0.1:9/")!
+            let closedSocket = URL(string: "ws://127.0.0.1:9/")!
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    let probe = HTTPRequest(method: "GET", url: closed, timeout: 2)
+                    _ = try? await URLSessionHTTPTransport(timeout: 2).send(probe)
+                }
+                group.addTask {
+                    _ = try? await URLSessionWebSocketTransport().connect(url: closedSocket, headers: [:])
+                }
+                group.addTask {
+                    _ = try? await URLSessionTerminalSocketTransport().connect(url: closedSocket, headers: [:])
+                }
+                group.addTask {
+                    let configuration = URLSessionModelFileDownloader.defaultConfiguration()
+                    configuration.waitsForConnectivity = false
+                    let downloader = URLSessionModelFileDownloader(configuration: configuration)
+                    _ = try? await downloader.download(
+                        from: closed.appendingPathComponent("probe.bin"), resumeData: nil, progress: { _ in })
+                }
+                group.addTask {
+                    let configuration = SSHConfiguration(
+                        host: "127.0.0.1", port: 9, username: "probe", credential: .password("probe"),
+                        hostKey: .pinned(openSSHKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIProbeOnly"),
+                        ownershipID: "00000000000000000000000000000000", connectTimeout: .seconds(3))
+                    _ = try? await SSHTunnel(configuration: configuration).start()
+                }
             }
         }
 
@@ -65,14 +96,18 @@ enum UITestSeams {
             }
         }
 
-        /// The hidden readout of connections opened. It is empty unless the trap is on.
+        /// The hidden readouts of connections opened: the total, and the count per site. Empty unless the trap is on.
         @ViewBuilder
         static func readout() -> some View {
             if arguments.contains(trapFlag) {
-                Text("\(NetworkTrap.count)")
-                    .font(.system(size: 1))
-                    .opacity(0.01)
-                    .accessibilityIdentifier("uiTest.networkRequests")
+                VStack {
+                    Text("\(NetworkTrap.count)")
+                        .accessibilityIdentifier("uiTest.networkRequests")
+                    Text(NetworkTrap.summary)
+                        .accessibilityIdentifier("uiTest.networkSites")
+                }
+                .font(.system(size: 1))
+                .opacity(0.01)
             }
         }
     #else

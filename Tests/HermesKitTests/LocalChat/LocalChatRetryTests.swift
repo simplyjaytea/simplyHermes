@@ -4,7 +4,8 @@ import Testing
 
 @testable import HermesKit
 
-/// A reply that never arrived is recoverable: it shows as unanswered after a reopen, and retry adds exactly one reply.
+/// A reply that never arrived is recoverable: each unanswered question stays listed, survives a reopen, and retry adds
+/// exactly one reply to the question it names.
 struct LocalChatRetryTests {
     private let gemma = ModelIdentity.downloaded(id: "gemma-3-1b-4bit", displayName: "Gemma 3 1B")
 
@@ -12,42 +13,65 @@ struct LocalChatRetryTests {
         FixedModelAnswerer(identity: model, executor: ScriptedExecutor(outcome))
     }
 
-    // (a) The app was killed after the question was saved and before the reply: reopening shows it unanswered.
-    @Test func aReopenedChatWhoseLastMessageHasNoReplyNeedsOne() async throws {
+    // An earlier question whose reply failed stays retryable after a later question is answered.
+    @Test func anEarlierFailedQuestionRemainsRetryableAfterALaterAnswer() async throws {
+        let store = try HermesCache().localChats
+        let slot = AnswererSlot(answerer(.throwing))
+        let controller = await LocalChatController(
+            store: store, answerer: { slot.get() }, chatID: UUID(), now: { localChatStart })
+
+        await controller.send("first question")
+        slot.set(answerer(.reply("second answer")))
+        await controller.send("second question")
+
+        let snapshot = await controller.snapshot
+        #expect(snapshot.messages.map(\.text) == ["first question", "second question", "second answer"])
+        #expect(snapshot.unansweredIDs == [1])
+        #expect(snapshot.needsReply)
+    }
+
+    // Retry on the earlier question: one reply that names it, still two user rows, nothing left unanswered.
+    @Test func retryOfAnEarlierQuestionAddsOneReplyToThatQuestion() async throws {
+        let store = try HermesCache().localChats
+        let slot = AnswererSlot(answerer(.throwing))
+        let id = UUID()
+        let controller = await LocalChatController(
+            store: store, answerer: { slot.get() }, chatID: id, now: { localChatStart })
+        await controller.send("first question")
+        slot.set(answerer(.reply("second answer")))
+        await controller.send("second question")
+
+        slot.set(answerer(.reply("first answer"), as: gemma))
+        await controller.retry(messageID: 1)
+
+        let stored = try await store.messages(inChat: id)
+        let users = stored.filter { $0.author == .user }
+        #expect(users.map(\.text) == ["first question", "second question"])
+        let replies = stored.filter { if case .assistant = $0.author { true } else { false } }
+        #expect(replies.map(\.author).contains(.assistant(answeredBy: gemma, inReplyTo: 1)))
+        #expect(replies.count == 2)
+        #expect(await controller.snapshot.unansweredIDs.isEmpty)
+    }
+
+    // Reopen before the retry: the unanswered question is found from the stored rows, not from memory.
+    @Test func aReopenedChatListsTheEarlierUnansweredQuestion() async throws {
         let url = try temporaryDatabaseURL()
         let id = UUID()
         do {
             let store = try HermesCache(url: url).localChats
             _ = try await store.createChat(id: id, title: "Q", at: localChatStart)
-            _ = try await store.appendUserMessage("Q", toChat: id, at: localChatStart)
+            _ = try await store.appendUserMessage("first question", toChat: id, at: localChatStart)
+            _ = try await store.appendUserMessage("second question", toChat: id, at: localChatStart)
+            _ = try await store.appendReply(
+                LocalReply(text: "second answer", answeredBy: .apple, inReplyTo: 2), toChat: id, at: localChatStart)
         }
         let reopened = GRDBLocalChatStore(database: try DatabaseQueue(path: url.path))
         let controller = await LocalChatController(
             store: reopened, answerer: { answerer(.reply("unused")) }, chatID: id, now: { localChatStart })
-        let snapshot = await controller.snapshot
-        #expect(snapshot.messages.map(\.author) == [.user])
-        #expect(snapshot.needsReply)
+        #expect(await controller.snapshot.unansweredIDs == [1])
     }
 
-    // (b) Retry answers the waiting question: one reply with its model, and still one user row.
-    @Test func retryAddsExactlyOneReplyAndNoUserRow() async throws {
-        let store = try HermesCache().localChats
-        let id = UUID()
-        _ = try await store.createChat(id: id, title: "Q", at: localChatStart)
-        _ = try await store.appendUserMessage("Q", toChat: id, at: localChatStart)
-        let controller = await LocalChatController(
-            store: store, answerer: { answerer(.reply("the answer"), as: gemma) }, chatID: id, now: { localChatStart })
-
-        await controller.retry()
-
-        let stored = try await store.messages(inChat: id)
-        #expect(stored.map(\.author) == [.user, .assistant(answeredBy: gemma)])
-        #expect(stored.map(\.text) == ["Q", "the answer"])
-        #expect(await controller.snapshot.needsReply == false)
-        #expect(await controller.snapshot.failure == nil)
-    }
-
-    // (c) Retry while the model throws: still no assistant row, and the question stays unanswered.
+    // A retry whose model throws adds no assistant row, and the question stays unanswered.
     @Test func aRetryThatFailsAddsNoAssistantRow() async throws {
         let store = try HermesCache().localChats
         let id = UUID()
@@ -56,11 +80,41 @@ struct LocalChatRetryTests {
         let controller = await LocalChatController(
             store: store, answerer: { answerer(.throwing) }, chatID: id, now: { localChatStart })
 
-        await controller.retry()
+        await controller.retry(messageID: 1)
 
         #expect(try await store.messages(inChat: id).map(\.author) == [.user])
         #expect(await controller.snapshot.failure == .modelFailed)
-        #expect(await controller.snapshot.needsReply)
+        #expect(await controller.snapshot.unansweredIDs == [1])
+    }
+
+    // A blank retry is treated like a throw: no row, still unanswered.
+    @Test func aBlankRetryAddsNoAssistantRow() async throws {
+        let store = try HermesCache().localChats
+        let id = UUID()
+        _ = try await store.createChat(id: id, title: "Q", at: localChatStart)
+        _ = try await store.appendUserMessage("Q", toChat: id, at: localChatStart)
+        let controller = await LocalChatController(
+            store: store, answerer: { answerer(.blank) }, chatID: id, now: { localChatStart })
+
+        await controller.retry(messageID: 1)
+
+        #expect(try await store.messages(inChat: id).map(\.author) == [.user])
+        #expect(await controller.snapshot.unansweredIDs == [1])
+    }
+
+    // Ids that are not unanswered questions are ignored: an answered question, and an id that does not exist.
+    @Test func retryIgnoresIdsThatAreNotUnansweredQuestions() async throws {
+        let store = try HermesCache().localChats
+        let id = UUID()
+        let controller = await LocalChatController(
+            store: store, answerer: { answerer(.reply("answer")) }, chatID: id, now: { localChatStart })
+        await controller.send("question")
+        await controller.retry(messageID: 1)
+        await controller.retry(messageID: 99)
+
+        let stored = try await store.messages(inChat: id)
+        #expect(stored.count == 2)
+        #expect(await controller.snapshot.unansweredIDs.isEmpty)
     }
 
     // m1: a row whose id is not a UUID is skipped, so no chat gets a made-up id.
@@ -72,12 +126,12 @@ struct LocalChatRetryTests {
         let raw = try DatabaseQueue(path: url.path)
         try await raw.write { handle in
             try handle.execute(
-                sql:
-                    "INSERT INTO local_chats (chat_id, title, created_at, updated_at) VALUES ('not-a-uuid', 'Broken', ?, ?)",
+                sql: """
+                    INSERT INTO local_chats (chat_id, title, created_at, updated_at)
+                    VALUES ('not-a-uuid', 'Broken', ?, ?)
+                    """,
                 arguments: [localChatStart.timeIntervalSince1970, localChatStart.timeIntervalSince1970])
         }
-        let listed = try await store.chats(limit: 10)
-        #expect(listed.map(\.id) == [good])
-        #expect(listed.map(\.id).allSatisfy { $0 == good })
+        #expect(try await store.chats(limit: 10).map(\.id) == [good])
     }
 }

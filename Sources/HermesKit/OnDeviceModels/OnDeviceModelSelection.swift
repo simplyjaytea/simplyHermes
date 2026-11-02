@@ -188,15 +188,15 @@ public final class OnDeviceModelSelection: LocalModelExecutor, LocalChatAnswerer
 
     /// Answers like ``respond(instructions:prompt:)`` and names the model that wrote the reply (WP-7). After a memory
     /// fallback the name is the Apple model's, because that is the model that answered.
-    public func answer(instructions: String, prompt: String) async throws -> LocalReply {
+    public func answer(instructions: String, prompt: String) async throws -> LocalAnswer {
         let (route, executor) = resolve()
         do {
             let text = try await executor.respond(instructions: instructions, prompt: prompt)
-            return LocalReply(text: text, answeredBy: Self.identity(of: route))
+            return LocalAnswer(text: text, answeredBy: Self.identity(of: route))
         } catch OnDeviceModelError.notEnoughMemory where route != .apple {
             await handleMemoryWarning()
             let text = try await apple.respond(instructions: instructions, prompt: prompt)
-            return LocalReply(text: text, answeredBy: .apple)
+            return LocalAnswer(text: text, answeredBy: .apple)
         }
     }
 

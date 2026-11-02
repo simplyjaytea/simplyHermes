@@ -39,9 +39,10 @@ public struct LocalChatMessage: Sendable, Equatable, Identifiable {
     public enum Author: Sendable, Equatable {
         /// The person using the app.
         case user
-        /// The on-device model. `answeredBy` is nil only for a reply saved before the app recorded models (migrated from
-        /// the offline chat of WP-65b). Every reply written by ``LocalChatController`` has one.
-        case assistant(answeredBy: ModelIdentity?)
+        /// The on-device model's reply to the user message `inReplyTo`. `answeredBy` and `inReplyTo` are nil only for a
+        /// reply migrated from the offline chat of WP-65b that no earlier message can explain. Every reply written by
+        /// ``LocalChatController`` has both.
+        case assistant(answeredBy: ModelIdentity?, inReplyTo: Int?)
     }
 
     /// The chat it belongs to.
@@ -65,17 +66,35 @@ public struct LocalChatMessage: Sendable, Equatable, Identifiable {
     }
 }
 
-/// A reply from an on-device model, with the model that wrote it. A reply is saved only as one of these, so a local
-/// row always names its model.
+/// What an on-device model answered: the text and the model that wrote it. It does not know which message it answers;
+/// the controller decides that when it saves a ``LocalReply``.
+public struct LocalAnswer: Sendable, Equatable {
+    /// The answer text.
+    public let text: String
+    /// The model that wrote it.
+    public let answeredBy: ModelIdentity
+
+    /// Creates an answer.
+    public init(text: String, answeredBy: ModelIdentity) {
+        self.text = text
+        self.answeredBy = answeredBy
+    }
+}
+
+/// A saved reply: a non-blank answer, the model that wrote it, and the user message it answers (`inReplyTo`). A reply is
+/// saved only as one of these, so a local row always names its model and its question.
 public struct LocalReply: Sendable, Equatable {
     /// The reply text, already trimmed and not empty.
     public let text: String
     /// The model that wrote it.
     public let answeredBy: ModelIdentity
+    /// The id of the user message this reply answers, in the same chat.
+    public let inReplyTo: Int
 
     /// Creates a reply.
-    public init(text: String, answeredBy: ModelIdentity) {
+    public init(text: String, answeredBy: ModelIdentity, inReplyTo: Int) {
         self.text = text
         self.answeredBy = answeredBy
+        self.inReplyTo = inReplyTo
     }
 }
