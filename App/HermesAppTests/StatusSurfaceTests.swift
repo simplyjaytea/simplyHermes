@@ -51,7 +51,7 @@ struct StatusSurfaceTests {
         phase.value = .reconnecting(attempt: 2)
         #expect(model.status.pill == .reconnecting)
 
-        phase.value = .failed(.unreachable)
+        phase.value = .failed(.unreachable("the test has no network"))
         #expect(model.status.pill == .unreachable)
         #expect(OutageBanner.shows(model.status))
         #expect(model.strip.connection == .offline)
