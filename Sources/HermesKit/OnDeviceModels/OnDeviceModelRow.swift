@@ -10,6 +10,8 @@ public struct OnDeviceModelRow: Sendable, Equatable, Identifiable {
         case resume
         /// Try a failed download again.
         case retry
+        /// Check an earlier download again after its check failed.
+        case check
         /// Stop and throw away the part that arrived.
         case cancel
         /// Remove the model from the phone.
@@ -56,6 +58,8 @@ public struct OnDeviceModelRow: Sendable, Equatable, Identifiable {
             return [.pause, .cancel]
         case .paused:
             return [.resume, .cancel]
+        case .failed(.checkFailed, _):
+            return [.check, .delete]
         case .failed(.notEnoughSpace, _):
             return [.retry]
         case .failed:
@@ -71,7 +75,7 @@ public struct OnDeviceModelRow: Sendable, Equatable, Identifiable {
         switch action {
         case .download, .delete: return true
         case .cancel: return receivedBytes > 0
-        case .pause, .resume, .retry, .use: return false
+        case .pause, .resume, .retry, .check, .use: return false
         }
     }
 

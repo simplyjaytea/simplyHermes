@@ -28,6 +28,9 @@ public enum OnDeviceModelFailure: Sendable, Equatable {
     case damaged(file: String)
     /// The phone's file system refused a write.
     case storage(String)
+    /// A downloaded file could not be read, so the earlier download could not be checked. Nothing was removed: check
+    /// again, or delete the model.
+    case checkFailed(String)
 }
 
 /// Where one model is in its life on this phone.
@@ -146,6 +149,8 @@ public actor OnDeviceModelManager {
         storage.removeOrphans(keeping: catalog)
         for model in catalog.models where active?.id != model.id && !queue.contains(model.id) {
             if states[model.id] == .checking { continue }
+            // A failed check waits for "Check again". Opening Settings does not repeat it.
+            if case .failed(.checkFailed, _) = states[model.id] { continue }
             if storage.hasEarlierDownload(model) {
                 beginCheck(model)
                 continue
@@ -176,8 +181,16 @@ public actor OnDeviceModelManager {
             setState(.notDownloaded, for: model.id)
             start(model.id)
         case .failure(let error):
-            setState(.failed(failure(for: error), progress(of: model)), for: model.id)
+            setState(.failed(.checkFailed(error.localizedDescription), progress(of: model)), for: model.id)
         }
+    }
+
+    /// Checks an earlier download again, after its check failed. Nothing is downloaded except files that do not match.
+    public func check(_ id: String) {
+        guard let model = catalog.model(id: id), storage.hasEarlierDownload(model), active?.id != id,
+            !queue.contains(id), states[id] != .checking
+        else { return }
+        beginCheck(model)
     }
 
     // MARK: Controls

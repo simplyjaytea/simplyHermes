@@ -37,6 +37,7 @@
             case .pause: return "Pause"
             case .resume: return "Resume"
             case .retry: return "Try again"
+            case .check: return "Check again"
             case .cancel:
                 switch row.state {
                 case .paused, .failed: return "Discard"
@@ -83,6 +84,9 @@
                 return "A file didn't match its checksum and was removed. Download again."
             case .storage:
                 return "This device could not save the file. Free some space and try again."
+            case .checkFailed:
+                return
+                    "A file could not be read, so the download could not be checked. Check again, or delete the model."
             }
         }
 
@@ -94,6 +98,7 @@
             case .unavailable(.unsupported): return "This device does not support Apple Intelligence."
             case .unavailable(.disabled):
                 return "Apple Intelligence is off. Turn it on in the Settings app to use this model."
+            case .unavailable(.noModelChosen): return "No on-device model is in use."
             case .unavailable(.notReady): return "The model is still getting ready. Try again in a few minutes."
             case .unavailable(.switchedOff): return "On-device features are switched off above."
             }
@@ -134,6 +139,9 @@
         // MARK: Notes
 
         /// Under the model list: what changed after a memory warning, or why nothing can be picked.
+        /// Shown when the model in use was deleted. Nothing answers on the device until the user picks one.
+        static let noModelInUse = "No on-device model is in use. Pick one below to answer on this iPhone."
+
         static func footer(suspended: Bool, canRun: Bool) -> String {
             var lines: [String] = []
             if suspended {

@@ -153,7 +153,7 @@ struct OnDeviceModelsControllerTests {
         #expect(setup.env.storage.usedBytes() == 0)
     }
 
-    @Test func deletingTheModelInUseUnloadsItBeforeTheFilesGoAndFallsBackToApple() async throws {
+    @Test func deletingTheModelInUseUnloadsItBeforeTheFilesGoAndLeavesNoModel() async throws {
         let setup = Setup()
         try setup.env.installFinished(alpha)
         await setup.manager.reload()
@@ -168,7 +168,8 @@ struct OnDeviceModelsControllerTests {
         #expect(filesWereThereAtUnload.value)
         #expect(!FileManager.default.fileExists(atPath: folder.path))
         #expect(await setup.manager.state(of: "alpha") == .notDownloaded)
-        #expect(setup.selection.choice == .apple)
-        #expect(setup.controller.appleModelIsInUse)
+        #expect(setup.selection.choice == .none)
+        #expect(!setup.controller.appleModelIsInUse)
+        #expect(setup.controller.noModelInUse)
     }
 }

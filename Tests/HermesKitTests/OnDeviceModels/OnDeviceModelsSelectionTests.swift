@@ -368,7 +368,7 @@ struct OnDeviceModelsSelectionTests {
         #expect(setup.runtime.unloadCount == 3)
     }
 
-    @Test func deletingTheModelInUseFallsBackToAppleAndForgetsIt() async throws {
+    @Test func deletingTheModelInUseLeavesNoModelAndNeverFallsBackToApple() async throws {
         let setup = try Setup()
         await setup.selection.select(.downloaded("alpha"))
         #expect(try await answer(setup.selection, "hi") == "alpha: hi")
@@ -376,8 +376,14 @@ struct OnDeviceModelsSelectionTests {
 
         await setup.selection.modelWillBeDeleted("alpha")
 
-        #expect(setup.selection.choice == .apple)
-        #expect(setup.env.storage.loadChoice() == .apple)
+        #expect(setup.selection.choice == .none)
+        #expect(setup.env.storage.loadChoice() == OnDeviceModelChoice.none)
+        #expect(setup.selection.route == .none)
+        #expect(setup.selection.availability == .unavailable(.noModelChosen))
+        await #expect(throws: OnDeviceModelError.noModelChosen) {
+            _ = try await answer(setup.selection, "hi")
+        }
+        #expect(setup.apple.prompts.isEmpty)
         #expect(setup.runtime.unloadCount == unloadsBefore + 1)
         // Downloaded and picked again, the model gets a fresh executor, not the one that held the old files.
         await setup.selection.select(.downloaded("alpha"))

@@ -6,6 +6,9 @@ public enum OnDeviceModelChoice: Sendable, Hashable, Codable {
     case apple
     /// A downloaded model, by catalog id.
     case downloaded(String)
+    /// No on-device model. Set when the model in use is deleted: nothing answers on the device, and the Apple model
+    /// does not step in silently.
+    case none
 }
 
 /// Why a downloaded model cannot answer.
@@ -14,6 +17,8 @@ public enum OnDeviceModelError: Error, Sendable, Equatable {
     case notEnoughMemory(needed: Int64, available: Int64)
     /// The chosen model is being checked or repaired, so it cannot answer yet.
     case notReady
+    /// The model in use was deleted, and no other model was picked.
+    case noModelChosen
 }
 
 /// The part of the model runtime the selection needs. The app implements it with MLX; HermesKit never imports MLX, so
@@ -92,6 +97,8 @@ public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendab
     public enum Route: Sendable, Equatable {
         case apple
         case downloaded(OnDeviceModel)
+        /// No on-device model: the model in use was deleted. Nothing answers on the device.
+        case none
     }
 
     /// The Apple model, for callers that want it whatever the user picked (titles, for example).
@@ -129,7 +136,7 @@ public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendab
         lock.withLock { savedChoice }
     }
 
-    /// Which model answers right now, after the fallbacks.
+    /// Which model answers right now, after the fallbacks. It is `.none` when the model in use was deleted.
     public var route: Route {
         resolve().route
     }
@@ -167,7 +174,7 @@ public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendab
             downloadedExecutors[id] = nil
             return savedChoice == .downloaded(id)
         }
-        if wasInUse { setChoice(.apple) }
+        if wasInUse { setChoice(.none) }
         await runtime?.unloadAll()
     }
 
@@ -205,12 +212,16 @@ public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendab
 
     private func resolve() -> (route: Route, executor: any LocalModelExecutor) {
         let (choice, suspended) = lock.withLock { (savedChoice, suspendedByMemory) }
+        // The model in use was deleted: nothing answers on the device, and Apple does not step in.
+        if choice == .none { return (.none, UnavailableExecutor(reason: .noModelChosen, error: .noModelChosen)) }
         guard !suspended, let runtime, case .downloaded(let id) = choice, let model = catalog.model(id: id) else {
             return (.apple, apple)
         }
         // A model whose earlier files are being checked stays the choice. It is not ready, and Apple does not answer
         // in its place.
-        if storage.isAwaitingCheck(model) { return (.downloaded(model), NotReadyExecutor()) }
+        if storage.isAwaitingCheck(model) {
+            return (.downloaded(model), UnavailableExecutor(reason: .notReady, error: .notReady))
+        }
         guard storage.isDownloaded(model) else { return (.apple, apple) }
         if let cached = lock.withLock({ downloadedExecutors[id] }) { return (.downloaded(model), cached) }
         guard let made = runtime.executor(for: model, folder: storage.folder(for: model)) else {
@@ -221,11 +232,14 @@ public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendab
     }
 }
 
-/// Stands in for a downloaded model while its earlier files are checked: it is not ready, and it never answers.
-private struct NotReadyExecutor: LocalModelExecutor {
-    var availability: LocalModelAvailability { .unavailable(.notReady) }
+/// Stands in for the on-device model when none can answer: a model being checked, or none chosen. It never answers.
+private struct UnavailableExecutor: LocalModelExecutor {
+    let reason: LocalModelUnavailable
+    let error: OnDeviceModelError
+
+    var availability: LocalModelAvailability { .unavailable(reason) }
 
     func respond(instructions: String, prompt: String) async throws -> String {
-        throw OnDeviceModelError.notReady
+        throw error
     }
 }

@@ -42,6 +42,10 @@
                 } header: {
                     Text("Models")
                 } footer: {
+                    if model.noModelInUse {
+                        Text(OnDeviceModelsText.noModelInUse)
+                            .accessibilityIdentifier("onDeviceModels.noModelInUse")
+                    }
                     Text(
                         OnDeviceModelsText.footer(
                             suspended: model.isSuspendedByMemoryWarning, canRun: model.canRunDownloadedModels))

@@ -21,6 +21,8 @@
 
         public private(set) var rows: [OnDeviceModelRow]
         public private(set) var appleModelIsInUse = true
+        /// True when the model in use was deleted, so no on-device model answers until the user picks one.
+        public private(set) var noModelInUse = false
         public private(set) var appleAvailability: LocalModelAvailability = .available
         /// True after a memory warning moved the answers back to the Apple model.
         public private(set) var isSuspendedByMemoryWarning = false
@@ -72,6 +74,7 @@
             }
             rows = controller.rows(states: states, repairing: repairing)
             appleModelIsInUse = controller.appleModelIsInUse
+            noModelInUse = controller.noModelInUse
             appleAvailability = controller.selection.apple.availability
             isSuspendedByMemoryWarning = controller.selection.isSuspendedByMemoryWarning
             canRunDownloadedModels = controller.selection.canRunDownloadedModels

@@ -307,12 +307,15 @@ struct OnDeviceModelsStorageTests {
 final class HashCounter: @unchecked Sendable {
     private let lock = NSLock()
     private var hashed = 0
+    /// While true, every hash fails, as a file that cannot be read would.
+    let fails = TestFlag(false)
 
     var count: Int { lock.withLock { hashed } }
     func reset() { lock.withLock { hashed = 0 } }
 
     @Sendable func hash(_ url: URL) throws -> String {
         lock.withLock { hashed += 1 }
+        if fails.value { throw TestFailure() }
         return try OnDeviceModelDigest.sha256(of: url)
     }
 }

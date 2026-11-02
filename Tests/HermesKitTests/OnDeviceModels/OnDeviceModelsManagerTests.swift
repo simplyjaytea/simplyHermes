@@ -385,10 +385,72 @@ struct OnDeviceModelsManagerTests {
         await harness.manager.reload()
         #expect(await harness.waitForFailure("alpha"))
         let state = await harness.manager.state(of: "alpha")
-        if case .failed(.storage, _) = state {} else { Issue.record("expected a storage failure, got \(state)") }
+        if case .failed(.checkFailed, _) = state {} else { Issue.record("expected a failed check, got \(state)") }
         #expect(env.storage.hasEarlierDownload(alpha))
         #expect(FileManager.default.fileExists(atPath: env.storage.folder(for: alpha).path))
         #expect(harness.downloader.calls.isEmpty)
+    }
+
+    @Test func checkAgainFromAFailedCheckFinishesWhenEveryFileMatches() async throws {
+        let probe = HashCounter()
+        let env = TestEnvironment(digest: probe.hash)
+        try env.installEarlier(alpha)
+        probe.fails.value = true
+        let harness = Harness(env: env)
+        await harness.manager.reload()
+        #expect(await harness.waitForFailure("alpha"))
+        probe.fails.value = false
+        await harness.manager.check("alpha")
+        #expect(await harness.waitForDownloaded("alpha"))
+        #expect(harness.downloader.calls.isEmpty)
+        #expect(!env.storage.hasEarlierDownload(alpha))
+    }
+
+    @Test func checkAgainFromAFailedCheckFetchesOnlyTheFileThatDoesNotMatch() async throws {
+        let probe = HashCounter()
+        let env = TestEnvironment(digest: probe.hash)
+        try env.installEarlier(alpha)
+        let config = env.storage.folder(for: alpha).appendingPathComponent("config.json")
+        try Data(repeating: 0xFF, count: 10).write(to: config)
+        probe.fails.value = true
+        let harness = Harness(env: env)
+        await harness.manager.reload()
+        #expect(await harness.waitForFailure("alpha"))
+        probe.fails.value = false
+        await harness.manager.check("alpha")
+        #expect(await harness.waitForDownloaded("alpha"))
+        #expect(harness.downloader.calledFiles == ["config.json"])
+    }
+
+    @Test func deleteFromAFailedCheckRemovesTheFolderAndFreesTheSpace() async throws {
+        let probe = HashCounter()
+        let env = TestEnvironment(digest: probe.hash)
+        try env.installEarlier(alpha)
+        probe.fails.value = true
+        let harness = Harness(env: env)
+        await harness.manager.reload()
+        #expect(await harness.waitForFailure("alpha"))
+        #expect(env.storage.usedBytes(for: alpha) > 0)
+        try await harness.manager.delete("alpha")
+        #expect(await harness.manager.state(of: "alpha") == .notDownloaded)
+        #expect(!FileManager.default.fileExists(atPath: env.storage.folder(for: alpha).path))
+        #expect(env.storage.usedBytes(for: alpha) == 0)
+    }
+
+    @Test func openingSettingsAfterAFailedCheckHashesNothing() async throws {
+        let probe = HashCounter()
+        let env = TestEnvironment(digest: probe.hash)
+        try env.installEarlier(alpha)
+        probe.fails.value = true
+        let harness = Harness(env: env)
+        await harness.manager.reload()
+        #expect(await harness.waitForFailure("alpha"))
+        probe.reset()
+        await harness.manager.reload()
+        await harness.manager.reload()
+        #expect(probe.count == 0)
+        let state = await harness.manager.state(of: "alpha")
+        if case .failed(.checkFailed, _) = state {} else { Issue.record("expected a failed check, got \(state)") }
     }
 
     @Test func aFileOfTheRightSizeWithTheWrongDigestIsDiscardedAndMarkedDamaged() async {

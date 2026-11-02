@@ -73,6 +73,7 @@
             case .unavailable(.unsupported): "This iPhone can't run the on-device model."
             case .unavailable(.disabled): "Turn on Apple Intelligence in Settings to chat offline."
             case .unavailable(.notReady): "The on-device model is getting ready."
+            case .unavailable(.noModelChosen): "No on-device model is in use. Pick one in Settings."
             }
         }
 

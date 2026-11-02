@@ -38,11 +38,18 @@ public struct OnDeviceModelController: Sendable {
         selection.route == .apple
     }
 
+    /// True when the model in use was deleted, and no on-device model answers until the user picks one.
+    public var noModelInUse: Bool {
+        selection.choice == .none
+    }
+
     /// Does what a row button says. Delete unloads the model first, so its files are not in use when they go.
     public func perform(_ action: OnDeviceModelRow.Action, on model: OnDeviceModel) async throws {
         switch action {
         case .download, .resume, .retry:
             await manager.start(model.id)
+        case .check:
+            await manager.check(model.id)
         case .pause:
             await manager.pause(model.id)
         case .cancel:
