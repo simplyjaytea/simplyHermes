@@ -254,6 +254,11 @@
             if let previous { drafts[previous] = nil }
         }
 
+        /// The name of the model a new Local chat would answer with, for the New chat menu. Nil when none can answer now.
+        public var localModelName: String? {
+            LocalChatServices.shared?.answeringModel()?.displayName
+        }
+
         /// Starts a local chat (WP-7), or opens the empty one already open. It is listed at once and saved on its first
         /// message. Nothing in it reaches a server.
         func newLocalChat() {

@@ -132,6 +132,13 @@ public final class OnDeviceModelSelection: LocalModelExecutor, LocalChatAnswerer
         resolve().route
     }
 
+    /// The model a new Local chat would answer with, or nil when none can answer now (the feature is off, or the
+    /// model is not ready). The New chat menu names the model only when this is not nil.
+    public var answeringModel: ModelIdentity? {
+        guard case .available = availability else { return nil }
+        return Self.identity(of: route)
+    }
+
     /// True when a downloaded model could run on this device: the app supplied a runtime.
     public var canRunDownloadedModels: Bool {
         runtime != nil

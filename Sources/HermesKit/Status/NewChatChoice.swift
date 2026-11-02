@@ -23,6 +23,18 @@ public enum NewChatChoice: Sendable, Equatable, CaseIterable {
         }
     }
 
+    /// The menu title with the model that would answer. A Local choice names the model only when one is ready, so the
+    /// menu never implies a model that can't answer.
+    public func menuTitle(localModelName: String?) -> String {
+        switch self {
+        case .online:
+            return title
+        case .local:
+            guard let localModelName, !localModelName.isEmpty else { return title }
+            return "\(title) · \(localModelName)"
+        }
+    }
+
     /// The menu symbol: the same one the chat's pill uses for its kind (UX spec §1.2).
     public var symbol: String {
         switch self {

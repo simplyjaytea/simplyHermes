@@ -88,7 +88,9 @@ struct HermesApp: App {
         // WP-7: local chats are kept in the same cache file as the chat list. They exist nowhere else, so they stay off
         // when the file would not open and the cache fell back to memory. UI tests keep it in memory on purpose.
         if file != nil || launch.onboarding != nil {
-            LocalChatServices.install(cache: cache, answerer: localAnswerer())
+            LocalChatServices.install(
+                cache: cache, answerer: localAnswerer(),
+                answeringModel: { OnDeviceModelServices.shared.selection.answeringModel })
         }
         UITestSeams.install()
         return SessionsListModel(connections: saved, cache: cache)

@@ -478,7 +478,7 @@
                         Button {
                             model.newChat(mode: choice.mode)
                         } label: {
-                            Label(choice.title, systemImage: choice.symbol)
+                            Label(choice.menuTitle(localModelName: model.localModelName), systemImage: choice.symbol)
                         }
                     }
                 }

@@ -116,6 +116,13 @@ struct NewChatChoiceTests {
         #expect(NewChatChoice.local.mode == .local)
         #expect(NewChatChoice.allCases.map(\.title) == ["New Online chat", "New Local chat"])
     }
+
+    @Test func aLocalChatMenuItemNamesTheModelOnlyWhenOneIsReady() {
+        #expect(NewChatChoice.local.menuTitle(localModelName: "Gemma 3 1B") == "New Local chat · Gemma 3 1B")
+        #expect(NewChatChoice.local.menuTitle(localModelName: nil) == "New Local chat")
+        #expect(NewChatChoice.local.menuTitle(localModelName: "") == "New Local chat")
+        #expect(NewChatChoice.online.menuTitle(localModelName: "Gemma 3 1B") == "New Online chat")
+    }
 }
 
 struct ChatModeDefaultSaveTests {
