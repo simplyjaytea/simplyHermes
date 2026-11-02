@@ -23,13 +23,32 @@ final class LocalChatUITests: XCTestCase {
 
         let sites = element(app, "uiTest.networkSites")
         XCTAssertTrue(sites.waitForExistence(timeout: 15), "The trap readout should be in the shell")
-        let everySite = ["http", "websocket", "terminal", "ssh", "download", "intercepted"]
-            .map { "label CONTAINS '\($0)=1'" }
-            .joined(separator: " AND ")
-        let counted = XCTNSPredicateExpectation(predicate: NSPredicate(format: everySite), object: sites)
-        let result = XCTWaiter().wait(for: [counted], timeout: 30)
-        XCTAssertEqual(result, .completed, "Every probed site should be counted; last readout: \(sites.label)")
+        // Wait until every site reads 1 or more. A site can count more than one connection (`intercepted` does), so the
+        // pattern accepts any count from 1 up, and not 0.
+        let atLeastOne = Self.probedSites.map { site in
+            NSPredicate(format: "label MATCHES %@", ".*\\b\(site)=[1-9][0-9]*\\b.*")
+        }
+        let counted = XCTNSPredicateExpectation(
+            predicate: NSCompoundPredicate(andPredicateWithSubpredicates: atLeastOne), object: sites)
+        _ = XCTWaiter().wait(for: [counted], timeout: 30)
+        let counts = Self.counts(in: sites.label)
+        for site in Self.probedSites {
+            XCTAssertGreaterThanOrEqual(
+                counts[site] ?? 0, 1, "\(site) should be counted; last readout: \(sites.label)")
+        }
         app.terminate()
+    }
+
+    private static let probedSites = ["http", "websocket", "terminal", "ssh", "download", "intercepted"]
+
+    /// Parses the readout (`http=1 websocket=2 ...`) into one count per site.
+    private static func counts(in readout: String) -> [String: Int] {
+        var counts: [String: Int] = [:]
+        for pair in readout.split(separator: " ") {
+            let parts = pair.split(separator: "=")
+            if parts.count == 2, let value = Int(parts[1]) { counts[String(parts[0])] = value }
+        }
+        return counts
     }
 
     @MainActor
