@@ -343,7 +343,7 @@ public struct AppUpdateChecker: Sendable {
             var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
             request.httpMethod = "GET"
             request.httpShouldHandleCookies = false
-            let session = URLSession(
+            let session = NetworkSessions.make(
                 configuration: .ephemeral, delegate: RedirectGuard(allowedHosts: allowedHosts), delegateQueue: nil)
             defer { session.finishTasksAndInvalidate() }
             let (data, response) = try await session.data(for: request)
