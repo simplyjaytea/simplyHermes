@@ -61,6 +61,8 @@ jobs:
         run: swift format lint --strict -r Sources Tests App
       - name: Assistant rows come only from model output (AT-4a source lint)
         run: python3 -I tools/ci/check_assistant_rows.py
+      - name: Simulator fallback picks a device its runtime supports (fake xcrun)
+        run: bash tools/ci/test_sim_fallback.sh
       - name: Build
         run: swift build
       - name: Test
