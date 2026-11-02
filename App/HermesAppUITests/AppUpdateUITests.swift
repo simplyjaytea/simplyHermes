@@ -80,15 +80,17 @@ final class AppUpdateUITests: XCTestCase {
         return app
     }
 
+    @MainActor
     private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
+    @MainActor
     private func visibleTab(_ app: XCUIApplication, _ title: String) -> XCUIElement? {
         let copies = app.buttons.matching(NSPredicate(format: "label == %@", title))
         let deadline = Date().addingTimeInterval(5)
         repeat {
-            if let tab = copies.allElementsBoundByIndex.first(where: \.isHittable) { return tab }
+            if let tab = copies.allElementsBoundByIndex.first(where: { $0.isHittable }) { return tab }
             Thread.sleep(forTimeInterval: 0.1)
         } while Date() < deadline
         return nil
