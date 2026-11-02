@@ -23,8 +23,8 @@ public enum NetworkSessions {
 
 #if DEBUG
     /// Counts each request a factory session starts, and never handles it: `canInit` returns false, so loading continues
-    /// in the next protocol. `canInit` may run more than once for one request, so the count is a lower bound on
-    /// requests and only ever over-counts; the tests check for zero and for at least one.
+    /// in the next protocol. `canInit` may run more than once for one request, so the count is at least the number of
+    /// requests and may be higher; the tests check only for zero and for at least one.
     class CountingProtocol: URLProtocol {
         override class func canInit(with request: URLRequest) -> Bool {
             NetworkTrap.record("intercepted")
