@@ -24,6 +24,8 @@
         var body: some View {
             if let live = model.liveChat(for: sessionID) {
                 LiveChatScreen(chat: live, model: model, sessionID: sessionID, style: style)
+            } else if let local = model.localChat(for: sessionID) {
+                LocalChatScreen(model: local)
             } else {
                 placeholder
             }

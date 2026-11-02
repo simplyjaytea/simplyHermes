@@ -90,6 +90,7 @@
 
         /// Lists the active profile's chats in the shell (WP-40), again when the server or the profile changes.
         private func attachSessions() async {
+            await model.loadLocalChats()
             guard let sessionsList else { return }
             sessionsList.observeItems { model.syncSessions($0) }
             await sessionsList.attach(profile: profiles?.selection.chosen)
@@ -471,6 +472,7 @@
                 } label: {
                     Label("New chat", systemImage: "square.and.pencil")
                 }
+                .accessibilityIdentifier("shell.newChat")
             }
         }
 

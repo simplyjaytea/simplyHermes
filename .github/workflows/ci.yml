@@ -85,6 +85,8 @@ jobs:
         run: python3 -I tools/ci/check_assistant_rows.py
       - name: Merge gate refuses what it must (fake gh)
         run: bash tools/ci/test_merge_gate.sh
+      - name: Simulator fallback picks a device its runtime supports (fake xcrun)
+        run: bash tools/ci/test_sim_fallback.sh
       - name: Build
         run: swift build
       - name: Test
@@ -284,26 +286,58 @@ jobs:
           echo "::error::Simulator $udid did not boot after 3 attempts. This is the runner, not the app."
           exit 1
       - name: Test
+        id: test
         env:
           # xcodebuild passes TEST_RUNNER_* variables to the UI test runner without the prefix.
           TEST_RUNNER_HERMES_TESTBED_URL: http://127.0.0.1:9119
+        # Simulator fallback (user-approved 2026-11-02): when the picked runtime is gone before the tests start, or
+        # xcodebuild exits 70 because it cannot use the destination, the tests run once more on the newest other
+        # usable iOS 27.x runtime (tools/ci/sim_fallback.sh). Test failures (exit 65) never fall back.
         run: |
           set -o pipefail
-          echo "Simulator: ${{ steps.sim.outputs.name }} (iOS ${{ steps.sim.outputs.os }})"
-          xcodebuild test \
-            -skipPackagePluginValidation \
-            -project simplyHermes.xcodeproj \
-            -scheme simplyHermes \
-            -destination "id=${{ steps.sim.outputs.udid }}" \
-            -resultBundlePath build/test.xcresult \
-            -retry-tests-on-failure -test-iterations 2 \
-            CODE_SIGNING_ALLOWED=NO | xcbeautify
+          udid="${{ steps.sim.outputs.udid }}"
+          name="${{ steps.sim.outputs.name }}"
+          os="${{ steps.sim.outputs.os }}"
+          use_fallback() {
+            local picked
+            picked=$(tools/ci/sim_fallback.sh pick "$udid") || exit 1
+            eval "$picked"
+            echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          }
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          if ! tools/ci/sim_fallback.sh check "$udid"; then
+            echo "The runtime of $name is no longer usable."
+            use_fallback
+          fi
+          run_tests() {
+            echo "Simulator: $name (iOS $os)"
+            xcodebuild test \
+              -skipPackagePluginValidation \
+              -project simplyHermes.xcodeproj \
+              -scheme simplyHermes \
+              -destination "id=$udid" \
+              -resultBundlePath build/test.xcresult \
+              -retry-tests-on-failure -test-iterations 2 \
+              CODE_SIGNING_ALLOWED=NO | xcbeautify
+          }
+          status=0
+          run_tests || status=$?
+          if [ "$status" -eq 70 ]; then
+            echo "xcodebuild could not use $name (exit 70): the runtime went away during the job."
+            use_fallback
+            rm -rf build/test.xcresult
+            status=0
+            run_tests || status=$?
+          fi
+          echo "### Simulator" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tests ran on $name (iOS $os)." >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
       - name: Screenshot app on simulator
         if: always()
         run: |
           set -eo pipefail
           mkdir -p build/shots
-          udid="${{ steps.sim.outputs.udid }}"
+          udid="${{ steps.test.outputs.udid || steps.sim.outputs.udid }}"
           xcrun simctl boot "$udid" || true
           xcrun simctl bootstatus "$udid" -b
           xcodebuild build \
