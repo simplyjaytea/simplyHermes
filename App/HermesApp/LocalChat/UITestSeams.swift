@@ -111,7 +111,10 @@ enum UITestSeams {
                 .opacity(0.01)
             }
             if arguments.contains(gatewayToggleFlag) {
+                // Below the status bar and the navigation bar: a tap in that top strip goes to the system, not the app.
                 GatewayToggle()
+                    .padding(.top, 110)
+                    .padding(.leading, 12)
             }
         }
 

@@ -147,9 +147,13 @@ final class StatusPillUITests: XCTestCase {
         toggle.tap()
         let relabelled = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "label == %@", label), object: toggle)
-        XCTAssertEqual(
-            XCTWaiter().wait(for: [relabelled], timeout: 5), .completed,
-            "The switch should now read \(label), not \(toggle.label)")
+        if XCTWaiter().wait(for: [relabelled], timeout: 5) != .completed {
+            // Record what the tap saw, so a failed run says whether the tap missed or the label did not change.
+            add(XCTAttachment(screenshot: app.screenshot()))
+            XCTFail(
+                "The switch should now read \(label), not \(toggle.label). "
+                    + "frame=\(toggle.frame) hittable=\(toggle.isHittable) exists=\(toggle.exists)")
+        }
     }
 
     @MainActor
