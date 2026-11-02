@@ -486,6 +486,8 @@
                     .listRowBackground(palette.card)
                 SettingsAssistantSection(connections: connections)
                     .listRowBackground(palette.card)
+                QuickActionPrivacySection()
+                    .listRowBackground(palette.card)
                 Section("Support") {
                     NavigationLink {
                         BugReportScreen(connections: connections)

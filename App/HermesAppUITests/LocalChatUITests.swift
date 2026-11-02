@@ -105,6 +105,50 @@ final class LocalChatUITests: XCTestCase {
         XCTAssertEqual(element(app, "uiTest.networkRequests").label, "0")
     }
 
+    /// Feature B: the last-chat quick action opens exactly that local chat after a relaunch, and the action for a
+    /// chat that no longer exists opens no chat. `-HermesQuickAction` stands in for the icon's long-press menu, which
+    /// XCUITest can't reach.
+    @MainActor
+    func testQuickActionOpensExactlyTheLocalChatAndIgnoresAMissingOne() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-HermesOnboarding", "skip", "-HermesLayout", "compact", "-chatModeDefault", "local",
+            "-uiTestLocalExecutor=\(fakeName)", "-uiTestPersistentCache", "-uiTestResetCache",
+        ]
+        app.launch()
+        let newChat = app.buttons.matching(identifier: "shell.newChat").firstMatch
+        XCTAssertTrue(newChat.waitForExistence(timeout: 15))
+        newChat.tap()
+        let field = element(app, "composer.field")
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        field.typeText("Open me from the icon")
+        element(app, "composer.send").tap()
+        XCTAssertTrue(element(app, "local.message.model").waitForExistence(timeout: 20), "The chat is saved")
+        let back = app.buttons["BackButton"]
+        if back.waitForExistence(timeout: 5) { back.tap() }
+        let row = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'session.local-'")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        let chatID = String(row.identifier.dropFirst("session.".count))
+        app.terminate()
+
+        // The saved chat's action opens that chat, with its message.
+        app.launchArguments.removeAll { $0 == "-uiTestResetCache" }
+        app.launchArguments += ["-HermesQuickAction", chatID]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Open me from the icon"].waitForExistence(timeout: 15), "The chat opens")
+        app.terminate()
+
+        // An action for a chat that's gone opens no chat: the list stays, with no composer.
+        let gone = "local-\(UUID().uuidString)"
+        app.launchArguments.removeLast(2)
+        app.launchArguments += ["-HermesQuickAction", gone]
+        app.launch()
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "The chat list shows")
+        XCTAssertFalse(element(app, "composer.field").waitForExistence(timeout: 3), "No chat opened")
+    }
+
     private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }

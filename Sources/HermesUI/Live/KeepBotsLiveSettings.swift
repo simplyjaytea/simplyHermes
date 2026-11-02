@@ -87,6 +87,7 @@
                 SoundsSettingsSection()
                 TipsSettingsSection()
                 OnDeviceSettingsSection()
+                QuickActionPrivacySection()
                 Section("Support") {
                     NavigationLink {
                         BugReportScreen(connections: nil)

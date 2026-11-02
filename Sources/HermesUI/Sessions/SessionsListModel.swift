@@ -48,6 +48,8 @@
         /// The chat the share sheet shows after an export. The view clears it when the sheet closes.
         public var exportedChat: ExportedChat?
         public var searchText = ""
+        /// Whether the search field is open. The home-screen Search chats action opens it.
+        public var isSearchPresented = false
         public private(set) var searchHits: [SessionSearchHit] = []
 
         @ObservationIgnored private let connections: ConnectionsModel

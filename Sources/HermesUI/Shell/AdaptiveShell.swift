@@ -79,6 +79,7 @@
                         await rooms?.reload()
                     }
                     .onChange(of: connections?.active?.id) { _, _ in model.forgetServerChats() }
+                    .onChange(of: model.chatSearchRequest) { _, _ in sessionsList?.isSearchPresented = true }
                     .task(id: model.pendingSessionReference) { await openPendingSession() }
             }
         }

@@ -51,7 +51,7 @@
             .scrollContentBackground(.hidden)
             .background(palette.groupedBackground)
             .toolbarBackground(palette.groupedBackground, for: .navigationBar)
-            .searchable(text: $model.searchText, prompt: "Search chats")
+            .searchable(text: $model.searchText, isPresented: $model.isSearchPresented, prompt: "Search chats")
             .refreshable { await model.refresh() }
             .task(id: model.searchText) { await model.runSearch() }
             .overlay {
