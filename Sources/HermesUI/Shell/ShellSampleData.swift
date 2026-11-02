@@ -1,4 +1,4 @@
-#if canImport(UIKit)
+#if canImport(UIKit) && DEBUG
     import Foundation
 
     /// Placeholder chats until WP-40 lists real sessions and WP-30 renders real transcripts.

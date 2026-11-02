@@ -1,5 +1,15 @@
 import Foundation
 
+/// What became of a composer send that ran on the controller at once (files and slash commands).
+public enum ComposerSendOutcome: Sendable, Equatable {
+    /// The prompt went out, or the command ran. The composer may clear.
+    case sent
+    /// A command handed this text back to the composer, unsent.
+    case prefill(String)
+    /// Nothing went out: the session is not live, or Hermes is busy. The composer keeps the text and files.
+    case notSent
+}
+
 /// What the controller needs from a gateway connection. ``GatewayClient`` conforms; tests use a fake.
 public protocol ChatTransport: PromptSession {
     /// Calls `session.steer`: the text joins the next tool result without interrupting the turn.
@@ -24,7 +34,7 @@ extension GatewayClient: ChatTransport {
     /// Calls `session.resume` and tracks the live session.
     public func resumeSession(_ params: SessionResumeParams) async throws -> SessionAttachResult {
         let result: SessionAttachResult = try await call("session.resume", params: params)
-        track(liveID: result.sessionID, storedID: result.storedSessionID ?? params.sessionID)
+        track(liveID: result.sessionID, storedID: result.storedSessionID ?? params.sessionID, profile: params.profile)
         return result
     }
 
@@ -77,7 +87,7 @@ public struct AttachmentRefused: Error, Equatable {
 
 /// Owns the ``TranscriptState`` of one open chat: resumes the session, feeds gateway events to the reducer,
 /// sends prompts and stops the running turn. It performs the I/O the reducer leaves out.
-public actor ChatSessionController {
+public actor ChatSessionController: OutboxSubmitter {
     private let transport: any ChatTransport
     private let storedSessionID: String
     private let profile: String?
@@ -93,6 +103,8 @@ public actor ChatSessionController {
 
     private var isIdle: Bool { state.turn == nil && !isSubmitting && !awaitingTurn }
     private var eventTask: Task<Void, Never>?
+    /// True from ``detach()`` until the next ``attach()``. A detached chat delivers nothing (review minors).
+    private var isDetached = false
     private var subscribers: [UUID: AsyncStream<ChatSnapshot>.Continuation] = [:]
 
     /// Creates a controller for the stored session `storedSessionID`. Nothing happens until ``attach()``.
@@ -124,6 +136,7 @@ public actor ChatSessionController {
 
     /// Subscribes to events, then resumes the session and shows its history.
     public func attach() async throws {
+        isDetached = false
         guard eventTask == nil else { return }
         let events = await transport.clientEvents()
         eventTask = Task { [weak self] in
@@ -131,6 +144,12 @@ public actor ChatSessionController {
                 await self?.handle(event)
             }
         }
+        try await resume()
+    }
+
+    /// Resumes the stored session under this chat's profile and shows its history. Also used to re-attach after a
+    /// failed resync.
+    private func resume() async throws {
         let result = try await transport.resumeSession(
             SessionResumeParams(sessionID: storedSessionID, profile: profile))
         state.apply(.attached(result))
@@ -139,17 +158,21 @@ public actor ChatSessionController {
 
     /// Stops listening. The transcript stays readable.
     public func detach() {
+        isDetached = true
         eventTask?.cancel()
         eventTask = nil
     }
 
-    /// Sends a prompt with its files. A slash command runs on the server first, and its directive decides what goes
-    /// out: a prompt, text for the composer, or a line in the transcript. While Hermes is busy the message waits in the
-    /// queue and goes out when the turn ends, with its files. Returns the text the composer should take back, if any.
+    /// Sends a prompt with its files at once. A slash command runs on the server first, and its directive decides what
+    /// goes out: a prompt, text for the composer, or a line in the transcript. Nothing is held in memory: when the
+    /// session is not live, or Hermes is busy, the answer is ``ComposerSendOutcome/notSent`` and the composer keeps the
+    /// text and files. Typed text that must survive a relaunch goes through the outbox and ``deliver(_:)`` instead.
     @discardableResult
-    public func send(_ text: String, attachments: [ComposerAttachment] = []) async -> String? {
+    public func send(_ text: String, attachments: [ComposerAttachment] = []) async -> ComposerSendOutcome {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty || !attachments.isEmpty, let live = state.liveSessionID else { return nil }
+        guard !trimmed.isEmpty || !attachments.isEmpty else { return .sent }
+        // Not live yet: the composer keeps what the user typed, so nothing is discarded (WP-3).
+        guard !isDetached, let live = state.liveSessionID else { return .notSent }
         var prompt = trimmed
         var shownAs: String?
         if attachments.isEmpty, let command = SlashCommand(trimmed) {
@@ -158,22 +181,48 @@ public actor ChatSessionController {
                 prompt = message
                 shownAs = display
             case .prefill(let composerText):
-                return composerText
+                return .prefill(composerText)
             case .printed(let line):
                 if let line { addNotice(line) }
-                return nil
+                return .sent
             case .unknown:
                 break
             }
         }
-        if !isIdle || !queue.isEmpty {
-            queue.enqueue(prompt, attachments: attachments)
-            publish()
-            return nil
-        }
+        // A queue in memory would lose the message if the app stopped before the turn ended (Moss, 54b698d).
+        guard isIdle, queue.isEmpty else { return .notSent }
         await submit(prompt, attachments: attachments, shownAs: shownAs)
         await drainIfIdle()
-        return nil
+        return .sent
+    }
+
+    /// Sends one persisted message (WP-3). Unlike ``send(_:attachments:)`` it never queues: when Hermes is busy, or the
+    /// session is not live yet, it answers ``SubmitOutcome/deferred``, and the outbox keeps the message. The echo row
+    /// appears only once the server has accepted the prompt, so the message is never shown twice.
+    public func deliver(_ record: OutboundRecord) async -> SubmitOutcome {
+        // A chat that was detached (closed, or its server changed) sends nothing. The outbox keeps the message.
+        guard !isDetached, let live = state.liveSessionID, isIdle, queue.isEmpty else { return .deferred }
+        isSubmitting = true
+        defer { isSubmitting = false }
+        do {
+            let result = try await transport.submitPrompt(
+                PromptSubmitParams(sessionID: live, text: record.text, profile: profile))
+            submitCount += 1
+            let localID = "\(submitCount)"
+            state.apply(.userSubmitted(localID: localID, text: record.text))
+            state.apply(.submitAcknowledged(localID: localID, result))
+            awaitingTurn = result.status != .queued && state.turn == nil
+            publish()
+            return .acknowledged
+        } catch let refusal as RPCError {
+            // Hermes itself refused the prompt. Its own words are the reason, and the message is kept as failed.
+            publish()
+            return .failed(refusal.message.isEmpty ? "Hermes refused this message." : refusal.message)
+        } catch {
+            // The connection was down or slow, so nothing was refused. The message waits and goes out with the next try.
+            publish()
+            return .deferred
+        }
     }
 
     /// Injects text into the running turn (`session.steer`) without interrupting it. Returns false when nothing
@@ -400,6 +449,8 @@ public actor ChatSessionController {
 
     /// Feeds one client event to the transcript. Public so tests and replays can drive it.
     public func handle(_ event: GatewayClientEvent) async {
+        // One client carries every chat's events. Only this chat's events are applied (review M3).
+        if let owner = Self.owner(of: event), let live = state.liveSessionID, owner != live { return }
         // An edit that waits for the server keeps the events back until its cut is in.
         if heldEvents != nil {
             heldEvents?.append(event)
@@ -408,6 +459,17 @@ public actor ChatSessionController {
         guard let action = TranscriptAction(event) else { return }
         state.apply(action)
         if state.turn != nil { awaitingTurn = false }
+        switch action {
+        case .attached where state.turn == nil:
+            // A cold re-attach shows no running turn. A message that waited for that turn must not wait for ever (WP-5).
+            awaitingTurn = false
+        case .resyncFailed:
+            // The session could not be read again. Nothing is awaited any more, and the chat resumes once more.
+            awaitingTurn = false
+            Task { [weak self] in try? await self?.resume() }
+        default:
+            break
+        }
         if case .event(let envelope, _) = action {
             switch envelope.event {
             case .messageComplete, .error: awaitingTurn = false
@@ -424,6 +486,18 @@ public actor ChatSessionController {
 
     private func removeSubscriber(_ id: UUID) {
         subscribers[id] = nil
+    }
+
+    /// The session a client event is about, when it names one. A cold re-attach names the live id it replaces.
+    private static func owner(of event: GatewayClientEvent) -> String? {
+        switch event {
+        case .event(let envelope, _): envelope.sessionID
+        case .sessionReattached(let oldLiveID, _, _): oldLiveID
+        case .resyncFailed(let sessionID, _): sessionID
+        case .replayTruncated(let sessionID, _): sessionID
+        case .openRequestReplayed(let sessionID, _): sessionID
+        default: nil
+        }
     }
 
     private static func message(for error: any Error) -> String {

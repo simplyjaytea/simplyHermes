@@ -26,6 +26,10 @@
         public private(set) var preferences = ModelPreferencesStore.load()
         /// Approvals of this chat that wait for the user.
         public private(set) var approvals: [PendingApproval] = []
+        /// Typed messages the server does not have yet, oldest first. The screen shows them as "Waiting to send".
+        public internal(set) var outboxRows: [OutboundRecord] = []
+        /// Why the last save or send of a message failed. The screen shows it as a status line. Nil when none did.
+        public internal(set) var outboxError: String?
 
         /// An approval request with the fields the inline card needs.
         public struct PendingApproval: Identifiable, Equatable {
@@ -85,7 +89,12 @@
             return VoiceInputModel(
                 server: { await manager.rest(for: id) },
                 insertText: insertText,
-                sendMessage: { [weak self] text in self?.send(text) }
+                sendMessage: { [weak self] text in
+                    // Dictated text that could not be saved is handed back to the composer, so it is not lost (M6).
+                    Task {
+                        if await self?.send(text) != true { self?.prefill = text }
+                    }
+                }
             )
         }
 
@@ -100,15 +109,15 @@
             SubagentPanel.rows(state.subagents, firstSeen: firstSeen, now: now)
         }
 
-        @ObservationIgnored private let connections: ConnectionsModel
+        @ObservationIgnored let connections: ConnectionsModel
         @ObservationIgnored private let broker: ServerRequestBroker
-        @ObservationIgnored private let storedSessionID: String
+        @ObservationIgnored let storedSessionID: String
         /// When an automatic retry will fire, if one is scheduled.
         public private(set) var retryAt: Date?
         /// Text a slash command asked the composer to take back, unsent. The chat screen moves it into the draft.
-        public private(set) var prefill: String?
+        public internal(set) var prefill: String?
         @ObservationIgnored private var retryTask: Task<Void, Never>?
-        @ObservationIgnored private var controller: ChatSessionController?
+        @ObservationIgnored var controller: ChatSessionController?
         /// The attempt to connect and resume that is under way, if any. Calls to ``attach()`` share it.
         @ObservationIgnored private var attaching: Task<Void, Never>?
         @ObservationIgnored private var client: GatewayClient?
@@ -118,11 +127,25 @@
         /// A New chat's first message, held until the chat attaches. ``attach()`` sends it.
         @ObservationIgnored private var firstMessage: (text: String, attachments: [ComposerAttachment])?
         @ObservationIgnored private var isMovingWorkspace = false
+        @ObservationIgnored let outbox: any OutboxStore
+        /// Sends the outbox's messages through the attached controller. Nil while the chat is detached.
+        @ObservationIgnored var drainer: OutboxDrainer?
+        /// Set while the composer's send is saving. A second send starts only after it ends (review M5).
+        @ObservationIgnored var composerSend = SingleFlight()
+        /// The latest drain of this chat's waiting messages. Detaching cancels it, so a closed chat sends nothing more.
+        @ObservationIgnored var drainTask: Task<Void, Never>?
+        /// The profile this chat was pinned to at its first attach: the default by name when none was active.
+        @ObservationIgnored private var pinnedProfile: String?
+        @ObservationIgnored private var profilePinned = false
 
-        init(connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String) {
+        init(
+            connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String,
+            outbox: any OutboxStore
+        ) {
             self.connections = connections
             self.broker = broker
             self.storedSessionID = storedSessionID
+            self.outbox = outbox
             state = TranscriptState(storedSessionID: storedSessionID)
             offline = OfflineChatModel(
                 services: OfflineChatServices.shared, connections: connections, storedSessionID: storedSessionID)
@@ -155,12 +178,31 @@
                 let client = try await manager.client(for: connection)
                 await broker.install(on: client)
                 self.client = client
-                let controller = ChatSessionController(transport: client, storedSessionID: storedSessionID)
+                // The chat keeps the profile it first attached under. A later profile change, such as opening another
+                // bot, does not move it (WP-5).
+                if !profilePinned {
+                    // A nil active profile pins to the default by name, so a later change cannot move this chat (M4).
+                    pinnedProfile = ProfilePin.resolve(activeProfile: await client.activeProfile())
+                    profilePinned = true
+                }
+                let controller = ChatSessionController(
+                    transport: client, storedSessionID: storedSessionID, profile: pinnedProfile)
                 let states = await controller.states()
                 let pending = await broker.updates()
                 try await controller.attach()
                 self.controller = controller
                 phase = .ready
+                // Messages that were mid-send when the app stopped go out again, once, and acknowledged ones are dropped.
+                let drainer = OutboxDrainer(
+                    store: outbox, chatID: storedSessionID, submitter: controller,
+                    onChange: { @MainActor [weak self] in await self?.refreshOutbox() })
+                self.drainer = drainer
+                do {
+                    try await drainer.recoverInterrupted()
+                    _ = try await outbox.pruneSent(inChat: storedSessionID)
+                } catch {
+                    outboxError = Self.outboxMessage(for: error)
+                }
                 tasks = [
                     Task { [weak self] in
                         for await next in states {
@@ -170,6 +212,8 @@
                             self?.noteWorkspace(next.transcript.info?.cwd)
                             self?.state = next.transcript
                             self?.queue = next.queue
+                            // Hermes is free again: the next waiting message may go.
+                            if next.transcript.turn == nil { self?.drainSoon() }
                             if firstInfo, let info = next.transcript.info { self?.restoreModelPreferences(for: info) }
                         }
                     },
@@ -177,10 +221,12 @@
                         for await list in pending { self?.setApprovals(list) }
                     },
                 ]
-                if let first = firstMessage {
+                await refreshOutbox()
+                // A New chat's first message waits here until it is saved. If the save fails it stays for the next try.
+                if let first = firstMessage, await send(first.text, attachments: first.attachments) {
                     firstMessage = nil
-                    send(first.text, attachments: first.attachments)
                 }
+                await drainOutbox()
             } catch {
                 phase = .failed(Self.describe(error))
             }
@@ -192,14 +238,25 @@
             retryTask?.cancel()
             offline.stop()
             tasks = []
+            drainer = nil
+            drainTask?.cancel()
+            drainTask = nil
             let controller = controller
             self.controller = nil
             Task { await controller?.detach() }
         }
 
-        /// Holds a New chat's first message until the chat attaches, and ``attach()`` sends it then.
+        /// Holds a New chat's first message until the chat attaches, and ``attach()`` sends it then. Text is saved to the
+        /// outbox at hand-off, so it survives a relaunch before the chat attaches (M6). Files cannot be saved there yet,
+        /// so they wait in memory, and so does text whose save failed.
         public func queueFirstMessage(_ text: String, attachments: [ComposerAttachment]) {
-            firstMessage = (text, attachments)
+            guard attachments.isEmpty else {
+                firstMessage = (text, attachments)
+                return
+            }
+            Task {
+                if await send(text) != true { firstMessage = (text, []) }
+            }
         }
 
         /// Completions for a `/` command or an `@` mention, ranked by the server. Empty while the chat is not attached.
@@ -287,16 +344,6 @@
             }
         }
 
-        public func send(_ text: String, attachments: [ComposerAttachment] = []) {
-            // Plan Q44: while the server is out of reach, text goes to the on-device model. Files need Hermes.
-            if attachments.isEmpty, offline.send(text) { return }
-            guard let controller else { return }
-            HermesSounds.play(.send)
-            Task {
-                if let composerText = await controller.send(text, attachments: attachments) { prefill = composerText }
-            }
-        }
-
         /// Clears ``prefill`` once the composer has taken its text.
         public func clearPrefill() {
             prefill = nil
@@ -313,14 +360,20 @@
                 offline.sendFailed()
                 return
             }
-            send(offer.prompt)
+            guard await send(offer.prompt) else {
+                offline.sendFailed()
+                return
+            }
             offline.resolveOffer(offer, as: .sent)
         }
 
-        /// Sends the text into the running reply instead of queueing it. Falls back to sending normally.
+        /// Sends the text into the running reply instead of queueing it. Falls back to a normal send, which saves the text
+        /// to the outbox. Text that could not be sent or saved goes back to the composer.
         public func steer(_ text: String) {
-            guard let controller else { return }
-            Task { if await !controller.steer(text) { await controller.send(text) } }
+            Task {
+                if let controller, await controller.steer(text) { return }
+                if await !send(text) { prefill = text }
+            }
         }
 
         /// Replaces the user turn at `rowID` and everything after it with `text`, then sends it (WP-34).
@@ -578,7 +631,8 @@
                 serverID = active.id
             }
             if let existing = chats[sessionID] { return existing }
-            let chat = LiveChatModel(connections: connections, broker: broker, storedSessionID: sessionID)
+            let chat = LiveChatModel(
+                connections: connections, broker: broker, storedSessionID: sessionID, outbox: OutboxServices.store)
             chats[sessionID] = chat
             return chat
         }

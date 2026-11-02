@@ -29,7 +29,9 @@ struct HermesApp: App {
         _connections = State(initialValue: connections)
         _sessionsList = State(initialValue: Self.makeSessionsList(connections, launch))
         // UI tests keep drafts in memory, so a draft typed in one run is not in the field at the start of the next.
-        let model = ShellModel(draftDefaults: launch.onboarding == nil ? UserDefaults.standard : nil)
+        let model = ShellModel(
+            sessions: Self.placeholderSessions(launch),
+            draftDefaults: launch.onboarding == nil ? UserDefaults.standard : nil)
         _model = State(initialValue: model)
         // Set up before any scene: a Live Activity or widget button can launch the app in the background.
         let integration = AppIntegration(model: model)
@@ -62,6 +64,15 @@ struct HermesApp: App {
         }
     }
 
+    /// Placeholder chats are fake, so only debug builds have them, and only when a UI test asks. A release build starts
+    /// with no chats.
+    private static func placeholderSessions(_ launch: LaunchOptions) -> [ChatSessionSummary] {
+        #if DEBUG
+            if launch.showsSampleChats { return ShellModel.sampleSessions }
+        #endif
+        return []
+    }
+
     /// The chat list cache. UI tests keep it in memory so runs never share saved chats.
     @MainActor
     private static func makeSessionsList(_ saved: ConnectionsModel, _ launch: LaunchOptions) -> SessionsListModel {
@@ -69,6 +80,10 @@ struct HermesApp: App {
         let file = url.flatMap { try? HermesCache(url: $0) }
         let cache = file ?? (try? HermesCache())
         guard let cache else { preconditionFailure("The in-memory cache cannot fail to open") }
+        // WP-3: messages waiting to reach the server are kept in the same file, so they survive a relaunch. When the
+        // file would not open, the outbox is in memory and sending is refused, rather than losing messages silently.
+        // UI tests keep the cache in memory on purpose, so they count as durable.
+        OutboxServices.install(cache.outbox, durable: file != nil || launch.onboarding != nil)
         // WP-65b: offline chats are kept in the same cache file as the chat list. They exist nowhere else, so they stay
         // off when the file would not open and the cache fell back to memory. UI tests keep it in memory on purpose.
         if file != nil || launch.onboarding != nil {
@@ -116,6 +131,8 @@ struct LaunchOptions {
     var section: AppSection?
     /// Resets appearance settings to system defaults on launch (pass as `-HermesResetAppearance YES`).
     var resetAppearance: Bool
+    /// Debug builds only: starts with the sample chats. UI tests that need them pass `-HermesSampleChats YES`.
+    var showsSampleChats: Bool
 
     enum Onboarding: String {
         case skip
@@ -130,6 +147,7 @@ struct LaunchOptions {
         onboarding = defaults.string(forKey: "HermesOnboarding").flatMap(Onboarding.init(rawValue:))
         section = defaults.string(forKey: "HermesSection").flatMap(AppSection.init(rawValue:))
         resetAppearance = defaults.bool(forKey: "HermesResetAppearance")
+        showsSampleChats = defaults.bool(forKey: "HermesSampleChats")
     }
 }
 
@@ -160,12 +178,14 @@ struct RootView: View {
             if let section = launch.section {
                 model.selectedSection = section
             }
-            if launch.demo == "stream", let id = model.selectedSessionID {
-                model.startDemoStream(in: id, words: 1500)
-            }
-            if launch.demo == "liveActivity", let id = model.selectedSessionID {
-                model.startDemoStream(in: id, words: 1500)
-            }
+            #if DEBUG
+                if launch.demo == "stream", let id = model.selectedSessionID {
+                    model.startDemoStream(in: id, words: 1500)
+                }
+                if launch.demo == "liveActivity", let id = model.selectedSessionID {
+                    model.startDemoStream(in: id, words: 1500)
+                }
+            #endif
         }
     }
 }

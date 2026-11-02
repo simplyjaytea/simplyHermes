@@ -32,6 +32,7 @@ final class TerminalUITests: XCTestCase {
     private func launchOnTools() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-HermesOnboarding", "skip", "-HermesLayout", "compact", "-HermesSection", "tools"]
+        app.launchArguments += ["-HermesSampleChats", "YES"]
         app.launch()
         return app
     }
