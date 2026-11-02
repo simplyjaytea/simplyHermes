@@ -65,6 +65,11 @@ jobs:
         run: swift build
       - name: Test
         run: swift test
+      - name: Local chats open no connection (G2, AT-2 in a process of its own)
+        # NetworkTrap counts every connection in the process, so its zero is exact only when nothing else runs.
+        env:
+          HERMES_NETWORK_ISOLATION: "1"
+        run: swift test --skip-build --filter LocalChatNetworkIsolationTests
 
   testbed:
     name: Testbed smoke (Docker)
