@@ -31,6 +31,10 @@
                 case .notSent:
                     outboxError = Self.notNowMessage
                     return false
+                case .failed(let reason):
+                    // The failed row shows the attempt. The composer keeps the text and files to send again (Moss, be2cee0).
+                    outboxError = String(localized: "Not sent: \(reason)")
+                    return false
                 }
             }
             guard !trimmed.isEmpty else { return false }

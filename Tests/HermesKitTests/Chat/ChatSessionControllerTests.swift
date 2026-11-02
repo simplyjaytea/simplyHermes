@@ -262,6 +262,51 @@ private func lines(_ state: TranscriptState) -> [String] {
         #expect(entry.delivery == .failed("IMG_1.jpg: too large"))
     }
 
+    /// Regression (Moss, be2cee0): a refused file used to fail its row but report `.sent`, so the composer cleared the
+    /// text and the file. The failure now comes back with its reason, and nothing is submitted.
+    @Test func aRefusedFileIsReportedSoTheComposerKeepsIt() async throws {
+        let transport = try FakeChatTransport()
+        transport.refuseImages = true
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        let photo = ComposerAttachment(kind: .image, name: "IMG_1.jpg", data: Data([1]))
+        #expect(await controller.send("look", attachments: [photo]) == .failed("IMG_1.jpg: too large"))
+        #expect(transport.submitted.isEmpty)
+    }
+
+    /// Regression (Moss, be2cee0): a prompt whose submit fails on the network after its files went up is reported as
+    /// failed, not sent.
+    @Test func aPromptThatFailsOnTheNetworkIsReportedSoTheComposerKeepsIt() async throws {
+        let transport = try FakeChatTransport()
+        transport.failSubmitError = URLError(.notConnectedToInternet)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        let photo = ComposerAttachment(kind: .image, name: "IMG_1.jpg", data: Data([1]))
+        let outcome = await controller.send("look", attachments: [photo])
+        #expect(outcome != .sent)
+        guard case .failed(let reason) = outcome else {
+            Issue.record("expected .failed, got \(outcome)")
+            return
+        }
+        #expect(!reason.isEmpty)
+        #expect(transport.uploads == ["image:IMG_1.jpg"])
+    }
+
+    /// Regression (Moss, be2cee0): a slash command whose prompt Hermes refuses is reported with Hermes's reason.
+    /// After the failure the chat is free, and the next send goes out.
+    @Test func aRefusedCommandPromptIsReportedAndTheChatStaysUsable() async throws {
+        let transport = try FakeChatTransport()
+        transport.dispatchReplies["review"] = CommandDispatchResult(type: .send, message: "Review the staged diff")
+        transport.failSubmit = RPCError(code: 5000, message: "boom", data: nil)
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        #expect(await controller.send("/review staged") == .failed("boom"))
+        transport.failSubmit = nil
+        #expect(await controller.send("/review staged") == .sent)
+        // The fake records a submit before it fails, so both attempts are listed.
+        #expect(transport.submitted.map(\.text) == ["Review the staged diff", "Review the staged diff"])
+    }
+
     /// Regression (Moss, 54b698d): files sent while Hermes is busy are refused, not queued in memory, so the composer
     /// keeps them. Sent again once the turn ends, they go out with the text.
     @Test func filesWhileBusyAreRefusedAndGoOutWhenSentAgain() async throws {
