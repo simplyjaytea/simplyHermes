@@ -20,7 +20,10 @@ struct SSHTunnelIntegrationTests {
     // Quarantined on main (board row quarantine-ssh-tunnel-chat-turn, until 2026-11-09): it hit the 5-minute limit in
     // Testbed smoke runs 41351410493 and 41458357870. This draft enables it with a log line per step, so the next hang
     // names the step that never finished.
-    @Test func chatTurnThroughTunnel() async throws {
+    // Eight rounds per run, each under the suite's own time limit, so a rare hang shows up in fewer CI runs.
+    @Test(arguments: 1...8)
+    func chatTurnThroughTunnel(round: Int) async throws {
+        SSHTestbed.log("ssh-tunnel round \(round) of 8")
         let configuration = try SSHTestbed.configuration(hostKey: .trustOnFirstUse { _ in true })
         let tunnel = SSHTunnel(configuration: configuration)
         let endpoint = try await SSHTestbed.step("tunnel.start", warnAfter: 60) { try await tunnel.start() }
@@ -156,7 +159,7 @@ enum SSHTestbed {
         }
     }
 
-    private static func log(_ line: String) {
+    static func log(_ line: String) {
         FileHandle.standardError.write(Data((line + "\n").utf8))
     }
 
