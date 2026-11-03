@@ -54,12 +54,46 @@ enum LocalChatNetworkGuard {
     static func missing(_ list: [String], under root: URL) -> [String] {
         list.filter { !FileManager.default.fileExists(atPath: root.appendingPathComponent($0).path) }
     }
+
+    /// The folders that hold only local-chat code. Every Swift file in them must be in ``files``.
+    static let folders = ["Sources/HermesKit/LocalChat", "Sources/HermesUI/LocalChat", "App/HermesApp/LocalChat"]
+
+    /// The Swift files in `folders` under `root` that ``files`` does not list, as repository paths.
+    static func unlisted(in folders: [String], under root: URL, listed: [String]) -> [String] {
+        let manager = FileManager.default
+        let found = folders.flatMap { folder -> [String] in
+            let url = root.appendingPathComponent(folder)
+            guard let walker = manager.enumerator(atPath: url.path) else { return [] }
+            return walker.compactMap { $0 as? String }.filter { $0.hasSuffix(".swift") }.map { "\(folder)/\($0)" }
+        }
+        return Set(found).subtracting(listed).sorted()
+    }
 }
 
 struct LocalChatNetworkGuardTests {
     @Test func everyLocalChatFileIsStillThere() {
         let missing = LocalChatNetworkGuard.missing(LocalChatNetworkGuard.files, under: LocalChatNetworkGuard.repoRoot)
         #expect(missing.isEmpty, "Moved or deleted local-chat files must be updated in the guard's list: \(missing)")
+    }
+
+    @Test func everyFileInTheLocalChatFoldersIsListed() {
+        let guardRoot = LocalChatNetworkGuard.repoRoot
+        let unlisted = LocalChatNetworkGuard.unlisted(
+            in: LocalChatNetworkGuard.folders, under: guardRoot, listed: LocalChatNetworkGuard.files)
+        #expect(unlisted.isEmpty, "Add new local-chat files to the guard's list, so they are scanned: \(unlisted)")
+    }
+
+    @Test func aNewFileInALocalChatFolderIsCaught() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let folder = root.appendingPathComponent("Sources/HermesKit/LocalChat")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for name in ["LocalChat.swift", "Sneaky.swift"] {
+            try Data().write(to: folder.appendingPathComponent(name))
+        }
+        let unlisted = LocalChatNetworkGuard.unlisted(
+            in: ["Sources/HermesKit/LocalChat"], under: root, listed: ["Sources/HermesKit/LocalChat/LocalChat.swift"])
+        #expect(unlisted == ["Sources/HermesKit/LocalChat/Sneaky.swift"])
     }
 
     @Test func noLocalChatFileNamesTheNetwork() throws {
