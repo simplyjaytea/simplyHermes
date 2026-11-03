@@ -55,12 +55,15 @@ final class AppUpdateUITests: XCTestCase {
         }
         settings.tap()
         let version = element(app, "settings.appVersion")
-        for _ in 0..<6 where !version.exists { app.swipeUp() }
-        XCTAssertTrue(version.waitForExistence(timeout: 5))
         let check = element(app, "settings.checkForAppUpdates")
-        XCTAssertTrue(check.exists)
+        // About sits near the end of a lazy List: rows off screen don't exist yet, so scroll until each one does.
+        for _ in 0..<8 where !(check.exists && check.isHittable) { app.swipeUp() }
+        XCTAssertTrue(version.waitForExistence(timeout: 5), "Settings > About should show the app version")
+        XCTAssertTrue(check.isHittable, "Check for updates should be on screen")
         check.tap()
-        XCTAssertTrue(element(app, "settings.installAppUpdate").waitForExistence(timeout: 10))
+        let install = element(app, "settings.installAppUpdate")
+        for _ in 0..<4 where !install.exists { app.swipeUp() }
+        XCTAssertTrue(install.waitForExistence(timeout: 10), "A newer stub build should offer Install in About")
         XCTAssertFalse(element(app, "settings.appUpdateError").exists, "A good feed shows no error")
     }
 
