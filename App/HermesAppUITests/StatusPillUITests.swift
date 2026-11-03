@@ -213,16 +213,17 @@ final class StatusPillUITests: XCTestCase {
     /// placeholder until its first message, and a placeholder has no status bar, banner or outbox (WP-8).
     @MainActor
     private func openLiveServerChat(_ app: XCUIApplication) {
+        // The wizard saves the server without connecting it, and a new chat needs a connected server (WP-8).
+        connectSavedServer(app)
         openNewOnlineChat(app)
         typeAndSend(app, "hello")
-        // The first message creates the server chat only once the server is connected. Until then the send is refused
-        // with a "still connecting" note and the text stays in the composer, so send again while the chat is waiting.
+        // While the server connects, the first send is refused with a "still connecting" note and the text stays in the
+        // composer. Send again, while the send button is enabled, until the chat is live.
         let pill = element(app, "chat.pill")
         var attempts = 1
-        while !pill.waitForExistence(timeout: 15), attempts < 4 {
+        while !pill.waitForExistence(timeout: 10), attempts < 6 {
             let send = element(app, "composer.send")
-            guard send.exists, send.isHittable else { break }
-            send.tap()
+            if send.exists, send.isEnabled { send.tap() }
             attempts += 1
         }
         // Positive check before any outage: the pill is its own element, and the chat is connected.
@@ -235,6 +236,30 @@ final class StatusPillUITests: XCTestCase {
         let reply = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH 'message.'")).element(boundBy: 1)
         XCTAssertTrue(reply.waitForExistence(timeout: 60), "The testbed should answer the first message")
+    }
+
+    /// Connects the saved server the way a user does: Settings, the server, then Connect in its menu. It is a no-op when
+    /// the server is already connected, because the menu then offers Disconnect instead (WP-8).
+    @MainActor
+    private func connectSavedServer(_ app: XCUIApplication) {
+        tabButton(app, "Settings").tap()
+        let servers = element(app, "settings.servers")
+        XCTAssertTrue(servers.waitForExistence(timeout: 10), "Settings should list the servers")
+        servers.tap()
+        let server = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'server.'")).firstMatch
+        XCTAssertTrue(server.waitForExistence(timeout: 10), "The saved server should be listed")
+        server.press(forDuration: 1.0)
+        let connect = app.buttons["Connect"]
+        if connect.waitForExistence(timeout: 5) { connect.tap() }
+        tabButton(app, "Chats").tap()
+    }
+
+    /// The bottom tab with this name. A tab bar button is preferred, so the other buttons of the same name don't match.
+    @MainActor
+    private func tabButton(_ app: XCUIApplication, _ name: String) -> XCUIElement {
+        let inBar = app.tabBars.buttons[name]
+        return inBar.exists ? inBar : app.buttons[name].firstMatch
     }
 
     /// Taps the switch and checks the label it shows afterwards, which is the next action.
