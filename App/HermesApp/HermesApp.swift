@@ -97,7 +97,7 @@ struct HermesApp: App {
         if file != nil || launch.onboarding != nil {
             LocalChatServices.install(cache: cache, answerer: localAnswerer())
         }
-        UITestSeams.install()
+        UITestNetworkProbe.install()
         return SessionsListModel(connections: saved, cache: cache)
     }
 
