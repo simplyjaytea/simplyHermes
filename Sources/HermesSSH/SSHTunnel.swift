@@ -128,7 +128,9 @@ public actor SSHTunnel {
 
         progress?(.probing)
         let probe = try RemoteDashboard.parseProbe(
-            try await run(RemoteDashboard.probeCommand(customPath: config.hermesPath), on: client))
+            try await run(
+                RemoteDashboard.probeCommand(customPath: config.hermesPath), on: client, step: "probe",
+                timeout: Self.probeTimeout))
         guard probe.supportsTokenFile else { throw SSHTunnelError.hermesTooOld(version: probe.version) }
 
         progress?(.startingDashboard)
@@ -137,7 +139,8 @@ public actor SSHTunnel {
         let launch = try RemoteDashboard.launchCommand(
             hermesPath: probe.hermesPath, ownershipID: config.ownershipID, nonce: nonce, token: uploadedToken,
             readyTimeout: config.readyTimeout)
-        let output = try await run(launch, on: client)
+        // The launch script itself waits up to the ready timeout for the dashboard, so its deadline is a little longer.
+        let output = try await run(launch, on: client, step: "launch", timeout: config.readyTimeout + Self.launchSlack)
         if let pid = RemoteDashboard.parsePID(output) { remote = (pid, nonce) }
         let remotePort = try RemoteDashboard.parseReady(output)
 
@@ -175,7 +178,7 @@ public actor SSHTunnel {
                 try? RemoteDashboard.stopCommand(ownershipID: configuration.ownershipID, nonce: $0.nonce, pid: $0.pid)
             }
             if let command, client.isConnected {
-                _ = try? await run(command, on: client)
+                _ = try? await run(command, on: client, step: "stop", timeout: Self.stopTimeout)
             }
             try? await client.close()
             self.client = nil
@@ -183,9 +186,23 @@ public actor SSHTunnel {
         remote = nil
     }
 
+    /// How long the probe may take: it only reads `hermes --version` and a few paths.
+    static let probeTimeout: Duration = .seconds(30)
+    /// Extra time the launch gets beyond the dashboard's ready timeout, for the script itself.
+    static let launchSlack: Duration = .seconds(30)
+    /// How long stopping the remote dashboard may take before the connection is closed anyway.
+    static let stopTimeout: Duration = .seconds(15)
+
     /// Runs a command and returns stdout and stderr together. A non-zero exit is not an error here: the scripts
-    /// report failures as marker lines.
-    private func run(_ command: String, on client: SSHClient) async throws -> String {
+    /// report failures as marker lines. A command that hasn't finished by `timeout` throws
+    /// ``SSHTunnelError/commandTimedOut(step:)``, and the SSH connection is closed so its stream ends.
+    private func run(_ command: String, on client: SSHClient, step: String, timeout: Duration) async throws -> String {
+        try await Self.withDeadline(
+            timeout, step: step, onTimeout: { try? await client.close() },
+            body: { try await Self.collect(command, on: client) })
+    }
+
+    private static func collect(_ command: String, on client: SSHClient) async throws -> String {
         var output = ByteBuffer()
         do {
             for try await chunk in try await client.executeCommandStream(command) {
@@ -198,6 +215,36 @@ public actor SSHTunnel {
             // Exit status is carried by the markers.
         }
         return String(buffer: output)
+    }
+
+    /// Runs `body`, or throws ``SSHTunnelError/commandTimedOut(step:)`` once `timeout` passes. On timeout it calls
+    /// `onTimeout` first, which must make `body` finish (closing the connection ends a command stream), because a task
+    /// group waits for every child before it returns. The timeout error wins over whatever error `body` then throws.
+    static func withDeadline<T: Sendable>(
+        _ timeout: Duration, step: String, onTimeout: @escaping @Sendable () async -> Void,
+        body: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        let timedOut = TimeoutFlag()
+        do {
+            return try await withThrowingTaskGroup(of: T?.self) { group in
+                group.addTask { try await body() }
+                group.addTask {
+                    try await Task.sleep(for: timeout)
+                    timedOut.set()
+                    await onTimeout()
+                    return nil
+                }
+                defer { group.cancelAll() }
+                while let next = try await group.next() {
+                    if let value = next { return value }
+                    break
+                }
+                throw SSHTunnelError.commandTimedOut(step: step)
+            }
+        } catch {
+            if timedOut.isSet { throw SSHTunnelError.commandTimedOut(step: step) }
+            throw error
+        }
     }
 
     /// The session for the token fetch: a factory session, so the trap counts it like every other.
@@ -215,4 +262,14 @@ public actor SSHTunnel {
         else { return nil }
         return RemoteDashboard.parseServedToken(html: html)
     }
+}
+
+/// Set once when a deadline passes. Read after the task group ends, so the timeout error wins any race.
+private final class TimeoutFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+
+    var isSet: Bool { lock.withLock { value } }
+
+    func set() { lock.withLock { value = true } }
 }

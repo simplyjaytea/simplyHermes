@@ -184,6 +184,8 @@ public struct SSHConnectionTester: ConnectionTesting {
             return .ssh(detail)
         case SSHTunnelError.notConnected:
             return .ssh("The SSH connection closed.")
+        case SSHTunnelError.commandTimedOut(let step):
+            return .ssh("The server didn't finish the \(step) step in time, so the connection was closed. Try again.")
         default:
             return .unreachable(Self.describe(error))
         }
