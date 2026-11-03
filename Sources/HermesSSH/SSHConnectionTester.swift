@@ -185,7 +185,12 @@ public struct SSHConnectionTester: ConnectionTesting {
         case SSHTunnelError.notConnected:
             return .ssh("The SSH connection closed.")
         case SSHTunnelError.commandTimedOut(let step):
-            return .ssh("The server didn't finish the \(step) step in time, so the connection was closed. Try again.")
+            // The step name stays in the error itself for logs; the form gets plain words.
+            switch step {
+            case "probe": return .ssh("The server stopped responding while looking for Hermes. Try again.")
+            case "launch": return .ssh("The server stopped responding while starting Hermes. Try again.")
+            default: return .ssh("The server stopped responding. Try again.")
+            }
         default:
             return .unreachable(Self.describe(error))
         }

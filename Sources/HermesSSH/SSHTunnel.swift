@@ -217,33 +217,41 @@ public actor SSHTunnel {
         return String(buffer: output)
     }
 
-    /// Runs `body`, or throws ``SSHTunnelError/commandTimedOut(step:)`` once `timeout` passes. On timeout it calls
-    /// `onTimeout` first, which must make `body` finish (closing the connection ends a command stream), because a task
-    /// group waits for every child before it returns. The timeout error wins over whatever error `body` then throws.
+    /// Runs `body`, or throws ``SSHTunnelError/commandTimedOut(step:)`` once `timeout` passes, whichever comes first.
+    /// The caller is answered at that moment: neither a stuck `body` nor a slow `onTimeout` can hold it up. On timeout,
+    /// `body` is cancelled and `onTimeout` (closing the connection, which ends a command stream) starts on its own task,
+    /// not awaited. A `body` that finishes first never triggers `onTimeout`, so a command that completes at the deadline
+    /// keeps its connection. Whatever `body` throws after a timeout is ignored.
     static func withDeadline<T: Sendable>(
         _ timeout: Duration, step: String, onTimeout: @escaping @Sendable () async -> Void,
         body: @escaping @Sendable () async throws -> T
     ) async throws -> T {
-        let timedOut = TimeoutFlag()
-        do {
-            return try await withThrowingTaskGroup(of: T?.self) { group in
-                group.addTask { try await body() }
-                group.addTask {
-                    try await Task.sleep(for: timeout)
-                    timedOut.set()
-                    await onTimeout()
-                    return nil
+        let outcome = FirstOutcome<T>()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, any Error>) in
+                outcome.install(continuation)
+                let work = Task {
+                    do {
+                        outcome.resolve(.success(try await body()))
+                    } catch {
+                        outcome.resolve(.failure(error))
+                    }
                 }
-                defer { group.cancelAll() }
-                while let next = try await group.next() {
-                    if let value = next { return value }
-                    break
+                let timer = Task {
+                    try? await Task.sleep(for: timeout)
+                    guard !Task.isCancelled,
+                        outcome.resolve(.failure(SSHTunnelError.commandTimedOut(step: step)))
+                    else { return }
+                    work.cancel()
+                    Task { await onTimeout() }
                 }
-                throw SSHTunnelError.commandTimedOut(step: step)
+                outcome.onSettle {
+                    work.cancel()
+                    timer.cancel()
+                }
             }
-        } catch {
-            if timedOut.isSet { throw SSHTunnelError.commandTimedOut(step: step) }
-            throw error
+        } onCancel: {
+            outcome.resolve(.failure(CancellationError()))
         }
     }
 
@@ -264,12 +272,51 @@ public actor SSHTunnel {
     }
 }
 
-/// Set once when a deadline passes. Read after the task group ends, so the timeout error wins any race.
-private final class TimeoutFlag: @unchecked Sendable {
+/// The first result of a deadline race, delivered to the caller exactly once. Later results are dropped.
+private final class FirstOutcome<T: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
-    private var value = false
+    private var continuation: CheckedContinuation<T, any Error>?
+    private var early: Result<T, any Error>?
+    private var settled = false
+    private var cleanup: (@Sendable () -> Void)?
 
-    var isSet: Bool { lock.withLock { value } }
+    func install(_ continuation: CheckedContinuation<T, any Error>) {
+        let result: Result<T, any Error>? = lock.withLock {
+            if let early { return early }
+            self.continuation = continuation
+            return nil
+        }
+        if let result { continuation.resume(with: result) }
+    }
 
-    func set() { lock.withLock { value = true } }
+    /// Runs `cleanup` once the race is settled, or at once if it already is.
+    func onSettle(_ cleanup: @escaping @Sendable () -> Void) {
+        let runNow = lock.withLock {
+            if settled { return true }
+            self.cleanup = cleanup
+            return false
+        }
+        if runNow { cleanup() }
+    }
+
+    /// Delivers `result` if nothing has been delivered yet. True when this call settled the race.
+    @discardableResult
+    func resolve(_ result: Result<T, any Error>) -> Bool {
+        var waiting: CheckedContinuation<T, any Error>?
+        var cleanup: (@Sendable () -> Void)?
+        let won: Bool = lock.withLock {
+            guard !settled else { return false }
+            settled = true
+            waiting = continuation
+            continuation = nil
+            if waiting == nil { early = result }
+            cleanup = self.cleanup
+            self.cleanup = nil
+            return true
+        }
+        guard won else { return false }
+        waiting?.resume(with: result)
+        cleanup?()
+        return true
+    }
 }
