@@ -146,6 +146,7 @@
             case .unavailable(.disabled): "Turn on Apple Intelligence in Settings to get a reply here."
             case .unavailable(.notReady): "The on-device model is not ready yet. Try again in a moment."
             case .unavailable(.unsupported): "This iPhone cannot answer here."
+            case .unavailable(.noModelChosen): "No on-device model is in use. Pick one in Settings to get a reply here."
             case .modelFailed: "No reply: the on-device model did not answer."
             case .notSaved: "This message could not be saved on this iPhone."
             }

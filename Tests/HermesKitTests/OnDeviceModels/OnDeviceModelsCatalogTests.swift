@@ -21,6 +21,17 @@ struct OnDeviceModelsCatalogTests {
         }
     }
 
+    @Test func everyFileCarriesAHexSHA256() {
+        for model in models {
+            #expect(!model.files.isEmpty, "\(model.id)")
+            for file in model.files {
+                #expect(file.hasValidDigest, "\(model.id) \(file.path)")
+            }
+        }
+        #expect(!OnDeviceModelFile("a.json", 1, sha256: "ABCDEF").hasValidDigest)
+        #expect(!OnDeviceModelFile("a.json", 1, sha256: String(repeating: "A", count: 64)).hasValidDigest)
+    }
+
     @Test func everyEntryListsTheFilesTheRuntimeNeeds() {
         for model in models {
             let paths = model.files.map(\.path)
@@ -54,7 +65,7 @@ struct OnDeviceModelsCatalogTests {
         // Weights 100, half again 50, plus 256 MiB.
         let probe = OnDeviceModel(
             id: "p", displayName: "P", summary: "P", repository: "x/p", revision: "r",
-            files: [OnDeviceModelFile("w.safetensors", 100), OnDeviceModelFile("c.json", 7)], license: "L")
+            files: [OnDeviceModelFile.zeros("w.safetensors", 100), OnDeviceModelFile.zeros("c.json", 7)], license: "L")
         #expect(probe.estimatedMemoryBytes == 150 + 256 * 1_048_576)
     }
 
@@ -84,8 +95,8 @@ struct OnDeviceModelsCatalogTests {
 
     @Test func unsafeFilePathsAreRejected() {
         for path in ["", "/etc/passwd", "../x", "a/../b", "a//b", "a/./b", "dir/"] {
-            #expect(!OnDeviceModelFile(path, 1).hasSafePath, "\(path)")
+            #expect(!OnDeviceModelFile.zeros(path, 1).hasSafePath, "\(path)")
         }
-        #expect(OnDeviceModelFile("sub/dir/file.json", 1).hasSafePath)
+        #expect(OnDeviceModelFile.zeros("sub/dir/file.json", 1).hasSafePath)
     }
 }

@@ -24,15 +24,27 @@ public enum OnDeviceModelFailure: Sendable, Equatable {
     case network(String)
     /// Hugging Face answered with this HTTP status.
     case server(status: Int)
-    /// A finished file was the wrong size and was thrown away.
+    /// A finished file had the wrong size or SHA-256 and was thrown away.
     case damaged(file: String)
     /// The phone's file system refused a write.
+    case storage(String)
+    /// An earlier download could not be checked. Nothing was removed: check again, or delete the model.
+    case checkFailed(CheckFailure)
+}
+
+/// Why an earlier download could not be checked.
+public enum CheckFailure: Sendable, Equatable {
+    /// A file could not be read.
+    case unreadable(path: String)
+    /// The phone could not write while checking, for example because it is out of space.
     case storage(String)
 }
 
 /// Where one model is in its life on this phone.
 public enum OnDeviceModelState: Sendable, Equatable {
     case notDownloaded
+    /// An earlier download is being checked against the catalog's digests. Nothing is downloaded yet.
+    case checking
     /// Waiting for the download in front of it.
     case queued
     case downloading(OnDeviceModelProgress)
@@ -138,12 +150,60 @@ public actor OnDeviceModelManager {
     }
 
     /// Reads the disk: which models are finished, which have a partial download. Removes folders the catalog no
-    /// longer lists. Call once at launch and when Settings opens.
+    /// longer lists. An earlier download is checked against the catalog, and a file that fails is fetched again. Call
+    /// once at launch and when Settings opens.
     public func reload() {
         storage.removeOrphans(keeping: catalog)
         for model in catalog.models where active?.id != model.id && !queue.contains(model.id) {
+            if states[model.id] == .checking { continue }
+            // A failed check waits for "Check again". Opening Settings does not repeat it.
+            if case .failed(.checkFailed, _) = states[model.id] { continue }
+            if storage.hasEarlierDownload(model) {
+                beginCheck(model)
+                continue
+            }
             setState(scan(model), for: model.id)
+            // A download that was repairing when the app closed goes on by itself.
+            if !storage.repairingFiles(model).isEmpty { start(model.id) }
         }
+    }
+
+    /// Checks an earlier download off the actor, since it hashes gigabytes, then settles its state.
+    private func beginCheck(_ model: OnDeviceModel) {
+        setState(.checking, for: model.id)
+        let storage = self.storage
+        Task {
+            let outcome = await Task.detached { Result { try storage.checkEarlierDownload(model) } }.value
+            await self.finishCheck(model, outcome)
+        }
+    }
+
+    private func finishCheck(_ model: OnDeviceModel, _ outcome: Result<[String], Error>) {
+        guard states[model.id] == .checking else { return }
+        switch outcome {
+        case .success(let bad) where bad.isEmpty:
+            setState(scan(model), for: model.id)
+        case .success:
+            // The files that matched were kept. The files that did not are fetched again, automatically.
+            setState(.notDownloaded, for: model.id)
+            start(model.id)
+        case .failure(let error):
+            setState(.failed(checkFailure(error), progress(of: model)), for: model.id)
+        }
+    }
+
+    /// Every failure of a check stays a failed check, so its row offers Check again and Delete, never Discard.
+    private func checkFailure(_ error: Error) -> OnDeviceModelFailure {
+        if case OnDeviceModelStorageError.unreadable(let path) = error { return .checkFailed(.unreadable(path: path)) }
+        return .checkFailed(.storage(error.localizedDescription))
+    }
+
+    /// Checks an earlier download again, after its check failed. Nothing is downloaded except files that do not match.
+    public func check(_ id: String) {
+        guard let model = catalog.model(id: id), storage.hasEarlierDownload(model), active?.id != id,
+            !queue.contains(id), states[id] != .checking
+        else { return }
+        beginCheck(model)
     }
 
     // MARK: Controls
@@ -156,7 +216,7 @@ public actor OnDeviceModelManager {
             return
         }
         switch states[id] ?? .notDownloaded {
-        case .queued, .downloading: return
+        case .queued, .downloading, .checking: return
         case .notDownloaded, .paused, .failed, .downloaded: break
         }
         let needed = max(0, model.totalBytes - storage.partialBytes(for: model)) + reserveBytes
@@ -349,6 +409,7 @@ public actor OnDeviceModelManager {
         case ModelFileDownloadError.network(let message, _): return .network(message)
         case ModelFileDownloadError.fileSystem(let message): return .storage(message)
         case OnDeviceModelStorageError.sizeMismatch(let path, _, _): return .damaged(file: path)
+        case OnDeviceModelStorageError.digestMismatch(let path): return .damaged(file: path)
         case OnDeviceModelStorageError.incomplete(let path): return .damaged(file: path)
         case OnDeviceModelStorageError.unsafePath(let path): return .damaged(file: path)
         case OnDeviceModelStorageError.fileSystem(let message): return .storage(message)
