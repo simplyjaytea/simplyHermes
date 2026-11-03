@@ -26,7 +26,7 @@
             let monitor = NWPathMonitor()
             monitor.pathUpdateHandler = { update in
                 let mapped = Self.map(update.status)
-                Task { @MainActor in NetworkMonitor.shared.path = mapped }
+                Task { @MainActor in NetworkMonitor.shared.receive(mapped) }
             }
             monitor.start(queue: DispatchQueue(label: "simplyHermes.network-path"))
             self.monitor = monitor
@@ -42,9 +42,25 @@
             }
         }
 
+        /// Applies a system report. In debug builds a path a UI test pinned stays in place, so the system's first report
+        /// cannot overwrite it.
+        private func receive(_ mapped: NetworkPath) {
+            #if DEBUG
+                if let pinnedPath {
+                    path = pinnedPath
+                    return
+                }
+            #endif
+            path = mapped
+        }
+
         #if DEBUG
-            /// Sets the path a UI test needs, with no network. The system's own reports still arrive and replace it.
+            /// The path a UI test pinned, if any. Nil means the system's reports apply.
+            @ObservationIgnored private var pinnedPath: NetworkPath?
+
+            /// Pins the path a UI test needs (WP-8, AT-1b and AT-3b). It stays until the test pins another.
             public func setPathForTesting(_ path: NetworkPath) {
+                pinnedPath = path
                 self.path = path
             }
         #endif

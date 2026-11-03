@@ -6,6 +6,15 @@
         /// Creates the transport.
         public init() {}
 
+        #if DEBUG
+            /// Drops every socket that is open, as a network outage does, so the chat has to reconnect and go through its
+            /// real outage path. For the UI tests only (WP-8, AT-1b and AT-3b). New connections are refused by
+            /// `NetworkTrap` while the gateway is stopped.
+            public static func dropOpenSockets() {
+                OpenSocketRegistry.shared.dropAll()
+            }
+        #endif
+
         /// Opens a socket. A refused upgrade throws ``WebSocketError/upgradeRejected(status:)``.
         public func connect(url: URL, headers: [String: String]) async throws -> any WebSocketConnection {
             var request = URLRequest(url: url)
@@ -51,8 +60,19 @@
                 self.shutdown(code: .goingAway)
                 self.resumeOpening(with: .failure(CancellationError()))
             }
+            #if DEBUG
+                OpenSocketRegistry.shared.add(self)
+            #endif
             readLoop(task)
         }
+
+        #if DEBUG
+            /// Ends the socket as an outage does: the messages stream fails, so the client sees the connection go.
+            func drop() {
+                shutdown(code: .goingAway)
+                continuation.finish(throwing: WebSocketError.failed("the gateway was stopped"))
+            }
+        #endif
 
         func send(_ text: String) async throws {
             guard let task = lock.withLock({ self.task }) else { throw WebSocketError.closed(code: nil, reason: nil) }
@@ -161,4 +181,36 @@
             session?.finishTasksAndInvalidate()
         }
     }
+
+    #if DEBUG
+        /// The sockets opened and not yet closed, held weakly, so a UI test can drop them (`dropOpenSockets`).
+        final class OpenSocketRegistry: @unchecked Sendable {
+            static let shared = OpenSocketRegistry()
+
+            private final class Weak {
+                weak var socket: URLSessionWebSocketConnection?
+
+                init(_ socket: URLSessionWebSocketConnection) { self.socket = socket }
+            }
+
+            private let lock = NSLock()
+            private var sockets: [Weak] = []
+
+            func add(_ socket: URLSessionWebSocketConnection) {
+                lock.withLock {
+                    sockets.removeAll { $0.socket == nil }
+                    sockets.append(Weak(socket))
+                }
+            }
+
+            func dropAll() {
+                let open = lock.withLock { () -> [URLSessionWebSocketConnection] in
+                    let live = sockets.compactMap(\.socket)
+                    sockets = []
+                    return live
+                }
+                for socket in open { socket.drop() }
+            }
+        }
+    #endif
 #endif

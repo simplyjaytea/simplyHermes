@@ -71,6 +71,12 @@
         /// Sends the chat's waiting messages if Hermes can take them, then refreshes the rows the screen shows.
         func drainOutbox() async {
             guard let drainer else { return }
+            // WP-8: while the chat cannot reach its server, its waiting messages stay where they are. Nothing is submitted
+            // over a socket the status says is down, and the drain runs again when the chat recovers.
+            guard status.pill != .unreachable else {
+                await refreshOutbox()
+                return
+            }
             do {
                 try await drainer.drain()
             } catch {

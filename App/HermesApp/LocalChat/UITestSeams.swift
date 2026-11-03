@@ -167,6 +167,8 @@ enum UITestSeams {
                     stopped.toggle()
                     NetworkTrap.setGatewayStopped(stopped)
                     NetworkMonitor.shared.setPathForTesting(stopped ? .unsatisfied : .satisfied)
+                    // An outage drops the live socket too; without this the open chat keeps sending over it.
+                    if stopped { URLSessionWebSocketTransport.dropOpenSockets() }
                 }
                 .accessibilityIdentifier("uiTest.gatewayToggle")
                 Text("\(UITestSeams.localReplyCount)")
