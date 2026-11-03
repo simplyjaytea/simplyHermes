@@ -87,6 +87,8 @@ jobs:
         run: bash tools/ci/test_merge_gate.sh
       - name: Simulator fallback picks a device its runtime supports (fake xcrun)
         run: bash tools/ci/test_sim_fallback.sh
+      - name: Tooling unit tests (model catalog check, compiler debris)
+        run: python3 -I -m unittest discover -s tools/ci -p 'test_*.py'
       - name: Build
         run: swift build
       - name: Test
