@@ -229,8 +229,8 @@
 
         /// Starts a chat. With a server saved it is a placeholder until its first message creates the server chat, so
         /// New chat never waits on the network. An empty chat not yet started is shown again, so repeat taps make one.
-        public func newChat() {
-            if ChatModeDefault.current == .local {
+        public func newChat(mode: ChatMode = ChatModeDefault.current) {
+            if mode == .local {
                 newLocalChat()
                 return
             }
@@ -243,6 +243,22 @@
             }
             let id = addPlaceholderChat()
             if startServerChat != nil { unstartedChatIDs.insert(id) }
+        }
+
+        /// Opens a new Local chat that starts with `draft`, for the banner's "Continue in a new Local chat". The chat it
+        /// came from stays open and keeps its messages and attachments. The draft moves here, so the same text can't be
+        /// sent from both chats.
+        public func continueInNewLocalChat(carrying draft: String) {
+            let previous = selectedSessionID
+            newLocalChat()
+            guard let id = selectedSessionID, id != previous else { return }
+            drafts[id] = draft
+            if let previous { drafts[previous] = nil }
+        }
+
+        /// The name of the model a new Local chat would answer with, for the New chat menu. Nil when none can answer now.
+        public var localModelName: String? {
+            LocalChatServices.shared?.answeringModel()?.displayName
         }
 
         /// Starts a local chat (WP-7), or opens the empty one already open. It is listed at once and saved on its first

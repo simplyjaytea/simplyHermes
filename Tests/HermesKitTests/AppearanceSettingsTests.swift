@@ -109,6 +109,16 @@ struct AppearanceSettingsTests {
                 let def = PresetPaletteDefinition.definition(for: preset, isDark: isDark, highContrast: highContrast)
                 let checks = def.contrastChecks
 
+                // The status inks colour the pill's symbol on the background, so each must meet AA in every variant (WP-8, §2.3).
+                for key in [
+                    "statusOnlineInkOnPill", "statusLocalInkOnPill",
+                    "statusWarningInkOnPill", "statusProblemInkOnPill",
+                ] {
+                    let ratio = try #require(checks[key])
+                    #expect(
+                        ratio >= 4.5, "\(key) for \(preset) (dark: \(isDark), hc: \(highContrast)): \(ratio)")
+                }
+
                 // Normal body text on background must meet WCAG AA (>= 4.5:1)
                 let primaryOnBg = try #require(checks["primaryOnBackground"])
                 #expect(

@@ -31,7 +31,25 @@
                 if !chat.queue.isEmpty {
                     QueuedMessagesView(chat: chat)
                 }
-                ChatStatusBar(strip: chat.strip)
+                ChatStatusBar(strip: chat.strip, pill: chat.status.pill, serverName: chat.serverName)
+                #if DEBUG
+                    // Hidden: a UI test reads it when an outage assertion fails (WP-8).
+                    Text(chat.debugStatusSummary)
+                        .font(.system(size: 1))
+                        .frame(width: 1, height: 1)
+                        .opacity(0.01)
+                        .accessibilityIdentifier("uiTest.chatStatus")
+                #endif
+                if OutageBanner.shows(chat.status) {
+                    OutageBannerView(
+                        serverName: chat.serverName,
+                        onTryAgain: { Task { await chat.retryConnection() } },
+                        onContinueInNewLocalChat: {
+                            model.continueInNewLocalChat(carrying: model.drafts[sessionID, default: ""])
+                        }
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
                 if chat.isRunning, let tasks = TaskProgress(chat.state.todos?.todos ?? []) {
                     TaskProgressPill(progress: tasks)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -353,7 +371,7 @@
             if let session = model.session(id: sessionID) {
                 VStack(alignment: .leading, spacing: 6) {
                     StatusStrip(
-                        connection: .connected,
+                        connection: StatusStrip.Connection(chat.strip.connection),
                         serverName: session.serverName,
                         runningTurn: chat.isRunning ? "Hermes is replying" : nil,
                         onStop: chat.isRunning ? { chat.stop() } : nil

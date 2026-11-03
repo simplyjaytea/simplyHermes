@@ -492,6 +492,16 @@
                 } label: {
                     Label("New chat", systemImage: "square.and.pencil")
                 }
+                // A long press offers both kinds, so a Local chat is one press away while the server is down.
+                .contextMenu {
+                    ForEach(NewChatChoice.allCases, id: \.self) { choice in
+                        Button {
+                            model.newChat(mode: choice.mode)
+                        } label: {
+                            Label(choice.menuTitle(localModelName: model.localModelName), systemImage: choice.symbol)
+                        }
+                    }
+                }
                 .accessibilityIdentifier("shell.newChat")
             }
         }

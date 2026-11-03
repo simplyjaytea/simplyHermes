@@ -97,9 +97,35 @@
 
         /// The status strip readings for this chat: context fill, cache, speed and the connection.
         public var strip: ChatStatusStrip {
-            let phase = connections.active.flatMap { connections.phases[$0.id] }
-            return ChatStatusStrip(usage: state.usage, connection: Self.connection(for: phase))
+            ChatStatusStrip(usage: state.usage, connection: StripConnection(pill: status.pill))
         }
+
+        /// This chat's status (WP-8): the one source for the pill, the composer and the banner. The network path comes
+        /// from the shared monitor, so a missing network shows at once.
+        public var status: ChatStatus {
+            guard let connection = connections.active else { return ChatStatusDeriver.noServer }
+            return ChatStatusDeriver.derive(
+                backend: .server(connectionID: connection.id, profile: nil, sessionID: storedSessionID),
+                phase: phase(of: connection.id), path: NetworkMonitor.shared.path, local: .off)
+        }
+
+        /// The connection phase the status reads. A test passes `phaseSource` to drive it; the app never does.
+        private func phase(of id: UUID) -> ConnectionPhase? {
+            if let phaseSource { return phaseSource() }
+            return connections.phases[id]
+        }
+
+        /// The server's name for the pill and the banner.
+        public var serverName: String { connections.active?.name ?? "the server" }
+
+        #if DEBUG
+            /// What a UI test reads when an outage assertion fails (WP-8): the status and every input it was derived from.
+            public var debugStatusSummary: String {
+                let phase =
+                    connections.active.map { String(describing: connections.phases[$0.id]) } ?? "no active connection"
+                return "pill=\(status.pill) canSend=\(status.canSend) path=\(NetworkMonitor.shared.path) phase=\(phase)"
+            }
+        #endif
 
         /// Delegated helpers of this chat, running ones first.
         public func subagentRows(now: Date) -> [SubagentRow] {
@@ -109,6 +135,8 @@
         @ObservationIgnored let connections: ConnectionsModel
         @ObservationIgnored private let broker: ServerRequestBroker
         @ObservationIgnored let storedSessionID: String
+        /// The server this chat was opened on. Try again reconnects it, even if another server is active by then.
+        @ObservationIgnored let serverID: UUID?
         /// When an automatic retry will fire, if one is scheduled.
         public private(set) var retryAt: Date?
         /// Text a slash command asked the composer to take back, unsent. The chat screen moves it into the draft.
@@ -125,6 +153,10 @@
         @ObservationIgnored private var firstMessage: (text: String, attachments: [ComposerAttachment])?
         @ObservationIgnored private var isMovingWorkspace = false
         @ObservationIgnored let outbox: any OutboxStore
+        /// Replaces the connection phases the status reads. Nil in the app; a test sets it to drive the pill.
+        @ObservationIgnored let phaseSource: (@MainActor () -> ConnectionPhase?)?
+        /// The pill as the chat last saw it, so a move back into `.connected` can send the waiting messages (WP-8).
+        @ObservationIgnored var lastPill: PillState?
         /// Sends the outbox's messages through the attached controller. Nil while the chat is detached.
         @ObservationIgnored var drainer: OutboxDrainer?
         /// Set while the composer's send is saving. A second send starts only after it ends (review M5).
@@ -137,13 +169,31 @@
 
         init(
             connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String,
-            outbox: any OutboxStore
+            outbox: any OutboxStore, phaseSource: (@MainActor () -> ConnectionPhase?)? = nil
         ) {
             self.connections = connections
             self.broker = broker
             self.storedSessionID = storedSessionID
+            self.serverID = connections.active?.id
             self.outbox = outbox
+            self.phaseSource = phaseSource
             state = TranscriptState(storedSessionID: storedSessionID)
+            lastPill = status.pill
+            watchPill()
+        }
+
+        /// Banner's Try again (WP-8). A chat that stayed attached keeps its old controller, so ``attach()`` alone does
+        /// nothing after an outage. This reconnects the chat's own server, then replaces the controller and drains.
+        /// While the server is still down the transcript stays on screen and the banner stays.
+        public func retryConnection() async {
+            guard let serverID, let connection = connections.connection(id: serverID), let manager = connections.manager
+            else { return }
+            connections.connect(serverID)
+            guard (try? await manager.client(for: connection)) != nil else { return }
+            // Attach only works on the active server, so a chat whose server is no longer active waits for a switch.
+            guard connections.active?.id == serverID else { return }
+            detach()
+            await attach()
         }
 
         /// Connects, resumes the session and starts following it. Safe to call again after a failure. A call made
@@ -482,15 +532,6 @@
         /// The server's folder wins once it changes, for example when another device moves the chat.
         private func noteWorkspace(_ cwd: String?) {
             if cwd != state.info?.cwd { workspaceCwd = nil }
-        }
-
-        private static func connection(for phase: ConnectionPhase?) -> StripConnection {
-            switch phase {
-            case .connected?: .online
-            case .reconnecting?, .connecting?, .openingTunnel?, .checkingServer?, .unlocking?: .reconnecting
-            case .signInRequired?, .updateRequired?, .failed?: .needsAttention
-            case .idle?, nil: .offline
-            }
         }
 
         /// Sends the last prompt again.

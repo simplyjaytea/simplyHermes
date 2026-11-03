@@ -119,6 +119,14 @@ public struct RGBColor: Equatable, Hashable, Sendable {
         return 0.2126 * rLum + 0.7152 * gLum + 0.0722 * bLum
     }
 
+    /// This colour drawn at `alpha` over `background`, as the status pill's capsule is (`ink.opacity(0.12)`).
+    public func composited(over background: RGBColor, alpha: Double) -> RGBColor {
+        RGBColor(
+            red: (red * alpha + background.red * (1 - alpha)) * 255,
+            green: (green * alpha + background.green * (1 - alpha)) * 255,
+            blue: (blue * alpha + background.blue * (1 - alpha)) * 255)
+    }
+
     /// Calculates the contrast ratio between this color and another color (range 1.0 to 21.0).
     public func contrastRatio(with other: RGBColor) -> Double {
         let lum1 = self.relativeLuminance
@@ -152,6 +160,10 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
     public let statusConnected: RGBColor
     public let statusWarning: RGBColor
     public let statusOffline: RGBColor
+    public let statusOnlineInk: RGBColor
+    public let statusLocalInk: RGBColor
+    public let statusWarningInk: RGBColor
+    public let statusProblemInk: RGBColor
     public let destructive: RGBColor
     public let onDestructive: RGBColor
     public let errorText: RGBColor
@@ -200,6 +212,10 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                 statusConnected: RGBColor(hex: 0x30D158),
                 statusWarning: RGBColor(hex: 0xFF9F0A),
                 statusOffline: RGBColor(hex: 0x8E8E93),
+                statusOnlineInk: highContrast ? RGBColor(hex: 0x86EFAC) : RGBColor(hex: 0x30D158),
+                statusLocalInk: highContrast ? RGBColor(hex: 0xDDD6FE) : RGBColor(hex: 0xC4B5FD),
+                statusWarningInk: highContrast ? RGBColor(hex: 0xFCD34D) : RGBColor(hex: 0xFF9F0A),
+                statusProblemInk: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
                 destructive: RGBColor(hex: 0xDC2626),
                 onDestructive: RGBColor(hex: 0xFFFFFF),
                 errorText: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
@@ -228,6 +244,10 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
                 statusConnected: RGBColor(hex: 0x34C759),
                 statusWarning: RGBColor(hex: 0xFF9500),
                 statusOffline: RGBColor(hex: 0x8E8E93),
+                statusOnlineInk: RGBColor(hex: 0x166534),
+                statusLocalInk: RGBColor(hex: 0x6D28D9),
+                statusWarningInk: RGBColor(hex: 0x92400E),
+                statusProblemInk: RGBColor(hex: 0xB91C1C),
                 destructive: RGBColor(hex: 0xDC2626),
                 onDestructive: RGBColor(hex: 0xFFFFFF),
                 errorText: highContrast ? RGBColor(hex: 0x991B1B) : RGBColor(hex: 0xB91C1C),
@@ -260,6 +280,10 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
             statusConnected: RGBColor(hex: 0x30D158),
             statusWarning: RGBColor(hex: 0xFF9F0A),
             statusOffline: RGBColor(hex: 0x8E8E93),
+            statusOnlineInk: highContrast ? RGBColor(hex: 0x86EFAC) : RGBColor(hex: 0x30D158),
+            statusLocalInk: highContrast ? RGBColor(hex: 0xDDD6FE) : RGBColor(hex: 0xC4B5FD),
+            statusWarningInk: highContrast ? RGBColor(hex: 0xFCD34D) : RGBColor(hex: 0xFF9F0A),
+            statusProblemInk: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
             destructive: RGBColor(hex: 0xDC2626),
             onDestructive: RGBColor(hex: 0xFFFFFF),
             errorText: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
@@ -291,6 +315,10 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
             statusConnected: RGBColor(hex: 0x38BDF8),
             statusWarning: RGBColor(hex: 0xFBBF24),
             statusOffline: RGBColor(hex: 0x64748B),
+            statusOnlineInk: highContrast ? RGBColor(hex: 0x86EFAC) : RGBColor(hex: 0x38BDF8),
+            statusLocalInk: highContrast ? RGBColor(hex: 0xDDD6FE) : RGBColor(hex: 0xC4B5FD),
+            statusWarningInk: highContrast ? RGBColor(hex: 0xFCD34D) : RGBColor(hex: 0xFBBF24),
+            statusProblemInk: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
             destructive: RGBColor(hex: 0xDC2626),
             onDestructive: RGBColor(hex: 0xFFFFFF),
             errorText: highContrast ? RGBColor(hex: 0xFCA5A5) : RGBColor(hex: 0xF87171),
@@ -322,6 +350,10 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
             statusConnected: RGBColor(hex: 0x16A34A),
             statusWarning: RGBColor(hex: 0xD97706),
             statusOffline: RGBColor(hex: 0x6B7280),
+            statusOnlineInk: RGBColor(hex: 0x166534),
+            statusLocalInk: RGBColor(hex: 0x6D28D9),
+            statusWarningInk: RGBColor(hex: 0x92400E),
+            statusProblemInk: RGBColor(hex: 0xB91C1C),
             destructive: RGBColor(hex: 0xDC2626),
             onDestructive: RGBColor(hex: 0xFFFFFF),
             errorText: highContrast ? RGBColor(hex: 0x991B1B) : RGBColor(hex: 0xB91C1C),
@@ -330,10 +362,23 @@ public struct PresetPaletteDefinition: Equatable, Sendable {
     }
 
     /// Evaluates standard contrast ratios against WCAG 2.1 requirements.
+    /// How strongly a status pill's ink tints its capsule. The app draws the capsule with this too.
+    public static let pillTintAlpha = 0.12
+
+    /// The capsule an ink-coloured pill sits on: the ink at `pillTintAlpha` over the background.
+    public func pillSurface(_ ink: RGBColor) -> RGBColor {
+        ink.composited(over: background, alpha: Self.pillTintAlpha)
+    }
+
     public var contrastChecks: [String: Double] {
         [
             "primaryOnBackground": primaryText.contrastRatio(with: background),
             "primaryOnIncomingBubble": primaryText.contrastRatio(with: incomingBubble),
+            // The pill's symbol sits on its capsule, which is the ink at 12% over the background.
+            "statusOnlineInkOnPill": statusOnlineInk.contrastRatio(with: pillSurface(statusOnlineInk)),
+            "statusLocalInkOnPill": statusLocalInk.contrastRatio(with: pillSurface(statusLocalInk)),
+            "statusWarningInkOnPill": statusWarningInk.contrastRatio(with: pillSurface(statusWarningInk)),
+            "statusProblemInkOnPill": statusProblemInk.contrastRatio(with: pillSurface(statusProblemInk)),
             "secondaryOnBackground": secondaryText.contrastRatio(with: background),
             "secondaryOnIncomingBubble": secondaryText.contrastRatio(with: incomingBubble),
             "onAccentOnAccent": onAccent.contrastRatio(with: accent),

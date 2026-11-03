@@ -32,5 +32,23 @@
         public static func record(_ site: String) {
             lock.withLock { openings[site, default: 0] += 1 }
         }
+
+        nonisolated(unsafe) private static var gatewayStopped = false
+
+        /// Whether a UI test has stopped the gateway. While it is stopped, the HTTP and WebSocket transports refuse to connect.
+        public static var isGatewayStopped: Bool {
+            lock.withLock { gatewayStopped }
+        }
+
+        /// Stops or starts the gateway for a UI test (WP-8, AT-1b and AT-3b). Stopping does not close a socket that is
+        /// already open; it stops new connections, and the chat's status is set to no network path alongside it.
+        public static func setGatewayStopped(_ stopped: Bool) {
+            lock.withLock { gatewayStopped = stopped }
+        }
+
+        /// Throws the error a refused connection gives, while the gateway is stopped. Called where a transport connects.
+        public static func failIfGatewayStopped() throws {
+            if isGatewayStopped { throw URLError(.cannotConnectToHost) }
+        }
     }
 #endif

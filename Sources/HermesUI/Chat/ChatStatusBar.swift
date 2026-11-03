@@ -6,41 +6,40 @@
     /// token breakdown in a popover.
     struct ChatStatusBar: View {
         let strip: ChatStatusStrip
+        /// The chat's pill. It replaces the bare connection dot, so the strip and the pill can't disagree.
+        let pill: PillState
+        let serverName: String
         @State private var showsDetails = false
         @Environment(\.hermesPalette) private var palette
 
         var body: some View {
-            Button {
-                showsDetails = true
-            } label: {
-                HStack(spacing: 8) {
-                    ContextRing(percent: strip.contextPercent, level: strip.contextLevel)
-                        .frame(width: 18, height: 18)
-                    if let context = strip.reading(.context) {
-                        Text(context.value)
-                            .font(HermesFont.caption.monospacedDigit())
-                            .foregroundStyle(palette.secondaryText)
+            // The pill sits beside the button, not inside it: a button merges its contents into one accessibility element,
+            // so inside it the pill's own label and identifier would never be seen (WP-8).
+            HStack(spacing: 8) {
+                Button {
+                    showsDetails = true
+                } label: {
+                    HStack(spacing: 8) {
+                        ContextRing(percent: strip.contextPercent, level: strip.contextLevel)
+                            .frame(width: 18, height: 18)
+                        if let context = strip.reading(.context) {
+                            Text(context.value)
+                                .font(HermesFont.caption.monospacedDigit())
+                                .foregroundStyle(palette.secondaryText)
+                        }
                     }
-                    Circle().fill(dotColor).frame(width: 8, height: 8)
-                    Spacer(minLength: 0)
+                    .contentShape(Rectangle())
                 }
-                .padding(.horizontal, 14)
-                .frame(minHeight: 28)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("chat.status")
+                .accessibilityLabel(Text(accessibilityText))
+                .accessibilityHint(Text("Shows token details"))
+                .popover(isPresented: $showsDetails) { details.presentationCompactAdaptation(.popover) }
+                StatusPill(pill: pill, serverName: serverName)
+                Spacer(minLength: 0)
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("chat.status")
-            .accessibilityLabel(Text(accessibilityText))
-            .accessibilityHint(Text("Shows token details"))
-            .popover(isPresented: $showsDetails) { details.presentationCompactAdaptation(.popover) }
-        }
-
-        private var dotColor: Color {
-            switch strip.connection {
-            case .online: palette.statusConnected
-            case .reconnecting, .needsAttention: palette.statusWarning
-            case .offline: palette.statusOffline
-            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: 28)
         }
 
         private var accessibilityText: String {
