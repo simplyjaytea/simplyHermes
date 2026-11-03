@@ -37,6 +37,7 @@
             case .pause: return "Pause"
             case .resume: return "Resume"
             case .retry: return "Try again"
+            case .check: return "Check again"
             case .cancel:
                 switch row.state {
                 case .paused, .failed: return "Discard"
@@ -58,6 +59,10 @@
         static func statusLine(_ row: OnDeviceModelRow) -> String? {
             switch row.state {
             case .notDownloaded: return nil
+            case .checking: return "Checking files from an earlier download."
+            case .queued where row.isRepairing, .downloading where row.isRepairing, .paused where row.isRepairing:
+                // The same wording as a file that fails after a download: the file was removed, and it is fetched again.
+                return failureText(.damaged(file: ""))
             case .queued: return "Waiting for the download in front of it."
             case .downloading(let progress):
                 return "\(size(progress.receivedBytes)) of \(size(progress.totalBytes))"
@@ -76,9 +81,15 @@
             case .server(let status):
                 return "The download server answered with error \(status). Try again later."
             case .damaged:
-                return "A downloaded file was damaged and was removed. Try again."
+                return "A file didn't match its checksum and was removed. Download again."
             case .storage:
                 return "This device could not save the file. Free some space and try again."
+            case .checkFailed(.unreadable):
+                return
+                    "A file could not be read, so the download could not be checked. Check again, or delete the model."
+            case .checkFailed(.storage):
+                return
+                    "This device could not save the file while checking it. Free some space, then check again or delete the model."
             }
         }
 
@@ -90,6 +101,7 @@
             case .unavailable(.unsupported): return "This device does not support Apple Intelligence."
             case .unavailable(.disabled):
                 return "Apple Intelligence is off. Turn it on in the Settings app to use this model."
+            case .unavailable(.noModelChosen): return "No on-device model is in use."
             case .unavailable(.notReady): return "The model is still getting ready. Try again in a few minutes."
             case .unavailable(.switchedOff): return "On-device features are switched off above."
             }
@@ -113,7 +125,10 @@
                     "\(size(model.totalBytes)) will be downloaded to this device, so Wi-Fi is best. "
                     + "You can pause it and delete the model at any time."
             case .delete:
-                return "This frees \(size(model.totalBytes)). You can download it again later."
+                guard let bytes = question.freedBytes else {
+                    return "This deletes \(model.displayName) from this iPhone. You can download it again later."
+                }
+                return "This frees \(size(bytes)). You can download it again later."
             default:
                 return "The \(size(question.receivedBytes)) that arrived will be deleted."
             }
@@ -130,6 +145,9 @@
         // MARK: Notes
 
         /// Under the model list: what changed after a memory warning, or why nothing can be picked.
+        /// Shown when the model in use was deleted. Nothing answers on the device until the user picks one.
+        static let noModelInUse = "No on-device model is in use. Pick one below to answer on this iPhone."
+
         static func footer(suspended: Bool, canRun: Bool) -> String {
             var lines: [String] = []
             if suspended {

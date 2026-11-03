@@ -21,8 +21,12 @@ jobs:
     if: ${{ github.event.action != 'labeled' || github.event.label.name == 'ci:app' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       code: ${{ steps.filter.outputs.code }}
+      app: ${{ steps.candidate.outputs.app }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,6 +49,24 @@ jobs:
             fi
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
+      - name: Is this the merge candidate (live PR state)
+        id: candidate
+        # Read the PR's draft flag and labels now, not from the event. A push and a ci:app label a second apart start
+        # two runs, and the later one cancels the earlier. The event that started the surviving run may predate the
+        # label, so its payload can miss ci:app (race seen on #102). The live state includes both changes.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          app=true
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            IFS=$'\t' read -r draft labels < <(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json isDraft,labels \
+              --jq '[(.isDraft|tostring), ([.labels[].name] | join(","))] | @tsv')
+            app=false
+            if [ "$draft" = false ] || [[ ",$labels," == *",ci:app,"* ]]; then app=true; fi
+            echo "draft=$draft labels=$labels"
+          fi
+          echo "app=$app" >> "$GITHUB_OUTPUT"
 
   linux:
     name: Packages (Linux)
@@ -61,6 +83,10 @@ jobs:
         run: swift format lint --strict -r Sources Tests App
       - name: Assistant rows come only from model output (AT-4a source lint)
         run: python3 -I tools/ci/check_assistant_rows.py
+      - name: Merge gate refuses what it must (fake gh)
+        run: bash tools/ci/test_merge_gate.sh
+      - name: Simulator fallback picks a device its runtime supports (fake xcrun)
+        run: bash tools/ci/test_sim_fallback.sh
       - name: Build
         run: swift build
       - name: Test
@@ -111,18 +137,22 @@ jobs:
   macos:
     name: App (Xcode 27, simulator)
     needs: changes
-    # One macOS runner, so only the merge candidate uses it: pushes to main, non-draft PRs, or a draft labelled
-    # ci:app (one run; the label is removed at the end). Also skipped when the changes job sets code=false. If that job
-    # fails, this job still runs. The merge gate (tools/ci/merge_gate.sh) treats a skipped App job as a failure.
+    # Only the merge candidate uses the macOS runner: pushes to main, non-draft PRs, or a draft labelled ci:app (one
+    # run; the label is removed at the end). The changes job decides from the PR's live state (output `app`). It is
+    # also skipped when the changes job sets code=false. If that job fails, this job falls back to the event payload.
+    # The merge gate (tools/ci/merge_gate.sh) treats a skipped App job as a failure.
     if: >-
-      ${{ !cancelled() && needs.changes.outputs.code != 'false'
+      ${{ !cancelled()
       && (github.event.action != 'labeled' || github.event.label.name == 'ci:app')
+      && (needs.changes.result == 'success'
+      && needs.changes.outputs.code != 'false' && needs.changes.outputs.app == 'true'
+      || needs.changes.result == 'failure'
       && (github.event_name == 'push' || !github.event.pull_request.draft
-      || contains(github.event.pull_request.labels.*.name, 'ci:app')) }}
+      || contains(github.event.pull_request.labels.*.name, 'ci:app'))) }}
     runs-on: xcode-27
     # Passing runs took 62-84 min (runs 41360146274, 41351410493). This stops a hung simulator from holding the only
     # macOS runner for the 6 h default.
-    timeout-minutes: 110
+    timeout-minutes: 140
     permissions:
       contents: read
       pull-requests: write
@@ -256,26 +286,63 @@ jobs:
           echo "::error::Simulator $udid did not boot after 3 attempts. This is the runner, not the app."
           exit 1
       - name: Test
+        id: test
         env:
           # xcodebuild passes TEST_RUNNER_* variables to the UI test runner without the prefix.
           TEST_RUNNER_HERMES_TESTBED_URL: http://127.0.0.1:9119
+        # Simulator fallback (user-approved 2026-11-02): when the picked runtime is gone before the tests start, or
+        # xcodebuild exits 70 because it cannot use the destination, the tests run once more on the newest other
+        # usable iOS 27.x runtime (tools/ci/sim_fallback.sh). Test failures (exit 65) never fall back.
         run: |
           set -o pipefail
-          echo "Simulator: ${{ steps.sim.outputs.name }} (iOS ${{ steps.sim.outputs.os }})"
-          xcodebuild test \
-            -skipPackagePluginValidation \
-            -project simplyHermes.xcodeproj \
-            -scheme simplyHermes \
-            -destination "id=${{ steps.sim.outputs.udid }}" \
-            -resultBundlePath build/test.xcresult \
-            -retry-tests-on-failure -test-iterations 2 \
-            CODE_SIGNING_ALLOWED=NO | xcbeautify
+          udid="${{ steps.sim.outputs.udid }}"
+          name="${{ steps.sim.outputs.name }}"
+          os="${{ steps.sim.outputs.os }}"
+          use_fallback() {
+            local picked
+            picked=$(tools/ci/sim_fallback.sh pick "$udid") || exit 1
+            eval "$picked"
+            echo "udid=$udid" >> "$GITHUB_OUTPUT"
+            echo "fallback=true" >> "$GITHUB_OUTPUT"
+          }
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          if ! tools/ci/sim_fallback.sh check "$udid"; then
+            echo "The runtime of $name is no longer usable."
+            use_fallback
+          fi
+          run_tests() {
+            echo "Simulator: $name (iOS $os)"
+            xcodebuild test \
+              -skipPackagePluginValidation \
+              -project simplyHermes.xcodeproj \
+              -scheme simplyHermes \
+              -destination "id=$udid" \
+              -resultBundlePath build/test.xcresult \
+              -retry-tests-on-failure -test-iterations 2 \
+              CODE_SIGNING_ALLOWED=NO | xcbeautify
+          }
+          status=0
+          run_tests || status=$?
+          if [ "$status" -eq 70 ]; then
+            echo "xcodebuild could not use $name (exit 70): the runtime went away during the job."
+            use_fallback
+            rm -rf build/test.xcresult
+            status=0
+            run_tests || status=$?
+          fi
+          echo "### Simulator" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tests ran on $name (iOS $os)." >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
       - name: Screenshot app on simulator
-        if: always()
+        # Main always takes screenshots. A PR run takes them only when a test failed, to help debugging, and not after
+        # the simulator fallback, which has already used about 45 minutes of the job's time.
+        if: >-
+          ${{ always() && (github.event_name != 'pull_request'
+          || (steps.test.outcome == 'failure' && steps.test.outputs.fallback != 'true')) }}
         run: |
           set -eo pipefail
           mkdir -p build/shots
-          udid="${{ steps.sim.outputs.udid }}"
+          udid="${{ steps.test.outputs.udid || steps.sim.outputs.udid }}"
           xcrun simctl boot "$udid" || true
           xcrun simctl bootstatus "$udid" -b
           xcodebuild build \
@@ -297,6 +364,14 @@ jobs:
           xcrun simctl launch "$udid" "$bundle" -HermesScreen postureDebug -HermesOnboarding skip
           sleep 4
           xcrun simctl io "$udid" screenshot --display=1 build/shots/posture-debug.png
+          # App update banner with a stub feed (debug-only launch arguments). Best effort.
+          xcrun simctl terminate "$udid" "$bundle" || true
+          feed='{"version":"9.0.0-alpha.99","build":99,"installURL":"https://www.signulous.com/dashboard","notes":"Stub build for the screenshot"}'
+          hex=$(printf '%s' "$feed" | xxd -p | tr -d '\n')
+          xcrun simctl launch "$udid" "$bundle" -HermesOnboarding skip -HermesLayout compact \
+            -HermesAppUpdateReset YES -HermesAppUpdateStubOpen YES -HermesAppUpdateFeedHex "$hex" || true
+          sleep 5
+          xcrun simctl io "$udid" screenshot --display=1 build/shots/app-update-banner.png || true
           # Live Activity (WP-63/64): run a long demo turn, then switch to Safari so the
           # Dynamic Island shows the activity. Best effort: older simulators have no island.
           xcrun simctl terminate "$udid" "$bundle" || true
@@ -324,11 +399,15 @@ jobs:
             -configuration Release \
             -derivedDataPath build/ddi \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | xcbeautify
-          app=$(find build/ddi/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1 | head -1)
-          mkdir -p build/ipa/Payload
-          cp -R "$app" build/ipa/Payload/
-          (cd build/ipa && zip -qr simplyHermes-unsigned.ipa Payload && rm -rf Payload)
-          ls -l build/ipa
+          # PR runs build Release too: AT-4a below checks that build, and it guards the no-fake-replies rule. Only
+          # pushes package the .ipa, because nobody installs a PR build.
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            app=$(find build/ddi/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1 | head -1)
+            mkdir -p build/ipa/Payload
+            cp -R "$app" build/ipa/Payload/
+            (cd build/ipa && zip -qr simplyHermes-unsigned.ipa Payload && rm -rf Payload)
+            ls -l build/ipa
+          fi
       - name: No sample conversation text in the Release app (AT-4a)
         # Every assistant message must come from Hermes or the on-device model. The sample chats, their fake replies
         # and the fake approval are DEBUG-only; this fails if any of their text reaches the Release build.
@@ -359,6 +438,7 @@ jobs:
           done
           exit $found
       - name: Upload unsigned .ipa
+        if: ${{ github.event_name == 'push' }}
         uses: actions/upload-artifact@v4
         with:
           name: simplyHermes-unsigned-ipa
@@ -373,12 +453,16 @@ jobs:
           name: xcresult
           path: build/test.xcresult
       - name: ci:app is for one run
-        # A draft keeps its labels, so without this every later push would take the macOS runner again.
-        if: >-
-          ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.draft
-          && contains(github.event.pull_request.labels.*.name, 'ci:app') }}
+        # A draft keeps its labels, so without this every later push would take the macOS runner again. Checked live,
+        # like the candidate decision, because the event payload can predate the label.
+        if: ${{ always() && github.event_name == 'pull_request' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
-        run: gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --remove-label ci:app
+        run: |
+          IFS=$'\t' read -r draft labels < <(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json isDraft,labels \
+            --jq '[(.isDraft|tostring), ([.labels[].name] | join(","))] | @tsv')
+          if [ "$draft" = true ] && [[ ",$labels," == *",ci:app,"* ]]; then
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --remove-label ci:app
+          fi

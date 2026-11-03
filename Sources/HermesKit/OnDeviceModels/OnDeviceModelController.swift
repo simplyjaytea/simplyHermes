@@ -21,14 +21,15 @@ public struct OnDeviceModelController: Sendable {
 
     /// One row per catalog model, in catalog order. A model counts as selected only while it is the one that
     /// answers: after a memory warning the Apple model answers, and the row offers Use again.
-    public func rows(states: [String: OnDeviceModelState]) -> [OnDeviceModelRow] {
+    /// `repairing` holds the ids of models whose files an earlier download failed to verify, and which are fetched again.
+    public func rows(states: [String: OnDeviceModelState], repairing: Set<String> = []) -> [OnDeviceModelRow] {
         let route = selection.route
         let canRun = selection.canRunDownloadedModels
         let memory = availableMemory()
         return catalog.models.map { model in
             OnDeviceModelRow(
                 model: model, state: states[model.id] ?? .notDownloaded, isSelected: route == .downloaded(model),
-                canRun: canRun, availableMemoryBytes: memory)
+                canRun: canRun, availableMemoryBytes: memory, isRepairing: repairing.contains(model.id))
         }
     }
 
@@ -37,11 +38,18 @@ public struct OnDeviceModelController: Sendable {
         selection.route == .apple
     }
 
+    /// True when the model in use was deleted, and no on-device model answers until the user picks one.
+    public var noModelInUse: Bool {
+        selection.choice == .noModel
+    }
+
     /// Does what a row button says. Delete unloads the model first, so its files are not in use when they go.
     public func perform(_ action: OnDeviceModelRow.Action, on model: OnDeviceModel) async throws {
         switch action {
         case .download, .resume, .retry:
             await manager.start(model.id)
+        case .check:
+            await manager.check(model.id)
         case .pause:
             await manager.pause(model.id)
         case .cancel:

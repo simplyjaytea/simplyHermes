@@ -87,6 +87,7 @@
                 SoundsSettingsSection()
                 TipsSettingsSection()
                 OnDeviceSettingsSection()
+                QuickActionPrivacySection()
                 Section("Support") {
                     NavigationLink {
                         BugReportScreen(connections: nil)
@@ -101,6 +102,7 @@
                     }
                     .accessibilityIdentifier("settings.githubAccount")
                 }
+                AppUpdateSettingsSection()
                 Section {
                     Text("More settings are coming in WP-53.")
                         .foregroundStyle(HermesColor.secondaryText)

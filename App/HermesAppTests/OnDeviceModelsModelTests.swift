@@ -119,16 +119,21 @@ struct OnDeviceModelsModelTests {
 
 // MARK: Test doubles
 
+/// A file whose content is `bytes` zero bytes, the way `ScriptedModelDownloader` writes it, so its digest matches.
+private func zeroFile(_ path: String, _ bytes: Int64) -> OnDeviceModelFile {
+    OnDeviceModelFile(path, bytes, sha256: OnDeviceModelDigest.sha256(of: Data(count: Int(bytes))))
+}
+
 private let alphaModel = OnDeviceModel(
     id: "alpha", displayName: "Alpha", summary: "The first.", repository: "test/alpha",
     revision: String(repeating: "a", count: 40),
-    files: [OnDeviceModelFile("config.json", 10), OnDeviceModelFile("model.safetensors", 100)],
+    files: [zeroFile("config.json", 10), zeroFile("model.safetensors", 100)],
     license: "MIT", stopTokens: ["<end>"])
 
 private let betaModel = OnDeviceModel(
     id: "beta", displayName: "Beta", summary: "The second.", repository: "test/beta",
     revision: String(repeating: "b", count: 40),
-    files: [OnDeviceModelFile("config.json", 10), OnDeviceModelFile("model.safetensors", 50)],
+    files: [zeroFile("config.json", 10), zeroFile("model.safetensors", 50)],
     license: "MIT", isRecommended: true)
 
 /// Polls until `condition` holds or ten seconds pass.

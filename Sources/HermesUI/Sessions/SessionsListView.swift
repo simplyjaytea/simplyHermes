@@ -9,7 +9,6 @@
         private let onOpen: (SessionListItem) -> Void
         /// Whether a chat waits on an approval, by session id. Marks its row with a dot.
         private let needsApproval: (String) -> Bool
-        @State private var pendingDelete: SessionListItem?
         @State private var isPruneSheetPresented = false
         @Environment(\.hermesPalette) private var palette
 
@@ -40,7 +39,7 @@
                 if model.isSearching {
                     searchResults
                 } else {
-                    ForEach(model.sections) { section in
+                    ForEach(model.visibleSections) { section in
                         Section(section.group.title) {
                             ForEach(section.items) { item in row(item) }
                         }
@@ -51,11 +50,11 @@
             .scrollContentBackground(.hidden)
             .background(palette.groupedBackground)
             .toolbarBackground(palette.groupedBackground, for: .navigationBar)
-            .searchable(text: $model.searchText, prompt: "Search chats")
+            .searchable(text: $model.searchText, isPresented: $model.isSearchPresented, prompt: "Search chats")
             .refreshable { await model.refresh() }
             .task(id: model.searchText) { await model.runSearch() }
             .overlay {
-                if model.sections.isEmpty && !model.isSearching && !model.isRefreshing {
+                if model.visibleSections.isEmpty && !model.isSearching && !model.isRefreshing {
                     ContentUnavailableView(
                         "No chats yet", systemImage: "bubble.left.and.bubble.right",
                         description: Text("Start a chat and it shows up here."))
@@ -80,15 +79,6 @@
             }
             .sheet(item: $model.exportedChat) { chat in
                 ExportedChatSheet(chat: chat)
-            }
-            .confirmationDialog(
-                "Delete this chat?",
-                isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
-                titleVisibility: .visible, presenting: pendingDelete
-            ) { item in
-                Button("Delete", role: .destructive) { Task { await model.delete(item.id) } }
-            } message: { item in
-                Text("\"\(item.title)\" is deleted from the server. This cannot be undone.")
             }
         }
 
@@ -164,7 +154,8 @@
                 }
                 Button("Export", systemImage: "square.and.arrow.up") { Task { await model.export(item) } }
                 Button("Archive", systemImage: "archivebox") { Task { await model.archive(item.id) } }
-                Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = item }
+                Button("Delete", systemImage: "trash", role: .destructive) { Task { await model.delete(item.id) } }
+                    .accessibilityIdentifier("session.delete")
             }
             .swipeActions(edge: .leading) {
                 Button(item.isPinned ? "Unpin" : "Pin", systemImage: item.isPinned ? "pin.slash" : "pin") {
@@ -173,7 +164,8 @@
                 .tint(HermesColor.accent)
             }
             .swipeActions(edge: .trailing) {
-                Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = item }
+                Button("Delete", systemImage: "trash", role: .destructive) { Task { await model.delete(item.id) } }
+                    .accessibilityIdentifier("session.delete")
                 Button("Archive", systemImage: "archivebox") { Task { await model.archive(item.id) } }
                     .tint(HermesColor.statusWarning)
                 Button("Export", systemImage: "square.and.arrow.up") { Task { await model.export(item) } }

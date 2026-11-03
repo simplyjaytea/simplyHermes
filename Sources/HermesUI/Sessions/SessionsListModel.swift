@@ -48,13 +48,21 @@
         /// The chat the share sheet shows after an export. The view clears it when the sheet closes.
         public var exportedChat: ExportedChat?
         public var searchText = ""
+        /// Whether the search field is open. The home-screen Search chats action opens it.
+        public var isSearchPresented = false
         public private(set) var searchHits: [SessionSearchHit] = []
 
         @ObservationIgnored private let connections: ConnectionsModel
         @ObservationIgnored private let cache: HermesCache
+        /// Undo for delete, shared with the local chats so both lists use one window and one toast.
+        @ObservationIgnored private let deletes: ChatDeletes
         @ObservationIgnored private var library: SessionLibrary?
         /// The connection and the profile the list is attached to. A change of either starts a new list.
         @ObservationIgnored private var attachedKey: String?
+        /// The attached server's id, as outbox records store it.
+        @ObservationIgnored private var attachedConnectionID: String?
+        /// Clears the outbox of chats deleted on the server whose purge didn't finish, once per launch.
+        private static var didSweepTombstones = false
         /// The profile the user chose on the attached connection, or nil for the server's default.
         @ObservationIgnored private var attachedProfile: String?
         /// The profile the list shows, by name. Rows use it when a record does not name its owner.
@@ -64,9 +72,22 @@
 
         private static let untitled = "Untitled chat"
 
-        public init(connections: ConnectionsModel, cache: HermesCache) {
+        public init(connections: ConnectionsModel, cache: HermesCache, deletes: ChatDeletes = .shared) {
             self.connections = connections
             self.cache = cache
+            self.deletes = deletes
+        }
+
+        /// The sections the list shows: chats inside their Undo window, or being deleted, are left out. The filter is
+        /// here, not in the cache, so a refresh or sync can't bring a pending row back.
+        public var visibleSections: [SessionListSection] {
+            let hidden = deletes.hiddenIDs
+            guard !hidden.isEmpty else { return sections }
+            return sections.compactMap { section in
+                var section = section
+                section.items.removeAll { hidden.contains($0.id) }
+                return section.items.isEmpty ? nil : section
+            }
         }
 
         /// Called with all rows, in display order, after every change.
@@ -84,6 +105,11 @@
         /// refreshes from the server. A different server or profile starts a new list.
         public func attach(profile: String?) async {
             guard let connection = connections.active, let manager = connections.manager else { return }
+            if !Self.didSweepTombstones {
+                Self.didSweepTombstones = true
+                await OutboxTombstones.standard.sweep(store: cache.outbox)
+            }
+            attachedConnectionID = connection.id.uuidString
             let key = "\(connection.id.uuidString)|\(profile ?? "")"
             if attachedKey != key {
                 attachedKey = key
@@ -128,8 +154,35 @@
             await run { try await $0.setArchived(id, true) }
         }
 
+        /// Delete with Undo (feature C): the row hides at once, sending to the chat pauses, and the toast offers Undo
+        /// for 5 s. The toast's count is taken after the pause, from this server's waiting messages only.
+        ///
+        /// When the window ends the server deletes the chat. A failed server delete brings the row back with the reason
+        /// and discards nothing. Once the server delete has worked the chat never comes back: a tombstone is written,
+        /// then this server's messages for the chat are purged (tried twice). If the purge still fails, the chat stays
+        /// hidden and paused, and the launch sweep finishes the purge from the tombstone.
         public func delete(_ id: String) async {
-            await run { try await $0.delete(id) }
+            guard let library, let connection = attachedConnectionID, let item = items.first(where: { $0.id == id })
+            else { return }
+            let outbox = cache.outbox
+            let tombstones = OutboxTombstones.standard
+            let entry = OutboxTombstones.Entry(connection: connection, chatID: id)
+            let countWaiting: @MainActor () async -> Int = {
+                (try? await outbox.waitingCount(inChat: id, connection: connection)) ?? 0
+            }
+            let commit: ChatDeleteQueue.Commit = { [weak self] in
+                try await library.delete(id)
+                tombstones.add(entry)
+                defer { Task { await self?.showCached() } }
+                for _ in 0..<2 {
+                    if let discarded = try? await outbox.removeChat(id, connection: connection) {
+                        tombstones.remove(entry)
+                        return .deleted(discardedMessages: discarded)
+                    }
+                }
+                return .deletedCleanupPending
+            }
+            deletes.delete(id: id, title: item.title, countWaiting: countWaiting, commit: commit)
         }
 
         public func rename(_ id: String, to title: String) async {

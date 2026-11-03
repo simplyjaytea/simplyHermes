@@ -16,6 +16,9 @@
         @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
         @Environment(\.hermesReduceMotion) private var reduceMotionOverride
         @Environment(\.hermesPalette) private var palette
+        @Environment(\.scenePhase) private var scenePhase
+        /// Undo for chat delete, shared by both lists (feature C).
+        private var deletes: ChatDeletes { .shared }
         @State private var postureMonitor = DevicePostureMonitor()
         @State private var profiles: ProfilesModel?
         @State private var bots: BotsModel?
@@ -79,7 +82,12 @@
                         await rooms?.reload()
                     }
                     .onChange(of: connections?.active?.id) { _, _ in model.forgetServerChats() }
+                    .onChange(of: model.chatSearchRequest) { _, _ in sessionsList?.isSearchPresented = true }
                     .task(id: model.pendingSessionReference) { await openPendingSession() }
+                    // Leaving the foreground cancels every pending delete: nothing is deleted the user can't see undone.
+                    .onChange(of: scenePhase) { _, phase in
+                        if phase == .background { deletes.cancelAll() }
+                    }
             }
         }
 
@@ -90,6 +98,7 @@
 
         /// Lists the active profile's chats in the shell (WP-40), again when the server or the profile changes.
         private func attachSessions() async {
+            await model.loadLocalChats()
             guard let sessionsList else { return }
             sessionsList.observeItems { model.syncSessions($0) }
             await sessionsList.attach(profile: profiles?.selection.chosen)
@@ -228,6 +237,8 @@
                 Tab(AppSection.chats.title, systemImage: AppSection.chats.systemImage, value: AppSection.chats) {
                     NavigationStack {
                         chatList
+                            .safeAreaInset(edge: .top, spacing: 0) { AppUpdateBanner() }
+                            .safeAreaInset(edge: .bottom, spacing: 0) { ChatDeleteToast() }
                             .navigationTitle("Chats")
                             .toolbar {
                                 serverSwitcher
@@ -247,12 +258,18 @@
             }
         }
 
+        /// The shell's chats without those inside their Undo window or being deleted.
+        private var visibleSessions: [ChatSessionSummary] {
+            let hidden = deletes.hiddenIDs
+            return hidden.isEmpty ? model.sessions : model.sessions.filter { !hidden.contains($0.id) }
+        }
+
         @ViewBuilder
         private var chatList: some View {
             if let sessionsList, connections?.active != nil {
                 SessionsListView(model: sessionsList, needsApproval: model.needsApproval) { model.show($0) }
             } else {
-                List(model.sessions) { session in
+                List(visibleSessions) { session in
                     Button {
                         model.open(session.id)
                     } label: {
@@ -264,6 +281,7 @@
                     }
                     .tint(palette.primaryText)
                     .listRowBackground(palette.card)
+                    .modifier(LocalChatDeleteActions(id: session.id, model: model))
                 }
                 .scrollContentBackground(.hidden)
                 .background(palette.groupedBackground)
@@ -280,13 +298,14 @@
                         Section { InlineTipCard(kind: tip) }
                     }
                     Section("Chats") {
-                        ForEach(model.sessions) { session in
+                        ForEach(visibleSessions) { session in
                             SessionRow(
                                 session: session,
                                 isStreaming: model.isStreaming(session.id),
                                 needsApproval: model.needsApproval(session.id)
                             )
                             .tag(SidebarItem.session(session.id))
+                            .modifier(LocalChatDeleteActions(id: session.id, model: model))
                         }
                     }
                     Section {
@@ -296,6 +315,8 @@
                         }
                     }
                 }
+                .safeAreaInset(edge: .top, spacing: 0) { AppUpdateBanner() }
+                .safeAreaInset(edge: .bottom, spacing: 0) { ChatDeleteToast() }
                 .navigationTitle("simplyHermes")
                 .toolbar {
                     serverSwitcher
@@ -471,6 +492,7 @@
                 } label: {
                     Label("New chat", systemImage: "square.and.pencil")
                 }
+                .accessibilityIdentifier("shell.newChat")
             }
         }
 
@@ -554,6 +576,28 @@
                 } else {
                     ContentUnavailableView("Chat not found", systemImage: "bubble.left")
                 }
+            }
+        }
+    }
+
+    /// Delete for a local chat row (feature C): swipe and the context menu, with Undo on the toast. Server chats are
+    /// deleted from the server list, which has its own Delete.
+    struct LocalChatDeleteActions: ViewModifier {
+        let id: String
+        let model: ShellModel
+
+        func body(content: Content) -> some View {
+            if id.hasPrefix("local-") {
+                content
+                    .swipeActions(edge: .trailing) {
+                        Button("Delete", systemImage: "trash", role: .destructive) { model.deleteLocalChat(id) }
+                            .accessibilityIdentifier("session.delete")
+                    }
+                    .contextMenu {
+                        Button("Delete", systemImage: "trash", role: .destructive) { model.deleteLocalChat(id) }
+                    }
+            } else {
+                content
             }
         }
     }

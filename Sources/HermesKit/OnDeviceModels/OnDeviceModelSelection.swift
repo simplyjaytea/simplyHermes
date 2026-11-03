@@ -6,12 +6,19 @@ public enum OnDeviceModelChoice: Sendable, Hashable, Codable {
     case apple
     /// A downloaded model, by catalog id.
     case downloaded(String)
+    /// No on-device model. Set when the model in use is deleted: nothing answers on the device, and the Apple model
+    /// does not step in silently.
+    case noModel
 }
 
 /// Why a downloaded model cannot answer.
 public enum OnDeviceModelError: Error, Sendable, Equatable {
     /// The phone does not have enough free memory to load the model.
     case notEnoughMemory(needed: Int64, available: Int64)
+    /// The chosen model is being checked or repaired, so it cannot answer yet.
+    case notReady
+    /// The model in use was deleted, and no other model was picked.
+    case noModelChosen
 }
 
 /// The part of the model runtime the selection needs. The app implements it with MLX; HermesKit never imports MLX, so
@@ -85,11 +92,13 @@ public final class OnDeviceMemoryGate: @unchecked Sendable {
 /// - or loading the model fails for lack of memory.
 ///
 /// The Settings switch for on-device features (plan WP-65b) is `isEnabled`: when it is off, nothing answers.
-public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendable {
+public final class OnDeviceModelSelection: LocalModelExecutor, LocalChatAnswerer, @unchecked Sendable {
     /// Which model would answer right now.
     public enum Route: Sendable, Equatable {
         case apple
         case downloaded(OnDeviceModel)
+        /// No on-device model: the model in use was deleted. Nothing answers on the device.
+        case noModel
     }
 
     /// The Apple model, for callers that want it whatever the user picked (titles, for example).
@@ -127,7 +136,7 @@ public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendab
         lock.withLock { savedChoice }
     }
 
-    /// Which model answers right now, after the fallbacks.
+    /// Which model answers right now, after the fallbacks. It is `.noModel` when the model in use was deleted.
     public var route: Route {
         resolve().route
     }
@@ -165,7 +174,7 @@ public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendab
             downloadedExecutors[id] = nil
             return savedChoice == .downloaded(id)
         }
-        if wasInUse { setChoice(.apple) }
+        if wasInUse { setChoice(.noModel) }
         await runtime?.unloadAll()
     }
 
@@ -186,6 +195,30 @@ public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendab
         }
     }
 
+    /// Answers like ``respond(instructions:prompt:)`` and names the model that wrote the reply (WP-7). After a memory
+    /// fallback the name is the Apple model's, because that is the model that answered.
+    public func answer(instructions: String, prompt: String) async throws -> LocalAnswer {
+        let (route, executor) = resolve()
+        do {
+            let text = try await executor.respond(instructions: instructions, prompt: prompt)
+            return LocalAnswer(text: text, answeredBy: Self.identity(of: route))
+        } catch OnDeviceModelError.notEnoughMemory where route != .apple {
+            await handleMemoryWarning()
+            let text = try await apple.respond(instructions: instructions, prompt: prompt)
+            return LocalAnswer(text: text, answeredBy: .apple)
+        }
+    }
+
+    private static func identity(of route: Route) -> ModelIdentity {
+        switch route {
+        case .apple: .apple
+        case .downloaded(let model): .downloaded(id: model.id, displayName: model.displayName)
+        // Not reached: the no-model route's executor throws before any answer is attributed (see `answer`), and
+        // `answeringModel` checks availability first. Apple here only satisfies the switch; it names no reply.
+        case .noModel: .apple
+        }
+    }
+
     // MARK: Resolution
 
     /// Stores the choice and clears a memory-warning suspension. Returns true when the choice changed.
@@ -203,14 +236,34 @@ public final class OnDeviceModelSelection: LocalModelExecutor, @unchecked Sendab
 
     private func resolve() -> (route: Route, executor: any LocalModelExecutor) {
         let (choice, suspended) = lock.withLock { (savedChoice, suspendedByMemory) }
-        guard !suspended, let runtime, case .downloaded(let id) = choice, let model = catalog.model(id: id),
-            storage.isDownloaded(model)
-        else { return (.apple, apple) }
+        // The model in use was deleted: nothing answers on the device, and Apple does not step in.
+        if choice == .noModel { return (.noModel, UnavailableExecutor(reason: .noModelChosen, error: .noModelChosen)) }
+        guard !suspended, let runtime, case .downloaded(let id) = choice, let model = catalog.model(id: id) else {
+            return (.apple, apple)
+        }
+        // A model whose earlier files are being checked stays the choice. It is not ready, and Apple does not answer
+        // in its place.
+        if storage.isAwaitingCheck(model) {
+            return (.downloaded(model), UnavailableExecutor(reason: .notReady, error: .notReady))
+        }
+        guard storage.isDownloaded(model) else { return (.apple, apple) }
         if let cached = lock.withLock({ downloadedExecutors[id] }) { return (.downloaded(model), cached) }
         guard let made = runtime.executor(for: model, folder: storage.folder(for: model)) else {
             return (.apple, apple)
         }
         lock.withLock { downloadedExecutors[id] = made }
         return (.downloaded(model), made)
+    }
+}
+
+/// Stands in for the on-device model when none can answer: a model being checked, or none chosen. It never answers.
+private struct UnavailableExecutor: LocalModelExecutor {
+    let reason: LocalModelUnavailable
+    let error: OnDeviceModelError
+
+    var availability: LocalModelAvailability { .unavailable(reason) }
+
+    func respond(instructions: String, prompt: String) async throws -> String {
+        throw error
     }
 }
