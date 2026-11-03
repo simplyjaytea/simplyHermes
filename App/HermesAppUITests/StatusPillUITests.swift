@@ -124,6 +124,21 @@ final class StatusPillUITests: XCTestCase {
 
     // MARK: Helpers
 
+    /// Records the accessibility tree, the screen and the visible text when a chat fails to become live (WP-8).
+    @MainActor
+    private func failWithChatState(_ app: XCUIApplication, _ message: String) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "chat-state"
+        shot.lifetime = .keepAlways
+        add(shot)
+        let tree = XCTAttachment(string: app.debugDescription)
+        tree.name = "accessibility-tree"
+        tree.lifetime = .keepAlways
+        add(tree)
+        let visible = app.staticTexts.allElementsBoundByIndex.prefix(40).map(\.label).joined(separator: " | ")
+        XCTFail("\(message) [visible=\(visible)]")
+    }
+
     /// Records what the screen shows when an outage assertion fails: the pill, the banner, the switch and the waiting row.
     /// The screenshot is kept in the result bundle, so a failed run shows the state the chat was in.
     @MainActor
@@ -200,9 +215,20 @@ final class StatusPillUITests: XCTestCase {
     private func openLiveServerChat(_ app: XCUIApplication) {
         openNewOnlineChat(app)
         typeAndSend(app, "hello")
-        // Positive check before any outage: the pill is its own element, and the chat is connected.
+        // The first message creates the server chat only once the server is connected. Until then the send is refused
+        // with a "still connecting" note and the text stays in the composer, so send again while the chat is waiting.
         let pill = element(app, "chat.pill")
-        XCTAssertTrue(pill.waitForExistence(timeout: 30), "The status pill should be an element of its own")
+        var attempts = 1
+        while !pill.waitForExistence(timeout: 15), attempts < 4 {
+            let send = element(app, "composer.send")
+            guard send.exists, send.isHittable else { break }
+            send.tap()
+            attempts += 1
+        }
+        // Positive check before any outage: the pill is its own element, and the chat is connected.
+        if !pill.exists {
+            failWithChatState(app, "The status pill should be an element of its own after \(attempts) sends")
+        }
         XCTAssertTrue(
             pill.label.hasPrefix("Online chat."), "Before the outage the chat should be connected: \(pill.label)")
         // The user's message and the testbed's reply are both message rows, so the second one means the turn is done.
