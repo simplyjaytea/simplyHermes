@@ -82,6 +82,7 @@
                         await rooms?.reload()
                     }
                     .onChange(of: connections?.active?.id) { _, _ in model.forgetServerChats() }
+                    .onChange(of: model.chatSearchRequest) { _, _ in sessionsList?.isSearchPresented = true }
                     .task(id: model.pendingSessionReference) { await openPendingSession() }
                     // Leaving the foreground cancels every pending delete: nothing is deleted the user can't see undone.
                     .onChange(of: scenePhase) { _, phase in

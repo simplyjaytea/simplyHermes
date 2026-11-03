@@ -102,6 +102,8 @@
         public var pendingSessionReference: SessionReference?
         /// A calm message the shell shows when a session link cannot be opened.
         public var sessionNotice: String?
+        /// Bumped by the home-screen Search chats action. The shell shows the chat list and opens its search field.
+        public var chatSearchRequest = 0
 
         public init(
             sessions: [ChatSessionSummary] = [],

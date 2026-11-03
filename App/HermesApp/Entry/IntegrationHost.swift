@@ -29,6 +29,7 @@ struct IntegrationHost: ViewModifier {
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { entry.becameActive() }
+                if phase == .background { entry.wentToBackground() }
             }
             .task {
                 // The first activation happens before the phase changes, so the change handler never sees it.
