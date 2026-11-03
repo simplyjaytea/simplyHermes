@@ -13,6 +13,7 @@ struct HermesApp: App {
     private let integration: AppIntegration
     private let entry: EntryIntegration
     @AppStorage(OnDeviceSettings.key) private var onDeviceEnabled = true
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(AppearanceSettings.key) private var storedPresetRaw: String = AppearancePreset.system.rawValue
 
     private var activePreset: AppearancePreset {
@@ -51,6 +52,10 @@ struct HermesApp: App {
                 .hermesAppearance(activePreset)
                 .environment(\.onDeviceModels, OnDeviceModelServices.shared.model)
                 .onDeviceModelsSheet(OnDeviceModelServices.shared.model, isEnabled: $onDeviceEnabled)
+                // App update: check again when the app comes back (at most once a day; the banner checks at launch).
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { Task { await AppUpdateModel.shared.checkIfDue() } }
+                }
                 .onOpenURL { url in
                     if let id = HermesURL.chatID(from: url), model.session(id: id) != nil {
                         model.open(id)

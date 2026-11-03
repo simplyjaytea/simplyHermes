@@ -239,7 +239,12 @@ import Testing
 
 /// Live: the gateway test against the WP-03 testbed when `HERMES_TESTBED_URL` is set.
 @Suite struct GatewayConnectionTesterLiveTests {
-    @Test func testsTheTestbedGateway() async throws {
+    // Quarantined (board row quarantine-gateway-tester-live, until 2026-11-09): the wrong-password leg timed out
+    // (NSURLErrorDomain -1001 after about 15 s) instead of failing with wrongCredentials in Testbed smoke runs
+    // 41431856567 (main 67e973d) and 41570481101 (#118). The good-password leg passed both times. Not a user-rule
+    // guard. Re-enable with the fix.
+    @Test(.disabled("Quarantined: wrong-password check sometimes times out in CI (row quarantine-gateway-tester-live)"))
+    func testsTheTestbedGateway() async throws {
         guard let base = ProcessInfo.processInfo.environment["HERMES_TESTBED_URL"],
             let endpoint = HermesEndpoint(string: base)
         else { return }

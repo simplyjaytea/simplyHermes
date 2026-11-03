@@ -100,6 +100,30 @@ struct OnDeviceModelsSelectionTests {
 
     // MARK: Fallbacks
 
+    @Test func aModelBeingCheckedIsNotReadyAndAppleDoesNotAnswerForIt() async throws {
+        let setup = try Setup(installed: [])
+        try setup.env.installEarlier(alpha)
+        await setup.selection.select(.downloaded("alpha"))
+        #expect(setup.selection.route == .downloaded(alpha))
+        #expect(setup.selection.availability == .unavailable(.notReady))
+        await #expect(throws: OnDeviceModelError.notReady) {
+            _ = try await answer(setup.selection, "hi")
+        }
+        #expect(setup.apple.prompts.isEmpty)
+        #expect(setup.runtime.requestedModels.isEmpty)
+    }
+
+    @Test func aCheckedModelComesBackSelectedAndAnswers() async throws {
+        let setup = try Setup(installed: [])
+        try setup.env.installEarlier(alpha)
+        await setup.selection.select(.downloaded("alpha"))
+        #expect(try setup.env.storage.checkEarlierDownload(alpha).isEmpty)
+        #expect(setup.selection.route == .downloaded(alpha))
+        #expect(setup.selection.availability == .available)
+        #expect(try await answer(setup.selection, "hi") == "alpha: hi")
+        #expect(setup.apple.prompts.isEmpty)
+    }
+
     @Test func aModelThatIsNotOnThePhoneFallsBackToApple() async throws {
         let setup = try Setup(installed: [])
         await setup.selection.select(.downloaded("alpha"))
@@ -344,7 +368,7 @@ struct OnDeviceModelsSelectionTests {
         #expect(setup.runtime.unloadCount == 3)
     }
 
-    @Test func deletingTheModelInUseFallsBackToAppleAndForgetsIt() async throws {
+    @Test func deletingTheModelInUseLeavesNoModelAndNeverFallsBackToApple() async throws {
         let setup = try Setup()
         await setup.selection.select(.downloaded("alpha"))
         #expect(try await answer(setup.selection, "hi") == "alpha: hi")
@@ -352,8 +376,14 @@ struct OnDeviceModelsSelectionTests {
 
         await setup.selection.modelWillBeDeleted("alpha")
 
-        #expect(setup.selection.choice == .apple)
-        #expect(setup.env.storage.loadChoice() == .apple)
+        #expect(setup.selection.choice == .noModel)
+        #expect(setup.env.storage.loadChoice() == OnDeviceModelChoice.noModel)
+        #expect(setup.selection.route == .noModel)
+        #expect(setup.selection.availability == .unavailable(.noModelChosen))
+        await #expect(throws: OnDeviceModelError.noModelChosen) {
+            _ = try await answer(setup.selection, "hi")
+        }
+        #expect(setup.apple.prompts.isEmpty)
         #expect(setup.runtime.unloadCount == unloadsBefore + 1)
         // Downloaded and picked again, the model gets a fresh executor, not the one that held the old files.
         await setup.selection.select(.downloaded("alpha"))

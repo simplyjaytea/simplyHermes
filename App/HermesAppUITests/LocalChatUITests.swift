@@ -149,6 +149,51 @@ final class LocalChatUITests: XCTestCase {
         XCTAssertFalse(element(app, "composer.field").waitForExistence(timeout: 3), "No chat opened")
     }
 
+    /// Feature C: Delete hides the chat and offers Undo for 5 s; Undo brings it back. A local chat, so no server is
+    /// needed and nothing is deleted from one.
+    @MainActor
+    func testDeletingALocalChatCanBeUndone() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-HermesOnboarding", "skip", "-HermesLayout", "compact", "-chatModeDefault", "local",
+            "-uiTestLocalExecutor=\(fakeName)",
+        ]
+        app.launch()
+
+        let newChat = app.buttons.matching(identifier: "shell.newChat").firstMatch
+        XCTAssertTrue(newChat.waitForExistence(timeout: 15))
+        newChat.tap()
+        let field = element(app, "composer.field")
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        field.typeText("Keep this chat")
+        element(app, "composer.send").tap()
+        XCTAssertTrue(element(app, "local.message.model").waitForExistence(timeout: 20), "The chat is saved")
+
+        // Back to the list. The chat screen's back button is `BackButton` with no title on the Duo layout (CI run
+        // 41461489107 had no "Chats" button), so try that first, as AppearanceSettingsUITests does.
+        let back = app.buttons["BackButton"]
+        if back.waitForExistence(timeout: 5) {
+            back.tap()
+        } else if app.navigationBars.buttons["Chats"].exists {
+            app.navigationBars.buttons["Chats"].tap()
+        }
+        let row = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'session.local-'")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "The local chat is listed")
+
+        row.swipeLeft()
+        let delete = app.buttons.matching(identifier: "session.delete").firstMatch
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        delete.tap()
+
+        XCTAssertTrue(row.waitForNonExistence(timeout: 5), "Delete hides the row at once")
+        XCTAssertTrue(element(app, "chatDelete.toast").waitForExistence(timeout: 3), "The Undo toast shows")
+        element(app, "chatDelete.undo").tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "Undo brings the chat back")
+        XCTAssertFalse(element(app, "chatDelete.toast").exists)
+    }
+
     private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }

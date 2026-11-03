@@ -10,6 +10,8 @@ public enum LocalModelUnavailable: Sendable, Equatable {
     case notReady
     /// The user turned on-device features off in simplyHermes (plan WP-65b switch).
     case switchedOff
+    /// The model in use was deleted. No model answers on the device until the user picks one.
+    case noModelChosen
 }
 
 /// Whether an on-device model can answer.
