@@ -3,6 +3,12 @@ name: Alpha release
 # Builds the unsigned simplyHermes .ipa that SideStore re-signs. Pushing a tag such as
 # v0.1.0-alpha.1 publishes it as a GitHub prerelease. A manual run builds it as a workflow
 # artifact and publishes only when publish is set. Install steps: docs/install-sidestore.md.
+#
+# App update feed: every run also writes version.json (the file the in-app "App update" banner reads) next to the
+# .ipa, when the repo variable APP_UPDATE_INSTALL_URL is set. A manual run with update_feed set uploads it to the
+# standing release app-update-feed, a full release kept as "latest", so
+# releases/latest/download/version.json resolves. Run update_feed only after the build is signed on Signulous and
+# the user has approved publishing it. Tag pushes never touch the feed.
 
 on:
   push:
@@ -17,6 +23,14 @@ on:
         description: "Create tag v<version> at this commit and publish a prerelease"
         type: boolean
         default: false
+      update_feed:
+        description: "Publish version.json to the app-update-feed release (user-approved runs only, after Signulous signing)"
+        type: boolean
+        default: false
+      notes:
+        description: "App update notes. The first line shows on the banner."
+        required: false
+        default: ""
 
 concurrency:
   group: alpha-release
@@ -57,6 +71,32 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "build=$build" >> "$GITHUB_OUTPUT"
+
+      - name: Build number only goes up
+        # The App update banner offers a build only when it is higher than the installed one. The build number is the
+        # N in X.Y.Z-alpha.N, so N must stay above every earlier alpha tag, also across a new X.Y.Z. Publishing runs
+        # fail on a lower or equal N; plain artifact builds only warn.
+        env:
+          BUILD: ${{ steps.version.outputs.build }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PUBLISHING: ${{ github.ref_type == 'tag' || inputs.publish || inputs.update_feed }}
+        run: |
+          set -euo pipefail
+          highest=0
+          while read -r tag; do
+            [ "$tag" = "v$VERSION" ] && continue
+            n="${tag##*-alpha.}"
+            [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt "$highest" ] && highest="$n"
+          done < <(git ls-remote --tags --refs origin 'v*-alpha.*' | sed 's#.*refs/tags/##')
+          echo "Highest earlier alpha build: $highest. This build: $BUILD."
+          if [ "$BUILD" -le "$highest" ]; then
+            msg="Build $BUILD is not higher than earlier build $highest, so phones would never be offered it. Use alpha.$((highest + 1)) or higher."
+            if [ "$PUBLISHING" = "true" ]; then
+              echo "::error::$msg"
+              exit 1
+            fi
+            echo "::warning::$msg"
+          fi
 
       - name: Select Xcode 27.1
         run: |
@@ -101,6 +141,27 @@ jobs:
           fi
           echo "Archive version $short ($bundle) matches $VERSION"
 
+      - name: Write version.json for the App update feed
+        # Same build number as the stamped archive (read back from its Info.plist), and the install link from the repo
+        # variable APP_UPDATE_INSTALL_URL. Without that variable no version.json is written, and update_feed fails.
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          INSTALL_URL: ${{ vars.APP_UPDATE_INSTALL_URL }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          set -euo pipefail
+          if [ -z "$INSTALL_URL" ]; then
+            echo "::warning::APP_UPDATE_INSTALL_URL is not set, so no version.json was written."
+            exit 0
+          fi
+          plist=build/simplyHermes.xcarchive/Products/Applications/simplyHermes.app/Info.plist
+          bundle=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$plist")
+          mkdir -p build/release
+          python3 -I tools/ci/write_version_json.py \
+            --version "$VERSION" --build "$bundle" --install-url "$INSTALL_URL" --notes "$NOTES" \
+            --project project.yml --out build/release/version.json
+          cat build/release/version.json
+
       - name: Package unsigned IPA
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -138,3 +199,31 @@ jobs:
           gh release create "v$VERSION" \
             "build/release/simplyHermes-$VERSION.ipa" "build/release/simplyHermes-$VERSION.ipa.sha256" \
             --target "$GITHUB_SHA" --prerelease --title "simplyHermes $VERSION" --notes-file "$notes"
+
+      - name: Publish the App update feed
+        # User-approved manual runs only. Uploads version.json to the standing full release app-update-feed, and keeps
+        # it "latest" so releases/latest/download/version.json points at it. App builds stay prereleases, which never
+        # become "latest".
+        if: github.event_name == 'workflow_dispatch' && inputs.update_feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          set -euo pipefail
+          if [ ! -f build/release/version.json ]; then
+            echo "::error::No version.json (APP_UPDATE_INSTALL_URL is not set), so the feed was not published."
+            exit 1
+          fi
+          # The feed must only go up: refuse a build that is not higher than the one already published.
+          if gh release download app-update-feed --pattern version.json --dir build/current-feed 2>/dev/null; then
+            current=$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["build"])' build/current-feed/version.json)
+            if [ "$BUILD" -le "$current" ]; then
+              echo "::error::The feed already offers build $current; build $BUILD is not higher."
+              exit 1
+            fi
+          else
+            gh release create app-update-feed --target "$GITHUB_SHA" --title "App update feed" --latest \
+              --notes "Holds version.json for the in-app App update banner. App builds are the prereleases."
+          fi
+          gh release upload app-update-feed build/release/version.json --clobber
+          gh release edit app-update-feed --latest
