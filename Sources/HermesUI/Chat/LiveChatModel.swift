@@ -135,6 +135,8 @@
         @ObservationIgnored let connections: ConnectionsModel
         @ObservationIgnored private let broker: ServerRequestBroker
         @ObservationIgnored let storedSessionID: String
+        /// The server this chat was opened on. Try again reconnects it, even if another server is active by then.
+        @ObservationIgnored let serverID: UUID?
         /// When an automatic retry will fire, if one is scheduled.
         public private(set) var retryAt: Date?
         /// Text a slash command asked the composer to take back, unsent. The chat screen moves it into the draft.
@@ -172,11 +174,26 @@
             self.connections = connections
             self.broker = broker
             self.storedSessionID = storedSessionID
+            self.serverID = connections.active?.id
             self.outbox = outbox
             self.phaseSource = phaseSource
             state = TranscriptState(storedSessionID: storedSessionID)
             lastPill = status.pill
             watchPill()
+        }
+
+        /// Banner's Try again (WP-8). A chat that stayed attached keeps its old controller, so ``attach()`` alone does
+        /// nothing after an outage. This reconnects the chat's own server, then replaces the controller and drains.
+        /// While the server is still down the transcript stays on screen and the banner stays.
+        public func retryConnection() async {
+            guard let serverID, let connection = connections.connection(id: serverID), let manager = connections.manager
+            else { return }
+            connections.connect(serverID)
+            guard (try? await manager.client(for: connection)) != nil else { return }
+            // Attach only works on the active server, so a chat whose server is no longer active waits for a switch.
+            guard connections.active?.id == serverID else { return }
+            detach()
+            await attach()
         }
 
         /// Connects, resumes the session and starts following it. Safe to call again after a failure. A call made

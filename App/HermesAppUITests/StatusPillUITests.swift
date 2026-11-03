@@ -122,6 +122,39 @@ final class StatusPillUITests: XCTestCase {
             "The message should be delivered exactly once")
     }
 
+    /// Moss FAIL at f6cbe43: Try again did nothing for a chat that had been connected and then lost its server. With
+    /// the gateway back, Try again reconnects the chat, the pill reads Online, and the waiting message is sent once.
+    /// The window is short on purpose: the Online must come from Try again, not from the connection's own backoff.
+    @MainActor
+    func testTryAgainReconnectsTheChatAndSendsTheWaitingMessageOnce() throws {
+        let app = try launchWithTestbed()
+        openLiveServerChat(app)
+        toggleGateway(app, expecting: "Start gateway")
+        typeAndSend(app, draft)
+        if !app.staticTexts["Waiting to send"].waitForExistence(timeout: 10) {
+            failWithOutageState(app, "The message should wait")
+        }
+        XCTAssertTrue(element(app, "chat.outageBanner").waitForExistence(timeout: 5))
+
+        toggleGateway(app, expecting: "Stop gateway")
+        let tryAgain = element(app, "outage.tryAgain")
+        XCTAssertTrue(tryAgain.waitForExistence(timeout: 5))
+        tryAgain.tap()
+
+        let pill = element(app, "chat.pill")
+        let online = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label BEGINSWITH 'Online chat.'"), object: pill)
+        if XCTWaiter().wait(for: [online], timeout: 8) != .completed {
+            failWithOutageState(app, "Try again should reconnect the chat and show Online")
+        }
+        XCTAssertTrue(
+            app.staticTexts["Waiting to send"].waitForNonExistence(timeout: 30),
+            "The waiting message should send once Try again has reconnected the chat")
+        XCTAssertEqual(
+            app.staticTexts.matching(NSPredicate(format: "label == %@", draft)).count, 1,
+            "The message should be delivered exactly once")
+    }
+
     // MARK: Helpers
 
     /// Records the accessibility tree, the screen and the visible text when a chat fails to become live (WP-8).

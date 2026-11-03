@@ -43,7 +43,7 @@
                 if OutageBanner.shows(chat.status) {
                     OutageBannerView(
                         serverName: chat.serverName,
-                        onTryAgain: { Task { await chat.attach() } },
+                        onTryAgain: { Task { await chat.retryConnection() } },
                         onContinueInNewLocalChat: {
                             model.continueInNewLocalChat(carrying: model.drafts[sessionID, default: ""])
                         }
