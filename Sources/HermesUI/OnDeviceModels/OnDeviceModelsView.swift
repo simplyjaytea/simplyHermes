@@ -42,6 +42,10 @@
                 } header: {
                     Text("Models")
                 } footer: {
+                    if model.noModelInUse {
+                        Text(OnDeviceModelsText.noModelInUse)
+                            .accessibilityIdentifier("onDeviceModels.noModelInUse")
+                    }
                     Text(
                         OnDeviceModelsText.footer(
                             suspended: model.isSuspendedByMemoryWarning, canRun: model.canRunDownloadedModels))
@@ -214,7 +218,7 @@
                         .font(HermesFont.caption)
                         .foregroundStyle(HermesColor.statusWarning)
                 }
-            case .queued:
+            case .queued, .checking:
                 if let line = OnDeviceModelsText.statusLine(row) {
                     Text(line).font(HermesFont.caption).foregroundStyle(HermesColor.secondaryText)
                 }
@@ -241,7 +245,7 @@
 
         private func style(of action: OnDeviceModelRow.Action) -> HermesButtonStyle.Kind {
             switch action {
-            case .download, .resume, .retry, .use: .primary
+            case .download, .resume, .retry, .check, .use: .primary
             case .pause, .cancel, .delete: .tinted
             }
         }
