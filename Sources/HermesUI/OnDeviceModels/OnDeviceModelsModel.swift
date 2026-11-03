@@ -15,12 +15,16 @@
             public let model: OnDeviceModel
             /// Bytes that arrived so far, for the "discard" question.
             public let receivedBytes: Int64
+            /// Bytes on disk that deleting the model frees, for the "delete" question. Nil when they cannot be measured.
+            public var freedBytes: Int64?
 
             public var id: String { "\(action)-\(model.id)" }
         }
 
         public private(set) var rows: [OnDeviceModelRow]
         public private(set) var appleModelIsInUse = true
+        /// True when the model in use was deleted, so no on-device model answers until the user picks one.
+        public private(set) var noModelInUse = false
         public private(set) var appleAvailability: LocalModelAvailability = .available
         /// True after a memory warning moved the answers back to the Apple model.
         public private(set) var isSuspendedByMemoryWarning = false
@@ -37,6 +41,7 @@
         @ObservationIgnored private let controller: OnDeviceModelController
         @ObservationIgnored private let storage: OnDeviceModelStorage
         @ObservationIgnored private var states: [String: OnDeviceModelState] = [:]
+        @ObservationIgnored private var repairing: Set<String> = []
         @ObservationIgnored private var lastDiskRead = ContinuousClock.now.advanced(by: .seconds(-10))
         @ObservationIgnored private var isFrozen = false
 
@@ -64,15 +69,17 @@
 
         /// Reads the choice, the memory notice and the disk again. The app calls it after a memory warning.
         public func refresh(readDisk: Bool = true) {
-            rows = controller.rows(states: states)
+            if readDisk {
+                usedBytes = storage.usedBytes()
+                repairing = Set(controller.catalog.models.filter { !storage.repairingFiles($0).isEmpty }.map(\.id))
+                lastDiskRead = .now
+            }
+            rows = controller.rows(states: states, repairing: repairing)
             appleModelIsInUse = controller.appleModelIsInUse
+            noModelInUse = controller.noModelInUse
             appleAvailability = controller.selection.apple.availability
             isSuspendedByMemoryWarning = controller.selection.isSuspendedByMemoryWarning
             canRunDownloadedModels = controller.selection.canRunDownloadedModels
-            if readDisk {
-                usedBytes = storage.usedBytes()
-                lastDiskRead = .now
-            }
         }
 
         // MARK: Buttons
@@ -80,7 +87,9 @@
         /// A row button was tapped. Big steps ask first.
         public func tap(_ action: OnDeviceModelRow.Action, on row: OnDeviceModelRow) {
             if row.needsConfirmation(action) {
-                question = Question(action: action, model: row.model, receivedBytes: row.receivedBytes)
+                question = Question(
+                    action: action, model: row.model, receivedBytes: row.receivedBytes,
+                    freedBytes: action == .delete ? storage.measuredBytes(for: row.model) : nil)
             } else {
                 perform(action, on: row.model)
             }

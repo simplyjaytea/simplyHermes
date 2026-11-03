@@ -501,6 +501,7 @@
                     .accessibilityIdentifier("settings.githubAccount")
                 }
                 .listRowBackground(palette.card)
+                AppUpdateSettingsSection()
                 Section {
                     Text("More settings arrive in WP-53.")
                         .foregroundStyle(palette.secondaryText)
