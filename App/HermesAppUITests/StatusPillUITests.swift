@@ -87,6 +87,36 @@ final class StatusPillUITests: XCTestCase {
         XCTAssertEqual(element(app, "uiTest.localReplies").label, "0", "Nothing answers until the user sends")
     }
 
+    /// Gilfoyle M1: a message that waited while its chat could not reach the server is sent once when the server is back,
+    /// even when that chat is not on screen then. The first chat is found as the second row, because a new chat is listed
+    /// first.
+    @MainActor
+    func testWaitingMessageSendsOnceWhenItsChatComesBackOffScreen() throws {
+        let app = try launchWithTestbed()
+        openNewOnlineChat(app)
+        toggleGateway(app, expecting: "Start gateway")
+        typeAndSend(app, draft)
+        XCTAssertTrue(app.staticTexts["Waiting to send"].waitForExistence(timeout: 10), "The message should wait")
+
+        // Another chat takes the screen while the gateway is down.
+        app.buttons.matching(identifier: "shell.newChat").firstMatch.tap()
+        XCTAssertTrue(element(app, "composer.field").waitForExistence(timeout: 10))
+
+        toggleGateway(app, expecting: "Stop gateway")
+
+        let firstChat = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'session.'")).element(boundBy: 1)
+        XCTAssertTrue(firstChat.waitForExistence(timeout: 10), "The first chat should be listed")
+        firstChat.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["Waiting to send"].waitForNonExistence(timeout: 30),
+            "The waiting message should send once the chat is back")
+        XCTAssertEqual(
+            app.staticTexts.matching(NSPredicate(format: "label == %@", draft)).count, 1,
+            "The message should be delivered exactly once")
+    }
+
     // MARK: Helpers
 
     /// Launches the app, adds the testbed through the wizard, and returns the app on the shell with the switch on screen.

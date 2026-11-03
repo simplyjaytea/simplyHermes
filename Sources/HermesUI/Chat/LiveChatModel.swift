@@ -144,6 +144,8 @@
         @ObservationIgnored let outbox: any OutboxStore
         /// Replaces the connection phases the status reads. Nil in the app; a test sets it to drive the pill.
         @ObservationIgnored let phaseSource: (@MainActor () -> ConnectionPhase?)?
+        /// The pill as the chat last saw it, so a move back into `.connected` can send the waiting messages (WP-8).
+        @ObservationIgnored var lastPill: PillState?
         /// Sends the outbox's messages through the attached controller. Nil while the chat is detached.
         @ObservationIgnored var drainer: OutboxDrainer?
         /// Set while the composer's send is saving. A second send starts only after it ends (review M5).
@@ -164,6 +166,8 @@
             self.outbox = outbox
             self.phaseSource = phaseSource
             state = TranscriptState(storedSessionID: storedSessionID)
+            lastPill = status.pill
+            watchPill()
         }
 
         /// Connects, resumes the session and starts following it. Safe to call again after a failure. A call made

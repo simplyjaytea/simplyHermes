@@ -1,10 +1,38 @@
 #if canImport(UIKit)
     import Foundation
     import HermesKit
+    import Observation
 
     /// The outgoing messages of a chat (WP-3, WP-4): saving a typed message, sending the waiting ones, and retrying or
     /// dropping one that failed. Kept apart from ``LiveChatModel`` so that class stays readable.
     extension LiveChatModel {
+        /// Watches the chat's pill for the rest of its life. A move back into `.connected` sends the waiting messages,
+        /// whether or not the chat is on screen (WP-8; a message must not wait until the next send).
+        func watchPill() {
+            withObservationTracking {
+                _ = status.pill
+            } onChange: { [weak self] in
+                Task { @MainActor in self?.pillChanged() }
+            }
+        }
+
+        private func pillChanged() {
+            let now = status.pill
+            let previous = lastPill
+            lastPill = now
+            if OutboxResume.shouldDrain(from: previous, to: now) {
+                if drainer == nil {
+                    // Detached (the chat is not open): attaching connects it, and attaching sends the waiting messages.
+                    Task { await attach() }
+                } else {
+                    // Not `drainSoon()`: another screen may have changed the outbox since this chat last refreshed it, and
+                    // the drain reads the records itself.
+                    drainTask = Task { await drainOutbox() }
+                }
+            }
+            watchPill()
+        }
+
         /// Sends what the composer holds (WP-3). Typed text is saved to the outbox first, and goes out once the chat can
         /// take it, even if the app stops in between. Returns true once the text is saved or handed on, so the composer may
         /// clear. False leaves the draft where it is.

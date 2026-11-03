@@ -32,10 +32,6 @@
                     QueuedMessagesView(chat: chat)
                 }
                 ChatStatusBar(strip: chat.strip, pill: chat.status.pill, serverName: chat.serverName)
-                    // Back online: send the messages that waited while the chat could not reach its server.
-                    .onChange(of: chat.status.pill) { _, pill in
-                        if pill == .connected { chat.drainSoon() }
-                    }
                 if OutageBanner.shows(chat.status) {
                     OutageBannerView(
                         serverName: chat.serverName,
