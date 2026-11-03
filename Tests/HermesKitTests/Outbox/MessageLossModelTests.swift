@@ -73,6 +73,11 @@ final class ProcessStore: OutboxStore, @unchecked Sendable {
         try alive()
         try await base.remove(id: id, ifCurrently: current)
     }
+
+    func removeChat(_ chatID: String, connection: String) async throws -> Int {
+        try alive()
+        return try await base.removeChat(chatID, connection: connection)
+    }
 }
 
 /// The server side of the model. It records every delivery it receives and counts the replies it gave.
