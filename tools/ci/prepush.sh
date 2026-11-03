@@ -64,6 +64,13 @@ if [ "$LINT_ONLY" -eq 1 ]; then
     exit 0
 fi
 
+# The tooling checks the Linux CI job runs, so a push that passes here passes those too.
+echo "prepush: tooling checks"
+python3 -I tools/ci/check_assistant_rows.py
+bash tools/ci/test_merge_gate.sh
+bash tools/ci/test_sim_fallback.sh
+python3 -I -m unittest discover -s tools/ci -p 'test_*.py'
+
 # The Swift compiler writes stray files with binary or one-letter names into the package root while it builds.
 # --scratch-path does not stop that. On exit, remove the untracked files in the root that this run created: any that
 # were not there before the build started. Files that were already there are left alone.
@@ -77,14 +84,17 @@ remove_compiler_debris() {
 import os, subprocess, sys
 snapshot, root = sys.argv[1], sys.argv[2]
 os.chdir(root)
+sys.path.insert(0, os.path.join(root, "tools", "ci"))
+from compiler_debris import is_compiler_debris
 before = set(open(snapshot, "rb").read().split(b"\0"))
 listing = subprocess.run(
     ["git", "ls-files", "--others", "--exclude-standard", "-z"], capture_output=True, check=True
 ).stdout
 removed = 0
 for name in listing.split(b"\0"):
-    # Only untracked files directly in the package root, that were not there before the build started.
-    if not name or b"/" in name or name in before or not os.path.isfile(name):
+    # Only compiler debris directly in the package root, that was not there before the build started. Any other
+    # untracked file is the developer's and stays.
+    if not name or b"/" in name or name in before or not is_compiler_debris(name) or not os.path.isfile(name):
         continue
     os.remove(name)
     removed += 1

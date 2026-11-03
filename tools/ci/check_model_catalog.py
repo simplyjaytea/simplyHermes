@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
-"""Checks the on-device model catalog's pins against the Hugging Face API.
+"""Checks the on-device model catalog's pins against the Hugging Face hub.
 
 For every model in the catalog it asks the public API for the pinned commit and compares what it finds with the
 catalog:
 
-- the commit exists, and the repository lists the pinned files at that commit;
+- the commit exists, and the repository lists the pinned files at that commit (a commit that is not there is a
+  mismatch, exit 1, not a failed check);
 - each file's size matches the catalog's `bytes`;
-- for LFS files, the LFS sha256 matches the catalog's `sha256`, and a catalog entry with no sha256 is reported.
+- for LFS files, the LFS sha256 matches the catalog's `sha256`;
+- for non-LFS files, the API has no sha256, so the file is downloaded at the pinned commit and its sha256 is compared
+  with the catalog's. The app verifies every file's sha256, so a file the check only sized could pass here and still
+  fail on a phone.
 
-Non-LFS files have no sha256 in the API (only a git blob sha1), so only their sizes are compared.
-
-Prints one line per mismatch on stdout and exits 1 when there is any. A summary goes to stderr. Exits 2 when the
-catalog cannot be read or the API cannot be reached. It sends no token and no user data: it reads public metadata only.
+A catalog entry with no sha256 is reported. Prints one line per mismatch on stdout and exits 1 when there is any. A
+summary goes to stderr. Exits 2 when the catalog cannot be read or the hub cannot be reached. It sends no token and no
+user data: it reads public files only.
 
 Usage: tools/ci/check_model_catalog.py [--catalog PATH]
 """
@@ -19,6 +22,7 @@ Usage: tools/ci/check_model_catalog.py [--catalog PATH]
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -27,10 +31,14 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable, Optional
 
 DEFAULT_CATALOG = "Sources/HermesKit/OnDeviceModels/OnDeviceModelCatalog.swift"
 API = "https://huggingface.co/api/models/{repo}/revision/{revision}?blobs=true"
+RAW = "https://huggingface.co/{repo}/resolve/{revision}/{path}"
+USER_AGENT = "simplyHermes-catalog-check"
 TIMEOUT_SECONDS = 30
+CHUNK = 1 << 16
 
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 MODEL_START = re.compile(r"OnDeviceModel\(")
@@ -40,6 +48,11 @@ FIELD_REVISION = re.compile(r'revision:\s*"([^"]+)"')
 FILE_ENTRY = re.compile(
     r'OnDeviceModelFile\(\s*"([^"]+)"\s*,\s*([\d_]+)\s*(?:,\s*sha256:\s*"([^"]*)"\s*)?\)'
 )
+
+# Lists the files at a commit: returns the API's JSON, or None when the commit is not in the repository.
+ListingFetcher = Callable[[str, str], Optional[dict]]
+# Hashes a file at a commit: returns its sha256 as hex, or None when the file is not at that commit.
+DigestFetcher = Callable[[str, str, str], Optional[str]]
 
 
 @dataclass
@@ -91,14 +104,46 @@ def parse_catalog(text: str) -> list[PinnedModel]:
     return models
 
 
-def fetch_listing(repo: str, revision: str) -> dict:
+def fetch_listing(repo: str, revision: str) -> Optional[dict]:
+    """The hub's listing of a commit. None when the commit is not there (HTTP 404); other errors propagate."""
     url = API.format(repo=urllib.parse.quote(repo, safe="/"), revision=urllib.parse.quote(revision, safe=""))
-    request = urllib.request.Request(url, headers={"User-Agent": "simplyHermes-catalog-check"})
-    with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
-        return json.loads(response.read().decode("utf-8"))
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return None
+        raise
 
 
-def check_model(model: PinnedModel, listing: dict, problems: list[str], stats: dict) -> None:
+def fetch_digest(repo: str, revision: str, path: str) -> Optional[str]:
+    """The sha256 of a file at a commit, computed from its bytes. None when the file is not there (HTTP 404)."""
+    url = RAW.format(
+        repo=urllib.parse.quote(repo, safe="/"),
+        revision=urllib.parse.quote(revision, safe=""),
+        path=urllib.parse.quote(path, safe="/"),
+    )
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    digest = hashlib.sha256()
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+            while chunk := response.read(CHUNK):
+                digest.update(chunk)
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return None
+        raise
+    return digest.hexdigest()
+
+
+def check_model(
+    model: PinnedModel,
+    listing: dict,
+    problems: list[str],
+    stats: dict,
+    digest_of: DigestFetcher = fetch_digest,
+) -> None:
     if listing.get("sha") != model.revision:
         problems.append(f"MISMATCH {model.id}: commit {model.revision} not returned for {model.repository}")
         return
@@ -124,11 +169,45 @@ def check_model(model: PinnedModel, listing: dict, problems: list[str], stats: d
                     f"MISMATCH {model.id} {pinned.path}: catalog sha256 {pinned.sha256}, "
                     f"repository LFS sha256 {lfs.get('sha256')}"
                 )
-        else:
-            stats["plain"] += 1
+            continue
+        stats["plain"] += 1
+        if pinned.sha256 is None:
+            problems.append(f"MISMATCH {model.id} {pinned.path}: file has no sha256 in the catalog")
+            continue
+        if not HEX64.match(pinned.sha256):
+            problems.append(f"MISMATCH {model.id} {pinned.path}: catalog sha256 is not 64 lowercase hex digits")
+            continue
+        actual = digest_of(model.repository, model.revision, pinned.path)
+        if actual is None:
+            problems.append(f"MISMATCH {model.id} {pinned.path}: not downloadable at {model.revision}")
+        elif actual != pinned.sha256:
+            problems.append(
+                f"MISMATCH {model.id} {pinned.path}: catalog sha256 {pinned.sha256}, downloaded bytes {actual}"
+            )
 
 
-def main(argv: list[str]) -> int:
+def run(
+    models: list[PinnedModel],
+    listing_for: ListingFetcher = fetch_listing,
+    digest_of: DigestFetcher = fetch_digest,
+) -> tuple[list[str], dict]:
+    """Checks every model. Returns the mismatch lines and the counts. Network errors propagate to the caller."""
+    problems: list[str] = []
+    stats = {"files": 0, "lfs": 0, "plain": 0}
+    for model in models:
+        listing = listing_for(model.repository, model.revision)
+        if listing is None:
+            problems.append(f"MISMATCH {model.id}: commit {model.revision} is not in {model.repository}")
+            continue
+        check_model(model, listing, problems, stats, digest_of)
+    return problems, stats
+
+
+def main(
+    argv: list[str],
+    listing_for: ListingFetcher = fetch_listing,
+    digest_of: DigestFetcher = fetch_digest,
+) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--catalog", default=DEFAULT_CATALOG, help="path to OnDeviceModelCatalog.swift")
     args = parser.parse_args(argv)
@@ -139,21 +218,17 @@ def main(argv: list[str]) -> int:
         print(f"check_model_catalog: cannot read the catalog: {error}", file=sys.stderr)
         return 2
 
-    problems: list[str] = []
-    stats = {"files": 0, "lfs": 0, "plain": 0}
-    for model in models:
-        try:
-            listing = fetch_listing(model.repository, model.revision)
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
-            print(f"check_model_catalog: cannot read {model.repository} at {model.revision}: {error}", file=sys.stderr)
-            return 2
-        check_model(model, listing, problems, stats)
+    try:
+        problems, stats = run(models, listing_for, digest_of)
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
+        print(f"check_model_catalog: cannot reach the hub: {error}", file=sys.stderr)
+        return 2
 
     for line in problems:
         print(line)
     print(
         f"check_model_catalog: {len(models)} models, {stats['files']} files "
-        f"({stats['lfs']} LFS with sha256 compared, {stats['plain']} non-LFS compared by size), "
+        f"({stats['lfs']} LFS compared by sha256, {stats['plain']} non-LFS downloaded and compared by sha256), "
         f"{len(problems)} mismatch(es)",
         file=sys.stderr,
     )
