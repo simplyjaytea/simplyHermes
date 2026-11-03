@@ -24,7 +24,9 @@ final class StatusPillUITests: XCTestCase {
         toggleGateway(app, expecting: "Start gateway")
         typeAndSend(app, draft)
 
-        XCTAssertTrue(app.staticTexts["Waiting to send"].waitForExistence(timeout: 10), "The message should wait")
+        if !app.staticTexts["Waiting to send"].waitForExistence(timeout: 10) {
+            failWithOutageState(app, "The message should wait")
+        }
         let pill = element(app, "chat.pill")
         XCTAssertTrue(pill.waitForExistence(timeout: 5))
         XCTAssertTrue(pill.label.contains("Can't reach"), "The pill should say Can't reach, not \(pill.label)")
@@ -63,8 +65,9 @@ final class StatusPillUITests: XCTestCase {
         let repliesBefore = replyRowCount(app)
 
         let banner = element(app, "chat.outageBanner")
-        XCTAssertTrue(
-            banner.waitForExistence(timeout: 10), "The outage banner should show while the gateway is stopped")
+        if !banner.waitForExistence(timeout: 10) {
+            failWithOutageState(app, "The outage banner should show while the gateway is stopped")
+        }
 
         let tryAgain = element(app, "outage.tryAgain")
         XCTAssertTrue(tryAgain.waitForExistence(timeout: 5))
@@ -96,7 +99,9 @@ final class StatusPillUITests: XCTestCase {
         openNewOnlineChat(app)
         toggleGateway(app, expecting: "Start gateway")
         typeAndSend(app, draft)
-        XCTAssertTrue(app.staticTexts["Waiting to send"].waitForExistence(timeout: 10), "The message should wait")
+        if !app.staticTexts["Waiting to send"].waitForExistence(timeout: 10) {
+            failWithOutageState(app, "The message should wait")
+        }
 
         // Another chat takes the screen while the gateway is down.
         app.buttons.matching(identifier: "shell.newChat").firstMatch.tap()
@@ -118,6 +123,25 @@ final class StatusPillUITests: XCTestCase {
     }
 
     // MARK: Helpers
+
+    /// Records what the screen shows when an outage assertion fails: the pill, the banner, the switch and the waiting row.
+    /// The screenshot is kept in the result bundle, so a failed run shows the state the chat was in.
+    @MainActor
+    private func failWithOutageState(_ app: XCUIApplication, _ message: String) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "outage-state"
+        shot.lifetime = .keepAlways
+        add(shot)
+        let pill = element(app, "chat.pill")
+        let state = [
+            "pill=\(pill.exists ? pill.label : "absent")",
+            "banner=\(element(app, "chat.outageBanner").exists)",
+            "switch=\(element(app, "uiTest.gatewayToggle").label)",
+            "waiting=\(app.staticTexts["Waiting to send"].exists)",
+        ].joined(separator: " ")
+        // continueAfterFailure is false (setUp), so the test stops here.
+        XCTFail("\(message) [\(state)]")
+    }
 
     /// Launches the app, adds the testbed through the wizard, and returns the app on the shell with the switch on screen.
     @MainActor
