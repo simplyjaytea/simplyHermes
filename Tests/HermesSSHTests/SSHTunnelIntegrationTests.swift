@@ -17,35 +17,41 @@ import Testing
 /// (CI's `ssh-integration` job sets it after `testbed/scripts/up.sh`).
 @Suite(.enabled(if: SSHTestbed.keyPath != nil), .serialized, .timeLimit(.minutes(5)))
 struct SSHTunnelIntegrationTests {
-    // Quarantined (board row quarantine-ssh-tunnel-chat-turn, until 2026-11-09): hit the 5-minute time limit in Testbed
-    // smoke runs 41351410493 (main) and 41458357870, with no inner timeout to show which step hung. Not a user-rule
-    // guard; the other SSH tests here still run. Re-enable with the fix.
-    @Test(.disabled("Quarantined: hangs to the 5-minute limit in CI (row quarantine-ssh-tunnel-chat-turn)"))
-    func chatTurnThroughTunnel() async throws {
+    // Quarantined on main (board row quarantine-ssh-tunnel-chat-turn, until 2026-11-09): it hit the 5-minute limit in
+    // Testbed smoke runs 41351410493 and 41458357870. This draft enables it with a log line per step, so the next hang
+    // names the step that never finished.
+    // Eight rounds per run, each under the suite's own time limit, so a rare hang shows up in fewer CI runs.
+    @Test(arguments: 1...8)
+    func chatTurnThroughTunnel(round: Int) async throws {
+        SSHTestbed.log("ssh-tunnel round \(round) of 8")
         let configuration = try SSHTestbed.configuration(hostKey: .trustOnFirstUse { _ in true })
         let tunnel = SSHTunnel(configuration: configuration)
-        let endpoint = try await tunnel.start()
+        let endpoint = try await SSHTestbed.step("tunnel.start", warnAfter: 60) { try await tunnel.start() }
         #expect(endpoint.hostKey.fingerprint.hasPrefix("SHA256:"))
         #expect(endpoint.sessionToken.count == 64)
 
         do {
             // REST: token required on the loopback bind.
-            let status = try await SSHTestbed.get(endpoint.baseURL.appending(path: "api/sessions"), headers: [:])
+            let status = try await SSHTestbed.step("rest.unauthorized", warnAfter: 20) {
+                try await SSHTestbed.get(endpoint.baseURL.appending(path: "api/sessions"), headers: [:])
+            }
             #expect(status == 401)
-            let authorized = try await SSHTestbed.get(
-                endpoint.baseURL.appending(path: "api/sessions"), headers: endpoint.restHeaders)
+            let authorized = try await SSHTestbed.step("rest.authorized", warnAfter: 20) {
+                let url = endpoint.baseURL.appending(path: "api/sessions")
+                return try await SSHTestbed.get(url, headers: endpoint.restHeaders)
+            }
             #expect(authorized == 200)
 
-            // WebSocket chat turn.
+            // WebSocket chat turn. Each RPC inside it logs its own step.
             let turn = try await SSHTestbed.chatTurn(url: endpoint.webSocketURL())
             #expect(turn.submitStatus == "streaming")
             #expect(turn.text?.isEmpty == false)
 
         } catch {
-            await tunnel.stop()
+            await SSHTestbed.step("tunnel.stop (after error)", warnAfter: 30) { await tunnel.stop() }
             throw error
         }
-        await tunnel.stop()
+        await SSHTestbed.step("tunnel.stop", warnAfter: 30) { await tunnel.stop() }
         #expect(await tunnel.currentEndpoint == nil)
         let afterStop = try? await SSHTestbed.get(endpoint.baseURL.appending(path: "api/status"), headers: [:])
         #expect(afterStop == nil)
@@ -131,6 +137,32 @@ enum SSHTestbed {
         )
     }
 
+    /// Runs one step of the tunnel test and logs it to stderr: when it starts, when it ends, and a warning once it has run
+    /// longer than `warnAfter` seconds. The step is not cancelled, so a hang still ends at the suite's time limit, but the
+    /// log names the step that never finished.
+    static func step<T>(_ name: String, warnAfter seconds: Int, _ body: () async throws -> T) async rethrows -> T {
+        log("ssh-tunnel step \(name): started")
+        let clock = ContinuousClock()
+        let start = clock.now
+        let watchdog = Task {
+            try await Task.sleep(for: .seconds(seconds))
+            log("ssh-tunnel step \(name): STILL RUNNING after \(seconds) s")
+        }
+        defer { watchdog.cancel() }
+        do {
+            let value = try await body()
+            log("ssh-tunnel step \(name): done in \(start.duration(to: clock.now))")
+            return value
+        } catch {
+            log("ssh-tunnel step \(name): failed after \(start.duration(to: clock.now)): \(error)")
+            throw error
+        }
+    }
+
+    static func log(_ line: String) {
+        FileHandle.standardError.write(Data((line + "\n").utf8))
+    }
+
     static func get(_ url: URL, headers: [String: String]) async throws -> Int {
         var request = URLRequest(url: url)
         request.timeoutInterval = 10
@@ -146,15 +178,23 @@ enum SSHTestbed {
 
     /// One chat turn over `/api/ws`: just enough JSON-RPC for the gate (the real client is WP-11).
     static func chatTurn(url: URL) async throws -> (submitStatus: String?, text: String?) {
-        try await connectWebSocket(url: url).executeThenClose { inbound, outbound in
+        let socket = try await step("ws.connect", warnAfter: 30) { try await connectWebSocket(url: url) }
+        return try await socket.executeThenClose { inbound, outbound in
             let rpc = JSONRPC(inbound: inbound.makeAsyncIterator(), outbound: outbound)
-            _ = try await rpc.event("gateway.ready")
-            _ = try await rpc.call("client.capabilities", ["server_requests": true])
-            let session = try await rpc.call("session.create", [:])
+            _ = try await step("ws.gateway.ready", warnAfter: 30) { try await rpc.event("gateway.ready") }
+            _ = try await step("ws.client.capabilities", warnAfter: 30) {
+                try await rpc.call("client.capabilities", ["server_requests": true])
+            }
+            let session = try await step("ws.session.create", warnAfter: 30) {
+                try await rpc.call("session.create", [:])
+            }
             let sessionID = try #require(session["session_id"] as? String)
-            let submit = try await rpc.call(
-                "prompt.submit", ["session_id": sessionID, "text": "hello [[scenario:text]]"])
-            let complete = try await rpc.event("message.complete")
+            let submit = try await step("ws.prompt.submit", warnAfter: 30) {
+                try await rpc.call("prompt.submit", ["session_id": sessionID, "text": "hello [[scenario:text]]"])
+            }
+            let complete = try await step("ws.message.complete", warnAfter: 60) {
+                try await rpc.event("message.complete")
+            }
             return (submit["status"] as? String, complete["text"] as? String)
         }
     }
