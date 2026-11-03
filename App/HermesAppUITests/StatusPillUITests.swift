@@ -18,7 +18,7 @@ final class StatusPillUITests: XCTestCase {
     @MainActor
     func testMessageWaitsWhileTheGatewayIsStoppedAndSendsOnceWhenItIsBack() throws {
         let app = try launchWithTestbed()
-        openNewOnlineChat(app)
+        openLiveServerChat(app)
         let repliesBefore = replyRowCount(app)
 
         toggleGateway(app, expecting: "Start gateway")
@@ -55,7 +55,7 @@ final class StatusPillUITests: XCTestCase {
     @MainActor
     func testEveryBannerActionKeepsThisChatSilentAndContinueCarriesTheDraft() throws {
         let app = try launchWithTestbed()
-        openNewOnlineChat(app)
+        openLiveServerChat(app)
         toggleGateway(app, expecting: "Start gateway")
 
         let field = element(app, "composer.field")
@@ -96,7 +96,7 @@ final class StatusPillUITests: XCTestCase {
     @MainActor
     func testWaitingMessageSendsOnceWhenItsChatComesBackOffScreen() throws {
         let app = try launchWithTestbed()
-        openNewOnlineChat(app)
+        openLiveServerChat(app)
         toggleGateway(app, expecting: "Start gateway")
         typeAndSend(app, draft)
         if !app.staticTexts["Waiting to send"].waitForExistence(timeout: 10) {
@@ -192,11 +192,23 @@ final class StatusPillUITests: XCTestCase {
         XCTAssertTrue(newChat.waitForExistence(timeout: 15), "New chat should be in the shell")
         newChat.tap()
         XCTAssertTrue(element(app, "composer.field").waitForExistence(timeout: 10), "The composer should open")
+    }
+
+    /// A live server chat whose first turn is done, while the gateway is up. The outage tests need one: a new chat is a
+    /// placeholder until its first message, and a placeholder has no status bar, banner or outbox (WP-8).
+    @MainActor
+    private func openLiveServerChat(_ app: XCUIApplication) {
+        openNewOnlineChat(app)
+        typeAndSend(app, "hello")
         // Positive check before any outage: the pill is its own element, and the chat is connected.
         let pill = element(app, "chat.pill")
-        XCTAssertTrue(pill.waitForExistence(timeout: 15), "The status pill should be an element of its own")
+        XCTAssertTrue(pill.waitForExistence(timeout: 30), "The status pill should be an element of its own")
         XCTAssertTrue(
             pill.label.hasPrefix("Online chat."), "Before the outage the chat should be connected: \(pill.label)")
+        // The user's message and the testbed's reply are both message rows, so the second one means the turn is done.
+        let reply = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'message.'")).element(boundBy: 1)
+        XCTAssertTrue(reply.waitForExistence(timeout: 60), "The testbed should answer the first message")
     }
 
     /// Taps the switch and checks the label it shows afterwards, which is the next action.
