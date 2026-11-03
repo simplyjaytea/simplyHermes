@@ -134,23 +134,47 @@ private func message(_ rowID: Int, session: String = "s1", text: String? = nil) 
 
 // MARK: - Performance
 
-/// Loading the newest page of a 10k-message transcript must stay fast. The baseline is the median on the CI runner;
-/// the test fails on a regression over 20%. `HERMES_CACHE_BASELINE_MS` overrides it for slower machines.
+/// Loading a 10k-message transcript must stay fast, without failing because the machine is busy (row 83).
+///
+/// - Always checked: 10k messages load in at most `scalingLimit` times the time of 1k, so a missing index or
+///   quadratic code fails here. The two loads are interleaved and compared by their fastest runs, so sustained host
+///   load slows both alike and does not fail the test.
+/// - Checked on CI (`CI` set): the fastest 10k load is within 20% of the baseline, 250 ms, a ceiling of 300 ms. Shared
+///   developer machines report it without failing. `HERMES_CACHE_BASELINE_MS` overrides the baseline.
 @Test func loadingATenThousandMessageTranscriptStaysWithinBaseline() async throws {
     let cache = try HermesCache()
     let body = String(repeating: "lorem ipsum dolor sit amet ", count: 40)
     try await cache.saveMessages((1...10_000).map { try message($0, text: body) }, connection: "x")
+    try await cache.saveMessages(
+        (10_001...11_000).map { try message($0, session: "s2", text: body) }, connection: "x")
 
-    var samples: [Double] = []
-    for _ in 0..<7 {
+    func timed(_ session: String, _ count: Int) async throws -> Double {
         let start = ContinuousClock.now
-        let page = try await cache.messages(sessionID: "s1", connection: "x", limit: 10_000)
+        let page = try await cache.messages(sessionID: session, connection: "x", limit: count)
         let elapsed = ContinuousClock.now - start
-        #expect(page.count == 10_000)
-        samples.append(Double(elapsed.components.seconds) * 1000 + Double(elapsed.components.attoseconds) / 1e15)
+        #expect(page.count == count)
+        return Double(elapsed.components.seconds) * 1000 + Double(elapsed.components.attoseconds) / 1e15
     }
-    let median = samples.sorted()[samples.count / 2]
+    var large: [Double] = []
+    var small: [Double] = []
+    for _ in 0..<9 {
+        large.append(try await timed("s1", 10_000))
+        small.append(try await timed("s2", 1_000))
+    }
+    let fastestLarge = large.min() ?? 0
+    let fastestSmall = max(small.min() ?? 0, 0.001)
+    let scaling = fastestLarge / fastestSmall
     let baseline = ProcessInfo.processInfo.environment["HERMES_CACHE_BASELINE_MS"].flatMap(Double.init) ?? 250
-    print("cache load of 10k messages: median \(median) ms, baseline \(baseline) ms")
-    #expect(median <= baseline * 1.2, "10k load took \(median) ms, baseline \(baseline) ms")
+    print(
+        "cache load: 10k fastest \(fastestLarge) ms (median \(large.sorted()[4])), 1k fastest \(fastestSmall) ms, "
+            + "scaling \(scaling)x, baseline \(baseline) ms")
+
+    #expect(scaling <= cacheScalingLimit, "10k took \(scaling)x the time of 1k: more than linear")
+    if ProcessInfo.processInfo.environment["CI"] != nil {
+        #expect(fastestLarge <= baseline * 1.2, "10k load took \(fastestLarge) ms, baseline \(baseline) ms")
+    }
 }
+
+/// Ten times the rows take about ten times as long (9.6x idle on Linux; 7.0x and 13.5x under six busy cores). Twice
+/// linear still passes; quadratic code (about 100x) fails.
+private let cacheScalingLimit = 20.0

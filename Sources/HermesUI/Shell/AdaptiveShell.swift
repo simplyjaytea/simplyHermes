@@ -229,6 +229,7 @@
                 Tab(AppSection.chats.title, systemImage: AppSection.chats.systemImage, value: AppSection.chats) {
                     NavigationStack {
                         chatList
+                            .safeAreaInset(edge: .top, spacing: 0) { AppUpdateBanner() }
                             .navigationTitle("Chats")
                             .toolbar {
                                 serverSwitcher
@@ -297,6 +298,7 @@
                         }
                     }
                 }
+                .safeAreaInset(edge: .top, spacing: 0) { AppUpdateBanner() }
                 .navigationTitle("simplyHermes")
                 .toolbar {
                     serverSwitcher
