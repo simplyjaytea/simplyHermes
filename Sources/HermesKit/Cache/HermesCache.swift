@@ -6,7 +6,7 @@ import GRDB
 /// Everything is scoped by a `connection` key (the saved connection's id), so two servers never mix. The cache
 /// only ever mirrors the server: when the server and the cache disagree the server wins and the cache is rewritten.
 /// The file lives in the App Group container, so widgets and intents can read it. It is safe to delete, except for
-/// the offline chats (``offlineChats``), which exist nowhere else.
+/// the local chats (``localChats``), which exist nowhere else.
 public final class HermesCache: Sendable {
     private let database: any DatabaseWriter
 
@@ -112,6 +112,46 @@ public final class HermesCache: Sendable {
                     );
                     CREATE INDEX outbound_messages_chat ON outbound_messages (chat_id);
                     CREATE INDEX outbound_messages_connection ON outbound_messages (connection_id);
+                    """)
+        }
+        // WP-7: local chats stand alone. They have no server session and no connection, so the per-server offline
+        // chats move into `local_chats` and `local_messages`, and the offline tables go. Migrated replies have no
+        // record of the model that wrote them (`answered_by_kind` stays null), because the offline chat never kept one.
+        // Each migrated reply answers the nearest earlier user message in its chat (`reply_to`), so a question that
+        // never got a reply stays unanswered.
+        migrator.registerMigration("local-chat-v1") { handle in
+            try handle.execute(
+                sql: """
+                    CREATE TABLE local_chats (
+                        chat_id TEXT NOT NULL PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        created_at REAL NOT NULL,
+                        updated_at REAL NOT NULL
+                    ) WITHOUT ROWID;
+                    CREATE INDEX local_chats_recent ON local_chats (updated_at DESC);
+                    CREATE TABLE local_messages (
+                        chat_id TEXT NOT NULL,
+                        message_id INTEGER NOT NULL,
+                        role TEXT NOT NULL,
+                        text TEXT NOT NULL,
+                        answered_by_kind TEXT,
+                        answered_by_id TEXT,
+                        answered_by_name TEXT,
+                        reply_to INTEGER,
+                        created_at REAL NOT NULL,
+                        PRIMARY KEY (chat_id, message_id)
+                    ) WITHOUT ROWID;
+                    INSERT OR IGNORE INTO local_chats (chat_id, title, created_at, updated_at)
+                        SELECT chat_id, title, created_at, updated_at FROM offline_chat;
+                    INSERT OR IGNORE INTO local_messages (chat_id, message_id, role, text, created_at)
+                        SELECT chat_id, message_id, role, text, created_at FROM offline_message;
+                    UPDATE local_messages SET reply_to = (
+                        SELECT MAX(question.message_id) FROM local_messages AS question
+                        WHERE question.chat_id = local_messages.chat_id AND question.role = 'user'
+                            AND question.message_id < local_messages.message_id)
+                    WHERE role = 'assistant';
+                    DROP TABLE offline_message;
+                    DROP TABLE offline_chat;
                     """)
         }
         return migrator
@@ -245,20 +285,21 @@ public final class HermesCache: Sendable {
 
     // MARK: - Maintenance
 
-    /// Forgets everything about one connection (when it is deleted or the user signs out), offline chats included.
+    /// Forgets everything about one connection (when it is deleted or the user signs out). Local chats belong to no
+    /// connection, so they stay.
     public func purge(connection: String) async throws {
         try await database.write { handle in
-            for table in ["session", "message", "reading_position", "offline_message", "offline_chat"] {
+            for table in ["session", "message", "reading_position"] {
                 try handle.execute(sql: "DELETE FROM \(table) WHERE connection = ?", arguments: [connection])
             }
             try handle.execute(sql: "DELETE FROM outbound_messages WHERE connection_id = ?", arguments: [connection])
         }
     }
 
-    // MARK: - Offline chats
+    // MARK: - Local chats
 
-    /// The offline chats kept in this database (WP-65b). They share the file but not the rows of the server's data.
-    public var offlineChats: GRDBOfflineChatStore { GRDBOfflineChatStore(database: database) }
+    /// The local chats kept in this database (WP-7). They share the file but not the rows of the server's data.
+    public var localChats: GRDBLocalChatStore { GRDBLocalChatStore(database: database) }
 
     // MARK: - Outbox
 

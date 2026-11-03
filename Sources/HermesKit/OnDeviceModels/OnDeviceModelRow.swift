@@ -10,6 +10,8 @@ public struct OnDeviceModelRow: Sendable, Equatable, Identifiable {
         case resume
         /// Try a failed download again.
         case retry
+        /// Check an earlier download again after its check failed.
+        case check
         /// Stop and throw away the part that arrived.
         case cancel
         /// Remove the model from the phone.
@@ -26,16 +28,19 @@ public struct OnDeviceModelRow: Sendable, Equatable, Identifiable {
     public let canRun: Bool
     /// What this app may still allocate right now, if the device says.
     public let availableMemoryBytes: Int64?
+    /// True while the files an earlier download failed to verify are fetched again.
+    public let isRepairing: Bool
 
     public init(
         model: OnDeviceModel, state: OnDeviceModelState, isSelected: Bool = false, canRun: Bool = true,
-        availableMemoryBytes: Int64? = nil
+        availableMemoryBytes: Int64? = nil, isRepairing: Bool = false
     ) {
         self.model = model
         self.state = state
         self.isSelected = isSelected
         self.canRun = canRun
         self.availableMemoryBytes = availableMemoryBytes
+        self.isRepairing = isRepairing
     }
 
     public var id: String { model.id }
@@ -45,12 +50,16 @@ public struct OnDeviceModelRow: Sendable, Equatable, Identifiable {
         switch state {
         case .notDownloaded:
             return [.download]
+        case .checking:
+            return []
         case .queued:
             return [.cancel]
         case .downloading:
             return [.pause, .cancel]
         case .paused:
             return [.resume, .cancel]
+        case .failed(.checkFailed, _):
+            return [.check, .delete]
         case .failed(.notEnoughSpace, _):
             return [.retry]
         case .failed:
@@ -66,7 +75,7 @@ public struct OnDeviceModelRow: Sendable, Equatable, Identifiable {
         switch action {
         case .download, .delete: return true
         case .cancel: return receivedBytes > 0
-        case .pause, .resume, .retry, .use: return false
+        case .pause, .resume, .retry, .check, .use: return false
         }
     }
 
@@ -74,14 +83,14 @@ public struct OnDeviceModelRow: Sendable, Equatable, Identifiable {
     public var receivedBytes: Int64 {
         switch state {
         case .downloading(let progress), .paused(let progress), .failed(_, let progress): return progress.receivedBytes
-        case .notDownloaded, .queued, .downloaded: return 0
+        case .notDownloaded, .checking, .queued, .downloaded: return 0
         }
     }
 
     /// True while bytes are moving or waiting to move.
     public var isBusy: Bool {
         switch state {
-        case .queued, .downloading: return true
+        case .checking, .queued, .downloading: return true
         case .notDownloaded, .paused, .failed, .downloaded: return false
         }
     }

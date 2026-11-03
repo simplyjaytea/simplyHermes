@@ -109,6 +109,9 @@ public actor SSHTunnel {
         let validator = HostKeyValidator(policy: config.hostKey)
         let client: SSHClient
         do {
+            #if DEBUG
+                NetworkTrap.record("ssh")
+            #endif
             client = try await SSHClient.connect(
                 host: config.host,
                 port: config.port,
@@ -125,7 +128,9 @@ public actor SSHTunnel {
 
         progress?(.probing)
         let probe = try RemoteDashboard.parseProbe(
-            try await run(RemoteDashboard.probeCommand(customPath: config.hermesPath), on: client))
+            try await run(
+                RemoteDashboard.probeCommand(customPath: config.hermesPath), on: client, step: "probe",
+                timeout: Self.probeTimeout))
         guard probe.supportsTokenFile else { throw SSHTunnelError.hermesTooOld(version: probe.version) }
 
         progress?(.startingDashboard)
@@ -134,7 +139,8 @@ public actor SSHTunnel {
         let launch = try RemoteDashboard.launchCommand(
             hermesPath: probe.hermesPath, ownershipID: config.ownershipID, nonce: nonce, token: uploadedToken,
             readyTimeout: config.readyTimeout)
-        let output = try await run(launch, on: client)
+        // The launch script itself waits up to the ready timeout for the dashboard, so its deadline is a little longer.
+        let output = try await run(launch, on: client, step: "launch", timeout: config.readyTimeout + Self.launchSlack)
         if let pid = RemoteDashboard.parsePID(output) { remote = (pid, nonce) }
         let remotePort = try RemoteDashboard.parseReady(output)
 
@@ -172,7 +178,7 @@ public actor SSHTunnel {
                 try? RemoteDashboard.stopCommand(ownershipID: configuration.ownershipID, nonce: $0.nonce, pid: $0.pid)
             }
             if let command, client.isConnected {
-                _ = try? await run(command, on: client)
+                _ = try? await run(command, on: client, step: "stop", timeout: Self.stopTimeout)
             }
             try? await client.close()
             self.client = nil
@@ -180,9 +186,23 @@ public actor SSHTunnel {
         remote = nil
     }
 
+    /// How long the probe may take: it only reads `hermes --version` and a few paths.
+    static let probeTimeout: Duration = .seconds(30)
+    /// Extra time the launch gets beyond the dashboard's ready timeout, for the script itself.
+    static let launchSlack: Duration = .seconds(30)
+    /// How long stopping the remote dashboard may take before the connection is closed anyway.
+    static let stopTimeout: Duration = .seconds(15)
+
     /// Runs a command and returns stdout and stderr together. A non-zero exit is not an error here: the scripts
-    /// report failures as marker lines.
-    private func run(_ command: String, on client: SSHClient) async throws -> String {
+    /// report failures as marker lines. A command that hasn't finished by `timeout` throws
+    /// ``SSHTunnelError/commandTimedOut(step:)``, and the SSH connection is closed so its stream ends.
+    private func run(_ command: String, on client: SSHClient, step: String, timeout: Duration) async throws -> String {
+        try await Self.withDeadline(
+            timeout, step: step, onTimeout: { try? await client.close() },
+            body: { try await Self.collect(command, on: client) })
+    }
+
+    private static func collect(_ command: String, on client: SSHClient) async throws -> String {
         var output = ByteBuffer()
         do {
             for try await chunk in try await client.executeCommandStream(command) {
@@ -197,13 +217,106 @@ public actor SSHTunnel {
         return String(buffer: output)
     }
 
+    /// Runs `body`, or throws ``SSHTunnelError/commandTimedOut(step:)`` once `timeout` passes, whichever comes first.
+    /// The caller is answered at that moment: neither a stuck `body` nor a slow `onTimeout` can hold it up. On timeout,
+    /// `body` is cancelled and `onTimeout` (closing the connection, which ends a command stream) starts on its own task,
+    /// not awaited. A `body` that finishes first never triggers `onTimeout`, so a command that completes at the deadline
+    /// keeps its connection. Whatever `body` throws after a timeout is ignored.
+    static func withDeadline<T: Sendable>(
+        _ timeout: Duration, step: String, onTimeout: @escaping @Sendable () async -> Void,
+        body: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        let outcome = FirstOutcome<T>()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, any Error>) in
+                outcome.install(continuation)
+                let work = Task {
+                    do {
+                        outcome.resolve(.success(try await body()))
+                    } catch {
+                        outcome.resolve(.failure(error))
+                    }
+                }
+                let timer = Task {
+                    try? await Task.sleep(for: timeout)
+                    guard !Task.isCancelled,
+                        outcome.resolve(.failure(SSHTunnelError.commandTimedOut(step: step)))
+                    else { return }
+                    work.cancel()
+                    Task { await onTimeout() }
+                }
+                outcome.onSettle {
+                    work.cancel()
+                    timer.cancel()
+                }
+            }
+        } onCancel: {
+            outcome.resolve(.failure(CancellationError()))
+        }
+    }
+
+    /// The session for the token fetch: a factory session, so the trap counts it like every other.
+    private static let tokenSession = NetworkSessions.make(configuration: .default)
+
     /// `GET /` through the tunnel and read `window.__HERMES_SESSION_TOKEN__`. Desktop trusts it over its own.
     private static func adoptServedToken(baseURL: URL) async -> String? {
         var request = URLRequest(url: baseURL)
         request.timeoutInterval = 15
-        guard let (data, _) = try? await URLSession.shared.data(for: request),
+        #if DEBUG
+            NetworkTrap.record("http")
+        #endif
+        guard let (data, _) = try? await tokenSession.data(for: request),
             let html = String(bytes: data, encoding: .utf8)
         else { return nil }
         return RemoteDashboard.parseServedToken(html: html)
+    }
+}
+
+/// The first result of a deadline race, delivered to the caller exactly once. Later results are dropped.
+private final class FirstOutcome<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<T, any Error>?
+    private var early: Result<T, any Error>?
+    private var settled = false
+    private var cleanup: (@Sendable () -> Void)?
+
+    func install(_ continuation: CheckedContinuation<T, any Error>) {
+        let result: Result<T, any Error>? = lock.withLock {
+            if let early { return early }
+            self.continuation = continuation
+            return nil
+        }
+        if let result { continuation.resume(with: result) }
+    }
+
+    /// Runs `cleanup` once the race is settled, or at once if it already is.
+    func onSettle(_ cleanup: @escaping @Sendable () -> Void) {
+        let runNow = lock.withLock {
+            if settled { return true }
+            self.cleanup = cleanup
+            return false
+        }
+        if runNow { cleanup() }
+    }
+
+    /// Delivers `result` if nothing has been delivered yet. True when this call settled the race.
+    @discardableResult
+    func resolve(_ result: Result<T, any Error>) -> Bool {
+        var waiting: CheckedContinuation<T, any Error>?
+        var cleanup: (@Sendable () -> Void)?
+        let won: Bool = lock.withLock {
+            guard !settled else { return false }
+            settled = true
+            waiting = continuation
+            continuation = nil
+            if waiting == nil { early = result }
+            cleanup = self.cleanup
+            self.cleanup = nil
+            return true
+        }
+        guard won else { return false }
+        waiting?.resume(with: result)
+        cleanup?()
+        return true
     }
 }

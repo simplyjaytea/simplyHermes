@@ -15,6 +15,7 @@ final class EntryIntegration {
     private let integration: AppIntegration
     private let outbound: OutboundCoordinator
     private let roster: BotRosterService
+    private let quickActions: QuickActionCoordinator
     private let sharedDirectory: URL?
     private var handledShares: Set<String> = []
     private var pendingActionPoll: Task<Void, Never>?
@@ -45,10 +46,12 @@ final class EntryIntegration {
         self.outbound = outbound
         self.roster = roster
         self.sharedDirectory = sharedDirectory
+        quickActions = QuickActionCoordinator(model: model, connections: connections)
 
         AppCommandCenter.shared.handler = { request in await executor.perform(request) }
         directory.start()
         roster.start()
+        quickActions.start()
     }
 
     /// Whether a server is saved. Quick Entry needs one to send anything.
@@ -68,6 +71,7 @@ final class EntryIntegration {
     /// Called when the app comes to the front and at launch.
     func becameActive() {
         integration.settingsMayHaveChanged()
+        quickActions.refreshMenu()
         watchForPendingAction()
         drainShares()
     }
@@ -93,6 +97,11 @@ final class EntryIntegration {
             quickEntry.present(prefill: action.prefill)
         }
         return true
+    }
+
+    /// The app went to the background: the icon's menu gets the last chat used.
+    func wentToBackground() {
+        quickActions.refreshMenu()
     }
 
     // MARK: Links and Spotlight

@@ -20,4 +20,7 @@ public enum SSHTunnelError: Error, Equatable, Sendable {
     case invalidConfiguration(String)
     /// The tunnel is not running.
     case notConnected
+    /// A command on the server gave no complete answer in time. `step` names it: `probe`, `launch` or `stop`. The
+    /// SSH connection is closed so nothing waits on it.
+    case commandTimedOut(step: String)
 }
