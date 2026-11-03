@@ -32,6 +32,14 @@
                     QueuedMessagesView(chat: chat)
                 }
                 ChatStatusBar(strip: chat.strip, pill: chat.status.pill, serverName: chat.serverName)
+                #if DEBUG
+                    // Hidden: a UI test reads it when an outage assertion fails (WP-8).
+                    Text(chat.debugStatusSummary)
+                        .font(.system(size: 1))
+                        .frame(width: 1, height: 1)
+                        .opacity(0.01)
+                        .accessibilityIdentifier("uiTest.chatStatus")
+                #endif
                 if OutageBanner.shows(chat.status) {
                     OutageBannerView(
                         serverName: chat.serverName,

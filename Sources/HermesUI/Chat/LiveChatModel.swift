@@ -118,6 +118,15 @@
         /// The server's name for the pill and the banner.
         public var serverName: String { connections.active?.name ?? "the server" }
 
+        #if DEBUG
+            /// What a UI test reads when an outage assertion fails (WP-8): the status and every input it was derived from.
+            public var debugStatusSummary: String {
+                let phase =
+                    connections.active.map { String(describing: connections.phases[$0.id]) } ?? "no active connection"
+                return "pill=\(status.pill) canSend=\(status.canSend) path=\(NetworkMonitor.shared.path) phase=\(phase)"
+            }
+        #endif
+
         /// Delegated helpers of this chat, running ones first.
         public func subagentRows(now: Date) -> [SubagentRow] {
             SubagentPanel.rows(state.subagents, firstSeen: firstSeen, now: now)

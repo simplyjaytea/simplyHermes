@@ -138,6 +138,7 @@ final class StatusPillUITests: XCTestCase {
             "banner=\(element(app, "chat.outageBanner").exists)",
             "switch=\(element(app, "uiTest.gatewayToggle").label)",
             "waiting=\(app.staticTexts["Waiting to send"].exists)",
+            "summary=\(element(app, "uiTest.chatStatus").label)",
         ].joined(separator: " ")
         // continueAfterFailure is false (setUp), so the test stops here.
         XCTFail("\(message) [\(state)]")
@@ -191,6 +192,11 @@ final class StatusPillUITests: XCTestCase {
         XCTAssertTrue(newChat.waitForExistence(timeout: 15), "New chat should be in the shell")
         newChat.tap()
         XCTAssertTrue(element(app, "composer.field").waitForExistence(timeout: 10), "The composer should open")
+        // Positive check before any outage: the pill is its own element, and the chat is connected.
+        let pill = element(app, "chat.pill")
+        XCTAssertTrue(pill.waitForExistence(timeout: 15), "The status pill should be an element of its own")
+        XCTAssertTrue(
+            pill.label.hasPrefix("Online chat."), "Before the outage the chat should be connected: \(pill.label)")
     }
 
     /// Taps the switch and checks the label it shows afterwards, which is the next action.
