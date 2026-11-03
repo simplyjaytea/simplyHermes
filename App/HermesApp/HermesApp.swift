@@ -4,6 +4,8 @@ import SwiftUI
 
 @main
 struct HermesApp: App {
+    // Home-screen quick actions arrive through a scene delegate (feature B).
+    @UIApplicationDelegateAdaptor(QuickActionAppDelegate.self) private var appDelegate
     @State private var model: ShellModel
     @State private var connections: ConnectionsModel
     @State private var sessionsList: SessionsListModel
