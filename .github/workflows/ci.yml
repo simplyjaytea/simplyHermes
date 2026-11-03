@@ -96,6 +96,8 @@ jobs:
         # that matches nothing, or a suite left disabled, would pass with zero tests, so both tests must be seen passing.
         env:
           HERMES_NETWORK_ISOLATION: "1"
+        # The Linux job runs in a container whose default step shell is sh, which has no pipefail.
+        shell: bash
         run: |
           set -o pipefail
           swift test --skip-build --filter LocalChatNetworkIsolationTests 2>&1 | tee "$RUNNER_TEMP/isolation.log"
