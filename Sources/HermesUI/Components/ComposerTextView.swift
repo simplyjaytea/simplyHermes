@@ -18,6 +18,21 @@
             }
             if !handled { super.pressesBegan(presses, with: event) }
         }
+
+        // "Quote in reply" asks the composer on screen to take the keyboard (`hermesComposerFocusRequest`).
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            NotificationCenter.default.removeObserver(self, name: .hermesComposerFocusRequest, object: nil)
+            if window != nil {
+                NotificationCenter.default.addObserver(
+                    self, selector: #selector(focusRequested), name: .hermesComposerFocusRequest, object: nil)
+            }
+        }
+
+        @objc private func focusRequested(_ notification: Notification) {
+            guard window != nil, !isFirstResponder else { return }
+            becomeFirstResponder()
+        }
     }
 
     /// The composer's text view. It is UIKit so that mention words can be blue and the caret can move after a

@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+    import HermesKit
     import SwiftUI
 
     /// One chat: transcript, status strip and composer. The half-fold style moves the composer
@@ -147,13 +148,20 @@
             return messages.first { visibleIDs.contains($0.id) }?.id
         }
 
+        /// "Quote in reply": the quote goes in front of this chat's draft. Nothing is sent.
+        private func quote(_ text: String) {
+            model.drafts[sessionID] = MessageQuote.inserting(text, into: model.drafts[sessionID, default: ""])
+        }
+
         @ViewBuilder
         private func row(for message: ShellMessage) -> some View {
             switch message.kind {
             case .user:
                 MessageBubble(role: .user, text: message.text)
+                    .messageActions(text: message.text, onQuote: quote)
             case .assistant:
                 MessageBubble(role: .assistant, text: message.text)
+                    .messageActions(text: message.text, onQuote: quote)
             case .tool(let command):
                 ToolOutputBubble(command: command, output: message.text)
             case .approval:
