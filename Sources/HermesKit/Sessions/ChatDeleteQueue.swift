@@ -1,9 +1,23 @@
 import Foundation
 
+/// One chat on one server. Two servers can have a chat with the same id, so the delete queue keys by both (row 99).
+public struct ChatDeleteKey: Hashable, Sendable {
+    /// The saved server, or nil for a local chat.
+    public let connection: String?
+    public let chatID: String
+
+    public init(connection: String?, chatID: String) {
+        self.connection = connection
+        self.chatID = chatID
+    }
+}
+
 /// A chat the user deleted that is still inside its Undo window. It is hidden from the list but not deleted yet.
 public struct PendingChatDelete: Sendable, Equatable, Identifiable {
     /// The list id: a server session id, or `local-<uuid>` for a local chat.
     public let id: String
+    /// The chat's server, or nil for a local chat.
+    public let connection: String?
     public let title: String
     /// Messages in this chat's outbox that are waiting (pending or failed). They are discarded with the chat. Counted
     /// after the outbox is paused, so it never includes a message already going out.
@@ -12,6 +26,8 @@ public struct PendingChatDelete: Sendable, Equatable, Identifiable {
     public internal(set) var deadline: Date
     /// True while VoiceOver focus is on the toast: the chat isn't deleted until focus leaves.
     public internal(set) var isHeld = false
+
+    public var key: ChatDeleteKey { ChatDeleteKey(connection: connection, chatID: id) }
 
     /// The toast text: "Chat deleted", plus how many waiting messages go with it.
     public var message: String {
@@ -66,13 +82,11 @@ public final class ChatDeleteQueue {
     /// Pending deletes, oldest first. The toast shows the last one.
     public private(set) var pending: [PendingChatDelete] = []
     /// Chats whose delete is running now. They stay hidden until it finishes.
-    public private(set) var committing: Set<String> = []
+    public private(set) var committing: Set<ChatDeleteKey> = []
     /// Chats deleted on the server whose saved messages are still to be cleared. They stay hidden and paused.
-    public private(set) var cleanupPending: Set<String> = []
+    public private(set) var cleanupPending: Set<ChatDeleteKey> = []
 
-    private var commits: [String: Commit] = [:]
-    /// The server of each chat this queue paused (nil for a local chat), so it resumes the same pause (row 99 n2).
-    private var connections: [String: String] = [:]
+    private var commits: [ChatDeleteKey: Commit] = [:]
     private let now: () -> Date
     private let pauses: OutboxPauses
 
@@ -82,7 +96,10 @@ public final class ChatDeleteQueue {
     }
 
     /// Chats the list must not show: pending and committing deletes.
-    public var hiddenIDs: Set<String> { committing.union(cleanupPending).union(pending.map(\.id)) }
+    public var hiddenKeys: Set<ChatDeleteKey> { committing.union(cleanupPending).union(pending.map(\.key)) }
+
+    /// The chat ids of ``hiddenKeys``, for lists that show one server's chats.
+    public var hiddenIDs: Set<String> { Set(hiddenKeys.map(\.chatID)) }
 
     /// The delete the toast offers to undo.
     public var latest: PendingChatDelete? { pending.last }
@@ -97,30 +114,34 @@ public final class ChatDeleteQueue {
     public func delete(
         id: String, title: String, connection: String? = nil, waitingMessages: Int = 0, commit: @escaping Commit
     ) -> PendingChatDelete? {
-        guard !hiddenIDs.contains(id) else { return nil }
+        let key = ChatDeleteKey(connection: connection, chatID: id)
+        // The same chat id on another server is a different chat: only this server's copy is checked (review m1).
+        guard !hiddenKeys.contains(key) else { return nil }
         let item = PendingChatDelete(
-            id: id, title: title, waitingMessages: waitingMessages, deadline: now().addingTimeInterval(Self.window))
+            id: id, connection: connection, title: title, waitingMessages: waitingMessages,
+            deadline: now().addingTimeInterval(Self.window))
         pending.append(item)
-        commits[id] = commit
-        connections[id] = connection
+        commits[key] = commit
         pauses.pause(id, connection: connection)
         return item
     }
 
     /// Sets the waiting-message count once it is known. The caller counts after ``delete(id:title:waitingMessages:commit:)``
     /// has paused the outbox, so a message that went out first isn't promised as discarded.
-    public func setWaitingMessages(_ id: String, _ count: Int) {
-        guard let index = pending.firstIndex(where: { $0.id == id }) else { return }
+    public func setWaitingMessages(_ id: String, _ count: Int, connection: String? = nil) {
+        let key = ChatDeleteKey(connection: connection, chatID: id)
+        guard let index = pending.firstIndex(where: { $0.key == key }) else { return }
         pending[index].waitingMessages = count
     }
 
     /// Undo: the chat comes back and its outbox may send again. False when the delete is no longer pending.
     @discardableResult
-    public func undo(_ id: String) -> Bool {
-        guard let index = pending.firstIndex(where: { $0.id == id }) else { return false }
+    public func undo(_ id: String, connection: String? = nil) -> Bool {
+        let key = ChatDeleteKey(connection: connection, chatID: id)
+        guard let index = pending.firstIndex(where: { $0.key == key }) else { return false }
         pending.remove(at: index)
-        commits[id] = nil
-        resume(id)
+        commits[key] = nil
+        resume(key)
         return true
     }
 
@@ -129,50 +150,52 @@ public final class ChatDeleteQueue {
     @discardableResult
     public func cancelAll() -> [PendingChatDelete] {
         let cancelled = pending
-        for item in cancelled { undo(item.id) }
+        for item in cancelled { undo(item.id, connection: item.connection) }
         return cancelled
     }
 
     /// VoiceOver focus entered (`true`) or left the toast. While held the chat isn't deleted; on release the full window
     /// starts again, so the user has time to act.
-    public func hold(_ id: String, _ held: Bool) {
-        guard let index = pending.firstIndex(where: { $0.id == id }) else { return }
+    public func hold(_ id: String, _ held: Bool, connection: String? = nil) {
+        let key = ChatDeleteKey(connection: connection, chatID: id)
+        guard let index = pending.firstIndex(where: { $0.key == key }) else { return }
         pending[index].isHeld = held
         if !held { pending[index].deadline = now().addingTimeInterval(Self.window) }
     }
 
-    /// Runs every delete whose window has passed, oldest first. A failed delete brings its chat back and resumes its
-    /// outbox; it never disappears silently.
     /// Lifts this queue's pause on a chat, for the same server it paused.
-    private func resume(_ id: String) {
-        pauses.resume(id, connection: connections.removeValue(forKey: id))
+    private func resume(_ key: ChatDeleteKey) {
+        pauses.resume(key.chatID, connection: key.connection)
     }
 
+    /// Runs every delete whose window has passed, oldest first. A failed delete brings its chat back and resumes its
+    /// outbox; it never disappears silently.
     public func tick() async -> [ChatDeleteOutcome] {
         let time = now()
         let due = pending.filter { !$0.isHeld && $0.deadline <= time }
         var outcomes: [ChatDeleteOutcome] = []
         for item in due {
-            guard let commit = commits[item.id] else { continue }
-            pending.removeAll { $0.id == item.id }
-            commits[item.id] = nil
-            committing.insert(item.id)
+            let key = item.key
+            guard let commit = commits[key] else { continue }
+            pending.removeAll { $0.key == key }
+            commits[key] = nil
+            committing.insert(key)
             do {
                 switch try await commit() {
                 case .deleted(let discarded):
                     outcomes.append(.deleted(id: item.id, discardedMessages: discarded))
-                    resume(item.id)
+                    resume(key)
                 case .deletedCleanupPending:
                     // The server no longer has the chat: it never comes back, and its outbox stays paused so nothing is
                     // submitted to a deleted chat. The launch sweep clears its messages.
-                    cleanupPending.insert(item.id)
+                    cleanupPending.insert(key)
                     outcomes.append(.deletedCleanupPending(id: item.id))
                 }
             } catch {
                 outcomes.append(.restored(id: item.id, title: item.title, reason: Self.reason(error)))
-                resume(item.id)
+                resume(key)
             }
-            committing.remove(item.id)
+            committing.remove(key)
         }
         return outcomes
     }

@@ -344,8 +344,31 @@ struct ChatDeleteOutboxTests {
         let submitter = CountingSubmitter()
         try await OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter, pauses: pauses).drain()
         #expect(await submitter.delivered == ["to y"], "server y's chat c1 still sends while x's c1 is deleted")
-        subject.undo("c1")
+        subject.undo("c1", connection: "x")
         #expect(!pauses.isPaused("c1", connection: "x"), "Undo resumes the same server's pause")
+    }
+
+    /// Review m1 on #142: the same chat id on two servers are two chats. Both can be pending at once, each with its
+    /// own pause, and Undo of one leaves the other's delete running.
+    @Test @MainActor func theSameChatIDOnTwoServersCanBeDeletedSeparately() async {
+        var now = start
+        let pauses = OutboxPauses()
+        let subject = ChatDeleteQueue(now: { now }, pauses: pauses)
+        #expect(subject.delete(id: "c1", title: "On x", connection: "x") { .deleted(discardedMessages: 0) } != nil)
+        #expect(
+            subject.delete(id: "c1", title: "On y", connection: "y") { .deleted(discardedMessages: 0) } != nil,
+            "a pending delete on x doesn't block y's chat")
+        #expect(
+            subject.delete(id: "c1", title: "Again", connection: "x") { .deleted(discardedMessages: 0) } == nil,
+            "the same chat on the same server is still refused")
+        #expect(subject.hiddenKeys.count == 2)
+        #expect(subject.undo("c1", connection: "x"))
+        #expect(!pauses.isPaused("c1", connection: "x"))
+        #expect(pauses.isPaused("c1", connection: "y"), "y's delete is untouched")
+        now = now.addingTimeInterval(ChatDeleteQueue.window)
+        #expect(await subject.tick() == [.deleted(id: "c1", discardedMessages: 0)])
+        #expect(!pauses.isPaused("c1", connection: "y"))
+        #expect(subject.hiddenKeys.isEmpty)
     }
 
     @Test func pausesAreKeptPerServerAndPerChat() {
