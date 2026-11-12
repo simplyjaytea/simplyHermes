@@ -267,8 +267,11 @@ public actor LocalChatController {
         let history = messages.filter { $0.id < prompt.id }
         let tools = model.supportsTools && memoryStore != nil
         var instructions = Self.instructions(memory: await memory())
+        // `/summarize …` and the other prompt-only skills apply to this one message (phase 2).
+        let skill = LocalSkillInvocation.parse(prompt.text)
+        if let skill { instructions += "\n\n" + skill.instructionsBlock }
         if tools { instructions += "\n\n" + LocalToolCall.instructions }
-        var request = Self.prompt(history: history, message: prompt.text)
+        var request = Self.prompt(history: history, message: skill?.prompt ?? prompt.text)
         turnReadAFile = false
         for _ in 0...Self.toolCallLimit {
             // WP-9 replaces `try?` with a typed failure that keeps the model's error.
