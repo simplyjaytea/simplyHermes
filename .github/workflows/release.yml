@@ -36,6 +36,11 @@ concurrency:
   group: alpha-release
   cancel-in-progress: false
 
+# Read-only by default. Only the alpha job, which creates releases, gets contents: write. Runs on tags and manual
+# dispatch only, never on pull requests.
+permissions:
+  contents: read
+
 jobs:
   alpha:
     name: Alpha IPA
