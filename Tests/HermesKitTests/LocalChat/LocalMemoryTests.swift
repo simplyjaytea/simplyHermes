@@ -129,3 +129,45 @@ struct LocalChatMemoryTests {
         #expect(recorder.instructions.last == LocalChatController.instructions, "Deleted memory is gone at once")
     }
 }
+
+struct LocalMemoryUndoTests {
+    @Test func undoOfASaveDeletesIt() async throws {
+        let store = try HermesCache().localMemory
+        let saved = try await store.save("I'm vegetarian", source: .model, at: localChatStart)
+        try await LocalMemoryChange.saved(saved).undo(in: store)
+        #expect(try await store.memories().isEmpty)
+    }
+
+    @Test func undoOfADeleteRestoresItExactlyWithItsPlace() async throws {
+        let store = try HermesCache().localMemory
+        let older = try await store.save("older", source: .user, at: Date(timeIntervalSince1970: 1))
+        try await store.setPinned(older.id, true)
+        try await store.save("newer", source: .user, at: Date(timeIntervalSince1970: 2))
+        let before = try await store.memories()
+        let pinned = try #require(before.first)
+        try await store.delete(pinned.id)
+        try await LocalMemoryChange.deleted(pinned).undo(in: store)
+        #expect(try await store.memories() == before, "same id, pin, source, time and order")
+    }
+
+    @Test func undoOfDeleteAllBringsEveryMemoryBack() async throws {
+        let store = try HermesCache().localMemory
+        try await store.save("one", source: .user, at: Date(timeIntervalSince1970: 1))
+        try await store.save("two", source: .model, at: Date(timeIntervalSince1970: 2))
+        let before = try await store.memories()
+        try await store.deleteAll()
+        let change = LocalMemoryChange.deletedAll(before)
+        #expect(change.summary == "2 memories deleted")
+        try await change.undo(in: store)
+        #expect(try await store.memories() == before)
+    }
+
+    @Test func undoingTwiceIsHarmless() async throws {
+        let store = try HermesCache().localMemory
+        let saved = try await store.save("x", source: .user, at: localChatStart)
+        try await store.delete(saved.id)
+        try await LocalMemoryChange.deleted(saved).undo(in: store)
+        try await LocalMemoryChange.deleted(saved).undo(in: store)
+        #expect(try await store.memories().map(\.id) == [saved.id])
+    }
+}

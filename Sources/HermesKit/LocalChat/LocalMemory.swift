@@ -94,6 +94,37 @@ public protocol LocalMemoryStore: Sendable {
     func delete(_ id: UUID) async throws
     /// Deletes every memory.
     func deleteAll() async throws
+    /// Puts a memory back exactly as it was (id, text, pin, source, time), for Undo of a delete.
+    func restore(_ memory: LocalMemory) async throws
+}
+
+/// One change the user can take back. Every save and delete of a memory offers Undo; a memory the model saves on
+/// its own (phase 2) shows the same Undo in the chat.
+public enum LocalMemoryChange: Sendable, Equatable {
+    case saved(LocalMemory)
+    case deleted(LocalMemory)
+    case deletedAll([LocalMemory])
+
+    /// Takes the change back: a save is deleted, a delete is restored as it was.
+    public func undo(in store: any LocalMemoryStore) async throws {
+        switch self {
+        case .saved(let memory):
+            try await store.delete(memory.id)
+        case .deleted(let memory):
+            try await store.restore(memory)
+        case .deletedAll(let memories):
+            for memory in memories { try await store.restore(memory) }
+        }
+    }
+
+    /// The Undo toast's text.
+    public var summary: String {
+        switch self {
+        case .saved: "Saved to memory"
+        case .deleted: "Memory deleted"
+        case .deletedAll(let memories): memories.count == 1 ? "1 memory deleted" : "\(memories.count) memories deleted"
+        }
+    }
 }
 
 /// Keeps local memory in the cache database's `local_memory` table (migration `local-memory-v1`). The table lives
@@ -139,6 +170,20 @@ public struct GRDBLocalMemoryStore: LocalMemoryStore {
     public func delete(_ id: UUID) async throws {
         try await database.write { handle in
             try handle.execute(sql: "DELETE FROM local_memory WHERE memory_id = ?", arguments: [id.uuidString])
+        }
+    }
+
+    public func restore(_ memory: LocalMemory) async throws {
+        try await database.write { handle in
+            try handle.execute(
+                sql: """
+                    INSERT OR REPLACE INTO local_memory (memory_id, text, pinned, source, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                arguments: [
+                    memory.id.uuidString, memory.text, memory.isPinned ? 1 : 0, memory.source.rawValue,
+                    memory.createdAt.timeIntervalSince1970,
+                ])
         }
     }
 

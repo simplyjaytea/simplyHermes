@@ -29,6 +29,7 @@ enum LocalChatNetworkGuard {
         "Sources/HermesUI/LocalChat/LocalChatModel.swift",
         "Sources/HermesUI/LocalChat/LocalChatScreen.swift",
         "Sources/HermesUI/LocalChat/LocalChatServices.swift",
+        "Sources/HermesUI/LocalChat/LocalMemoryScreen.swift",
         "App/HermesApp/LocalChat/UITestSeams.swift",
     ]
 
@@ -37,6 +38,9 @@ enum LocalChatNetworkGuard {
         "URLSession", "URLRequest", "URLProtocol", "GatewayClient", "ChatTransport", "HTTPTransport", "WebSocket",
         "Citadel", "NIOCore", "NIOPosix", "NIOHTTP1", "NIOWebSocket", "NIOSSH", "SendToHermes", "HermesSSH",
         "FoundationNetworking",
+        // Local agent abilities (spec section 7): other ways an iPhone app reaches the network or hands work to one.
+        "NWConnection", "NWListener", "import Network", "CFStream", "WKWebView", "SFSafariViewController", "openURL",
+        "startDownloadingUbiquitousItem", "MultipeerConnectivity",
     ]
 
     static let repoRoot = URL(fileURLWithPath: #filePath)
