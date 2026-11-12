@@ -93,3 +93,8 @@ CI builds and tests the app on macOS runners, so a local Mac is not required. Co
 ## Releases
 
 Alpha builds come from `.github/workflows/release.yml`, which runs on a tag such as `v0.1.0-alpha.1`. [CLAUDE.md](CLAUDE.md) has the tag rules.
+
+## License
+
+[MIT](LICENSE). Dependencies keep their own licenses. The recorded server answers in `Fixtures/` come from
+[Hermes](https://github.com/NousResearch/hermes-agent), which is MIT-licensed as well.

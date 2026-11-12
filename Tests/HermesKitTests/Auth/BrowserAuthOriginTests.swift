@@ -40,23 +40,23 @@ final class RecordingAuthTransport: HTTPTransport, CookieImporting, @unchecked S
 
 @Suite struct BrowserAuthOriginTests {
     private let typedIP = HermesEndpoint(string: "http://100.64.150.77:9119")!
-    private let typedHost = HermesEndpoint(string: "http://hostinger-vps.tailfa5476.ts.net:9119")!
+    private let typedHost = HermesEndpoint(string: "http://box.tail1234.ts.net:9119")!
 
     @Test func crossOriginCallbackIsReported() {
         let location =
-            "https://portal.nousresearch.com/authorize?redirect_uri=http%3A%2F%2Fhostinger-vps.tailfa5476.ts.net%3A9119%2Fauth%2Fcallback"
+            "https://portal.nousresearch.com/authorize?redirect_uri=http%3A%2F%2Fbox.tail1234.ts.net%3A9119%2Fauth%2Fcallback"
         let diagnosis = BrowserAuthOrigin.diagnose(typed: typedIP, locationHeader: location, responseStatus: 302)
         #expect(
             diagnosis
                 == .callbackOriginMismatch(
                     typedOrigin: "http://100.64.150.77:9119",
-                    callbackOrigin: "http://hostinger-vps.tailfa5476.ts.net:9119",
-                    suggestedStartingURL: "http://hostinger-vps.tailfa5476.ts.net:9119"))
+                    callbackOrigin: "http://box.tail1234.ts.net:9119",
+                    suggestedStartingURL: "http://box.tail1234.ts.net:9119"))
     }
 
     @Test func matchingOriginPreservesTheFlow() {
         let location =
-            "https://portal.nousresearch.com/authorize?redirect_uri=http%3A%2F%2Fhostinger-vps.tailfa5476.ts.net%3A9119%2Fauth%2Fcallback"
+            "https://portal.nousresearch.com/authorize?redirect_uri=http%3A%2F%2Fbox.tail1234.ts.net%3A9119%2Fauth%2Fcallback"
         let diagnosis = BrowserAuthOrigin.diagnose(typed: typedHost, locationHeader: location, responseStatus: 302)
         #expect(diagnosis == .ok)
     }
@@ -99,15 +99,15 @@ final class RecordingAuthTransport: HTTPTransport, CookieImporting, @unchecked S
     @Test func parseCallbackURLRejectsPublicCallbackHostMetadata() {
         // A Location whose own host is the identity provider must not be mistaken for the callback origin.
         let location =
-            "https://portal.nousresearch.com/authorize?redirect_uri=http%3A%2F%2Fhostinger-vps.tailfa5476.ts.net%3A9119%2Fauth%2Fcallback"
+            "https://portal.nousresearch.com/authorize?redirect_uri=http%3A%2F%2Fbox.tail1234.ts.net%3A9119%2Fauth%2Fcallback"
         let callback = BrowserAuthOrigin.callbackOrigin(from: location, expectedPath: "/auth/callback")
-        #expect(callback?.host == "hostinger-vps.tailfa5476.ts.net")
+        #expect(callback?.host == "box.tail1234.ts.net")
         #expect(callback?.host != "portal.nousresearch.com")
     }
 
     @Test func preflightIsAnonymousAndDoesNotFollowRedirects() async throws {
         let location =
-            "https://portal.nousresearch.com/authorize?redirect_uri=http%3A%2F%2Fhostinger-vps.tailfa5476.ts.net%3A9119%2Fauth%2Fcallback"
+            "https://portal.nousresearch.com/authorize?redirect_uri=http%3A%2F%2Fbox.tail1234.ts.net%3A9119%2Fauth%2Fcallback"
         let transport = RecordingAuthTransport(status: 302, location: location)
         let diagnosis = try await BrowserAuthOrigin.preflight(
             typed: typedIP, provider: "nous", native: true, transport: transport)
@@ -115,8 +115,8 @@ final class RecordingAuthTransport: HTTPTransport, CookieImporting, @unchecked S
             diagnosis
                 == .callbackOriginMismatch(
                     typedOrigin: "http://100.64.150.77:9119",
-                    callbackOrigin: "http://hostinger-vps.tailfa5476.ts.net:9119",
-                    suggestedStartingURL: "http://hostinger-vps.tailfa5476.ts.net:9119"))
+                    callbackOrigin: "http://box.tail1234.ts.net:9119",
+                    suggestedStartingURL: "http://box.tail1234.ts.net:9119"))
         #expect(transport.requests.count == 1, "preflight must not follow the redirect")
         #expect(transport.cookieImports.isEmpty, "preflight must not import cookies")
         let request = try #require(transport.requests.first)
@@ -137,7 +137,7 @@ final class RecordingAuthTransport: HTTPTransport, CookieImporting, @unchecked S
 
     @Test func preflightIgnoresLocationOnNonRedirectStatus() async throws {
         let location =
-            "https://portal.nousresearch.com/authorize?redirect_uri=http%3A%2F%2Fhostinger-vps.tailfa5476.ts.net%3A9119%2Fauth%2Fcallback"
+            "https://portal.nousresearch.com/authorize?redirect_uri=http%3A%2F%2Fbox.tail1234.ts.net%3A9119%2Fauth%2Fcallback"
         let transport = RecordingAuthTransport(status: 200, location: location)
         let diagnosis = try await BrowserAuthOrigin.preflight(
             typed: typedIP, provider: "nous", native: true, transport: transport)
@@ -154,14 +154,14 @@ final class RecordingAuthTransport: HTTPTransport, CookieImporting, @unchecked S
 
         let mismatchLocation =
             "https://portal.example.com/authorize?redirect_uri="
-            + "http%3A%2F%2Fhostinger-vps.tailfa5476.ts.net%3A9119%2Fhermes%2Fauth%2Fcallback"
+            + "http%3A%2F%2Fbox.tail1234.ts.net%3A9119%2Fhermes%2Fauth%2Fcallback"
         let diagnosis = BrowserAuthOrigin.diagnose(typed: typed, locationHeader: mismatchLocation, responseStatus: 302)
         #expect(
             diagnosis
                 == .callbackOriginMismatch(
                     typedOrigin: "http://100.64.150.77:9119",
-                    callbackOrigin: "http://hostinger-vps.tailfa5476.ts.net:9119",
-                    suggestedStartingURL: "http://hostinger-vps.tailfa5476.ts.net:9119/hermes"))
+                    callbackOrigin: "http://box.tail1234.ts.net:9119",
+                    suggestedStartingURL: "http://box.tail1234.ts.net:9119/hermes"))
 
         // A suffix or subpath is not the callback route.
         let suffixLocation =
@@ -205,10 +205,10 @@ final class RecordingAuthTransport: HTTPTransport, CookieImporting, @unchecked S
     }
 
     @Test func callbackOriginMismatchErrorNamesStartingAddress() {
-        let error = NativeSignInError.callbackOriginMismatch(startingURL: "http://hostinger-vps.tailfa5476.ts.net:9119")
+        let error = NativeSignInError.callbackOriginMismatch(startingURL: "http://box.tail1234.ts.net:9119")
         #expect(
             error.localizedDescription
-                == "This server's browser sign-in must be started from http://hostinger-vps.tailfa5476.ts.net:9119. "
+                == "This server's browser sign-in must be started from http://box.tail1234.ts.net:9119. "
                 + "Enter that address and start browser sign-in again."
         )
     }
