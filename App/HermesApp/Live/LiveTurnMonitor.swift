@@ -20,8 +20,8 @@ final class LiveTurnMonitor {
     private var startedAt: [String: Date] = [:]
     /// Chats stopped from a Live Activity or widget, so their final state reads "Stopped".
     private var stopped: Set<String> = []
-    /// The approval each chat waits on (its row id), to notice one appearing and one being answered.
-    private var waitingApprovals: [String: String] = [:]
+    /// Turn starts and ends, and approvals, as the notifications see them (HermesKit, Linux-tested).
+    private var watcher = TurnWatcher()
     private let notifications: LocalNotifications
     private let logger = Logger(subsystem: "com.simplyjaytea.simplyhermes", category: "LiveTurnMonitor")
 
@@ -63,8 +63,12 @@ final class LiveTurnMonitor {
         var running = 0
         for session in model.sessions {
             let id = session.id
-            let isStreaming = model.isStreaming(id)
+            // The real chats' state (review M1 on #136): a server chat's turn and approvals, a local chat's reply.
+            // The demo flag stays for DEBUG sample chats.
+            let activity = model.chatActivity(of: id)
+            let isStreaming = model.isStreaming(id) || activity?.isRunning == true
             let approval = model.pendingApproval(in: id)
+            var stoppedByUser = false
             if isStreaming || (approval != nil && startedAt[id] != nil) {
                 let started = startedAt[id] ?? now
                 startedAt[id] = started
@@ -73,11 +77,11 @@ final class LiveTurnMonitor {
                 activities.apply(sessionID: id, serverName: session.serverName, state: state, now: now)
             } else if let started = startedAt.removeValue(forKey: id) {
                 var state = turnState(for: session, approval: nil, startedAt: started)
-                state.phase = stopped.remove(id) == nil ? .done : .stopped
+                stoppedByUser = stopped.remove(id) != nil
+                state.phase = stoppedByUser ? .stopped : .done
                 activities.finish(sessionID: id, state: state)
-                notifyTurnEnded(session, startedAt: started, stopped: state.phase == .stopped, now: now)
             }
-            notifyApprovalChange(session, approval: approval, now: now)
+            if let activity { notify(session, activity, stoppedByUser: stoppedByUser, now: now) }
         }
         keepAlive.update(runningTurns: running)
         activities.keepsAppAlive = keepAlive.isHolding
@@ -119,28 +123,24 @@ final class LiveTurnMonitor {
             serverName: session.id.hasPrefix("local-") ? nil : session.serverName)
     }
 
-    private func notifyTurnEnded(_ session: ChatSessionSummary, startedAt: Date, stopped: Bool, now: Date) {
-        let reply = model.transcripts[session.id]?.last { $0.kind == .assistant }?.text ?? ""
-        notifications.handle(
-            .turnEnded(
-                notificationChat(session), startedAt: startedAt, endedAt: now, outcome: stopped ? .stopped : .done,
-                reply: reply),
-            context: notificationContext(now: now))
-    }
-
-    private func notifyApprovalChange(_ session: ChatSessionSummary, approval: ShellMessage?, now: Date) {
-        let id = session.id
-        let previous = waitingApprovals[id]
-        guard previous != approval?.id else { return }
-        if let previous {
-            notifications.handle(
-                .approvalResolved(chatID: id, requestID: previous), context: notificationContext(now: now))
-        }
-        waitingApprovals[id] = approval?.id
-        if let approval {
-            notifications.handle(
-                .approvalWaiting(notificationChat(session), requestID: approval.id, command: approval.text),
-                context: notificationContext(now: now))
+    /// Turns this chat's change into notifications, and offers them in the chat after a long turn or an approval.
+    private func notify(_ session: ChatSessionSummary, _ activity: ChatActivity, stoppedByUser: Bool, now: Date) {
+        let ranFor = watcher.runningFor(session.id, now: now)
+        let events = watcher.observe(notificationChat(session), activity, stoppedByUser: stoppedByUser, now: now)
+        guard !events.isEmpty else { return }
+        let context = notificationContext(now: now)
+        for event in events {
+            notifications.handle(event, context: context)
+            guard context.appIsActive else { continue }
+            switch event {
+            case .turnEnded(_, _, _, _, let outcome, _)
+            where outcome != .stopped && (ranFor ?? 0) >= NotificationOffer.longTurn:
+                NotificationOfferModel.shared.noteLongTurn()
+            case .approvalWaiting:
+                NotificationOfferModel.shared.noteLongTurn()
+            default:
+                break
+            }
         }
     }
 

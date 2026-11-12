@@ -66,7 +66,7 @@
         }
 
         private func requestPermission() async {
-            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
+            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
             await refreshStatus()
         }
     }

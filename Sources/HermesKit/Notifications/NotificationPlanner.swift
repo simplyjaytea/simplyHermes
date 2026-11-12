@@ -79,8 +79,9 @@ public enum NotificationEvent: Sendable, Equatable {
         case stopped
     }
 
-    /// A turn ended. `reply` is the reply text (Markdown) or "" when there is none.
-    case turnEnded(NotificationChat, startedAt: Date, endedAt: Date, outcome: Outcome, reply: String)
+    /// A turn ended. `turnID` names the turn the same way every time it is seen (its reply's row id), so a replay
+    /// notifies once. `reply` is that turn's own reply text (Markdown), or "" when it has none.
+    case turnEnded(NotificationChat, turnID: String, startedAt: Date, endedAt: Date, outcome: Outcome, reply: String)
     /// An approval started waiting.
     case approvalWaiting(NotificationChat, requestID: String, command: String)
     /// An approval was answered or withdrawn, here or anywhere else.
@@ -166,8 +167,8 @@ public struct NotificationPlanner: Sendable {
                         context, preferences))
             ]
 
-        case .turnEnded(let chat, let startedAt, let endedAt, let outcome, let reply):
-            let key = "\(chat.id):turn:\(Int((startedAt.timeIntervalSince1970 * 1000).rounded()))"
+        case .turnEnded(let chat, let turnID, _, let endedAt, let outcome, let reply):
+            let key = "\(chat.id):turn:\(turnID)"
             guard outcome != .stopped, preferences.replyFinished, !isSeen(key), Self.shouldTell(chat.id, context),
                 context.now.timeIntervalSince(endedAt) <= Self.staleAfter
             else { return [] }

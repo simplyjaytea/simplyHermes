@@ -28,7 +28,8 @@ struct NotificationPlannerTests {
         reply: String = "The NAS rejected the key."
     ) -> NotificationEvent {
         .turnEnded(
-            chat ?? self.chat, startedAt: start, endedAt: start.addingTimeInterval(endedAfter), outcome: outcome,
+            chat ?? self.chat, turnID: "row-1", startedAt: start, endedAt: start.addingTimeInterval(endedAfter),
+            outcome: outcome,
             reply: reply)
     }
 
@@ -60,7 +61,8 @@ struct NotificationPlannerTests {
         #expect(first.count == 1)
         #expect(planner.plan(ended(), context: context(at: 90), preferences: .init()).isEmpty, "a replay")
         let next = NotificationEvent.turnEnded(
-            chat, startedAt: start.addingTimeInterval(100), endedAt: start.addingTimeInterval(120), outcome: .done,
+            chat, turnID: "row-2", startedAt: start.addingTimeInterval(100), endedAt: start.addingTimeInterval(120),
+            outcome: .done,
             reply: "Done again")
         let second = posts(planner.plan(next, context: context(at: 130), preferences: .init()))
         #expect(second.count == 1)

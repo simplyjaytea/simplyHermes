@@ -5,7 +5,9 @@ import OSLog
 import UIKit
 import UserNotifications
 
-/// The calls the poster makes on the system notification center, so app tests can use a fake.
+/// The calls the poster makes on the system notification center, so app tests can use a fake. Main-actor bound, as
+/// the poster is (review m3 on #136).
+@MainActor
 protocol NotificationCenterClient: AnyObject {
     func add(_ request: UNNotificationRequest) async throws
     func removeDeliveredNotifications(withIdentifiers identifiers: [String])
