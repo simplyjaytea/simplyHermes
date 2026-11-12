@@ -210,3 +210,15 @@ struct LocalMemoryDeleteAllTests {
         #expect(try await store.memories().map(\.text) == ["good"])
     }
 }
+
+struct RememberThisTests {
+    @Test func aMessageIsSavedTrimmedAndCutToTheLimit() throws {
+        #expect(LocalMemoryRules.excerpt(of: "  I'm vegetarian \n") == "I'm vegetarian")
+        #expect(LocalMemoryRules.excerpt(of: " \n ") == nil)
+        let long = String(repeating: "word ", count: 200)
+        let cut = try #require(LocalMemoryRules.excerpt(of: long))
+        #expect(cut.count <= LocalMemoryRules.itemLimit)
+        #expect(cut.hasSuffix("…"))
+        #expect(try LocalMemoryRules.validated(cut) == cut, "an excerpt always passes validation")
+    }
+}

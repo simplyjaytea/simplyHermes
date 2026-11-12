@@ -26,6 +26,7 @@ enum LocalChatNetworkGuard {
         "Sources/HermesKit/LocalChat/LocalChatController.swift",
         "Sources/HermesKit/LocalChat/LocalChatStore.swift",
         "Sources/HermesKit/LocalChat/LocalMemory.swift",
+        "Sources/HermesKit/LocalChat/LocalTools.swift",
         "Sources/HermesUI/LocalChat/LocalChatModel.swift",
         "Sources/HermesUI/LocalChat/LocalChatScreen.swift",
         "Sources/HermesUI/LocalChat/LocalChatServices.swift",
