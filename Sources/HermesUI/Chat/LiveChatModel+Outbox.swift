@@ -16,7 +16,10 @@
             }
         }
 
-        private func pillChanged() {
+        func pillChanged() {
+            // A retired chat belongs to a server that is no longer active. It must not attach to the new one, and it does
+            // not watch again, so it can be freed (row 108).
+            guard !isRetired else { return }
             let now = status.pill
             let previous = lastPill
             lastPill = now

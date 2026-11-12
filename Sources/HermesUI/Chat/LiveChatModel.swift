@@ -163,6 +163,9 @@
         @ObservationIgnored var drainer: OutboxDrainer?
         /// True while ``retryConnection()`` runs, so a second tap does nothing.
         @ObservationIgnored private var retrying = false
+        /// True once the store dropped this chat (the active server changed). A retired chat connects to nothing: its pill
+        /// watcher must not attach it to the new server with the old server's session id (board row 108).
+        @ObservationIgnored private(set) var isRetired = false
         /// Set while the composer's send is saving. A second send starts only after it ends (review M5).
         @ObservationIgnored var composerSend = SingleFlight()
         /// The latest drain of this chat's waiting messages. Detaching cancels it, so a closed chat sends nothing more.
@@ -191,7 +194,7 @@
         /// server is still down the transcript stays on screen and the banner stays.
         public func retryConnection() async {
             // A second tap while a retry runs does nothing: two retries would race each other over the controller.
-            guard !retrying else { return }
+            guard !retrying, !isRetired else { return }
             retrying = true
             defer { retrying = false }
             guard let serverID, let connection = connections.connection(id: serverID), let manager = connections.manager
@@ -213,6 +216,7 @@
         /// Connects, resumes the session and starts following it. Safe to call again after a failure. A call made
         /// while another is still connecting waits for that one, so the session is never opened twice at once.
         public func attach() async {
+            guard !isRetired else { return }
             if let attempt = attaching {
                 await attempt.value
                 return
@@ -296,6 +300,13 @@
             } catch {
                 phase = .failed(Self.describe(error))
             }
+        }
+
+        /// Ends this chat for good: the store dropped it because the active server changed. Unlike ``detach()``, which a
+        /// chat survives (Try again detaches and attaches), a retired chat never attaches again, and its pill watcher stops.
+        func retire() {
+            isRetired = true
+            detach()
         }
 
         /// Stops following. The last transcript stays on screen.
@@ -663,7 +674,7 @@
         public func chat(for sessionID: String) -> LiveChatModel? {
             guard let active = connections.active, connections.manager != nil else { return nil }
             if serverID != active.id {
-                for chat in chats.values { chat.detach() }
+                for chat in chats.values { chat.retire() }
                 chats = [:]
                 serverID = active.id
             }
