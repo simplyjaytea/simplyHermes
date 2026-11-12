@@ -91,7 +91,8 @@ struct HermesApp: App {
         // WP-3: messages waiting to reach the server are kept in the same file, so they survive a relaunch. When the
         // file would not open, the outbox is in memory and sending is refused, rather than losing messages silently.
         // UI tests keep the cache in memory on purpose, so they count as durable. A test's on-disk cache is durable too.
-        OutboxServices.install(cache.outbox, durable: file != nil || launch.onboarding != nil)
+        OutboxServices.install(
+            cache.outbox, placeholders: cache.placeholders, durable: file != nil || launch.onboarding != nil)
         // WP-7: local chats are kept in the same cache file as the chat list. They exist nowhere else, so they stay off
         // when the file would not open and the cache fell back to memory. UI tests keep it in memory on purpose.
         if file != nil || launch.onboarding != nil {
