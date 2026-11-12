@@ -29,9 +29,6 @@
         /// Search on the chat list shown when no server is active (#116 follow-up).
         @State private var localChatSearch = ""
         @State private var isLocalChatSearchPresented = false
-        /// The last ``ShellModel/chatSearchRequest`` this shell answered. A request made before the shell appeared,
-        /// as on a cold launch from the home-screen Search chats action, is newer than this and is answered on appear.
-        @State private var answeredChatSearchRequest = 0
 
         /// `connections` fills Settings > Servers and the server switcher (WP-22). Nil shows placeholders.
         /// `sessionsList` lists the active server's chats (WP-40). Nil keeps the sample chats.
@@ -125,10 +122,12 @@
         }
 
         /// Opens the search field of whichever chat list is showing: the server's, or the local one when no server is
-        /// active. Each request is answered once.
+        /// active. The request is consumed on the model (set back to 0), so it is answered once even when the app swaps
+        /// this shell for the welcome screen and back: a new shell finds no request waiting. A request made before the
+        /// shell appeared, as on a cold launch from the home-screen action, is still waiting and is answered on appear.
         private func presentChatSearchIfRequested() {
-            guard model.chatSearchRequest != answeredChatSearchRequest else { return }
-            answeredChatSearchRequest = model.chatSearchRequest
+            guard model.chatSearchRequest > 0 else { return }
+            model.chatSearchRequest = 0
             if let sessionsList, connections?.active != nil {
                 sessionsList.isSearchPresented = true
             } else {
