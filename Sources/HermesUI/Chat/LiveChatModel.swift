@@ -18,7 +18,6 @@
         /// It clears when the server reports another folder, since the server knows best.
         public private(set) var workspaceCwd: String?
         /// Messages waiting for Hermes to be free.
-        public private(set) var queue = MessageQueue()
         public private(set) var phase: Phase = .loading
         /// Providers and models for the model picker. Loaded when the chat attaches and after a switch.
         public private(set) var modelOptions: ModelOptionsResult?
@@ -292,7 +291,6 @@
                             self?.noteSubagents(next.transcript.subagents)
                             self?.noteWorkspace(next.transcript.info?.cwd)
                             self?.state = next.transcript
-                            self?.queue = next.queue
                             // Hermes is free again: the next waiting message may go.
                             if next.transcript.turn == nil { self?.drainSoon() }
                             if firstInfo, let info = next.transcript.info { self?.restoreModelPreferences(for: info) }
@@ -518,21 +516,6 @@
             }
         }
 
-        public func editQueued(_ id: Int, to text: String) {
-            guard let controller else { return }
-            Task { await controller.editQueued(id, to: text) }
-        }
-
-        public func removeQueued(_ id: Int) {
-            guard let controller else { return }
-            Task { await controller.removeQueued(id) }
-        }
-
-        public func moveQueued(_ id: Int, to position: Int) {
-            guard let controller else { return }
-            Task { await controller.moveQueued(id, to: position) }
-        }
-
         /// Moves this chat into another folder on the server. Returns nil when it moved, else why the server refused,
         /// and only one move runs at a time (WP-37).
         public func moveWorkspace(to cwd: String) async -> String? {
@@ -547,11 +530,6 @@
             } catch {
                 return Self.describe(error)
             }
-        }
-
-        public func setQueuePaused(_ paused: Bool) {
-            guard let controller else { return }
-            Task { await controller.setQueuePaused(paused) }
         }
 
         /// Sends guidance to a running helper.
