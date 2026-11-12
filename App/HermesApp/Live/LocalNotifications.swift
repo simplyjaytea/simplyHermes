@@ -1,0 +1,100 @@
+import Foundation
+import HermesKit
+import HermesUI
+import OSLog
+import UIKit
+import UserNotifications
+
+/// The calls the poster makes on the system notification center, so app tests can use a fake.
+protocol NotificationCenterClient: AnyObject {
+    func add(_ request: UNNotificationRequest) async throws
+    func removeDeliveredNotifications(withIdentifiers identifiers: [String])
+    func removePendingNotificationRequests(withIdentifiers identifiers: [String])
+}
+
+extension UNUserNotificationCenter: NotificationCenterClient {}
+
+/// Local notifications for a finished reply and a waiting approval. ``NotificationPlanner`` (HermesKit) decides;
+/// this turns its actions into system calls and opens the chat on a tap. It asks for permission only from Settings ›
+/// Notifications, never by itself.
+///
+/// Honest limit: a local notification needs the app running. With Keep bots live off, iOS suspends the app about 30
+/// seconds after it leaves the screen, and nothing more is noticed until it opens again.
+@MainActor
+final class LocalNotifications: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = LocalNotifications()
+
+    private var planner = NotificationPlanner()
+    private let center: NotificationCenterClient
+    private let defaults: UserDefaults
+    private let logger = Logger(subsystem: "com.simplyjaytea.simplyhermes", category: "LocalNotifications")
+
+    init(center: NotificationCenterClient = UNUserNotificationCenter.current(), defaults: UserDefaults = .standard) {
+        self.center = center
+        self.defaults = defaults
+        super.init()
+    }
+
+    /// Becomes the system delegate, so taps open the chat and a notification for another chat shows in the app too.
+    func install() {
+        UNUserNotificationCenter.current().delegate = self
+    }
+
+    /// Plans `event` with the current settings and carries it out.
+    func handle(_ event: NotificationEvent, context: NotificationContext) {
+        let preferences = NotificationPreferences.load(
+            from: defaults, showChatTitle: QuickActionStore(defaults: defaults).showTitle)
+        for action in planner.plan(event, context: context, preferences: preferences) {
+            perform(action)
+        }
+    }
+
+    private func perform(_ action: NotificationAction) {
+        switch action {
+        case .remove(let ids):
+            center.removeDeliveredNotifications(withIdentifiers: ids)
+            center.removePendingNotificationRequests(withIdentifiers: ids)
+        case .post(let request):
+            let system = Self.systemRequest(request)
+            Task {
+                do {
+                    try await center.add(system)
+                } catch {
+                    // Not allowed, or the system refused it: nothing to show, and nothing is lost (the chat has it).
+                    logger.notice("Notification not posted: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        }
+    }
+
+    /// The system request for a planned one. Approvals are ordinary (`.active`) notifications: the Time Sensitive
+    /// entitlement is optional and unverified on SideStore and Signulous builds, so nothing depends on it.
+    static func systemRequest(_ request: NotificationRequest) -> UNNotificationRequest {
+        let content = UNMutableNotificationContent()
+        content.title = request.title
+        content.body = request.body
+        content.threadIdentifier = request.threadID
+        content.userInfo = ["chat": request.chatID, "dedupe": request.dedupeKey]
+        content.interruptionLevel = .active
+        if request.playsSound { content.sound = .default }
+        return UNNotificationRequest(identifier: request.id, content: content, trigger: nil)
+    }
+
+    // MARK: UNUserNotificationCenterDelegate
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter, willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        // The planner already left out the chat on screen, so whatever arrives here is about another chat.
+        [.banner, .sound, .list]
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse
+    ) async {
+        guard let chat = response.notification.request.content.userInfo["chat"] as? String else { return }
+        // The same link widgets and the Live Activity use: it opens exactly this chat, never another server's or a
+        // local one, and an unreachable server's chat opens in its own not-connected state.
+        await MainActor.run { _ = UIApplication.shared.open(HermesURL.chat(chat)) }
+    }
+}
