@@ -18,6 +18,8 @@
         /// Why the last check failed, for Settings.
         public private(set) var lastError: String?
         public private(set) var lastCheck: Date?
+        /// The release notes of the build that just started, once, right after an update (row 73). Nil otherwise.
+        public private(set) var whatsNew: AppUpdateFeed?
         /// Debug builds with `-HermesAppUpdateStubOpen YES` record the link here instead of opening Safari.
         public private(set) var openedURL: URL?
 
@@ -44,6 +46,13 @@
                     fetch = { _ in data }
                 }
                 stubs = defaults.bool(forKey: "HermesAppUpdateStubOpen")
+                // UI tests: as if this build was just installed over the one before, with its feed cached.
+                if defaults.bool(forKey: "HermesAppUpdateSeedWhatsNew"), build >= 1 {
+                    record.lastSeenBuild = build - 1
+                    record.cachedFeed = AppUpdateFeed(
+                        version: "UI test", build: build, installURL: URL(string: "https://www.signulous.com")!,
+                        notes: "What's new for the UI test\nSecond line")
+                }
             #endif
             stubsOpening = stubs
             checker = AppUpdateChecker(
@@ -53,6 +62,13 @@
             lastCheck = record.lastCheck
             // A relaunch within 24 h skips the fetch, so offer the last good feed again (Later still applies).
             available = checker.cachedOffer()
+            // At most once per build: the running build is stored either way.
+            whatsNew = checker.whatsNewOnLaunch()
+        }
+
+        /// Done on the What's new sheet.
+        public func dismissWhatsNew() {
+            whatsNew = nil
         }
 
         #if DEBUG
@@ -135,6 +151,14 @@
             }
             .animation(.snappy, value: model.available)
             .task { await model.checkIfDue() }
+            // Shown from the Chats list only, like the banner, so never over a chat that is replying.
+            .sheet(
+                isPresented: Binding(get: { model.whatsNew != nil }, set: { if !$0 { model.dismissWhatsNew() } })
+            ) {
+                if let feed = model.whatsNew {
+                    WhatsNewSheet(feed: feed) { model.dismissWhatsNew() }
+                }
+            }
         }
 
         private func content(_ feed: AppUpdateFeed) -> some View {
@@ -239,6 +263,36 @@
 
         private var lastChecked: String {
             model.lastCheck?.formatted(date: .abbreviated, time: .shortened) ?? "Never"
+        }
+    }
+
+    /// "What's new in simplyHermes {version}": the feed's notes as plain text. They come from the network, so no
+    /// links or Markdown actions (proposals rev 2 §A).
+    struct WhatsNewSheet: View {
+        let feed: AppUpdateFeed
+        let onDone: () -> Void
+        @Environment(\.hermesPalette) private var palette
+
+        var body: some View {
+            NavigationStack {
+                ScrollView {
+                    Text(verbatim: feed.notes.trimmingCharacters(in: .whitespacesAndNewlines))
+                        .font(HermesFont.body)
+                        .foregroundStyle(palette.primaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                        .accessibilityIdentifier("whatsNew.notes")
+                }
+                .navigationTitle("What's new in simplyHermes \(feed.version)")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done", action: onDone)
+                            .accessibilityIdentifier("whatsNew.done")
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
         }
     }
 #endif

@@ -67,6 +67,26 @@ final class AppUpdateUITests: XCTestCase {
         XCTAssertFalse(element(app, "settings.appUpdateError").exists, "A good feed shows no error")
     }
 
+    /// Row 73: right after an update, What's new shows the build's notes once; the next launch doesn't show it.
+    @MainActor
+    func testWhatsNewShowsOnceAfterAnUpdate() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-HermesOnboarding", "skip", "-HermesLayout", "compact"]
+        app.launchArguments += ["-HermesAppUpdateReset", "YES", "-HermesAppUpdateSeedWhatsNew", "YES"]
+        app.launch()
+        let notes = element(app, "whatsNew.notes")
+        XCTAssertTrue(notes.waitForExistence(timeout: 15), "What's new should open after an update")
+        XCTAssertTrue(notes.label.hasPrefix("What's new for the UI test"), "got: \(notes.label)")
+        element(app, "whatsNew.done").tap()
+        XCTAssertTrue(notes.waitForNonExistence(timeout: 5))
+        app.terminate()
+
+        let again = XCUIApplication()
+        again.launchArguments += ["-HermesOnboarding", "skip", "-HermesLayout", "compact"]
+        again.launch()
+        XCTAssertFalse(element(again, "whatsNew.notes").waitForExistence(timeout: 5), "Only once per build")
+    }
+
     // MARK: Helpers
 
     @MainActor
