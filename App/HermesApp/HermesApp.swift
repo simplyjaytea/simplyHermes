@@ -191,6 +191,7 @@ struct RootView: View {
         .animation(HermesMotion.animation(HermesMotion.gentle, reduceMotion: reduceMotion), value: connections.isEmpty)
         .environment(\.hermesPosture, launch.posture ?? .flat)
         .overlay(alignment: .topLeading) { UITestSeams.readout() }
+        .overlay(alignment: .topLeading) { UITestGatewayToggle.overlay() }
         .task {
             if let layout = launch.layout {
                 model.layoutOverride = layout
