@@ -11,11 +11,18 @@ public struct NewReplyDot: Sendable, Equatable {
     /// Text length of each assistant row seen so far. Nil until the first ``update(items:isFollowing:)``.
     private var lengths: [String: Int]?
     private var announced: Set<String> = []
+    /// The chat being followed. The chat screen is reused when the user switches chats, so a new id starts over.
+    private var chatID: String?
 
     public init() {}
 
-    /// Reads the transcript after a change. Returns the id of a reply to announce, at most once per reply.
-    public mutating func update(items: [TranscriptItem], isFollowing: Bool) -> String? {
+    /// Reads the transcript of `chatID` after a change. Returns the id of a reply to announce, at most once per
+    /// reply. The first call for a chat, including after a switch to another chat, only records what is there.
+    public mutating func update(chatID: String, items: [TranscriptItem], isFollowing: Bool) -> String? {
+        if chatID != self.chatID {
+            self = NewReplyDot()
+            self.chatID = chatID
+        }
         var current: [String: Int] = [:]
         var grown: [String] = []
         for item in items {

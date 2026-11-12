@@ -240,12 +240,15 @@
             }
             .onChange(of: followKey) {
                 if isFollowing { position.scrollTo(edge: .bottom) }
-                if replyDot.update(items: chat.state.items, isFollowing: isFollowing) != nil {
+                if replyDot.update(chatID: sessionID, items: chat.state.items, isFollowing: isFollowing) != nil {
                     AccessibilityNotification.Announcement("New reply").post()
                 }
             }
-            // What is already in the chat when it opens is not new.
-            .onAppear { _ = replyDot.update(items: chat.state.items, isFollowing: true) }
+            // What is already in the chat when it opens is not new. The screen is reused across chats, so this also
+            // runs on a switch; the dot itself starts over for a new chat id (review m1).
+            .onChange(of: sessionID, initial: true) {
+                _ = replyDot.update(chatID: sessionID, items: chat.state.items, isFollowing: true)
+            }
             .onChange(of: isFollowing) { _, following in
                 if following { replyDot.reachedBottom() }
             }

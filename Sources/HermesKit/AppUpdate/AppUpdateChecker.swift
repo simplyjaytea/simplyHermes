@@ -343,13 +343,19 @@ public struct AppUpdateChecker: Sendable {
             .map(AppUpdateResult.available) ?? .upToDate
     }
 
-    /// What's new for this launch, at most once per build: the running build is stored either way, so the sheet never
-    /// comes back for it.
-    public func whatsNewOnLaunch() -> AppUpdateFeed? {
+    /// What's new for this launch, or nil. With nothing to show (a fresh install, the same build, no notes) the running
+    /// build is stored at once. With notes to show it is not: ``markWhatsNewSeen()`` stores it when the sheet is
+    /// dismissed, so notes the app couldn't show (another layout, another sheet up) come back at the next launch.
+    public func pendingWhatsNew() -> AppUpdateFeed? {
         let feed = AppUpdateRules.whatsNew(
             installed: installedBuild, lastSeen: record.lastSeenBuild, cached: record.cachedFeed)
-        record.lastSeenBuild = installedBuild
+        if feed == nil { record.lastSeenBuild = installedBuild }
         return feed
+    }
+
+    /// The user saw What's new for this build (Done on the sheet). It doesn't come back for it.
+    public func markWhatsNewSeen() {
+        record.lastSeenBuild = installedBuild
     }
 
     /// Later: this build is not offered again, a higher one is.

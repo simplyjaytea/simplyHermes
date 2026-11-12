@@ -62,12 +62,14 @@
             lastCheck = record.lastCheck
             // A relaunch within 24 h skips the fetch, so offer the last good feed again (Later still applies).
             available = checker.cachedOffer()
-            // At most once per build: the running build is stored either way.
-            whatsNew = checker.whatsNewOnLaunch()
+            // Marked seen when the sheet is dismissed, so notes that couldn't show come back next launch (review m2).
+            whatsNew = checker.pendingWhatsNew()
         }
 
         /// Done on the What's new sheet.
         public func dismissWhatsNew() {
+            guard whatsNew != nil else { return }
+            checker.markWhatsNewSeen()
             whatsNew = nil
         }
 
