@@ -17,6 +17,8 @@
         @State private var currentMatch: String?
         @State private var voice: VoiceInputModel?
         @State private var announcedReplyID: String?
+        /// The new-reply dot on the scroll-to-latest button (row 74).
+        @State private var replyDot = NewReplyDot()
         @FocusState private var findFocused: Bool
         @Environment(\.scenePhase) private var scenePhase
         @State private var showsWorkspaces = false
@@ -245,6 +247,14 @@
             }
             .onChange(of: followKey) {
                 if isFollowing { position.scrollTo(edge: .bottom) }
+                if replyDot.update(items: chat.state.items, isFollowing: isFollowing) != nil {
+                    AccessibilityNotification.Announcement("New reply").post()
+                }
+            }
+            // What is already in the chat when it opens is not new.
+            .onAppear { _ = replyDot.update(items: chat.state.items, isFollowing: true) }
+            .onChange(of: isFollowing) { _, following in
+                if following { replyDot.reachedBottom() }
             }
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .top) {
@@ -272,9 +282,17 @@
                 }
                 .buttonStyle(.plain)
                 .glassEffect(.regular, in: Circle())
+                .overlay(alignment: .topTrailing) {
+                    if replyDot.isShowing {
+                        Circle()
+                            .fill(palette.accent)
+                            .frame(width: 10, height: 10)
+                            .accessibilityIdentifier("chat.newReplyDot")
+                    }
+                }
                 .padding(12)
                 .accessibilityIdentifier("chat.scrollToBottom")
-                .accessibilityLabel(Text("Scroll to latest"))
+                .accessibilityLabel(Text(replyDot.isShowing ? "Scroll to latest, new reply" : "Scroll to latest"))
                 .transition(.scale.combined(with: .opacity))
             }
         }
