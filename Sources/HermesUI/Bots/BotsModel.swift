@@ -120,7 +120,10 @@
                 let client = BotClient(gateway: try await manager.client(for: connection))
                 let created = try await client.createAgent(draft, existingProfiles: activeProfileNames)
                 await reload()
-                if !created.lookSaved {
+                if !created.settingsSaved {
+                    errorMessage =
+                        "\(created.profile) was created, but its skills, tools or servers did not save. Edit it from its menu."
+                } else if !created.lookSaved {
                     errorMessage =
                         "\(created.profile) was created, but its title or avatar did not save. Edit it from its menu."
                 }
