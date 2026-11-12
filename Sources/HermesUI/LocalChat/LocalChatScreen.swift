@@ -26,7 +26,12 @@
                         .padding(.horizontal)
                         .accessibilityIdentifier("local.failure")
                 }
-                if let remembered { rememberedBar(remembered) }
+                if let proposal = model.snapshot.memoryProposal { proposalCard(proposal) }
+                if let saved = model.snapshot.memoryChange {
+                    rememberedBar(saved, undo: { model.undoMemoryChange() }, dismiss: { model.dismissMemoryChange() })
+                } else if let remembered {
+                    rememberedBar(remembered, undo: { undoRemembered(remembered) }, dismiss: { self.remembered = nil })
+                }
                 Composer(text: $draft) { submit() }
                     .background(palette.background)
             }
@@ -152,20 +157,50 @@
             }
         }
 
-        /// "Saved to memory" with Undo, for 5 s, like the memory list's.
-        private func rememberedBar(_ change: LocalMemoryChange) -> some View {
+        private func undoRemembered(_ change: LocalMemoryChange) {
+            remembered = nil
+            if let memory = LocalChatServices.shared?.memory {
+                Task { try? await change.undo(in: memory) }
+            }
+        }
+
+        /// "Save this to memory?": the model wants to save something after reading a file, so the user decides.
+        private func proposalCard(_ text: String) -> some View {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Save this to memory?")
+                    .font(HermesFont.footnote.weight(.semibold))
+                    .foregroundStyle(palette.primaryText)
+                Text(text)
+                    .font(HermesFont.footnote)
+                    .foregroundStyle(palette.primaryText)
+                HStack(spacing: 8) {
+                    Button("Save") { model.answerMemoryProposal(save: true) }
+                        .buttonStyle(HermesButtonStyle(.primary, fillsWidth: false))
+                        .accessibilityIdentifier("memory.proposal.save")
+                    Button("Don't save") { model.answerMemoryProposal(save: false) }
+                        .buttonStyle(HermesButtonStyle(.tinted, fillsWidth: false))
+                        .accessibilityIdentifier("memory.proposal.decline")
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(.horizontal)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("memory.proposal")
+        }
+
+        /// "Saved to memory" with Undo, for 5 s, like the memory list's. Also for a memory the model saved itself.
+        private func rememberedBar(
+            _ change: LocalMemoryChange, undo: @escaping () -> Void, dismiss: @escaping () -> Void
+        ) -> some View {
             HStack {
                 Text(change.summary)
                     .font(HermesFont.footnote)
                     .foregroundStyle(palette.primaryText)
                 Spacer()
-                Button("Undo") {
-                    remembered = nil
-                    if let memory = LocalChatServices.shared?.memory {
-                        Task { try? await change.undo(in: memory) }
-                    }
-                }
-                .accessibilityIdentifier("memory.undo")
+                Button("Undo", action: undo)
+                    .accessibilityIdentifier("memory.undo")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -174,7 +209,7 @@
             .accessibilityIdentifier("memory.remembered")
             .task(id: change) {
                 try? await Task.sleep(for: .seconds(5))
-                if !Task.isCancelled, remembered == change { remembered = nil }
+                if !Task.isCancelled { dismiss() }
             }
         }
 
