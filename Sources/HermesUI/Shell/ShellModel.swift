@@ -402,6 +402,12 @@
             placeholderStripSource?() ?? .noServer
         }
 
+        /// The server name a chat row shows. A New chat that has not started yet reads the active server now, so a switch
+        /// before the first message moves it. Every other chat keeps the server it was made on.
+        public func serverName(of session: ChatSessionSummary) -> String {
+            unstartedChatIDs.contains(session.id) ? placeholderStrip().serverName : session.serverName
+        }
+
         /// Whether `id` is a chat the demo data made. Its strip is part of the sample.
         func isSampleChat(_ id: String) -> Bool {
             #if DEBUG

@@ -280,6 +280,7 @@
                     } label: {
                         SessionRow(
                             session: session,
+                            serverName: model.serverName(of: session),
                             isStreaming: model.isStreaming(session.id),
                             needsApproval: model.needsApproval(session.id)
                         )
@@ -306,6 +307,7 @@
                         ForEach(visibleSessions) { session in
                             SessionRow(
                                 session: session,
+                                serverName: model.serverName(of: session),
                                 isStreaming: model.isStreaming(session.id),
                                 needsApproval: model.needsApproval(session.id)
                             )

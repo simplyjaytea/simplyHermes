@@ -265,4 +265,24 @@ struct NewChatTests {
         #expect(model.session(id: id)?.serverName != "home-server")
         #expect(model.placeholderStrip().connection == .offline)
     }
+
+    @Test func aNewChatRowFollowsAServerSwitchBeforeItsFirstMessage() throws {
+        let model = ShellModel(sessions: [], selectedSessionID: nil)
+        model.startServerChat = { serverChat("stored-1") }
+        var name = "Office Mac"
+        model.placeholderStripSource = { PlaceholderStrip(serverName: name, connection: .online) }
+        model.newChat()
+        let session = try #require(model.session(id: try #require(model.selectedSessionID)))
+        #expect(model.serverName(of: session) == "Office Mac")
+
+        name = "Home Pi"
+        #expect(model.serverName(of: session) == "Home Pi")
+    }
+
+    @Test func aStartedChatKeepsTheServerItWasMadeOn() {
+        let model = ShellModel(sessions: [], selectedSessionID: nil)
+        model.placeholderStripSource = { PlaceholderStrip(serverName: "Home Pi", connection: .online) }
+        let started = ChatSessionSummary(id: "stored-9", title: "Chat", subtitle: "Now", serverName: "Office Mac")
+        #expect(model.serverName(of: started) == "Office Mac")
+    }
 }
