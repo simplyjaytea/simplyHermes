@@ -1,5 +1,6 @@
 import Foundation
 import HermesKit
+import HermesUI
 import SwiftUI
 
 /// The gateway switch for WP-8 AT-1b and AT-3b (`-uiTestGatewayToggle`). It stops and starts network transports, so it
