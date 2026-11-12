@@ -108,7 +108,7 @@
             model.errorMessage = nil
             defer { isCreating = false }
             if let created = await model.createAgent(draft) {
-                if !created.lookSaved {
+                if !created.lookSaved || !created.settingsSaved {
                     lookSaveWarning = true
                     localError =
                         model.errorMessage
