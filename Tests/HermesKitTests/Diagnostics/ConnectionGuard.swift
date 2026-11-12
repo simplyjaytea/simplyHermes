@@ -75,10 +75,10 @@ enum ConnectionGuard {
                     records.removeAll { $0.depth > depth }
                 } else if rest.hasPrefix("NetworkTrap.record(") {
                     records.append((index, depth))
-                } else if let opener = connectionOpeners.first(where: { rest.hasPrefix($0) }),
-                    exemptions["\(path)|\(opener)"] == nil
-                {
-                    if let match = records.lastIndex(where: { index - $0.line <= window }) {
+                } else if let opener = connectionOpeners.first(where: { rest.hasPrefix($0) }) {
+                    if exemptions["\(path)|\(opener)"] != nil {
+                        // An exempt opener in this file: nothing to check.
+                    } else if let match = records.lastIndex(where: { index - $0.line <= window }) {
                         records.remove(at: match)
                     } else {
                         found.append(
