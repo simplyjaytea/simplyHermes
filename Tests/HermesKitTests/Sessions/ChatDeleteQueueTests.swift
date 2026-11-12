@@ -191,8 +191,10 @@ struct ChatDeleteOutboxTests {
         try await cache.outbox.insert(record("b", chat: "c2"))
         let pauses = OutboxPauses()
         let submitter = CountingSubmitter()
-        let paused = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter, pauses: pauses)
-        let other = OutboxDrainer(store: cache.outbox, chatID: "c2", submitter: submitter, pauses: pauses)
+        let paused = OutboxDrainer(
+            store: cache.outbox, chatID: "c1", connectionID: "x", submitter: submitter, pauses: pauses)
+        let other = OutboxDrainer(
+            store: cache.outbox, chatID: "c2", connectionID: "x", submitter: submitter, pauses: pauses)
         pauses.pause("c1", connection: "x")
         try await paused.drain()
         try await other.drain()
@@ -287,7 +289,9 @@ struct ChatDeleteOutboxTests {
         #expect(subject.hiddenIDs == ["s1"], "The row stays hidden; it is not 'back in the list'")
         #expect(pauses.isPaused("s1", connection: "x"), "The pause holds")
         let submitter = CountingSubmitter()
-        try await OutboxDrainer(store: cache.outbox, chatID: "s1", submitter: submitter, pauses: pauses).drain()
+        try await OutboxDrainer(
+            store: cache.outbox, chatID: "s1", connectionID: "x", submitter: submitter, pauses: pauses
+        ).drain()
         #expect(await submitter.delivered.isEmpty, "Nothing is submitted to a deleted chat")
         #expect(tombstones.entries == [entry])
     }
