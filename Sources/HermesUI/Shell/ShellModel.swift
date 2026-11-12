@@ -393,13 +393,38 @@
             return "Could not start a new chat. Try again."
         }
 
+        /// Reads the saved server the New chat will start on, and whether it is connected now. The shell sets it. Without
+        /// one, no server is saved, and a placeholder says so instead of naming a server it does not have.
+        @ObservationIgnored public var placeholderStripSource: (@MainActor () -> PlaceholderStrip)?
+
+        /// The top strip of a New chat: the real server name and connection state (board row 107).
+        public func placeholderStrip() -> PlaceholderStrip {
+            placeholderStripSource?() ?? .noServer
+        }
+
+        /// The server name a chat row shows. A New chat that has not started yet reads the active server now, so a switch
+        /// before the first message moves it. Every other chat keeps the server it was made on.
+        public func serverName(of session: ChatSessionSummary) -> String {
+            unstartedChatIDs.contains(session.id) ? placeholderStrip().serverName : session.serverName
+        }
+
+        /// Whether `id` is a chat the demo data made. Its strip is part of the sample.
+        func isSampleChat(_ id: String) -> Bool {
+            #if DEBUG
+                Self.sampleSessions.contains { $0.id == id }
+            #else
+                false
+            #endif
+        }
+
         /// Adds an empty chat at the top of the list and opens it. Ids count up: a count of chats can repeat after a
         /// list sync and reuse an id that is still open.
         private func addPlaceholderChat() -> String {
             placeholderCount += 1
             let id = "new-\(placeholderCount)"
             sessions.insert(
-                ChatSessionSummary(id: id, title: "New chat", subtitle: "Now", serverName: "home-server"), at: 0)
+                ChatSessionSummary(
+                    id: id, title: "New chat", subtitle: "Now", serverName: placeholderStrip().serverName), at: 0)
             transcripts[id] = []
             open(id)
             return id
