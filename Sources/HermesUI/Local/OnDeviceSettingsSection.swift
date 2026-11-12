@@ -17,6 +17,11 @@
                     OnDeviceModelsScreen(isEnabled: $enabled)
                 }
                 .accessibilityIdentifier("settings.onDeviceModels")
+                // Memory for local chats (local agent abilities, phase 1). Off until the app installs local chats.
+                if let memory = LocalChatServices.shared?.memory {
+                    NavigationLink("Memory") { LocalMemoryScreen(store: memory) }
+                        .accessibilityIdentifier("settings.localMemory")
+                }
             } header: {
                 Text("On-device")
             } footer: {
