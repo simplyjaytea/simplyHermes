@@ -187,6 +187,13 @@ public actor ConnectionManager {
         apply(.disconnectRequested, to: id)
     }
 
+    /// Tells every live client to stop waiting out its backoff and reconnect now (WP-12): the app came back to the
+    /// foreground, or the network path came back. A client that is connected, connecting or stopped ignores it.
+    public func reconnectAllNow() async {
+        let clients = live.values.compactMap(\.client)
+        for client in clients { await client.reconnectNow() }
+    }
+
     /// Disconnects and forgets a connection (deleted, or edited so it must start over).
     public func remove(_ id: UUID) {
         apply(.disconnectRequested, to: id)
