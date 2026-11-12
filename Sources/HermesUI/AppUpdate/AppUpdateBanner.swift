@@ -91,8 +91,8 @@
             switch result {
             case .available(let feed): available = feed
             case .upToDate: available = nil
-            case .skipped: available = checker.cachedOffer()
-            case .failed: break
+            // A failed check offers what is still cached: offline keeps the banner, a withdrawn feed clears it.
+            case .skipped, .failed: available = checker.cachedOffer()
             }
         }
 
