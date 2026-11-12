@@ -26,6 +26,13 @@ public protocol LocalModelExecutor: Sendable {
     var availability: LocalModelAvailability { get }
     /// Answers `prompt` guided by `instructions`.
     func respond(instructions: String, prompt: String) async throws -> String
+    /// Loads the model's weights now, so the first answer does not pay for it and a load failure shows before a message
+    /// is sent (WP-9). A model with nothing to load keeps the default, which does nothing.
+    func load() async throws
+}
+
+extension LocalModelExecutor {
+    public func load() async throws {}
 }
 
 /// Small jobs for the on-device model: chat titles, summaries and prompt polish. Each one returns nil when the model

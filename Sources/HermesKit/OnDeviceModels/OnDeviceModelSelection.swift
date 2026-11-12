@@ -112,6 +112,12 @@ public final class OnDeviceModelSelection: LocalModelExecutor, LocalChatAnswerer
     private var savedChoice: OnDeviceModelChoice
     private var suspendedByMemory = false
     private var downloadedExecutors: [String: any LocalModelExecutor] = [:]
+    /// Models whose weights were loaded by ``prepare()`` and not unloaded since.
+    private var prepared: Set<String> = []
+    /// Models ``prepare()`` is loading now.
+    private var loading: Set<String> = []
+    /// The free memory a refusal reported, for the reason shown when the model was refused (WP-9).
+    private var lastAvailableBytes: Int64?
 
     /// `runtime` is nil where nothing can run a downloaded model: then the Apple model always answers.
     public init(
@@ -170,6 +176,7 @@ public final class OnDeviceModelSelection: LocalModelExecutor, LocalChatAnswerer
     public func handleMemoryWarning() async {
         lock.withLock {
             if case .downloaded = savedChoice { suspendedByMemory = true }
+            prepared = []
         }
         await runtime?.unloadAll()
     }
@@ -179,6 +186,7 @@ public final class OnDeviceModelSelection: LocalModelExecutor, LocalChatAnswerer
     public func modelWillBeDeleted(_ id: String) async {
         let wasInUse = lock.withLock { () -> Bool in
             downloadedExecutors[id] = nil
+            prepared.remove(id)
             return savedChoice == .downloaded(id)
         }
         if wasInUse { setChoice(.noModel) }
@@ -196,7 +204,8 @@ public final class OnDeviceModelSelection: LocalModelExecutor, LocalChatAnswerer
         let (route, executor) = resolve()
         do {
             return try await executor.respond(instructions: instructions, prompt: prompt)
-        } catch OnDeviceModelError.notEnoughMemory where route != .apple {
+        } catch OnDeviceModelError.notEnoughMemory(_, let available) where route != .apple {
+            lock.withLock { lastAvailableBytes = available }
             await handleMemoryWarning()
             return try await apple.respond(instructions: instructions, prompt: prompt)
         }
@@ -211,11 +220,88 @@ public final class OnDeviceModelSelection: LocalModelExecutor, LocalChatAnswerer
             // The no-model executor throws above. This guard keeps a reply from ever being attributed to no model.
             guard let identity = Self.identity(of: route) else { throw OnDeviceModelError.noModelChosen }
             return LocalAnswer(text: text, answeredBy: identity)
-        } catch OnDeviceModelError.notEnoughMemory where route != .apple {
+        } catch OnDeviceModelError.notEnoughMemory(_, let available) where route != .apple {
+            lock.withLock { lastAvailableBytes = available }
             await handleMemoryWarning()
             let text = try await apple.respond(instructions: instructions, prompt: prompt)
             return LocalAnswer(text: text, answeredBy: .apple)
         }
+    }
+
+    // MARK: Status (WP-9)
+
+    /// Why the model the user chose is not the one answering, when the Apple model answers in its place. Nil when nothing
+    /// was substituted. The reasons are the ones a pill can show: no runtime, not enough memory, files not on the phone.
+    public var substitution: LocalModelFailure? {
+        let (choice, suspended, available) = lock.withLock { (savedChoice, suspendedByMemory, lastAvailableBytes) }
+        guard case .downloaded(let id) = choice else { return nil }
+        guard let model = catalog.model(id: id), storage.isDownloaded(model) else {
+            return .loadError("The model's files are not on this iPhone.")
+        }
+        if suspended {
+            return .notEnoughMemory(needed: model.estimatedMemoryBytes, available: available ?? 0)
+        }
+        guard let runtime else { return .runtimeUnavailable }
+        if storage.isAwaitingCheck(model) { return nil }
+        let known = lock.withLock { downloadedExecutors[id] != nil }
+        if !known, runtime.executor(for: model, folder: storage.folder(for: model)) == nil {
+            return .runtimeUnavailable
+        }
+        return nil
+    }
+
+    /// What the pill reads for the on-device model: which model will answer, and why another cannot (WP-9). It never
+    /// names the Apple model as ready when the user chose another one and that one cannot run: it says why.
+    public var status: LocalModelStatus {
+        guard isEnabled() else { return .off }
+        let choice = lock.withLock { savedChoice }
+        switch choice {
+        case .noModel:
+            return .noModel
+        case .apple:
+            return Self.status(of: apple.availability)
+        case .downloaded(let id):
+            guard let model = catalog.model(id: id) else { return .noModel }
+            let identity = ModelIdentity.downloaded(id: model.id, displayName: model.displayName)
+            if storage.isAwaitingCheck(model) { return .verifying }
+            if let reason = substitution { return .failed(identity, reason: reason) }
+            let (isLoading, isPrepared) = lock.withLock { (loading.contains(id), prepared.contains(id)) }
+            if isLoading { return .loading(model) }
+            return isPrepared ? .ready(answeredBy: identity) : .notLoaded(model)
+        }
+    }
+
+    private static func status(of availability: LocalModelAvailability) -> LocalModelStatus {
+        switch availability {
+        case .available: .ready(answeredBy: .apple)
+        case .unavailable(.switchedOff): .off
+        case .unavailable: .noModel
+        }
+    }
+
+    /// Loads the chosen model now and returns the status after: ready, or why it cannot answer (WP-9). The Apple model
+    /// has nothing to load. A failure is a status, not a thrown error, and it never falls back to another model.
+    @discardableResult
+    public func prepare() async -> LocalModelStatus {
+        guard isEnabled(), case .downloaded(let id) = lock.withLock({ savedChoice }), let model = catalog.model(id: id)
+        else { return status }
+        guard substitution == nil, !storage.isAwaitingCheck(model) else { return status }
+        let identity = ModelIdentity.downloaded(id: model.id, displayName: model.displayName)
+        let (_, executor) = resolve()
+        lock.withLock { _ = loading.insert(id) }
+        var failure: LocalModelStatus?
+        do {
+            try await executor.load()
+            lock.withLock { _ = prepared.insert(id) }
+        } catch OnDeviceModelError.notEnoughMemory(let needed, let available) {
+            lock.withLock { lastAvailableBytes = available }
+            failure = .failed(identity, reason: .notEnoughMemory(needed: needed, available: available))
+        } catch {
+            failure = .failed(identity, reason: .loadError("\(error)"))
+        }
+        // Loading ends before the status is read, so the answer is ready or failed, never still loading.
+        lock.withLock { _ = loading.remove(id) }
+        return failure ?? status
     }
 
     /// The model that names a reply on `route`. Nil for the no-model route: nothing answers there, so no reply may be
@@ -237,6 +323,7 @@ public final class OnDeviceModelSelection: LocalModelExecutor, LocalChatAnswerer
             let previous = savedChoice
             savedChoice = choice
             suspendedByMemory = false
+            if previous != choice { prepared = [] }
             return previous != choice
         }
         storage.saveChoice(choice)
