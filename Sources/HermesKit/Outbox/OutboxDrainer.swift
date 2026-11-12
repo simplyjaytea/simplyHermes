@@ -82,9 +82,18 @@ public actor OutboxDrainer {
         }
         isDraining = true
         defer { isDraining = false }
+        var isFirstPass = true
         repeat {
             drainRequested = false
-            try await sendPending()
+            if isFirstPass {
+                try await sendPending()
+            } else {
+                // A later pass was asked for by another caller, such as a rebuilt chat model after this caller's
+                // model detached and cancelled it. It must not inherit this caller's cancellation, or the next waiting
+                // message would sit until some later trigger. An unstructured task doesn't (Dinesh's #133 review, M1).
+                try await Task { try await self.sendPending() }.value
+            }
+            isFirstPass = false
         } while drainRequested
     }
 

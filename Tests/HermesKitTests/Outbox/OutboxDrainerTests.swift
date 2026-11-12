@@ -382,6 +382,26 @@ extension OutboxDrainerTests {
         #expect(states.sorted() == ["server-A:sending", "server-B:pending"], "A's message may still be in flight on A")
     }
 
+    /// Dinesh's #133 review, M1: the old model's drain is cancelled while `a` is in flight, and the rebuilt model asks
+    /// for a drain. Its request folds into the cancelled pass, which must still send `b`.
+    @Test func aDrainAskedForDuringACancelledPassStillSendsTheNextMessage() async throws {
+        let cache = try HermesCache()
+        for text in ["a", "b"] { try await cache.outbox.insert(record(text)) }
+        let submitter = ScriptedSubmitter()
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", connectionID: "x", submitter: submitter)
+        await submitter.block(true)
+        let oldModel = Task { try await drainer.drain() }
+        while await submitter.delivered.isEmpty { try await Task.sleep(for: .milliseconds(2)) }
+
+        oldModel.cancel()
+        try await drainer.drain()
+        await submitter.block(false)
+        try await oldModel.value
+
+        #expect(await submitter.delivered == ["a", "b"])
+        #expect(try await states(cache) == ["a:sent", "b:sent"])
+    }
+
     @Test func theSameChatIdOnTwoServersGetsTwoDrainers() throws {
         let drainers = OutboxDrainers()
         let store = try HermesCache().outbox
