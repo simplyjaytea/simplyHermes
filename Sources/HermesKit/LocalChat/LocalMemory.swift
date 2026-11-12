@@ -51,6 +51,15 @@ public enum LocalMemoryRules {
         return trimmed
     }
 
+    /// What "Remember this" saves from a chat message: the message, trimmed, cut to ``itemLimit`` with "…" when it is
+    /// longer. Nil for a blank message.
+    public static func excerpt(of message: String) -> String? {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard trimmed.count > itemLimit else { return trimmed }
+        return String(trimmed.prefix(itemLimit - 1)).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+    }
+
     /// The memories that fit in `budget`: pinned first, then newest first. A memory that does not fit is skipped, and
     /// a shorter later one may still fit. Returned in that order.
     public static func selection(_ memories: [LocalMemory], budget: Int = promptBudget) -> [LocalMemory] {

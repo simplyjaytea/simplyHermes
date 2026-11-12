@@ -7,6 +7,8 @@
     public struct LocalChatScreen: View {
         @Bindable var model: LocalChatModel
         @State private var draft = ""
+        /// The last "Remember this", for its Undo bar.
+        @State private var remembered: LocalMemoryChange?
         @Environment(\.hermesPalette) private var palette
 
         public init(model: LocalChatModel) {
@@ -24,6 +26,7 @@
                         .padding(.horizontal)
                         .accessibilityIdentifier("local.failure")
                 }
+                if let remembered { rememberedBar(remembered) }
                 Composer(text: $draft) { submit() }
                     .background(palette.background)
             }
@@ -116,7 +119,7 @@
                     Text(message.text)
                         .padding(12)
                         .background(palette.outgoingBubble, in: RoundedRectangle(cornerRadius: 16))
-                        .messageActions(text: message.text, onQuote: quote)
+                        .messageActions(text: message.text, onQuote: quote) { rememberButton(message.text) }
                         .accessibilityIdentifier("local.message.user")
                 }
             case .assistant(let identity, _):
@@ -124,13 +127,54 @@
                     Text(message.text)
                         .padding(12)
                         .background(palette.incomingBubble, in: RoundedRectangle(cornerRadius: 16))
-                        .messageActions(text: message.text, onQuote: quote)
+                        .messageActions(text: message.text, onQuote: quote) { rememberButton(message.text) }
                     Label(Self.answeredBy(identity), systemImage: "iphone")
                         .font(HermesFont.caption)
                         .foregroundStyle(palette.secondaryText)
                         .accessibilityIdentifier("local.message.model")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+
+        /// "Remember this": saves the message to on-device memory (local chats only, never sent to a server).
+        @ViewBuilder
+        private func rememberButton(_ text: String) -> some View {
+            if let memory = LocalChatServices.shared?.memory, let excerpt = LocalMemoryRules.excerpt(of: text) {
+                Button("Remember this", systemImage: "brain") {
+                    Task {
+                        if let saved = try? await memory.save(excerpt, source: .user, at: Date()) {
+                            remembered = .saved(saved)
+                        }
+                    }
+                }
+                .accessibilityIdentifier("message.action.remember")
+            }
+        }
+
+        /// "Saved to memory" with Undo, for 5 s, like the memory list's.
+        private func rememberedBar(_ change: LocalMemoryChange) -> some View {
+            HStack {
+                Text(change.summary)
+                    .font(HermesFont.footnote)
+                    .foregroundStyle(palette.primaryText)
+                Spacer()
+                Button("Undo") {
+                    remembered = nil
+                    if let memory = LocalChatServices.shared?.memory {
+                        Task { try? await change.undo(in: memory) }
+                    }
+                }
+                .accessibilityIdentifier("memory.undo")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .glassEffect(.regular, in: Capsule())
+            .padding(.horizontal)
+            .accessibilityIdentifier("memory.remembered")
+            .task(id: change) {
+                try? await Task.sleep(for: .seconds(5))
+                if !Task.isCancelled, remembered == change { remembered = nil }
             }
         }
 

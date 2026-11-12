@@ -83,6 +83,45 @@ final class MessageActionsUITests: XCTestCase {
         XCTAssertEqual(replies.count, counts.1)
     }
 
+    /// Memory phase 1: "Remember this" on a local chat's message saves it with Undo, and Settings › On-device › Memory
+    /// lists it. Nothing is sent and no reply is asked for.
+    @MainActor
+    func testRememberThisSavesALocalMessageToMemory() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-HermesOnboarding", "skip", "-HermesLayout", "compact", "-chatModeDefault", "local",
+            "-uiTestLocalExecutor=Test-Model-X",
+        ]
+        app.launch()
+        let newChat = app.buttons.matching(identifier: "shell.newChat").firstMatch
+        XCTAssertTrue(newChat.waitForExistence(timeout: 15))
+        newChat.tap()
+        let field = app.descendants(matching: .any).matching(identifier: "composer.field").firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        field.typeText("I grow tomatoes on the balcony")
+        app.descendants(matching: .any).matching(identifier: "composer.send").firstMatch.tap()
+        let question = app.descendants(matching: .any).matching(identifier: "local.message.user").firstMatch
+        XCTAssertTrue(question.waitForExistence(timeout: 20))
+
+        openMenu(on: question)
+        XCTAssertTrue(app.buttons["Remember this"].waitForExistence(timeout: 5))
+        app.buttons["Remember this"].tap()
+        let saved = app.descendants(matching: .any)["memory.remembered"]
+        XCTAssertTrue(saved.waitForExistence(timeout: 5), "Saved to memory, with Undo")
+
+        let settings = app.buttons.matching(NSPredicate(format: "label == %@", "Settings")).allElementsBoundByIndex
+            .first(where: \.isHittable)
+        XCTAssertNotNil(settings, "a tappable Settings button")
+        settings?.tap()
+        let memoryLink = app.descendants(matching: .any)["settings.localMemory"]
+        for _ in 0..<4 where !memoryLink.exists { app.swipeUp() }
+        XCTAssertTrue(memoryLink.waitForExistence(timeout: 5), "Settings › On-device lists Memory")
+        memoryLink.tap()
+        XCTAssertTrue(
+            app.staticTexts["I grow tomatoes on the balcony"].waitForExistence(timeout: 5), "The memory is listed")
+    }
+
     // MARK: Helpers
 
     @MainActor
