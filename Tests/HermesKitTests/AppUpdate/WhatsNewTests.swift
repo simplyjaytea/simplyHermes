@@ -40,13 +40,16 @@ struct WhatsNewTests {
     @Test func theSheetShowsOncePerBuildAndAFreshInstallIsStoredSilently() {
         let (record, _) = record()
         let fresh = AppUpdateChecker(installedBuild: 2, record: record, fetch: { _ in Data() })
-        #expect(fresh.whatsNewOnLaunch() == nil)
-        #expect(record.lastSeenBuild == 2)
+        #expect(fresh.pendingWhatsNew() == nil)
+        #expect(record.lastSeenBuild == 2, "a fresh install is stored silently")
 
         record.cachedFeed = feed(build: 3)
         let updated = AppUpdateChecker(installedBuild: 3, record: record, fetch: { _ in Data() })
-        #expect(updated.whatsNewOnLaunch()?.version == "0.1.0-alpha.3")
-        #expect(updated.whatsNewOnLaunch() == nil, "not again on the next launch")
+        #expect(updated.pendingWhatsNew()?.version == "0.1.0-alpha.3")
+        // Review m2: not shown yet (another sheet was up), so it comes back at the next launch.
+        #expect(updated.pendingWhatsNew()?.version == "0.1.0-alpha.3")
+        updated.markWhatsNewSeen()
+        #expect(updated.pendingWhatsNew() == nil, "after Done, not again")
         #expect(record.lastSeenBuild == 3)
     }
 
