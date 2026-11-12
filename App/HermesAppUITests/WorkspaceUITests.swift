@@ -16,7 +16,7 @@ final class WorkspaceUITests: XCTestCase {
         app.launchArguments += ["-HermesOnboarding", "fresh", "-HermesLayout", "compact"]
         app.launch()
 
-        try addTestbedGateway(app, url: url)
+        testbedSignIn(app, url: url)
 
         let session = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH 'session.'"))
@@ -37,37 +37,8 @@ final class WorkspaceUITests: XCTestCase {
         XCTAssertTrue(element(app, "chat.workspace").waitForExistence(timeout: 5))
     }
 
-    /// Same steps as the WP-22 connection test: the welcome screen, the testbed URL, the basic login, then Save.
-    @MainActor
-    private func addTestbedGateway(_ app: XCUIApplication, url: String) throws {
-        let addGateway = element(app, "welcome.addGateway")
-        XCTAssertTrue(addGateway.waitForExistence(timeout: 10))
-        addGateway.tap()
-
-        let field = element(app, "connection.url")
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
-        field.tap()
-        field.typeText(url)
-
-        let username = element(app, "connection.username")
-        XCTAssertTrue(username.waitForExistence(timeout: 10), "Password sign-in should be picked from the probe")
-        username.tap()
-        username.typeText("tester")
-        let password = element(app, "connection.password")
-        password.tap()
-        password.typeText("testbed-password")
-
-        let test = element(app, "connection.test")
-        if !test.isHittable { app.swipeUp() }
-        test.tap()
-        XCTAssertTrue(element(app, "connection.testPassed").waitForExistence(timeout: 30))
-
-        element(app, "connection.save").tap()
-        XCTAssertTrue(element(app, "welcome.addGateway").waitForNonExistence(timeout: 10))
-    }
-
     @MainActor
     private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
-        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+        testbedElement(app, identifier)
     }
 }
