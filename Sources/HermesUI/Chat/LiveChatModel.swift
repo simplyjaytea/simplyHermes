@@ -164,6 +164,9 @@
         /// chat's life: a reattach points it at the new controller. A second drainer would not know about a message in
         /// flight and would send it again.
         @ObservationIgnored var drainer: OutboxDrainer?
+        /// The server this chat's waiting messages belong to. Fixed for the model's life: a server switch builds a new
+        /// model. The outbox keys messages by server and chat, since two servers can share a chat id.
+        var outboxConnectionID: String { serverID?.uuidString ?? "" }
         /// True while ``retryConnection()`` runs, so a second tap does nothing.
         @ObservationIgnored private var retrying = false
         /// Set while the composer's send is saving. A second send starts only after it ends (review M5).
@@ -256,8 +259,10 @@
                 self.controller = controller
                 phase = .ready
                 let refresh: @Sendable () async -> Void = { @MainActor [weak self] in await self?.refreshOutbox() }
-                let (drainer, isNew) = drainers.drainer(forChat: storedSessionID) {
-                    OutboxDrainer(store: outbox, chatID: storedSessionID, submitter: controller, onChange: refresh)
+                let (drainer, isNew) = drainers.drainer(forChat: storedSessionID, connection: outboxConnectionID) {
+                    OutboxDrainer(
+                        store: outbox, chatID: storedSessionID, connectionID: outboxConnectionID, submitter: controller,
+                        onChange: refresh)
                 }
                 self.drainer = drainer
                 do {

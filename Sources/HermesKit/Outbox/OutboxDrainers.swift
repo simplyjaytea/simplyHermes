@@ -1,6 +1,6 @@
 import Foundation
 
-/// One ``OutboxDrainer`` per chat for the whole process, however many chat models come and go.
+/// One ``OutboxDrainer`` per chat and server for the whole process, however many chat models come and go.
 ///
 /// A chat model is rebuilt when the user switches servers and back, or opens the chat in a second window. A rebuilt
 /// model with a drainer of its own would run ``OutboxDrainer/recoverInterrupted()`` on its first attach and move a
@@ -13,14 +13,16 @@ public final class OutboxDrainers: @unchecked Sendable {
 
     public init() {}
 
-    /// The chat's drainer, made by `make` the first time this chat asks. `isNew` is true only for that first call.
+    /// The drainer of chat `chatID` on server `connectionID`, made by `make` the first time it is asked for. `isNew` is
+    /// true only for that first call. A chat with the same id on another server gets a drainer of its own.
     public func drainer(
-        forChat chatID: String, make: () -> OutboxDrainer
+        forChat chatID: String, connection connectionID: String, make: () -> OutboxDrainer
     ) -> (drainer: OutboxDrainer, isNew: Bool) {
-        lock.withLock {
-            if let existing = drainers[chatID] { return (existing, false) }
+        let key = "\(connectionID)\u{1F}\(chatID)"
+        return lock.withLock {
+            if let existing = drainers[key] { return (existing, false) }
             let drainer = make()
-            drainers[chatID] = drainer
+            drainers[key] = drainer
             return (drainer, true)
         }
     }
