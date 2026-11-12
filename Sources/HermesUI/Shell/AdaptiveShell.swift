@@ -26,6 +26,12 @@
         @State private var terminals = TerminalModel()
         @State private var columnVisibility: NavigationSplitViewVisibility = .all
         @State private var botSettingsEntryForChat: BotRosterEntry?
+        /// Search on the chat list shown when no server is active (#116 follow-up).
+        @State private var localChatSearch = ""
+        @State private var isLocalChatSearchPresented = false
+        /// The last ``ShellModel/chatSearchRequest`` this shell answered. A request made before the shell appeared,
+        /// as on a cold launch from the home-screen Search chats action, is newer than this and is answered on appear.
+        @State private var answeredChatSearchRequest = 0
 
         /// `connections` fills Settings > Servers and the server switcher (WP-22). Nil shows placeholders.
         /// `sessionsList` lists the active server's chats (WP-40). Nil keeps the sample chats.
@@ -82,7 +88,8 @@
                         await rooms?.reload()
                     }
                     .onChange(of: connections?.active?.id) { _, _ in model.forgetServerChats() }
-                    .onChange(of: model.chatSearchRequest) { _, _ in sessionsList?.isSearchPresented = true }
+                    // `.task(id:)` also runs on appear, so a request from before the shell existed isn't lost.
+                    .task(id: model.chatSearchRequest) { presentChatSearchIfRequested() }
                     .task(id: model.pendingSessionReference) { await openPendingSession() }
                     // Leaving the foreground cancels every pending delete: nothing is deleted the user can't see undone.
                     .onChange(of: scenePhase) { _, phase in
@@ -114,6 +121,18 @@
             }
             if let notice = await sessionsList.open(reference, in: model, profiles: profiles) {
                 model.sessionNotice = notice
+            }
+        }
+
+        /// Opens the search field of whichever chat list is showing: the server's, or the local one when no server is
+        /// active. Each request is answered once.
+        private func presentChatSearchIfRequested() {
+            guard model.chatSearchRequest != answeredChatSearchRequest else { return }
+            answeredChatSearchRequest = model.chatSearchRequest
+            if let sessionsList, connections?.active != nil {
+                sessionsList.isSearchPresented = true
+            } else {
+                isLocalChatSearchPresented = true
             }
         }
 
@@ -264,12 +283,21 @@
             return hidden.isEmpty ? model.sessions : model.sessions.filter { !hidden.contains($0.id) }
         }
 
+        /// ``visibleSessions`` matching the local list's search, by title or subtitle.
+        private var searchedSessions: [ChatSessionSummary] {
+            let query = localChatSearch.trimmingCharacters(in: .whitespaces)
+            guard !query.isEmpty else { return visibleSessions }
+            return visibleSessions.filter {
+                $0.title.localizedCaseInsensitiveContains(query) || $0.subtitle.localizedCaseInsensitiveContains(query)
+            }
+        }
+
         @ViewBuilder
         private var chatList: some View {
             if let sessionsList, connections?.active != nil {
                 SessionsListView(model: sessionsList, needsApproval: model.needsApproval) { model.show($0) }
             } else {
-                List(visibleSessions) { session in
+                List(searchedSessions) { session in
                     Button {
                         model.open(session.id)
                     } label: {
@@ -286,6 +314,7 @@
                 .scrollContentBackground(.hidden)
                 .background(palette.groupedBackground)
                 .toolbarBackground(palette.groupedBackground, for: .navigationBar)
+                .searchable(text: $localChatSearch, isPresented: $isLocalChatSearchPresented, prompt: "Search chats")
             }
         }
 
