@@ -27,7 +27,7 @@ public actor OutboxDrainer {
     private let chatID: String
     private var submitter: any OutboxSubmitter
     private let clock: @Sendable () -> Date
-    private let onChange: @Sendable () async -> Void
+    private var onChange: @Sendable () async -> Void
     private let pauses: OutboxPauses
     private var isDraining = false
     private var drainRequested = false
@@ -52,8 +52,12 @@ public actor OutboxDrainer {
     /// for its life, so a pass that is still running finishes on the old submitter and the next one uses the new. A
     /// second drainer would not know about the message in flight and would send it again. Do not call
     /// ``recoverInterrupted()`` after this: it is for a relaunch, when nothing is in flight.
-    public func use(_ submitter: any OutboxSubmitter) {
+    ///
+    /// `onChange`, when given, replaces the change callback too: a rebuilt chat model takes over the chat's drainer
+    /// (``OutboxDrainers``), and its screen is the one to refresh.
+    public func use(_ submitter: any OutboxSubmitter, onChange: (@Sendable () async -> Void)? = nil) {
         self.submitter = submitter
+        if let onChange { self.onChange = onChange }
     }
 
     /// Puts messages that were being sent back to `pending`. Call it once, when the chat first attaches after a

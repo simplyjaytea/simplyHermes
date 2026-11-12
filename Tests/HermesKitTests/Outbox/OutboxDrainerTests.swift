@@ -243,4 +243,91 @@ struct OutboxDrainerTests {
         #expect(await new.delivered == ["b"])
         #expect(try await states(cache) == ["a:sent", "b:sent"])
     }
+
+    // A chat model is rebuilt when the user switches servers and back. The rebuilt model attaches the way
+    // `LiveChatModel.connectAndFollow()` does: it takes the chat's drainer from the process-wide `OutboxDrainers`,
+    // recovers only when the drainer is new, and otherwise swaps in its controller (board row 121).
+
+    /// One attach, as the chat model does it.
+    private func attach(
+        _ drainers: OutboxDrainers, store: any OutboxStore, submitter: any OutboxSubmitter,
+        onChange: @escaping @Sendable () async -> Void = {}
+    ) async throws -> OutboxDrainer {
+        let (drainer, isNew) = drainers.drainer(forChat: "c1") {
+            OutboxDrainer(store: store, chatID: "c1", submitter: submitter, onChange: onChange)
+        }
+        if isNew {
+            try await drainer.recoverInterrupted()
+        } else {
+            await drainer.use(submitter, onChange: onChange)
+        }
+        return drainer
+    }
+
+    @Test func aRebuiltChatModelDoesNotResendAMessageInFlightOnTheOldOne() async throws {
+        let cache = try HermesCache()
+        for text in ["a", "b"] { try await cache.outbox.insert(record(text)) }
+        let drainers = OutboxDrainers()
+        let old = ScriptedSubmitter()
+        let new = ScriptedSubmitter()
+
+        // The first model attaches and starts sending `a`, which stays in flight.
+        let first = try await attach(drainers, store: cache.outbox, submitter: old)
+        await old.block(true)
+        let firstPass = Task { try await first.drain() }
+        while await old.delivered.isEmpty { try await Task.sleep(for: .milliseconds(2)) }
+
+        // Server switch away and back: the old model is dropped, a new one attaches to the same chat and drains.
+        let second = try await attach(drainers, store: cache.outbox, submitter: new)
+        #expect(second === first, "Every model of a chat shares its drainer")
+        try await second.drain()
+        #expect(await new.delivered.isEmpty, "`a` is still in flight; nothing goes out beside it")
+
+        await old.block(false)
+        try await firstPass.value
+        try await second.drain()
+
+        #expect(await old.delivered == ["a"])
+        #expect(await new.delivered == ["b"])
+        #expect(try await states(cache) == ["a:sent", "b:sent"])
+    }
+
+    @Test func theNewestModelIsTheOneThatHearsAboutChanges() async throws {
+        let cache = try HermesCache()
+        try await cache.outbox.insert(record("a"))
+        let drainers = OutboxDrainers()
+        let firstScreen = Counter()
+        let secondScreen = Counter()
+        _ = try await attach(
+            drainers, store: cache.outbox, submitter: ScriptedSubmitter(), onChange: { await firstScreen.bump() })
+        let drainer = try await attach(
+            drainers, store: cache.outbox, submitter: ScriptedSubmitter(), onChange: { await secondScreen.bump() })
+
+        try await drainer.drain()
+
+        #expect(await firstScreen.count == 0)
+        #expect(await secondScreen.count > 0)
+    }
+
+    @Test func eachChatHasItsOwnDrainerAndOnlyItsFirstAttachIsNew() throws {
+        let drainers = OutboxDrainers()
+        let store = try HermesCache().outbox
+        let make = { (chat: String) in
+            drainers.drainer(forChat: chat) {
+                OutboxDrainer(store: store, chatID: chat, submitter: ScriptedSubmitter())
+            }
+        }
+        let first = make("c1")
+        let second = make("c2")
+        let firstAgain = make("c1")
+        #expect(first.isNew && second.isNew)
+        #expect(!firstAgain.isNew)
+        #expect(firstAgain.drainer === first.drainer)
+        #expect(second.drainer !== first.drainer)
+    }
+}
+
+private actor Counter {
+    private(set) var count = 0
+    func bump() { count += 1 }
 }

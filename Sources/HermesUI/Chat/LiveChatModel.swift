@@ -153,6 +153,9 @@
         @ObservationIgnored private var firstMessage: (text: String, attachments: [ComposerAttachment])?
         @ObservationIgnored private var isMovingWorkspace = false
         @ObservationIgnored let outbox: any OutboxStore
+        /// Where this chat's drainer lives. The app passes one registry for the whole process; each test model gets
+        /// its own, so tests that reuse a chat id never share a drainer.
+        @ObservationIgnored let drainers: OutboxDrainers
         /// Replaces the connection phases the status reads. Nil in the app; a test sets it to drive the pill.
         @ObservationIgnored let phaseSource: (@MainActor () -> ConnectionPhase?)?
         /// The pill as the chat last saw it, so a move back into `.connected` can send the waiting messages (WP-8).
@@ -173,13 +176,15 @@
 
         init(
             connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String,
-            outbox: any OutboxStore, phaseSource: (@MainActor () -> ConnectionPhase?)? = nil
+            outbox: any OutboxStore, drainers: OutboxDrainers = OutboxDrainers(),
+            phaseSource: (@MainActor () -> ConnectionPhase?)? = nil
         ) {
             self.connections = connections
             self.broker = broker
             self.storedSessionID = storedSessionID
             self.serverID = connections.active?.id
             self.outbox = outbox
+            self.drainers = drainers
             self.phaseSource = phaseSource
             state = TranscriptState(storedSessionID: storedSessionID)
             lastPill = status.pill
@@ -250,24 +255,25 @@
                 try await controller.attach()
                 self.controller = controller
                 phase = .ready
-                if let drainer {
-                    // A reattach (Try again, or a screen coming back). A message may be in flight on the old controller,
-                    // so nothing is recovered: the drainer finishes it there and sends the rest through this one.
-                    await drainer.use(controller)
-                    _ = try? await outbox.pruneSent(inChat: storedSessionID)
-                } else {
-                    // The first attach after a launch: messages that were mid-send when the app stopped go out again,
-                    // once, and acknowledged ones are dropped.
-                    let drainer = OutboxDrainer(
-                        store: outbox, chatID: storedSessionID, submitter: controller,
-                        onChange: { @MainActor [weak self] in await self?.refreshOutbox() })
-                    self.drainer = drainer
-                    do {
+                let refresh: @Sendable () async -> Void = { @MainActor [weak self] in await self?.refreshOutbox() }
+                let (drainer, isNew) = drainers.drainer(forChat: storedSessionID) {
+                    OutboxDrainer(store: outbox, chatID: storedSessionID, submitter: controller, onChange: refresh)
+                }
+                self.drainer = drainer
+                do {
+                    if isNew {
+                        // The chat's first attach this launch: messages that were mid-send when the app stopped go out
+                        // again, once.
                         try await drainer.recoverInterrupted()
-                        _ = try await outbox.pruneSent(inChat: storedSessionID)
-                    } catch {
-                        outboxError = Self.outboxMessage(for: error)
+                    } else {
+                        // A reattach (Try again, a screen coming back, or this chat rebuilt after a server switch or in
+                        // another window). A message may be in flight on the old controller, so nothing is recovered:
+                        // the drainer finishes it there and sends the rest through this one.
+                        await drainer.use(controller, onChange: refresh)
                     }
+                    _ = try await outbox.pruneSent(inChat: storedSessionID)
+                } catch {
+                    outboxError = Self.outboxMessage(for: error)
                 }
                 tasks = [
                     Task { [weak self] in
@@ -669,7 +675,8 @@
             }
             if let existing = chats[sessionID] { return existing }
             let chat = LiveChatModel(
-                connections: connections, broker: broker, storedSessionID: sessionID, outbox: OutboxServices.store)
+                connections: connections, broker: broker, storedSessionID: sessionID, outbox: OutboxServices.store,
+                drainers: OutboxServices.drainers)
             chats[sessionID] = chat
             return chat
         }
