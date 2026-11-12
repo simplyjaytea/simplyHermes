@@ -32,10 +32,10 @@
         /// Hides a chat, pauses its outbox and starts its Undo window. `countWaiting` runs after the pause, so the toast
         /// never counts a message that already went out. `commit` runs the real delete when the window ends.
         public func delete(
-            id: String, title: String, countWaiting: (@MainActor () async -> Int)? = nil,
+            id: String, title: String, connection: String? = nil, countWaiting: (@MainActor () async -> Int)? = nil,
             commit: @escaping ChatDeleteQueue.Commit
         ) {
-            guard queue.delete(id: id, title: title, commit: commit) != nil else { return }
+            guard queue.delete(id: id, title: title, connection: connection, commit: commit) != nil else { return }
             errorText = nil
             noticeText = nil
             sync()
