@@ -437,6 +437,9 @@
         /// Local chats by sidebar id. They are made when a screen first shows one.
         @ObservationIgnored private var localChatModels: [String: LocalChatModel] = [:]
 
+        /// The local chat model already made for `id`, without making one. Notifications read it.
+        func existingLocalChat(for id: String) -> LocalChatModel? { localChatModels[id] }
+
         /// The live chat for a listed server session, or nil for a placeholder chat.
         func liveChat(for id: String) -> LiveChatModel? {
             guard serverSessionIDs.contains(id) else { return nil }

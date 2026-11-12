@@ -54,6 +54,8 @@
                     TaskProgressPill(progress: tasks)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
+                // "Get a notification when Hermes finishes?" after a long turn (notifications spec section 4).
+                NotificationOfferTip()
                 ComposerPills(chat: chat) { showsWorkspaces = true }
                 Composer(
                     text: model.draftBinding(for: sessionID),
