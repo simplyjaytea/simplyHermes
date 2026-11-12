@@ -15,14 +15,18 @@
         public let answerer: @Sendable () -> any LocalChatAnswerer
         /// The model that would answer a new Local chat now, or nil when none can. The New chat menu names it.
         public let answeringModel: @MainActor () -> ModelIdentity?
+        /// What the local assistant knows about the user. Nil means no memory (previews, tests).
+        public let memory: (any LocalMemoryStore)?
 
         /// Creates the services.
         public init(
             store: any LocalChatStore,
             answerer: @escaping @Sendable () -> any LocalChatAnswerer,
-            answeringModel: @escaping @MainActor () -> ModelIdentity? = { nil }
+            answeringModel: @escaping @MainActor () -> ModelIdentity? = { nil },
+            memory: (any LocalMemoryStore)? = nil
         ) {
             self.store = store
+            self.memory = memory
             self.answerer = answerer
             self.answeringModel = answeringModel
         }
@@ -34,7 +38,8 @@
             answeringModel: @escaping @MainActor () -> ModelIdentity? = { nil }
         ) {
             shared = LocalChatServices(
-                store: cache.localChats, answerer: answerer, answeringModel: answeringModel)
+                store: cache.localChats, answerer: answerer, answeringModel: answeringModel,
+                memory: cache.localMemory)
         }
     }
 #endif
