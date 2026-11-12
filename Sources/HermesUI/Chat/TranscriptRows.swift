@@ -9,13 +9,15 @@
         @Bindable var chat: LiveChatModel
         var onBranch: (SessionBranchResult) -> Void = { _ in }
         @Environment(\.hermesPalette) private var palette
+        /// Puts a quote of a message into this chat's draft ("Quote in reply"). It never sends.
+        var onQuote: (String) -> Void = { _ in }
 
         var body: some View {
             switch item.content {
             case .user(let entry):
-                UserRow(entry: entry, chat: chat)
+                UserRow(entry: entry, chat: chat, onQuote: onQuote)
             case .assistant(let entry):
-                AssistantRow(entry: entry, isLast: isLast, chat: chat, onBranch: onBranch)
+                AssistantRow(entry: entry, isLast: isLast, chat: chat, onBranch: onBranch, onQuote: onQuote)
             case .tool(let entry):
                 ToolCallRow(entry: entry)
             case .other(let role, let text):
@@ -30,6 +32,7 @@
     private struct UserRow: View {
         let entry: UserEntry
         @Bindable var chat: LiveChatModel
+        let onQuote: (String) -> Void
         @State private var isEditing = false
         @State private var draft = ""
         @Environment(\.hermesPalette) private var palette
@@ -46,7 +49,7 @@
             } else {
                 VStack(alignment: .trailing, spacing: 2) {
                     MessageBubble(role: .user, text: entry.text, rendersMarkdown: true)
-                        .contextMenu {
+                        .messageActions(text: entry.text, onQuote: onQuote) {
                             if let rowID = entry.rowID {
                                 Button("Edit", systemImage: "pencil") {
                                     // An edit that did not go through comes back as the user typed it.
@@ -115,6 +118,7 @@
         let isLast: Bool
         @Bindable var chat: LiveChatModel
         let onBranch: (SessionBranchResult) -> Void
+        let onQuote: (String) -> Void
         @State private var showsReasoning = false
         @Environment(\.hermesPalette) private var palette
 
@@ -151,7 +155,7 @@
                 }
             }
             // Regenerate runs the last user turn again, so it lives on the last reply (WP-34).
-            .contextMenu {
+            .messageActions(text: entry.text, isEnabled: !entry.isStreaming && !entry.text.isEmpty, onQuote: onQuote) {
                 if isLast {
                     Button("Regenerate", systemImage: "arrow.clockwise") { chat.regenerate() }
                         .disabled(chat.isRunning || entry.isStreaming)
