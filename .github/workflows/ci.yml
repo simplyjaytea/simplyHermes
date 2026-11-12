@@ -137,12 +137,16 @@ jobs:
             -e HERMES_TESTBED_OIDC_URL=http://127.0.0.1:9120 \
             swift:6.1 bash -c 'apt-get update -qq && apt-get install -y -qq libsqlite3-dev && swift test --filter "RESTLiveTests|GatewayLiveTests|GatewayConnectionTesterLiveTests|NativeAuthLiveTests|OIDCSignInLiveTests|ConnectionManagerLiveTests|ProfileTransferLiveTests|TerminalLiveTests"'
       - name: Upload REST answers
+        # Diagnostics only: kept 7 days, and a full artifact quota must not turn a passing job red. The repository
+        # is private, so all artifacts share a 500 MB quota (run 43193884454: "Artifact storage quota has been hit").
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: rest-fixtures
           path: build/rest-fixtures
           if-no-files-found: warn
+          retention-days: 7
       - name: Logs on failure
         if: failure()
         run: docker compose -f testbed/docker-compose.yml logs --tail=200
@@ -398,12 +402,16 @@ jobs:
           sleep 5
           xcrun simctl io "$udid" screenshot --display=1 build/shots/live-island.png || true
       - name: Upload screenshots
+        # Diagnostics only: kept 7 days, and a full artifact quota must not turn a passing job red. The repository
+        # is private, so all artifacts share a 500 MB quota (run 43193884454: "Artifact storage quota has been hit").
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: screenshots
           path: build/shots
           if-no-files-found: warn
+          retention-days: 7
       - name: Build unsigned .ipa for sideloading
         run: |
           set -eo pipefail
@@ -454,20 +462,26 @@ jobs:
           done
           exit $found
       - name: Upload unsigned .ipa
+        # The build the user installs, so a failed upload fails the job. 14 days: about 50 MB per main push against
+        # the private repository's 500 MB artifact quota.
         if: ${{ github.event_name == 'push' }}
         uses: actions/upload-artifact@v4
         with:
           name: simplyHermes-unsigned-ipa
           path: build/ipa/simplyHermes-unsigned.ipa
+          retention-days: 14
       - name: Testbed dashboard log
         if: failure()
         run: tail -n 200 "$RUNNER_TEMP/hermes-serve.log" || true
       - name: Upload results
-        if: always()
+        # About 230 MB per run, so only when something failed, kept 7 days, and never the cause of a red job.
+        if: failure()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: xcresult
           path: build/test.xcresult
+          retention-days: 7
       - name: ci:app is for one run
         # A draft keeps its labels, so without this every later push would take the macOS runner again. Checked live,
         # like the candidate decision, because the event payload can predate the label.

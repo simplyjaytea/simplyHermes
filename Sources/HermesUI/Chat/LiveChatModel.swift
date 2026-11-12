@@ -153,12 +153,22 @@
         @ObservationIgnored private var firstMessage: (text: String, attachments: [ComposerAttachment])?
         @ObservationIgnored private var isMovingWorkspace = false
         @ObservationIgnored let outbox: any OutboxStore
+        /// Where this chat's drainer lives. The app passes one registry for the whole process; each test model gets
+        /// its own, so tests that reuse a chat id never share a drainer.
+        @ObservationIgnored let drainers: OutboxDrainers
         /// Replaces the connection phases the status reads. Nil in the app; a test sets it to drive the pill.
         @ObservationIgnored let phaseSource: (@MainActor () -> ConnectionPhase?)?
         /// The pill as the chat last saw it, so a move back into `.connected` can send the waiting messages (WP-8).
         @ObservationIgnored var lastPill: PillState?
-        /// Sends the outbox's messages through the attached controller. Nil while the chat is detached.
+        /// Sends the outbox's messages through the attached controller. Created at the first attach and kept for the
+        /// chat's life: a reattach points it at the new controller. A second drainer would not know about a message in
+        /// flight and would send it again.
         @ObservationIgnored var drainer: OutboxDrainer?
+        /// The server this chat's waiting messages belong to. Fixed for the model's life: a server switch builds a new
+        /// model. The outbox keys messages by server and chat, since two servers can share a chat id.
+        var outboxConnectionID: String { serverID?.uuidString ?? "" }
+        /// True while ``retryConnection()`` runs, so a second tap does nothing.
+        @ObservationIgnored private var retrying = false
         /// Set while the composer's send is saving. A second send starts only after it ends (review M5).
         @ObservationIgnored var composerSend = SingleFlight()
         /// The latest drain of this chat's waiting messages. Detaching cancels it, so a closed chat sends nothing more.
@@ -169,13 +179,15 @@
 
         init(
             connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String,
-            outbox: any OutboxStore, phaseSource: (@MainActor () -> ConnectionPhase?)? = nil
+            outbox: any OutboxStore, drainers: OutboxDrainers = OutboxDrainers(),
+            phaseSource: (@MainActor () -> ConnectionPhase?)? = nil
         ) {
             self.connections = connections
             self.broker = broker
             self.storedSessionID = storedSessionID
             self.serverID = connections.active?.id
             self.outbox = outbox
+            self.drainers = drainers
             self.phaseSource = phaseSource
             state = TranscriptState(storedSessionID: storedSessionID)
             lastPill = status.pill
@@ -183,15 +195,25 @@
         }
 
         /// Banner's Try again (WP-8). A chat that stayed attached keeps its old controller, so ``attach()`` alone does
-        /// nothing after an outage. This reconnects the chat's own server, then replaces the controller and drains.
-        /// While the server is still down the transcript stays on screen and the banner stays.
+        /// nothing after an outage. This reconnects the chat's own server and sends the waiting messages. While the
+        /// server is still down the transcript stays on screen and the banner stays.
         public func retryConnection() async {
+            // A second tap while a retry runs does nothing: two retries would race each other over the controller.
+            guard !retrying else { return }
+            retrying = true
+            defer { retrying = false }
             guard let serverID, let connection = connections.connection(id: serverID), let manager = connections.manager
             else { return }
             connections.connect(serverID)
-            guard (try? await manager.client(for: connection)) != nil else { return }
+            guard let fresh = try? await manager.client(for: connection) else { return }
             // Attach only works on the active server, so a chat whose server is no longer active waits for a switch.
             guard connections.active?.id == serverID else { return }
+            // The same client often recovers by itself and re-activates the chat's session. Its controller still works,
+            // and tearing it down could send a message in flight a second time. Only drain.
+            if controller != nil, fresh === client {
+                await drainOutbox()
+                return
+            }
             detach()
             await attach()
         }
@@ -236,13 +258,24 @@
                 try await controller.attach()
                 self.controller = controller
                 phase = .ready
-                // Messages that were mid-send when the app stopped go out again, once, and acknowledged ones are dropped.
-                let drainer = OutboxDrainer(
-                    store: outbox, chatID: storedSessionID, submitter: controller,
-                    onChange: { @MainActor [weak self] in await self?.refreshOutbox() })
+                let refresh: @Sendable () async -> Void = { @MainActor [weak self] in await self?.refreshOutbox() }
+                let (drainer, isNew) = drainers.drainer(forChat: storedSessionID, connection: outboxConnectionID) {
+                    OutboxDrainer(
+                        store: outbox, chatID: storedSessionID, connectionID: outboxConnectionID, submitter: controller,
+                        onChange: refresh)
+                }
                 self.drainer = drainer
                 do {
-                    try await drainer.recoverInterrupted()
+                    if isNew {
+                        // The chat's first attach this launch: messages that were mid-send when the app stopped go out
+                        // again, once.
+                        try await drainer.recoverInterrupted()
+                    } else {
+                        // A reattach (Try again, a screen coming back, or this chat rebuilt after a server switch or in
+                        // another window). A message may be in flight on the old controller, so nothing is recovered:
+                        // the drainer finishes it there and sends the rest through this one.
+                        await drainer.use(controller, onChange: refresh)
+                    }
                     _ = try await outbox.pruneSent(inChat: storedSessionID)
                 } catch {
                     outboxError = Self.outboxMessage(for: error)
@@ -281,7 +314,6 @@
             for task in tasks { task.cancel() }
             retryTask?.cancel()
             tasks = []
-            drainer = nil
             drainTask?.cancel()
             drainTask = nil
             let controller = controller
@@ -648,7 +680,8 @@
             }
             if let existing = chats[sessionID] { return existing }
             let chat = LiveChatModel(
-                connections: connections, broker: broker, storedSessionID: sessionID, outbox: OutboxServices.store)
+                connections: connections, broker: broker, storedSessionID: sessionID, outbox: OutboxServices.store,
+                drainers: OutboxServices.drainers)
             chats[sessionID] = chat
             return chat
         }

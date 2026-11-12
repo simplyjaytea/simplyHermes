@@ -11,6 +11,10 @@
             return cache.outbox
         }()
 
+        /// One drainer per chat for the whole app, shared by every chat model, so a rebuilt model never sends a message
+        /// that is still in flight on the old one (``OutboxDrainers``).
+        public static private(set) var drainers = OutboxDrainers()
+
         /// False when the store cannot keep messages across a relaunch. Sending is then refused with a status line,
         /// the same way offline chats are turned off when their file will not open, so nothing is lost silently.
         public static var isDurable = true
@@ -19,6 +23,8 @@
         public static func install(_ store: any OutboxStore, durable: Bool = true) {
             self.store = store
             isDurable = durable
+            // Drainers write to the store they were made with, so a new store starts a new set.
+            drainers = OutboxDrainers()
         }
     }
 #endif

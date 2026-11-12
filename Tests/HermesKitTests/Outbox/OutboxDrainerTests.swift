@@ -45,7 +45,8 @@ struct OutboxDrainerTests {
         let cache = try HermesCache()
         for text in ["a", "b", "c"] { try await cache.outbox.insert(record(text)) }
         let submitter = ScriptedSubmitter()
-        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter, clock: { self.start })
+        let drainer = OutboxDrainer(
+            store: cache.outbox, chatID: "c1", connectionID: "x", submitter: submitter, clock: { self.start })
 
         try await drainer.drain()
         try await drainer.drain()
@@ -58,7 +59,7 @@ struct OutboxDrainerTests {
         let cache = try HermesCache()
         for text in ["a", "b", "c"] { try await cache.outbox.insert(record(text)) }
         let submitter = ScriptedSubmitter([.acknowledged, .deferred])
-        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter)
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", connectionID: "x", submitter: submitter)
 
         try await drainer.drain()
         #expect(try await states(cache) == ["a:sent", "b:pending", "c:pending"])
@@ -73,7 +74,7 @@ struct OutboxDrainerTests {
         let cache = try HermesCache()
         for text in ["a", "b"] { try await cache.outbox.insert(record(text)) }
         let submitter = ScriptedSubmitter([.failed("Can't reach the server")])
-        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter)
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", connectionID: "x", submitter: submitter)
 
         try await drainer.drain()
         // A later drain does not resend it on its own: only Retry does.
@@ -91,7 +92,7 @@ struct OutboxDrainerTests {
         try await cache.outbox.insert(first)
         try await cache.outbox.insert(record("b"))
         let submitter = ScriptedSubmitter([.failed("boom")])
-        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter)
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", connectionID: "x", submitter: submitter)
         try await drainer.drain()
 
         try await drainer.retry(first.id)
@@ -105,7 +106,7 @@ struct OutboxDrainerTests {
         let saved = record("a")
         try await cache.outbox.insert(saved)
         let submitter = ScriptedSubmitter()
-        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter)
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", connectionID: "x", submitter: submitter)
 
         await submitter.block(true)
         let inFlight = Task { try await drainer.drain() }
@@ -124,7 +125,7 @@ struct OutboxDrainerTests {
         let cache = try HermesCache()
         for text in ["a", "b"] { try await cache.outbox.insert(record(text)) }
         let submitter = ScriptedSubmitter()
-        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter)
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", connectionID: "x", submitter: submitter)
 
         await submitter.block(true)
         let pass = Task { try await drainer.drain() }
@@ -146,7 +147,7 @@ struct OutboxDrainerTests {
         // The app stopped mid-send, and no attach has recovered the message yet.
         try await cache.outbox.updateState(.sending, forID: stuck.id)
         let submitter = ScriptedSubmitter()
-        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter)
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", connectionID: "x", submitter: submitter)
 
         try await drainer.drain()
 
@@ -158,7 +159,8 @@ struct OutboxDrainerTests {
         let cache = try HermesCache()
         let saved = record("a")
         try await cache.outbox.insert(saved)
-        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: ScriptedSubmitter())
+        let drainer = OutboxDrainer(
+            store: cache.outbox, chatID: "c1", connectionID: "x", submitter: ScriptedSubmitter())
         await #expect(throws: OutboxError.self) { try await drainer.retry(saved.id) }
         #expect(try await states(cache) == ["a:pending"])
     }
@@ -170,7 +172,7 @@ struct OutboxDrainerTests {
         // The app was killed while the message was `sending`.
         try await cache.outbox.updateState(.sending, forID: saved.id)
         let submitter = ScriptedSubmitter()
-        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter)
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", connectionID: "x", submitter: submitter)
 
         try await drainer.recoverInterrupted()
         #expect(try await states(cache) == ["a:pending"])
@@ -188,7 +190,7 @@ struct OutboxDrainerTests {
         }
         let relaunched = try HermesCache(url: url)
         let submitter = ScriptedSubmitter()
-        let drainer = OutboxDrainer(store: relaunched.outbox, chatID: "c1", submitter: submitter)
+        let drainer = OutboxDrainer(store: relaunched.outbox, chatID: "c1", connectionID: "x", submitter: submitter)
 
         try await drainer.recoverInterrupted()
         try await drainer.drain()
@@ -201,7 +203,7 @@ struct OutboxDrainerTests {
         let cache = try HermesCache()
         for text in ["a", "b"] { try await cache.outbox.insert(record(text)) }
         let submitter = ScriptedSubmitter()
-        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter)
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", connectionID: "x", submitter: submitter)
 
         await submitter.block(true)
         let first = Task { try await drainer.drain() }
@@ -216,4 +218,186 @@ struct OutboxDrainerTests {
         #expect(await submitter.delivered == ["a", "b"])
         #expect(try await states(cache) == ["a:sent", "b:sent"])
     }
+
+    // Try again can reattach a chat while one of its messages is in flight on the old controller. The chat keeps one
+    // drainer for its life and points it at the new controller, so the message goes out once (PR #113 review, M1).
+
+    @Test func swappingTheSubmitterWhileAMessageIsInFlightSendsItOnce() async throws {
+        let cache = try HermesCache()
+        for text in ["a", "b"] { try await cache.outbox.insert(record(text)) }
+        let old = ScriptedSubmitter()
+        let new = ScriptedSubmitter()
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", connectionID: "x", submitter: old)
+
+        await old.block(true)
+        let firstPass = Task { try await drainer.drain() }
+        while await old.delivered.isEmpty { try await Task.sleep(for: .milliseconds(2)) }
+
+        // The chat reattaches on a new controller while `a` is still in flight on the old one.
+        await drainer.use(new)
+        try await drainer.drain()
+        #expect(await new.delivered.isEmpty)
+
+        await old.block(false)
+        try await firstPass.value
+
+        #expect(await old.delivered == ["a"])
+        #expect(await new.delivered == ["b"])
+        #expect(try await states(cache) == ["a:sent", "b:sent"])
+    }
+
+    // A chat model is rebuilt when the user switches servers and back. The rebuilt model attaches the way
+    // `LiveChatModel.connectAndFollow()` does: it takes the chat's drainer from the process-wide `OutboxDrainers`,
+    // recovers only when the drainer is new, and otherwise swaps in its controller (board row 121).
+
+    /// One attach, as the chat model does it.
+    private func attach(
+        _ drainers: OutboxDrainers, store: any OutboxStore, submitter: any OutboxSubmitter,
+        onChange: @escaping @Sendable () async -> Void = {}
+    ) async throws -> OutboxDrainer {
+        let (drainer, isNew) = drainers.drainer(forChat: "c1", connection: "x") {
+            OutboxDrainer(store: store, chatID: "c1", connectionID: "x", submitter: submitter, onChange: onChange)
+        }
+        if isNew {
+            try await drainer.recoverInterrupted()
+        } else {
+            await drainer.use(submitter, onChange: onChange)
+        }
+        return drainer
+    }
+
+    @Test func aRebuiltChatModelDoesNotResendAMessageInFlightOnTheOldOne() async throws {
+        let cache = try HermesCache()
+        for text in ["a", "b"] { try await cache.outbox.insert(record(text)) }
+        let drainers = OutboxDrainers()
+        let old = ScriptedSubmitter()
+        let new = ScriptedSubmitter()
+
+        // The first model attaches and starts sending `a`, which stays in flight.
+        let first = try await attach(drainers, store: cache.outbox, submitter: old)
+        await old.block(true)
+        let firstPass = Task { try await first.drain() }
+        while await old.delivered.isEmpty { try await Task.sleep(for: .milliseconds(2)) }
+
+        // Server switch away and back: the old model is dropped, a new one attaches to the same chat and drains.
+        let second = try await attach(drainers, store: cache.outbox, submitter: new)
+        #expect(second === first, "Every model of a chat shares its drainer")
+        try await second.drain()
+        #expect(await new.delivered.isEmpty, "`a` is still in flight; nothing goes out beside it")
+
+        await old.block(false)
+        try await firstPass.value
+        try await second.drain()
+
+        #expect(await old.delivered == ["a"])
+        #expect(await new.delivered == ["b"])
+        #expect(try await states(cache) == ["a:sent", "b:sent"])
+    }
+
+    @Test func theNewestModelIsTheOneThatHearsAboutChanges() async throws {
+        let cache = try HermesCache()
+        try await cache.outbox.insert(record("a"))
+        let drainers = OutboxDrainers()
+        let firstScreen = Counter()
+        let secondScreen = Counter()
+        _ = try await attach(
+            drainers, store: cache.outbox, submitter: ScriptedSubmitter(), onChange: { await firstScreen.bump() })
+        let drainer = try await attach(
+            drainers, store: cache.outbox, submitter: ScriptedSubmitter(), onChange: { await secondScreen.bump() })
+
+        try await drainer.drain()
+
+        #expect(await firstScreen.count == 0)
+        #expect(await secondScreen.count > 0)
+    }
+
+    @Test func eachChatHasItsOwnDrainerAndOnlyItsFirstAttachIsNew() throws {
+        let drainers = OutboxDrainers()
+        let store = try HermesCache().outbox
+        let make = { (chat: String) in
+            drainers.drainer(forChat: chat, connection: "x") {
+                OutboxDrainer(store: store, chatID: chat, connectionID: "x", submitter: ScriptedSubmitter())
+            }
+        }
+        let first = make("c1")
+        let second = make("c2")
+        let firstAgain = make("c1")
+        #expect(first.isNew && second.isNew)
+        #expect(!firstAgain.isNew)
+        #expect(firstAgain.drainer === first.drainer)
+        #expect(second.drainer !== first.drainer)
+    }
+}
+
+extension OutboxDrainerTests {
+    // Two servers can have a chat with the same id: the same Hermes saved under two addresses shares every id, and
+    // independent servers can collide. A message must only ever go out through the server it was written for.
+
+    @Test func aDrainerSendsOnlyItsOwnServersMessages() async throws {
+        let cache = try HermesCache()
+        try await cache.outbox.insert(
+            OutboundRecord(connectionID: "server-A", chatID: "c1", text: "for A", createdAt: start))
+        try await cache.outbox.insert(
+            OutboundRecord(
+                connectionID: "server-B", chatID: "c1", text: "for B", createdAt: start.addingTimeInterval(1)))
+        let serverB = ScriptedSubmitter()
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", connectionID: "server-B", submitter: serverB)
+
+        try await drainer.drain()
+
+        #expect(await serverB.delivered == ["for B"], "Server A's message never goes out through server B")
+        let states = try await cache.outbox.records(inChat: "c1").map { "\($0.connectionID):\($0.state.kind)" }
+        #expect(states.sorted() == ["server-A:pending", "server-B:sent"])
+    }
+
+    @Test func anotherServersFailedMessageDoesNotHoldThisServerBack() async throws {
+        let cache = try HermesCache()
+        try await cache.outbox.insert(
+            OutboundRecord(connectionID: "server-A", chatID: "c1", text: "A failed", createdAt: start))
+        _ = try await cache.outbox.updateState(
+            .failed(reason: "refused"), forID: try #require(try await cache.outbox.records(inChat: "c1").first?.id))
+        try await cache.outbox.insert(
+            OutboundRecord(
+                connectionID: "server-B", chatID: "c1", text: "for B", createdAt: start.addingTimeInterval(1)))
+        let serverB = ScriptedSubmitter()
+
+        try await OutboxDrainer(store: cache.outbox, chatID: "c1", connectionID: "server-B", submitter: serverB).drain()
+
+        #expect(await serverB.delivered == ["for B"])
+    }
+
+    @Test func recoveryResetsOnlyItsOwnServersMessages() async throws {
+        let cache = try HermesCache()
+        for (server, text) in [("server-A", "A in flight"), ("server-B", "B in flight")] {
+            let record = OutboundRecord(connectionID: server, chatID: "c1", text: text, createdAt: start)
+            try await cache.outbox.insert(record)
+            _ = try await cache.outbox.updateState(.sending, forID: record.id)
+        }
+        let drainer = OutboxDrainer(
+            store: cache.outbox, chatID: "c1", connectionID: "server-B", submitter: ScriptedSubmitter())
+
+        try await drainer.recoverInterrupted()
+
+        let states = try await cache.outbox.records(inChat: "c1").map { "\($0.connectionID):\($0.state.kind)" }
+        #expect(states.sorted() == ["server-A:sending", "server-B:pending"], "A's message may still be in flight on A")
+    }
+
+    @Test func theSameChatIdOnTwoServersGetsTwoDrainers() throws {
+        let drainers = OutboxDrainers()
+        let store = try HermesCache().outbox
+        let make = { (server: String) in
+            drainers.drainer(forChat: "c1", connection: server) {
+                OutboxDrainer(store: store, chatID: "c1", connectionID: server, submitter: ScriptedSubmitter())
+            }
+        }
+        let onA = make("server-A")
+        let onB = make("server-B")
+        #expect(onA.isNew && onB.isNew, "Each server's first attach recovers its own messages")
+        #expect(onA.drainer !== onB.drainer)
+    }
+}
+
+private actor Counter {
+    private(set) var count = 0
+    func bump() { count += 1 }
 }

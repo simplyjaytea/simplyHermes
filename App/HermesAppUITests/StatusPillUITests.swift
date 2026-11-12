@@ -250,18 +250,26 @@ final class StatusPillUITests: XCTestCase {
         connectSavedServer(app)
         openNewOnlineChat(app)
         typeAndSend(app, "hello")
-        // While the server connects, the first send is refused with a "still connecting" note and the text stays in the
-        // composer. Send again, while the send button is enabled, until the chat is live.
+        // While the server connects, the first send is refused: the app shows a "Chat not started" alert and the text
+        // stays in the composer. The alert is modal, so every later tap lands on it and is lost until it is dismissed.
+        // Dismiss it, then send again, until the chat is live.
         let pill = element(app, "chat.pill")
         var attempts = 1
+        var refusals: [String] = []
         while !pill.waitForExistence(timeout: 10), attempts < 6 {
+            let alert = app.alerts["Chat not started"]
+            if alert.exists {
+                refusals.append(alert.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " / "))
+                alert.buttons["OK"].tap()
+            }
             let send = element(app, "composer.send")
             if send.exists, send.isEnabled { send.tap() }
             attempts += 1
         }
         // Positive check before any outage: the pill is its own element, and the chat is connected.
         if !pill.exists {
-            failWithChatState(app, "The status pill should be an element of its own after \(attempts) sends")
+            failWithChatState(
+                app, "The status pill should be an element of its own after \(attempts) sends, refusals=\(refusals)")
         }
         XCTAssertTrue(
             pill.label.hasPrefix("Online chat."), "Before the outage the chat should be connected: \(pill.label)")
@@ -285,14 +293,29 @@ final class StatusPillUITests: XCTestCase {
         server.press(forDuration: 1.0)
         let connect = app.buttons["Connect"]
         if connect.waitForExistence(timeout: 5) { connect.tap() }
+        // Connect only starts the connection. A first message sent before it finishes is refused with "is not connected",
+        // so wait until the server's row reads Connected. The row's label combines its status line.
+        let connected = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS 'Connected'"), object: server)
+        if XCTWaiter().wait(for: [connected], timeout: 45) != .completed {
+            XCTFail("The saved server should connect before the first message [row=\(server.label)]")
+        }
         tabButton(app, "Chats").tap()
     }
 
-    /// The bottom tab with this name. A tab bar button is preferred, so the other buttons of the same name don't match.
+    /// The on-screen tab with this label. Hidden copies of a tab stay in the hierarchy and can come first, with an
+    /// infinite frame that cannot be tapped ("failed to scroll to visible"), so take the one that is hittable. Polls,
+    /// because the tab bar settles after a screen change. The other UI tests do the same.
     @MainActor
     private func tabButton(_ app: XCUIApplication, _ name: String) -> XCUIElement {
-        let inBar = app.tabBars.buttons[name]
-        return inBar.exists ? inBar : app.buttons[name].firstMatch
+        let copies = app.buttons.matching(NSPredicate(format: "label == %@", name))
+        let deadline = Date().addingTimeInterval(10)
+        repeat {
+            if let tab = copies.allElementsBoundByIndex.first(where: \.isHittable) { return tab }
+            Thread.sleep(forTimeInterval: 0.2)
+        } while Date() < deadline
+        XCTFail("The \(name) tab should be on screen")
+        return copies.firstMatch
     }
 
     /// Taps the switch and checks the label it shows afterwards, which is the next action.
