@@ -113,12 +113,12 @@ struct ChatDeleteQueueTests {
         let pauses = OutboxPauses()
         let subject = queue(clock, pauses)
         subject.delete(id: "s1", title: "Trip") { throw ServerRefused() }
-        #expect(pauses.isPaused("s1"))
+        #expect(pauses.isPaused("s1", connection: nil))
         clock.advance(ChatDeleteQueue.window)
         #expect(
             await subject.tick() == [.restored(id: "s1", title: "Trip", reason: "The server refused the delete.")])
         #expect(subject.hiddenIDs.isEmpty, "The chat is back in the list")
-        #expect(!pauses.isPaused("s1"), "Its waiting messages may go again")
+        #expect(!pauses.isPaused("s1", connection: nil), "Its waiting messages may go again")
     }
 
     @Test func leavingTheForegroundCancelsEveryPendingDelete() async {
@@ -130,7 +130,7 @@ struct ChatDeleteQueueTests {
         subject.delete(id: "local-2", title: "Two", commit: commit("local-2", log))
         #expect(subject.cancelAll().map(\.id) == ["s1", "local-2"])
         #expect(subject.hiddenIDs.isEmpty)
-        #expect(!pauses.isPaused("s1") && !pauses.isPaused("local-2"))
+        #expect(!pauses.isPaused("s1", connection: nil) && !pauses.isPaused("local-2", connection: nil))
         clock.advance(60)
         #expect(await subject.tick().isEmpty)
         #expect(log.deleted.isEmpty)
@@ -193,12 +193,12 @@ struct ChatDeleteOutboxTests {
         let submitter = CountingSubmitter()
         let paused = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter, pauses: pauses)
         let other = OutboxDrainer(store: cache.outbox, chatID: "c2", submitter: submitter, pauses: pauses)
-        pauses.pause("c1")
+        pauses.pause("c1", connection: "x")
         try await paused.drain()
         try await other.drain()
         #expect(await submitter.delivered == ["b"], "Only the paused chat waits")
         #expect(try await cache.outbox.records(inChat: "c1").map(\.state.kind) == [.pending], "Nothing is lost")
-        pauses.resume("c1")
+        pauses.resume("c1", connection: "x")
         try await paused.drain()
         #expect(await submitter.delivered == ["b", "a"])
     }
@@ -242,10 +242,10 @@ struct ChatDeleteOutboxTests {
             .deleted(discardedMessages: try await store.removeChat("s1", connection: "x"))
         }
         // m2: counted after the pause started.
-        #expect(pauses.isPaused("s1"))
+        #expect(pauses.isPaused("s1", connection: nil))
         subject.setWaitingMessages("s1", try await store.waitingCount(inChat: "s1", connection: "x"))
         #expect(subject.latest?.message == "Chat deleted · 1 waiting message discarded")
-        #expect(pauses.isPaused("s1"))
+        #expect(pauses.isPaused("s1", connection: nil))
         now = now.addingTimeInterval(ChatDeleteQueue.window)
         #expect(await subject.tick() == [.deleted(id: "s1", discardedMessages: 1)])
         #expect(try await store.records(inChat: "s1").isEmpty)
@@ -277,7 +277,7 @@ struct ChatDeleteOutboxTests {
         let tombstones = OutboxTombstones(defaults: defaults)
         let entry = OutboxTombstones.Entry(connection: "x", chatID: "s1")
         let subject = ChatDeleteQueue(now: { now }, pauses: pauses)
-        subject.delete(id: "s1", title: "Trip") {
+        subject.delete(id: "s1", title: "Trip", connection: "x") {
             // The server delete succeeded (nothing thrown before this point), then the purge fails.
             tombstones.add(entry)
             return .deletedCleanupPending
@@ -285,7 +285,7 @@ struct ChatDeleteOutboxTests {
         now = now.addingTimeInterval(ChatDeleteQueue.window)
         #expect(await subject.tick() == [.deletedCleanupPending(id: "s1")])
         #expect(subject.hiddenIDs == ["s1"], "The row stays hidden; it is not 'back in the list'")
-        #expect(pauses.isPaused("s1"), "The pause holds")
+        #expect(pauses.isPaused("s1", connection: "x"), "The pause holds")
         let submitter = CountingSubmitter()
         try await OutboxDrainer(store: cache.outbox, chatID: "s1", submitter: submitter, pauses: pauses).drain()
         #expect(await submitter.delivered.isEmpty, "Nothing is submitted to a deleted chat")
@@ -323,6 +323,106 @@ struct ChatDeleteOutboxTests {
         #expect(await tombstones.sweep(store: FailingPurgeStore()) == 0)
         #expect(tombstones.entries == [entry])
     }
+
+    // MARK: Row 99
+
+    /// n2: a pause names its server. Deleting a chat on one server never holds back another server's chat with the
+    /// same id (Moss reproduced that with a failed purge: the other chat stayed paused until relaunch).
+    @Test @MainActor func aPauseOnOneServerLeavesTheSameChatIDOnAnotherServerSending() async throws {
+        let cache = try HermesCache()
+        try await cache.outbox.insert(record("to y", chat: "c1", connection: "y"))
+        let pauses = OutboxPauses()
+        let subject = ChatDeleteQueue(now: { start }, pauses: pauses)
+        subject.delete(id: "c1", title: "Same id", connection: "x") { .deletedCleanupPending }
+        #expect(pauses.isPaused("c1", connection: "x"))
+        #expect(!pauses.isPaused("c1", connection: "y"))
+
+        let submitter = CountingSubmitter()
+        try await OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter, pauses: pauses).drain()
+        #expect(await submitter.delivered == ["to y"], "server y's chat c1 still sends while x's c1 is deleted")
+        subject.undo("c1")
+        #expect(!pauses.isPaused("c1", connection: "x"), "Undo resumes the same server's pause")
+    }
+
+    @Test func pausesAreKeptPerServerAndPerChat() {
+        let pauses = OutboxPauses()
+        pauses.pause("c1", connection: "x")
+        #expect(pauses.isPaused("c1", connection: "x"))
+        #expect(!pauses.isPaused("c1", connection: "y"))
+        #expect(!pauses.isPaused("c1", connection: nil))
+        #expect(!pauses.isPaused("c2", connection: "x"))
+        pauses.resume("c1", connection: "y")
+        #expect(pauses.isPaused("c1", connection: "x"), "resuming another server changes nothing")
+        pauses.resume("c1", connection: "x")
+        #expect(!pauses.isPaused("c1", connection: "x"))
+    }
+
+    /// n1: the server delete, tombstone and purge as one HermesKit step.
+    @Test func serverDeleteThenPurgeRemovesTheTombstone() async throws {
+        let tombstones = freshTombstones()
+        var purges = 0
+        let result = try await ServerChatDelete.commit(
+            chatID: "s1", connection: "x", tombstones: tombstones, deleteOnServer: {},
+            purge: {
+                purges += 1
+                return 2
+            })
+        #expect(result == .deleted(discardedMessages: 2))
+        #expect(purges == 1)
+        #expect(tombstones.entries.isEmpty)
+    }
+
+    @Test func aPurgeThatFailsOnceIsTriedAgain() async throws {
+        let tombstones = freshTombstones()
+        var purges = 0
+        let result = try await ServerChatDelete.commit(
+            chatID: "s1", connection: "x", tombstones: tombstones, deleteOnServer: {},
+            purge: {
+                purges += 1
+                if purges == 1 { throw ServerRefused() }
+                return 1
+            })
+        #expect(result == .deleted(discardedMessages: 1))
+        #expect(purges == 2)
+        #expect(tombstones.entries.isEmpty)
+    }
+
+    @Test func aPurgeThatFailsTwiceLeavesTheTombstoneForTheLaunchSweep() async throws {
+        let tombstones = freshTombstones()
+        var purges = 0
+        let result = try await ServerChatDelete.commit(
+            chatID: "s1", connection: "x", tombstones: tombstones, deleteOnServer: {},
+            purge: {
+                purges += 1
+                throw ServerRefused()
+            })
+        #expect(result == .deletedCleanupPending)
+        #expect(purges == 2)
+        #expect(tombstones.entries == [OutboxTombstones.Entry(connection: "x", chatID: "s1")])
+    }
+
+    @Test func aFailedServerDeleteTombstonesAndPurgesNothing() async {
+        let tombstones = freshTombstones()
+        var purges = 0
+        await #expect(throws: ServerRefused.self) {
+            _ = try await ServerChatDelete.commit(
+                chatID: "s1", connection: "x", tombstones: tombstones, deleteOnServer: { throw ServerRefused() },
+                purge: {
+                    purges += 1
+                    return 0
+                })
+        }
+        #expect(purges == 0, "the chat still exists, so its messages stay")
+        #expect(tombstones.entries.isEmpty)
+    }
+
+    private func freshTombstones() -> OutboxTombstones {
+        let name = "ChatDeleteQueueTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        return OutboxTombstones(defaults: defaults)
+    }
+
 }
 
 /// An outbox whose purge always fails, for the sweep's failure path.

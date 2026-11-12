@@ -71,6 +71,8 @@ public final class ChatDeleteQueue {
     public private(set) var cleanupPending: Set<String> = []
 
     private var commits: [String: Commit] = [:]
+    /// The server of each chat this queue paused (nil for a local chat), so it resumes the same pause (row 99 n2).
+    private var connections: [String: String] = [:]
     private let now: () -> Date
     private let pauses: OutboxPauses
 
@@ -93,14 +95,15 @@ public final class ChatDeleteQueue {
     /// Starts the Undo window for a chat and pauses its outbox. A chat already pending or being deleted is left alone.
     @discardableResult
     public func delete(
-        id: String, title: String, waitingMessages: Int = 0, commit: @escaping Commit
+        id: String, title: String, connection: String? = nil, waitingMessages: Int = 0, commit: @escaping Commit
     ) -> PendingChatDelete? {
         guard !hiddenIDs.contains(id) else { return nil }
         let item = PendingChatDelete(
             id: id, title: title, waitingMessages: waitingMessages, deadline: now().addingTimeInterval(Self.window))
         pending.append(item)
         commits[id] = commit
-        pauses.pause(id)
+        connections[id] = connection
+        pauses.pause(id, connection: connection)
         return item
     }
 
@@ -117,7 +120,7 @@ public final class ChatDeleteQueue {
         guard let index = pending.firstIndex(where: { $0.id == id }) else { return false }
         pending.remove(at: index)
         commits[id] = nil
-        pauses.resume(id)
+        resume(id)
         return true
     }
 
@@ -140,6 +143,11 @@ public final class ChatDeleteQueue {
 
     /// Runs every delete whose window has passed, oldest first. A failed delete brings its chat back and resumes its
     /// outbox; it never disappears silently.
+    /// Lifts this queue's pause on a chat, for the same server it paused.
+    private func resume(_ id: String) {
+        pauses.resume(id, connection: connections.removeValue(forKey: id))
+    }
+
     public func tick() async -> [ChatDeleteOutcome] {
         let time = now()
         let due = pending.filter { !$0.isHeld && $0.deadline <= time }
@@ -153,7 +161,7 @@ public final class ChatDeleteQueue {
                 switch try await commit() {
                 case .deleted(let discarded):
                     outcomes.append(.deleted(id: item.id, discardedMessages: discarded))
-                    pauses.resume(item.id)
+                    resume(item.id)
                 case .deletedCleanupPending:
                     // The server no longer has the chat: it never comes back, and its outbox stays paused so nothing is
                     // submitted to a deleted chat. The launch sweep clears its messages.
@@ -162,7 +170,7 @@ public final class ChatDeleteQueue {
                 }
             } catch {
                 outcomes.append(.restored(id: item.id, title: item.title, reason: Self.reason(error)))
-                pauses.resume(item.id)
+                resume(item.id)
             }
             committing.remove(item.id)
         }
@@ -172,5 +180,28 @@ public final class ChatDeleteQueue {
     private static func reason(_ error: any Error) -> String {
         let text = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         return text.isEmpty ? "The delete didn't go through." : text
+    }
+}
+
+/// A server chat's delete after its Undo window (row 99 n1): the server deletes the chat, a tombstone is written at
+/// once, then this server's waiting messages for the chat are purged, tried twice. A purge that still fails leaves the
+/// tombstone for the launch sweep (``OutboxTombstones/sweep(store:)``) and reports the cleanup as pending.
+///
+/// It throws only when the server delete fails: then nothing is tombstoned or purged, and the chat comes back.
+public enum ServerChatDelete {
+    public static func commit(
+        chatID: String, connection: String, tombstones: OutboxTombstones,
+        deleteOnServer: () async throws -> Void, purge: () async throws -> Int
+    ) async throws -> ChatDeleteCommit {
+        try await deleteOnServer()
+        let entry = OutboxTombstones.Entry(connection: connection, chatID: chatID)
+        tombstones.add(entry)
+        for _ in 0..<2 {
+            if let discarded = try? await purge() {
+                tombstones.remove(entry)
+                return .deleted(discardedMessages: discarded)
+            }
+        }
+        return .deletedCleanupPending
     }
 }
