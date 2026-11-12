@@ -44,10 +44,9 @@
         }
 
         func deleteAll() async {
-            let all = memories
             _ = await run {
-                try await store.deleteAll()
-                lastChange = .deletedAll(all)
+                // Undo restores what was really deleted, not this screen's possibly older copy (review m1).
+                lastChange = .deletedAll(try await store.deleteAll())
             }
         }
 

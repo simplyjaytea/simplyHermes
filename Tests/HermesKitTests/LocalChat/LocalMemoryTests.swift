@@ -104,7 +104,11 @@ struct LocalMemoryStoreTests {
     @Test func theMigrationAddsOnlyTheMemoryTable() async throws {
         let url = try temporaryDatabaseURL()
         _ = try HermesCache(url: url)
-        #expect(try tableNames(at: url).contains("local_memory"))
+        let before = try temporaryDatabaseURL()
+        _ = try HermesCache.openSchema(url: before, upTo: "local-chat-v1")
+        let added = Set(try tableNames(at: url)).subtracting(try tableNames(at: before))
+        #expect(added == ["local_memory"], "the memory migration adds exactly one table")
+        #expect(Set(try tableNames(at: before)).isSubset(of: try tableNames(at: url)), "and drops none")
     }
 }
 
@@ -169,5 +173,40 @@ struct LocalMemoryUndoTests {
         try await LocalMemoryChange.deleted(saved).undo(in: store)
         try await LocalMemoryChange.deleted(saved).undo(in: store)
         #expect(try await store.memories().map(\.id) == [saved.id])
+    }
+}
+
+struct LocalMemoryDeleteAllTests {
+    /// Review m1: Undo of Delete all brings back exactly what was deleted, also when the screen's list is out of date.
+    @Test func deleteAllReturnsWhatItReallyDeleted() async throws {
+        let store = try HermesCache().localMemory
+        try await store.save("on screen", source: .user, at: Date(timeIntervalSince1970: 1))
+        let screensCopy = try await store.memories()
+        try await store.save("saved meanwhile", source: .model, at: Date(timeIntervalSince1970: 2))
+        let deleted = try await store.deleteAll()
+        #expect(Set(deleted.map(\.text)) == ["on screen", "saved meanwhile"])
+        #expect(screensCopy.count == 1)
+        try await LocalMemoryChange.deletedAll(deleted).undo(in: store)
+        #expect(Set(try await store.memories().map(\.text)) == ["on screen", "saved meanwhile"])
+    }
+
+    /// Review m2: a restore is all or none. A trigger makes the table refuse the second row.
+    @Test func aRestoreThatFailsPartWayRestoresNothing() async throws {
+        let queue = try DatabaseQueue()
+        try HermesCache.migrator.migrate(queue)
+        try await queue.write { handle in
+            try handle.execute(
+                sql: """
+                    CREATE TRIGGER refuse BEFORE INSERT ON local_memory WHEN NEW.text = 'boom'
+                    BEGIN SELECT RAISE(ABORT, 'refused'); END;
+                    """)
+        }
+        let store = GRDBLocalMemoryStore(database: queue)
+        let good = LocalMemory(text: "good", createdAt: localChatStart)
+        let refused = LocalMemory(text: "boom", createdAt: localChatStart)
+        await #expect(throws: (any Error).self) { try await store.restore([good, refused]) }
+        #expect(try await store.memories().isEmpty, "the first row is rolled back too")
+        try await store.restore([good])
+        #expect(try await store.memories().map(\.text) == ["good"])
     }
 }
