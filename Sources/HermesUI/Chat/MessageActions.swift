@@ -4,8 +4,18 @@
     import UIKit
 
     extension Notification.Name {
-        /// Asks the visible composer to take the keyboard, for example after "Quote in reply" filled the draft.
+        /// Asks a chat's composer to take the keyboard, for example after "Quote in reply" filled the draft. The
+        /// chat is named by ``hermesComposerFocusKey`` in `userInfo`; only the composer with that key answers.
         static let hermesComposerFocusRequest = Notification.Name("HermesComposerFocusRequest")
+    }
+
+    /// The `userInfo` key of ``Notification/Name/hermesComposerFocusRequest``.
+    let hermesComposerFocusKey = "chat"
+
+    extension EnvironmentValues {
+        /// The chat a screen shows, so its message menu and its composer agree on which composer Quote focuses. With
+        /// two chat windows open, each has its own key.
+        @Entry var hermesChatFocusKey: String? = nil  // swiftlint:disable:this redundant_optional_initialization
     }
 
     extension View {
@@ -38,6 +48,7 @@
         let extra: Extra
 
         @State private var isSelectingText = false
+        @Environment(\.hermesChatFocusKey) private var focusKey
         @State private var feedbackCount = 0
 
         func body(content: Content) -> some View {
@@ -52,7 +63,7 @@
                         .accessibilityIdentifier("message.action.share")
                         Button("Quote in reply", systemImage: "text.quote", action: quote)
                             .accessibilityIdentifier("message.action.quote")
-                        Button("Select text", systemImage: "selection.pin.in.out") { isSelectingText = true }
+                        Button("Select text", systemImage: "selection.pin.in.out", action: selectText)
                             .accessibilityIdentifier("message.action.select")
                     }
                     .disabled(!isEnabled)
@@ -61,7 +72,7 @@
                 }
                 .accessibilityAction(named: Text("Copy"), copy)
                 .accessibilityAction(named: Text("Quote in reply"), quote)
-                .accessibilityAction(named: Text("Select text")) { isSelectingText = true }
+                .accessibilityAction(named: Text("Select text"), selectText)
                 .sensoryFeedback(.success, trigger: feedbackCount)
                 .sheet(isPresented: $isSelectingText) {
                     SelectTextSheet(text: text)
@@ -78,7 +89,14 @@
             guard isEnabled else { return }
             onQuote(text)
             feedbackCount += 1
-            NotificationCenter.default.post(name: .hermesComposerFocusRequest, object: nil)
+            NotificationCenter.default.post(
+                name: .hermesComposerFocusRequest, object: nil,
+                userInfo: focusKey.map { [hermesComposerFocusKey: $0] })
+        }
+
+        private func selectText() {
+            guard isEnabled else { return }
+            isSelectingText = true
         }
     }
 

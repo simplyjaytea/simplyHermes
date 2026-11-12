@@ -23,6 +23,12 @@
         @Environment(\.hermesPalette) private var palette
 
         var body: some View {
+            // "Quote in reply" focuses only this chat's composer, not one in another window.
+            screen.environment(\.hermesChatFocusKey, sessionID)
+        }
+
+        @ViewBuilder
+        private var screen: some View {
             if let live = model.liveChat(for: sessionID) {
                 LiveChatScreen(chat: live, model: model, sessionID: sessionID, style: style)
             } else if let local = model.localChat(for: sessionID) {
