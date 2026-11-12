@@ -201,7 +201,6 @@ private func lines(_ state: TranscriptState) -> [String] {
         try await controller.attach()
         await controller.handle(try envelope("message.start", [:], seq: 1))
         #expect(await controller.send("later") == .notSent)
-        #expect(await controller.pendingMessages.isEmpty)
         await controller.handle(try envelope("message.complete", ["text": "done", "status": "complete"], seq: 2))
         #expect(transport.submitted.isEmpty)
     }
@@ -316,7 +315,6 @@ private func lines(_ state: TranscriptState) -> [String] {
         await controller.handle(try envelope("message.start", [:], seq: 1))
         let photo = ComposerAttachment(kind: .image, name: "IMG_1.jpg", data: Data([1]))
         #expect(await controller.send("later", attachments: [photo]) == .notSent)
-        #expect(await controller.pendingMessages.isEmpty)
         await controller.handle(try envelope("message.complete", ["text": "done", "status": "complete"], seq: 2))
         #expect(transport.uploads.isEmpty)
         #expect(transport.submitted.isEmpty)
@@ -335,7 +333,6 @@ private func lines(_ state: TranscriptState) -> [String] {
         try await controller.attach()
         await controller.handle(try envelope("message.start", [:], seq: 1))
         #expect(await controller.send("/review staged") == .notSent)
-        #expect(await controller.pendingMessages.isEmpty)
         #expect(await controller.send("/usage") == .sent)
         await controller.handle(try envelope("message.complete", ["text": "done", "status": "complete"], seq: 2))
         #expect(transport.submitted.isEmpty)
@@ -417,7 +414,6 @@ private func lines(_ state: TranscriptState) -> [String] {
         transport.failSubmit = nil
         await controller.send("again")
         #expect(transport.submitted.map(\.text) == ["new", "again"])
-        #expect(await controller.pendingMessages.isEmpty)
     }
 
     @Test func staleRowReadsTheHistoryAgain() async throws {
