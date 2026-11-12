@@ -42,6 +42,11 @@
             if model.workspaceBrowser == nil { model.workspaceBrowser = connections.map(WorkspaceBrowserModel.init) }
             if let connections {
                 model.startServerChat = { try await connections.startChat() }
+                model.placeholderStripSource = {
+                    guard let server = connections.active else { return .noServer }
+                    return PlaceholderStrip.derive(
+                        serverName: server.name, phase: connections.phases[server.id], path: NetworkMonitor.shared.path)
+                }
                 model.handOffFirstMessage = { id, text, files in
                     liveChats?.chat(for: id)?.queueFirstMessage(text, attachments: files)
                 }

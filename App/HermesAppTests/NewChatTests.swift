@@ -1,3 +1,4 @@
+import HermesKit
 import Testing
 
 @testable import HermesUI
@@ -243,5 +244,25 @@ struct NewChatTests {
 
         #expect(model.sessions.filter { $0.id == "stored-1" }.count == 1)
         #expect(model.openSessionIDs == ["stored-1"])
+    }
+
+    // MARK: The placeholder's strip names the real server (board row 107)
+
+    @Test func aNewChatNamesTheSavedServerNotAHardcodedOne() throws {
+        let model = ShellModel(sessions: [], selectedSessionID: nil)
+        model.placeholderStripSource = { PlaceholderStrip(serverName: "Office Mac", connection: .reconnecting) }
+        model.newChat()
+        let id = try #require(model.selectedSessionID)
+        #expect(model.session(id: id)?.serverName == "Office Mac")
+        #expect(model.placeholderStrip() == PlaceholderStrip(serverName: "Office Mac", connection: .reconnecting))
+    }
+
+    @Test func aNewChatWithNoServerSaysSoInsteadOfClaimingToBeConnected() throws {
+        let model = ShellModel(sessions: [], selectedSessionID: nil)
+        model.newChat()
+        let id = try #require(model.selectedSessionID)
+        #expect(model.session(id: id)?.serverName == "No server")
+        #expect(model.session(id: id)?.serverName != "home-server")
+        #expect(model.placeholderStrip().connection == .offline)
     }
 }
