@@ -43,21 +43,19 @@ final class AccessibilitySizeUITests: XCTestCase {
         let back = app.navigationBars.buttons["Chats"]
         if back.exists { back.tap() }
         let newChat = app.buttons["New chat"]
-        if newChat.waitForExistence(timeout: 5) {
-            assertUsable(newChat, "New chat", in: layout)
-            try audit(app, screen: "\(layout)-chats")
-        }
+        XCTAssertTrue(newChat.waitForExistence(timeout: 10), "\(layout): the chats list should be reachable")
+        assertUsable(newChat, "New chat", in: layout)
+        try audit(app, screen: "\(layout)-chats")
 
         // Settings
         // The Duo layout keeps hidden copies of "Settings" that can't be tapped, so take one that is hittable.
-        if let settings = hittable(app.buttons.matching(NSPredicate(format: "label == %@", "Settings"))) {
-            settings.tap()
-        }
-        if app.navigationBars["Settings"].waitForExistence(timeout: 5) {
-            let firstRow = app.cells.firstMatch
-            XCTAssertTrue(firstRow.exists, "\(layout): Settings should list its rows")
-            try audit(app, screen: "\(layout)-settings")
-        }
+        let settings = hittable(app.buttons.matching(NSPredicate(format: "label == %@", "Settings")))
+        XCTAssertNotNil(settings, "\(layout): a tappable Settings button should exist")
+        settings?.tap()
+        XCTAssertTrue(
+            app.navigationBars["Settings"].waitForExistence(timeout: 10), "\(layout): Settings should be reachable")
+        XCTAssertTrue(app.cells.firstMatch.exists, "\(layout): Settings should list its rows")
+        try audit(app, screen: "\(layout)-settings")
     }
 
     @MainActor
