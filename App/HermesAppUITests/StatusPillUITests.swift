@@ -290,9 +290,24 @@ final class StatusPillUITests: XCTestCase {
         let server = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH 'server.'")).firstMatch
         XCTAssertTrue(server.waitForExistence(timeout: 10), "The saved server should be listed")
-        server.press(forDuration: 1.0)
-        let connect = app.buttons["Connect"]
-        if connect.waitForExistence(timeout: 5) { connect.tap() }
+        // Connect only starts the connection, and a first message sent before it finishes is refused ("... is not
+        // connected", run 43198484235: five refusals in a row, so the phase was idle or failed, not connecting). Start it
+        // up to three times, and wait each time until the server's row reads Connected. The row's label combines its
+        // status line, so a failure names the state the server was in.
+        for _ in 0..<3 {
+            if server.label.contains("Connected") { break }
+            if !server.label.contains("Connecting") {
+                server.press(forDuration: 1.0)
+                let connect = app.buttons["Connect"]
+                if connect.waitForExistence(timeout: 5) { connect.tap() }
+            }
+            let connected = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "label CONTAINS 'Connected'"), object: server)
+            _ = XCTWaiter().wait(for: [connected], timeout: 30)
+        }
+        if !server.label.contains("Connected") {
+            XCTFail("The saved server should connect before the first message [row=\(server.label)]")
+        }
         tabButton(app, "Chats").tap()
     }
 
