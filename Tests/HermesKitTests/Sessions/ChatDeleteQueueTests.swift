@@ -342,7 +342,9 @@ struct ChatDeleteOutboxTests {
         #expect(!pauses.isPaused("c1", connection: "y"))
 
         let submitter = CountingSubmitter()
-        try await OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: submitter, pauses: pauses).drain()
+        try await OutboxDrainer(
+            store: cache.outbox, chatID: "c1", connectionID: "y", submitter: submitter, pauses: pauses
+        ).drain()
         #expect(await submitter.delivered == ["to y"], "server y's chat c1 still sends while x's c1 is deleted")
         subject.undo("c1", connection: "x")
         #expect(!pauses.isPaused("c1", connection: "x"), "Undo resumes the same server's pause")
