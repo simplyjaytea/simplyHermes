@@ -74,7 +74,7 @@ public enum LocalMemoryRules {
     public static func instructionsBlock(_ memories: [LocalMemory], budget: Int = promptBudget) -> String {
         let chosen = selection(memories, budget: budget)
         guard !chosen.isEmpty else { return "" }
-        return "What you know about the user (saved on this iPhone by the user):\n"
+        return "What you know about the user (saved on this iPhone):\n"
             + chosen.map { "- \($0.text)" }.joined(separator: "\n")
     }
 }
@@ -92,10 +92,12 @@ public protocol LocalMemoryStore: Sendable {
     func setPinned(_ id: UUID, _ isPinned: Bool) async throws
     /// Deletes one memory. Deleting a missing one does nothing, so Undo and a second tap are safe.
     func delete(_ id: UUID) async throws
-    /// Deletes every memory.
-    func deleteAll() async throws
-    /// Puts a memory back exactly as it was (id, text, pin, source, time), for Undo of a delete.
-    func restore(_ memory: LocalMemory) async throws
+    /// Deletes every memory and returns exactly the rows it deleted, read in the same transaction, so Undo brings
+    /// back those and only those (a memory saved meanwhile is neither lost nor duplicated).
+    @discardableResult
+    func deleteAll() async throws -> [LocalMemory]
+    /// Puts memories back exactly as they were (id, text, pin, source, time), all or none, for Undo of a delete.
+    func restore(_ memories: [LocalMemory]) async throws
 }
 
 /// One change the user can take back. Every save and delete of a memory offers Undo; a memory the model saves on
@@ -111,9 +113,9 @@ public enum LocalMemoryChange: Sendable, Equatable {
         case .saved(let memory):
             try await store.delete(memory.id)
         case .deleted(let memory):
-            try await store.restore(memory)
+            try await store.restore([memory])
         case .deletedAll(let memories):
-            for memory in memories { try await store.restore(memory) }
+            try await store.restore(memories)
         }
     }
 
@@ -173,22 +175,32 @@ public struct GRDBLocalMemoryStore: LocalMemoryStore {
         }
     }
 
-    public func restore(_ memory: LocalMemory) async throws {
+    public func restore(_ memories: [LocalMemory]) async throws {
+        // One write is one transaction: a failure part-way restores nothing.
         try await database.write { handle in
-            try handle.execute(
-                sql: """
-                    INSERT OR REPLACE INTO local_memory (memory_id, text, pinned, source, created_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                arguments: [
-                    memory.id.uuidString, memory.text, memory.isPinned ? 1 : 0, memory.source.rawValue,
-                    memory.createdAt.timeIntervalSince1970,
-                ])
+            for memory in memories {
+                try handle.execute(
+                    sql: """
+                        INSERT OR REPLACE INTO local_memory (memory_id, text, pinned, source, created_at)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                    arguments: [
+                        memory.id.uuidString, memory.text, memory.isPinned ? 1 : 0, memory.source.rawValue,
+                        memory.createdAt.timeIntervalSince1970,
+                    ])
+            }
         }
     }
 
-    public func deleteAll() async throws {
-        try await database.write { handle in try handle.execute(sql: "DELETE FROM local_memory") }
+    @discardableResult
+    public func deleteAll() async throws -> [LocalMemory] {
+        try await database.write { handle in
+            let rows = try Row.fetchAll(
+                handle, sql: "SELECT * FROM local_memory ORDER BY pinned DESC, created_at DESC, memory_id"
+            ).compactMap(Self.memory)
+            try handle.execute(sql: "DELETE FROM local_memory")
+            return rows
+        }
     }
 
     private func change(_ id: UUID, sql: String, _ arguments: StatementArguments) async throws {
