@@ -43,11 +43,11 @@
             Task { [weak self] in
                 if let countWaiting {
                     let count = await countWaiting()
-                    self?.queue.setWaitingMessages(id, count)
+                    self?.queue.setWaitingMessages(id, count, connection: connection)
                     self?.sync()
                 }
                 // Announce the final text once, with the count when there is one.
-                if let item = self?.queue.pending.first(where: { $0.id == id }) {
+                if let item = self?.queue.pending.first(where: { $0.id == id && $0.connection == connection }) {
                     AccessibilityNotification.Announcement(item.announcement).post()
                 }
             }
@@ -56,7 +56,7 @@
         /// Undo on the toast: the newest pending chat comes back.
         public func undoLatest() {
             guard let latest else { return }
-            queue.undo(latest.id)
+            queue.undo(latest.id, connection: latest.connection)
             sync()
             schedule()
         }
@@ -71,7 +71,7 @@
         /// VoiceOver focus entered or left the toast.
         public func hold(_ held: Bool) {
             guard let latest else { return }
-            queue.hold(latest.id, held)
+            queue.hold(latest.id, held, connection: latest.connection)
             sync()
             schedule()
         }
