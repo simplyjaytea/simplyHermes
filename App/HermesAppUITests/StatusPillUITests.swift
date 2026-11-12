@@ -293,6 +293,13 @@ final class StatusPillUITests: XCTestCase {
         server.press(forDuration: 1.0)
         let connect = app.buttons["Connect"]
         if connect.waitForExistence(timeout: 5) { connect.tap() }
+        // Connect only starts the connection. A first message sent before it finishes is refused with "is not connected",
+        // so wait until the server's row reads Connected. The row's label combines its status line.
+        let connected = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS 'Connected'"), object: server)
+        if XCTWaiter().wait(for: [connected], timeout: 45) != .completed {
+            XCTFail("The saved server should connect before the first message [row=\(server.label)]")
+        }
         tabButton(app, "Chats").tap()
     }
 
