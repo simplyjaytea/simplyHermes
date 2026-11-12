@@ -127,6 +127,14 @@
                     // Leaving the foreground cancels every pending delete: nothing is deleted the user can't see undone.
                     .onChange(of: scenePhase) { _, phase in
                         if phase == .background { deletes.cancelAll() }
+                        // WP-12: back in the foreground, a client waiting out its backoff connects now.
+                        if phase == .active { Task { await connections?.manager?.reconnectAllNow() } }
+                    }
+                    // WP-12: the network path came back, so waiting clients connect now instead of after their backoff.
+                    .onChange(of: NetworkMonitor.shared.path) { old, new in
+                        if new == .satisfied, old != .satisfied {
+                            Task { await connections?.manager?.reconnectAllNow() }
+                        }
                     }
             }
         }
