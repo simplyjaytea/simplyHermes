@@ -195,6 +195,17 @@ public struct RoomSendOutcome: Sendable, Equatable {
         }
     }
 
+    /// The draft to show once a send ends. The composer stays editable while a send is in flight, so the user may have
+    /// typed something new by then. A successful send clears the draft only if it still holds the text that was sent;
+    /// newer text is kept. A send that did not clear the draft leaves it as it is.
+    public static func draftAfterSend(
+        sent: RoomOutgoingMessage, current: String, outcome: RoomSendOutcome
+    ) -> String {
+        guard outcome.shouldClearDraft else { return current }
+        let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed == sent.text ? "" : current
+    }
+
     /// Determines the outgoing message for a send attempt.
     /// When retrying with the same draft text as a pending message that was not cleared by an earlier outcome,
     /// the pending message is preserved so its `eventID` and `threadID` are reused on retry.
