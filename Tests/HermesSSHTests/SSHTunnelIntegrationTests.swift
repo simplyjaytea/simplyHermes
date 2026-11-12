@@ -30,32 +30,36 @@ struct SSHTunnelIntegrationTests {
         SSHTestbed.log("ssh-tunnel round \(round) of 8")
         let configuration = try SSHTestbed.configuration(hostKey: .trustOnFirstUse { _ in true })
         let tunnel = SSHTunnel(configuration: configuration)
-        let endpoint = try await SSHTestbed.step("tunnel.start", warnAfter: 60) { try await tunnel.start() }
+        let endpoint = try await SSHTestbed.step("tunnel.start", deadline: 45) { try await tunnel.start() }
         #expect(endpoint.hostKey.fingerprint.hasPrefix("SHA256:"))
         #expect(endpoint.sessionToken.count == 64)
 
         do {
             // REST: token required on the loopback bind.
-            let status = try await SSHTestbed.step("rest.unauthorized", warnAfter: 20) {
+            let status = try await SSHTestbed.step("rest.unauthorized", deadline: 15) {
                 try await SSHTestbed.get(endpoint.baseURL.appending(path: "api/sessions"), headers: [:])
             }
             #expect(status == 401)
-            let authorized = try await SSHTestbed.step("rest.authorized", warnAfter: 20) {
+            let authorized = try await SSHTestbed.step("rest.authorized", deadline: 15) {
                 let url = endpoint.baseURL.appending(path: "api/sessions")
                 return try await SSHTestbed.get(url, headers: endpoint.restHeaders)
             }
             #expect(authorized == 200)
 
-            // WebSocket chat turn. Each RPC inside it logs its own step.
-            let turn = try await SSHTestbed.chatTurn(url: endpoint.webSocketURL())
+            // WebSocket chat turn, under one deadline. Each RPC inside it logs its own step, so a hang still names the
+            // RPC that never finished.
+            let socketURL = endpoint.webSocketURL()
+            let turn = try await SSHTestbed.step("ws.chatTurn", deadline: 60) {
+                try await SSHTestbed.chatTurn(url: socketURL)
+            }
             #expect(turn.submitStatus == "streaming")
             #expect(turn.text?.isEmpty == false)
 
         } catch {
-            await SSHTestbed.step("tunnel.stop (after error)", warnAfter: 30) { await tunnel.stop() }
+            _ = try? await SSHTestbed.step("tunnel.stop (after error)", deadline: 15) { await tunnel.stop() }
             throw error
         }
-        await SSHTestbed.step("tunnel.stop", warnAfter: 30) { await tunnel.stop() }
+        try await SSHTestbed.step("tunnel.stop", deadline: 15) { await tunnel.stop() }
         #expect(await tunnel.currentEndpoint == nil)
         let afterStop = try? await SSHTestbed.get(endpoint.baseURL.appending(path: "api/status"), headers: [:])
         #expect(afterStop == nil)
@@ -141,9 +145,29 @@ enum SSHTestbed {
         )
     }
 
-    /// Runs one step of the tunnel test and logs it to stderr: when it starts, when it ends, and a warning once it has run
-    /// longer than `warnAfter` seconds. The step is not cancelled, so a hang still ends at the suite's time limit, but the
-    /// log names the step that never finished.
+    /// Runs one step of the tunnel test with a hard deadline, and logs when it starts and ends. A step that never
+    /// finishes fails at its deadline with ``SSHTunnelError/commandTimedOut(step:)`` naming it, so a hang costs seconds,
+    /// not the suite's 5-minute limit. Testbed run 43198484235 waited 290 s in `ws.gateway.ready`, and another round
+    /// hung in `rest.authorized` until the job's 20-minute timeout. Uses the tunnel's own deadline, which answers even
+    /// when the work ignores cancellation.
+    static func step<T: Sendable>(
+        _ name: String, deadline seconds: Int, _ body: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        log("ssh-tunnel step \(name): started")
+        let clock = ContinuousClock()
+        let start = clock.now
+        do {
+            let value = try await SSHTunnel.withDeadline(.seconds(seconds), step: name, onTimeout: {}, body: body)
+            log("ssh-tunnel step \(name): done in \(start.duration(to: clock.now))")
+            return value
+        } catch {
+            log("ssh-tunnel step \(name): failed after \(start.duration(to: clock.now)): \(error)")
+            throw error
+        }
+    }
+
+    /// One RPC inside the chat turn, which runs under ``step(_:deadline:_:)`` as a whole. Its body reads the shared
+    /// socket, which is not `Sendable`, so it only logs: start, end, and a warning once it has run `warnAfter` seconds.
     static func step<T>(_ name: String, warnAfter seconds: Int, _ body: () async throws -> T) async rethrows -> T {
         log("ssh-tunnel step \(name): started")
         let clock = ContinuousClock()
