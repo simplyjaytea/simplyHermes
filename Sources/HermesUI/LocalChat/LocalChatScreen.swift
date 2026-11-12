@@ -52,7 +52,7 @@
             Text("Reply to: \(Self.preview(of: questionText(question)))")
                 .font(HermesFont.caption)
                 .foregroundStyle(palette.secondaryText)
-                .lineLimit(1)
+                .accessibleLineLimit()
                 .accessibilityIdentifier("local.replyTo")
         }
 

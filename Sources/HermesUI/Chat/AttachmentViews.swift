@@ -60,12 +60,13 @@
                     HStack(spacing: 6) {
                         Image(systemName: file.kind == .pdf ? "doc.richtext" : "doc")
                             .foregroundStyle(HermesColor.secondaryText)
+                            .accessibilityHidden(true)
                         Text(file.name)
                             .font(HermesFont.caption)
-                            .lineLimit(1)
+                            .accessibleLineLimit()
                     }
                     .padding(.horizontal, 10)
-                    .frame(height: 56)
+                    .frame(minHeight: 56)
                     .frame(maxWidth: 180)
                     .background(HermesColor.fill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
