@@ -15,13 +15,14 @@
                 HStack(spacing: 6) {
                     Text(session.title)
                         .font(HermesFont.body.weight(.semibold))
-                        .lineLimit(1)
+                        .accessibleLineLimit()
                     if needsApproval {
                         ApprovalDot()
                     }
                     if isStreaming {
                         TypingIndicator()
                             .scaleEffect(0.6)
+                            .accessibilityLabel(Text("Replying"))
                     }
                 }
                 if session.id.hasPrefix("local-") {
@@ -30,7 +31,7 @@
                     Text("\(serverName) · \(session.subtitle)")
                         .font(HermesFont.footnote)
                         .foregroundStyle(HermesColor.secondaryText)
-                        .lineLimit(1)
+                        .accessibleLineLimit()
                 }
             }
             .padding(.vertical, 2)

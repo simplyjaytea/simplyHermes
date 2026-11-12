@@ -222,7 +222,7 @@
             } header: {
                 Text("Personality (SOUL)")
             } footer: {
-                HStack {
+                AccessibleHStack {
                     if let soulProblem = draft.problems.first(where: {
                         if case .soulTooLong = $0 { return true }
                         return false
@@ -267,7 +267,7 @@
         private func toolsetsSection(for draft: BotSettingsDraft) -> some View {
             Section {
                 if !draft.toolsetsPinned {
-                    HStack {
+                    AccessibleHStack {
                         Text("Inherited from settings")
                             .foregroundStyle(HermesColor.secondaryText)
                         Spacer()
@@ -312,7 +312,7 @@
                 Section("MCP Servers") {
                     ForEach(draft.mcpServers) { server in
                         Toggle(isOn: mcpBinding(for: server.name)) {
-                            HStack {
+                            AccessibleHStack {
                                 Text(server.name)
                                 if let transport = server.transport {
                                     Spacer()

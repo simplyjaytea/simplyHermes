@@ -20,6 +20,9 @@
         private let sendAccessibilityIdentifier: String?
 
         @State private var sendCount = 0
+        /// The send circle follows the text size up to accessibility size 1 (32 pt at the default size).
+        @ScaledMetric(relativeTo: .body) private var scaledSendCircle: CGFloat = 32
+        private var sendCircle: CGFloat { min(scaledSendCircle, 44) }
         @State private var selection = NSRange(location: 0, length: 0)
         @State private var completions = ComposerCompletions()
         @State private var isPhotosPresented = false
@@ -205,6 +208,7 @@
             } label: {
                 Image(systemName: "plus")
                     .font(.body.weight(.semibold))
+                    .cappedSymbolSize()
                     .foregroundStyle(palette.primaryText)
                     .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                     .background(palette.fill, in: Circle())
@@ -294,9 +298,10 @@
             } label: {
                 Image(systemName: "arrow.up")
                     .font(.body.weight(.bold))
+                    .cappedSymbolSize()
                     // The idle button uses text-safe colors: white on system gray is below 4.5:1.
                     .foregroundStyle(canSend ? palette.onAccent : palette.secondaryText)
-                    .frame(width: 32, height: 32)
+                    .frame(width: sendCircle, height: sendCircle)
                     .background(canSend ? palette.accent : palette.fill, in: Circle())
                     .padding(6)
                     .contentShape(Rectangle())
