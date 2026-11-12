@@ -17,11 +17,15 @@ import Testing
 /// (CI's `ssh-integration` job sets it after `testbed/scripts/up.sh`).
 @Suite(.enabled(if: SSHTestbed.keyPath != nil), .serialized, .timeLimit(.minutes(5)))
 struct SSHTunnelIntegrationTests {
-    // Quarantined on main (board row quarantine-ssh-tunnel-chat-turn, until 2026-11-09): it hit the 5-minute limit in
-    // Testbed smoke runs 41351410493 and 41458357870. This draft enables it with a log line per step, so the next hang
-    // names the step that never finished.
+    // Quarantined again (board row quarantine-ssh-tunnel-chat-turn, until 2026-11-19). #117 re-enabled it, and #123's
+    // Testbed run 43198484235 hung in round 1 at step ws.gateway.ready: the WebSocket opened through the tunnel, but
+    // the gateway's ready frame never came, so the round ran to the 5-minute limit and the job to its 20-minute
+    // timeout.
+    // Rounds 2-4 passed. The step logger only warns after 30 s; it does not fail the step.
     // Eight rounds per run, each under the suite's own time limit, so a rare hang shows up in fewer CI runs.
-    @Test(arguments: 1...8)
+    @Test(
+        .disabled("Quarantined: ws.gateway.ready sometimes never arrives in CI (row quarantine-ssh-tunnel-chat-turn)"),
+        arguments: 1...8)
     func chatTurnThroughTunnel(round: Int) async throws {
         SSHTestbed.log("ssh-tunnel round \(round) of 8")
         let configuration = try SSHTestbed.configuration(hostKey: .trustOnFirstUse { _ in true })
