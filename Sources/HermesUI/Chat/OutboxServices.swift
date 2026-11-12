@@ -15,13 +15,19 @@
         /// that is still in flight on the old one (``OutboxDrainers``).
         public static private(set) var drainers = OutboxDrainers()
 
+        /// Where New chats that have no server session yet are kept (board row 104). Nil keeps no queue for them.
+        public static var placeholders: (any PlaceholderStore)?
+
         /// False when the store cannot keep messages across a relaunch. Sending is then refused with a status line,
         /// the same way offline chats are turned off when their file will not open, so nothing is lost silently.
         public static var isDurable = true
 
         /// Uses `store` for every chat from now on. `durable` says whether it keeps messages across a relaunch.
-        public static func install(_ store: any OutboxStore, durable: Bool = true) {
+        public static func install(
+            _ store: any OutboxStore, placeholders: (any PlaceholderStore)? = nil, durable: Bool = true
+        ) {
             self.store = store
+            self.placeholders = placeholders
             isDurable = durable
             // Drainers write to the store they were made with, so a new store starts a new set.
             drainers = OutboxDrainers()
