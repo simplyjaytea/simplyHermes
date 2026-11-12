@@ -2,6 +2,7 @@ import HermesKit
 import HermesUI
 import OSLog
 import Observation
+import UIKit
 import WidgetKit
 
 /// Watches the shell's chats and drives the Live Activities, Keep bots live and the widget cache.
@@ -19,15 +20,20 @@ final class LiveTurnMonitor {
     private var startedAt: [String: Date] = [:]
     /// Chats stopped from a Live Activity or widget, so their final state reads "Stopped".
     private var stopped: Set<String> = []
+    /// The approval each chat waits on (its row id), to notice one appearing and one being answered.
+    private var waitingApprovals: [String: String] = [:]
+    private let notifications: LocalNotifications
     private let logger = Logger(subsystem: "com.simplyjaytea.simplyhermes", category: "LiveTurnMonitor")
 
     init(
         model: ShellModel,
         activities: LiveActivityController,
         keepAlive: KeepBotsLiveService,
-        sharedContainer: SharedContainer.Resolution
+        sharedContainer: SharedContainer.Resolution,
+        notifications: LocalNotifications = .shared
     ) {
         self.model = model
+        self.notifications = notifications
         self.activities = activities
         self.keepAlive = keepAlive
         widgetStore = sharedContainer.directory.map(WidgetSnapshotStore.init(directory:))
@@ -69,7 +75,9 @@ final class LiveTurnMonitor {
                 var state = turnState(for: session, approval: nil, startedAt: started)
                 state.phase = stopped.remove(id) == nil ? .done : .stopped
                 activities.finish(sessionID: id, state: state)
+                notifyTurnEnded(session, startedAt: started, stopped: state.phase == .stopped, now: now)
             }
+            notifyApprovalChange(session, approval: approval, now: now)
         }
         keepAlive.update(runningTurns: running)
         activities.keepsAppAlive = keepAlive.isHolding
@@ -94,6 +102,46 @@ final class LiveTurnMonitor {
             pendingCommand: approval?.text,
             startedAt: startedAt
         )
+    }
+
+    // MARK: Notifications
+
+    private func notificationContext(now: Date) -> NotificationContext {
+        let servers = Set(model.sessions.filter { !$0.id.hasPrefix("local-") }.map(\.serverName))
+        return NotificationContext(
+            appIsActive: UIApplication.shared.applicationState == .active, chatOnScreen: model.selectedSessionID,
+            multipleServers: servers.count > 1, now: now)
+    }
+
+    private func notificationChat(_ session: ChatSessionSummary) -> NotificationChat {
+        NotificationChat(
+            id: session.id, title: session.title,
+            serverName: session.id.hasPrefix("local-") ? nil : session.serverName)
+    }
+
+    private func notifyTurnEnded(_ session: ChatSessionSummary, startedAt: Date, stopped: Bool, now: Date) {
+        let reply = model.transcripts[session.id]?.last { $0.kind == .assistant }?.text ?? ""
+        notifications.handle(
+            .turnEnded(
+                notificationChat(session), startedAt: startedAt, endedAt: now, outcome: stopped ? .stopped : .done,
+                reply: reply),
+            context: notificationContext(now: now))
+    }
+
+    private func notifyApprovalChange(_ session: ChatSessionSummary, approval: ShellMessage?, now: Date) {
+        let id = session.id
+        let previous = waitingApprovals[id]
+        guard previous != approval?.id else { return }
+        if let previous {
+            notifications.handle(
+                .approvalResolved(chatID: id, requestID: previous), context: notificationContext(now: now))
+        }
+        waitingApprovals[id] = approval?.id
+        if let approval {
+            notifications.handle(
+                .approvalWaiting(notificationChat(session), requestID: approval.id, command: approval.text),
+                context: notificationContext(now: now))
+        }
     }
 
     /// Writes only when what a widget shows changed, then reloads the widgets.

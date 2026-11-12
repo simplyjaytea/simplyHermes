@@ -489,6 +489,7 @@
                     .listRowBackground(palette.card)
                 SettingsAssistantSection(connections: connections)
                     .listRowBackground(palette.card)
+                NotificationSettingsSection()
                 QuickActionPrivacySection()
                     .listRowBackground(palette.card)
                 Section("Support") {
