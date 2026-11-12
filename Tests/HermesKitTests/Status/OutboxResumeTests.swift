@@ -25,4 +25,33 @@ struct OutboxResumeTests {
         #expect(!OutboxResume.shouldDrain(from: .noServer, to: .localReady(.apple)))
         #expect(!OutboxResume.shouldDrain(from: .localOff, to: .localReady(.apple)))
     }
+
+    // Row 108: the pill watcher's whole decision.
+    @Test func aLiveChatThatComesBackAttachesOrDrains() {
+        #expect(
+            OutboxResume.reaction(from: .unreachable, to: .connected, isRetired: false, isAttached: false) == .attach)
+        #expect(
+            OutboxResume.reaction(from: .unreachable, to: .connected, isRetired: false, isAttached: true) == .drain)
+    }
+
+    @Test func aRetiredChatNeverReactsEvenWhenItsPillComesBack() {
+        for attached in [false, true] {
+            #expect(
+                OutboxResume.reaction(from: .unreachable, to: .connected, isRetired: true, isAttached: attached)
+                    == .nothing)
+            #expect(
+                OutboxResume.reaction(from: nil, to: .connected, isRetired: true, isAttached: attached) == .nothing)
+        }
+    }
+
+    @Test func aPillThatDidNotComeBackOnlineDoesNothingWhetherRetiredOrNot() {
+        for retired in [false, true] {
+            #expect(
+                OutboxResume.reaction(from: .connected, to: .connected, isRetired: retired, isAttached: true)
+                    == .nothing)
+            #expect(
+                OutboxResume.reaction(from: .connected, to: .unreachable, isRetired: retired, isAttached: true)
+                    == .nothing)
+        }
+    }
 }
