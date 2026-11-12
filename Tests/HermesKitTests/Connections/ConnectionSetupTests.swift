@@ -10,7 +10,7 @@ import Testing
     @Test func addsHTTPForLocalHostsAndHTTPSForPublicOnes() throws {
         #expect(try parsed("192.168.1.20:9119").endpoint.baseURL.absoluteString == "http://192.168.1.20:9119")
         #expect(try parsed("hermes.local:9119/").endpoint.baseURL.absoluteString == "http://hermes.local:9119")
-        #expect(try parsed("100.64.150.77:9119").endpoint.baseURL.absoluteString == "http://100.64.150.77:9119")
+        #expect(try parsed("100.64.10.20:9119").endpoint.baseURL.absoluteString == "http://100.64.10.20:9119")
         #expect(try parsed("hermes.example.com/ai").endpoint.baseURL.absoluteString == "https://hermes.example.com/ai")
         #expect(try parsed("  https://Hermes.example.com  ").warning == nil)
     }
