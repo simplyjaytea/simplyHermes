@@ -16,19 +16,23 @@
             }
         }
 
-        private func pillChanged() {
+        func pillChanged() {
+            // A retired chat belongs to a server that is no longer active, and it does not watch again, so it can be
+            // freed (row 108). The decision is OutboxResume.reaction.
+            guard !isRetired else { return }
             let now = status.pill
             let previous = lastPill
             lastPill = now
-            if OutboxResume.shouldDrain(from: previous, to: now) {
-                if controller == nil {
-                    // Detached (the chat is not open): attaching connects it, and attaching sends the waiting messages.
-                    Task { await attach() }
-                } else {
-                    // Not `drainSoon()`: another screen may have changed the outbox since this chat last refreshed it, and
-                    // the drain reads the records itself.
-                    drainTask = Task { await drainOutbox() }
-                }
+            switch OutboxResume.reaction(from: previous, to: now, isRetired: isRetired, isAttached: controller != nil) {
+            case .nothing:
+                break
+            case .attach:
+                // Detached (the chat is not open): attaching connects it, and attaching sends the waiting messages.
+                Task { await attach() }
+            case .drain:
+                // Not `drainSoon()`: another screen may have changed the outbox since this chat last refreshed it, and
+                // the drain reads the records itself.
+                drainTask = Task { await drainOutbox() }
             }
             watchPill()
         }
