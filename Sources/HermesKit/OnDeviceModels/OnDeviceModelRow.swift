@@ -30,11 +30,14 @@ public struct OnDeviceModelRow: Sendable, Equatable, Identifiable {
     public let availableMemoryBytes: Int64?
     /// True while the files an earlier download failed to verify are fetched again.
     public let isRepairing: Bool
+    /// The phone's memory in bytes (`ProcessInfo.physicalMemory`); 0 when unknown.
+    public let deviceMemoryBytes: UInt64
 
     public init(
         model: OnDeviceModel, state: OnDeviceModelState, isSelected: Bool = false, canRun: Bool = true,
-        availableMemoryBytes: Int64? = nil, isRepairing: Bool = false
+        availableMemoryBytes: Int64? = nil, isRepairing: Bool = false, deviceMemoryBytes: UInt64 = 0
     ) {
+        self.deviceMemoryBytes = deviceMemoryBytes
         self.model = model
         self.state = state
         self.isSelected = isSelected
@@ -49,6 +52,8 @@ public struct OnDeviceModelRow: Sendable, Equatable, Identifiable {
     public var actions: [Action] {
         switch state {
         case .notDownloaded:
+            // A model this phone can never run is not offered for download (row 120).
+            if case .tooBig = fit { return [] }
             return [.download]
         case .checking:
             return []
@@ -98,7 +103,12 @@ public struct OnDeviceModelRow: Sendable, Equatable, Identifiable {
     /// True when the phone's memory allowance is below the model's estimate, so loading it may fail. Shown as a
     /// caution, not a block: the number is an estimate, and the allowance changes with what else is running.
     public var mayNotFitInMemory: Bool {
-        guard let available = availableMemoryBytes else { return false }
-        return available < model.estimatedMemoryBytes
+        if case .mayNotFit = fit { return true }
+        return false
+    }
+
+    /// Whether the model fits this phone's memory, before any download (``OnDeviceModelFit``).
+    public var fit: OnDeviceModelFit {
+        OnDeviceModelFit.assess(model, physicalMemory: deviceMemoryBytes, available: availableMemoryBytes)
     }
 }
