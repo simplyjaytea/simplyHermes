@@ -120,7 +120,11 @@
                         await bots?.reload()
                         await rooms?.reload()
                     }
-                    .onChange(of: connections?.active?.id) { _, _ in model.forgetServerChats() }
+                    .onChange(of: connections?.active?.id) { _, _ in
+                        model.forgetServerChats()
+                        // Retire the old server's chats now: one that is still referenced must not follow the new server.
+                        model.liveChats?.activeServerChanged()
+                    }
                     // `.task(id:)` also runs on appear, so a request from before the shell existed isn't lost.
                     .task(id: model.chatSearchRequest) { presentChatSearchIfRequested() }
                     .task(id: model.pendingSessionReference) { await openPendingSession() }
