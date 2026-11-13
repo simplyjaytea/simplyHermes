@@ -162,7 +162,8 @@ final class LocalChatUITests: XCTestCase {
         let search = app.searchFields["Search chats"]
         XCTAssertTrue(search.waitForExistence(timeout: 15), "The chat list has a search field")
         // Focus, not the on-screen keyboard: a simulator with a hardware keyboard attached never shows one.
-        let focused = expectation(for: NSPredicate(format: "hasKeyboardFocus == true"), evaluatedWith: search)
+        let focused = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hasKeyboardFocus == true"), object: search)
         XCTAssertEqual(XCTWaiter.wait(for: [focused], timeout: 10), .completed, "Search is open, ready to type")
         XCTAssertFalse(element(app, "composer.field").exists, "No chat opened")
     }

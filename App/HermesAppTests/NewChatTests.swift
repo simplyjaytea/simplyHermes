@@ -272,6 +272,7 @@ struct NewChatTests {
         var name = "Office Mac"
         model.placeholderStripSource = { PlaceholderStrip(serverName: name, connection: .online) }
         model.newChat()
+        // Two steps: a #require inside another #require is a recursive macro expansion, which does not compile.
         let selected = try #require(model.selectedSessionID)
         let session = try #require(model.session(id: selected))
         #expect(model.serverName(of: session) == "Office Mac")

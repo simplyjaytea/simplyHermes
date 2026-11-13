@@ -18,7 +18,8 @@ final class SidebarSearchUITests: XCTestCase {
 
         let search = app.searchFields["Search chats"]
         XCTAssertTrue(search.waitForExistence(timeout: 15), "The sidebar has a chat search")
-        let focused = expectation(for: NSPredicate(format: "hasKeyboardFocus == true"), evaluatedWith: search)
+        let focused = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hasKeyboardFocus == true"), object: search)
         XCTAssertEqual(XCTWaiter.wait(for: [focused], timeout: 10), .completed, "Search chats opens it, ready to type")
 
         let router = element(app, "session.router")
