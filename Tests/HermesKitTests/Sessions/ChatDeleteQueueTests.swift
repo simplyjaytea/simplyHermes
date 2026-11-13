@@ -468,3 +468,46 @@ private struct FailingPurgeStore: OutboxStore {
     func remove(id: UUID, ifCurrently current: DeliveryKind) async throws { throw Failed() }
     func removeChat(_ chatID: String, connection: String) async throws -> Int { throw Failed() }
 }
+
+/// The iOS build of HermesUI refused `SessionsListModel.delete` (runs 43370915042, 43394196144): its main-actor
+/// `ChatDeleteQueue.Commit` passed closures formed on the main actor into `ServerChatDelete.commit`, a nonisolated async
+/// function ("sending value of non-Sendable type … risks causing data races"). HermesUI does not build on Linux, so
+/// this mirrors that call here: the test target stops compiling if `commit` sends its closures off the caller's actor.
+@MainActor
+struct ServerChatDeleteIsolationTests {
+    /// Stands in for `SessionLibrary`, the actor the app's delete closure calls.
+    private actor Library {
+        private(set) var deleted: [String] = []
+        func delete(_ id: String) { deleted.append(id) }
+    }
+
+    /// What the closures saw, in order. Main-actor state, as the screen's model is.
+    private final class Steps {
+        var log: [String] = []
+    }
+
+    @Test func theAppsCommitClosureRunsTheDeleteInOrderOnTheMainActor() async throws {
+        let library = Library()
+        let steps = Steps()
+        let name = "ServerChatDeleteIsolationTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let tombstones = OutboxTombstones(defaults: defaults)
+        let commit: ChatDeleteQueue.Commit = {
+            try await ServerChatDelete.commit(
+                chatID: "s1", connection: "x", tombstones: tombstones,
+                deleteOnServer: {
+                    try await library.delete("s1")
+                    steps.log.append("server")
+                },
+                purge: {
+                    steps.log.append(tombstones.entries.isEmpty ? "purge without tombstone" : "purge")
+                    return 2
+                })
+        }
+        #expect(try await commit() == .deleted(discardedMessages: 2))
+        #expect(steps.log == ["server", "purge"], "server delete, then the tombstone, then the purge")
+        #expect(await library.deleted == ["s1"])
+        #expect(tombstones.entries.isEmpty)
+    }
+}
