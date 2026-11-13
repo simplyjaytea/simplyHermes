@@ -192,6 +192,16 @@ public enum AppUpdateRules {
         }
     }
 
+    /// The feed to show in What's new at launch (row 73, proposals rev 2 §A), or nil. It shows only right after an
+    /// update to the build the cached feed describes, and only when that feed has notes. A fresh install, the same
+    /// build, a downgrade, or a feed for another build shows nothing.
+    public static func whatsNew(installed: Int, lastSeen: Int?, cached: AppUpdateFeed?) -> AppUpdateFeed? {
+        guard let lastSeen, installed > lastSeen, let feed = cached, feed.build == installed,
+            !feed.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return nil }
+        return feed
+    }
+
     /// The installed build from `CFBundleVersion`. Zero when it is missing or not a whole number.
     public static func installedBuild(_ bundleVersion: String?) -> Int {
         bundleVersion.flatMap { Int($0.trimmed) } ?? 0
@@ -205,6 +215,7 @@ public struct AppUpdateRecord: @unchecked Sendable {
     static let lastErrorKey = "appUpdate.lastError"
     static let lastAttemptKey = "appUpdate.lastAttempt"
     static let cachedFeedKey = "appUpdate.cachedFeed"
+    static let lastSeenBuildKey = "appUpdate.lastSeenBuild"
 
     private let defaults: UserDefaults
 
@@ -241,6 +252,12 @@ public struct AppUpdateRecord: @unchecked Sendable {
         nonmutating set { defaults.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: Self.cachedFeedKey) }
     }
 
+    /// The build that last ran, for the What's new sheet. Nil on a fresh install.
+    public var lastSeenBuild: Int? {
+        get { defaults.object(forKey: Self.lastSeenBuildKey) as? Int }
+        nonmutating set { defaults.set(newValue, forKey: Self.lastSeenBuildKey) }
+    }
+
     /// Why the last check failed. Nil after a check that worked.
     public var lastError: String? {
         get { defaults.string(forKey: Self.lastErrorKey) }
@@ -251,6 +268,7 @@ public struct AppUpdateRecord: @unchecked Sendable {
     public func reset() {
         for key in [
             Self.lastCheckKey, Self.dismissedBuildKey, Self.lastErrorKey, Self.lastAttemptKey, Self.cachedFeedKey,
+            Self.lastSeenBuildKey,
         ] {
             defaults.removeObject(forKey: key)
         }
@@ -325,6 +343,21 @@ public struct AppUpdateChecker: Sendable {
     private func offerResult(_ feed: AppUpdateFeed) -> AppUpdateResult {
         AppUpdateRules.offer(feed, installedBuild: installedBuild, dismissedBuild: record.dismissedBuild)
             .map(AppUpdateResult.available) ?? .upToDate
+    }
+
+    /// What's new for this launch, or nil. With nothing to show (a fresh install, the same build, no notes) the running
+    /// build is stored at once. With notes to show it is not: ``markWhatsNewSeen()`` stores it when the sheet is
+    /// dismissed, so notes the app couldn't show (another layout, another sheet up) come back at the next launch.
+    public func pendingWhatsNew() -> AppUpdateFeed? {
+        let feed = AppUpdateRules.whatsNew(
+            installed: installedBuild, lastSeen: record.lastSeenBuild, cached: record.cachedFeed)
+        if feed == nil { record.lastSeenBuild = installedBuild }
+        return feed
+    }
+
+    /// The user saw What's new for this build (Done on the sheet). It doesn't come back for it.
+    public func markWhatsNewSeen() {
+        record.lastSeenBuild = installedBuild
     }
 
     /// Later: this build is not offered again, a higher one is.
