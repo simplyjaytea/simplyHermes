@@ -246,3 +246,78 @@ private func attachJSON(
         #expect(started.kept(among: ["s1", "s2"], listed: ["s1"]) == ["s2"])
     }
 }
+
+/// A scripted connection and a clock that only moves when the wait pauses, so `ConnectWait.connected` runs at once.
+private final class ScriptedConnection: @unchecked Sendable {
+    private let lock = NSLock()
+    private var phases: [ConnectionPhase]
+    private var clock = Date(timeIntervalSince1970: 1_800_000_000)
+    private(set) var connectCalls = 0
+    private(set) var pauses = 0
+
+    init(_ phases: [ConnectionPhase]) { self.phases = phases }
+
+    func connect() { lock.withLock { connectCalls += 1 } }
+
+    /// Each look reads the next phase. The last one repeats.
+    func phase() -> ConnectionPhase {
+        lock.withLock { phases.count > 1 ? phases.removeFirst() : phases[0] }
+    }
+
+    func now() -> Date { lock.withLock { clock } }
+
+    /// One pause is one quarter second.
+    func pause() {
+        lock.withLock {
+            pauses += 1
+            clock = clock.addingTimeInterval(0.25)
+        }
+    }
+
+    func wait() async -> Bool {
+        await ConnectWait.connected(
+            connect: { self.connect() }, phase: { self.phase() }, now: { self.now() }, pause: { self.pause() })
+    }
+}
+
+@Suite struct ConnectOnDemandTests {
+    private let summary = ServerSummary()
+
+    @Test func anIdleServerIsConnectedThenWaitedForUntilItIsUp() async {
+        let server = ScriptedConnection([.idle, .connecting, .checkingServer, .connected(summary)])
+        #expect(await server.wait())
+        #expect(server.connectCalls == 1)
+        #expect(server.pauses == 3)
+    }
+
+    @Test func aConnectedServerNeedsNoWait() async {
+        let server = ScriptedConnection([.connected(summary)])
+        #expect(await server.wait())
+        #expect(server.pauses == 0)
+    }
+
+    @Test func aFailedConnectionGivesUpAtOnceAndWaitsForNothing() async {
+        let server = ScriptedConnection([.failed(.unreachable("refused"))])
+        #expect(await server.wait() == false)
+        #expect(server.pauses == 0)
+    }
+
+    @Test func aServerOnlyTheUserCanFixGivesUpAtOnce() async {
+        #expect(await ScriptedConnection([.signInRequired]).wait() == false)
+        #expect(await ScriptedConnection([.updateRequired(found: "2026.1.1")]).wait() == false)
+    }
+
+    @Test func aServerThatNeverConnectsGivesUpWhenPatienceRunsOut() async {
+        let server = ScriptedConnection([.connecting])
+        #expect(await server.wait() == false)
+        #expect(Double(server.pauses) * 0.25 >= ConnectWait.patience)
+        #expect(Double(server.pauses) * 0.25 < ConnectWait.patience + 1)
+    }
+
+    @Test func aCancelledWaitGivesUpAndSendsNothing() async {
+        let server = ScriptedConnection([.connecting])
+        let task = Task { await server.wait() }
+        task.cancel()
+        #expect(await task.value == false)
+    }
+}
