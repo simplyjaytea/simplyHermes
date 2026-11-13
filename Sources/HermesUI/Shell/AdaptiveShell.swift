@@ -48,6 +48,11 @@
             if model.workspaceBrowser == nil { model.workspaceBrowser = connections.map(WorkspaceBrowserModel.init) }
             if let connections {
                 model.startServerChat = { try await connections.startChat() }
+                model.placeholderStripSource = {
+                    guard let server = connections.active else { return .noServer }
+                    return PlaceholderStrip.derive(
+                        serverName: server.name, phase: connections.phases[server.id], path: NetworkMonitor.shared.path)
+                }
                 model.handOffFirstMessage = { id, text, files in
                     liveChats?.chat(for: id)?.queueFirstMessage(text, attachments: files)
                 }
@@ -282,6 +287,7 @@
                     } label: {
                         SessionRow(
                             session: session,
+                            serverName: model.serverName(of: session),
                             isStreaming: model.isStreaming(session.id),
                             needsApproval: model.needsApproval(session.id)
                         )
@@ -309,6 +315,7 @@
                         ForEach(sessions(matching: sidebarChatSearch)) { session in
                             SessionRow(
                                 session: session,
+                                serverName: model.serverName(of: session),
                                 isStreaming: model.isStreaming(session.id),
                                 needsApproval: model.needsApproval(session.id)
                             )

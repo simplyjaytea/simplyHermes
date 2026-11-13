@@ -5,6 +5,8 @@
     /// A row in the chat list.
     struct SessionRow: View {
         let session: ChatSessionSummary
+        /// The server the row names. The shell decides it, so a New chat follows a server switch.
+        let serverName: String
         let isStreaming: Bool
         let needsApproval: Bool
 
@@ -25,7 +27,7 @@
                 if session.id.hasPrefix("local-") {
                     LocalChatBadge()
                 } else {
-                    Text("\(session.serverName) · \(session.subtitle)")
+                    Text("\(serverName) · \(session.subtitle)")
                         .font(HermesFont.footnote)
                         .foregroundStyle(HermesColor.secondaryText)
                         .lineLimit(1)

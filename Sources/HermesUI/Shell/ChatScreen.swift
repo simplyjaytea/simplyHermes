@@ -115,9 +115,11 @@
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .top) {
                 if let session = model.session(id: sessionID) {
+                    // A New chat shows the real server and its state. Only the demo chats keep their sample strip.
+                    let placeholder = model.isSampleChat(sessionID) ? nil : model.placeholderStrip()
                     StatusStrip(
-                        connection: .connected,
-                        serverName: session.serverName,
+                        connection: placeholder.map { StatusStrip.Connection($0.connection) } ?? .connected,
+                        serverName: placeholder?.serverName ?? session.serverName,
                         runningTurn: model.isStreaming(sessionID) ? "Hermes is replying" : nil,
                         onStop: model.isStreaming(sessionID) ? { model.stop(in: sessionID) } : nil
                     )
