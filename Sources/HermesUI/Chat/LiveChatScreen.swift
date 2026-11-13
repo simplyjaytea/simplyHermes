@@ -28,9 +28,6 @@
                 content
                     .frame(maxHeight: .infinity)
                 if style == .halfFold { Divider() }
-                if !chat.queue.isEmpty {
-                    QueuedMessagesView(chat: chat)
-                }
                 ChatStatusBar(strip: chat.strip, pill: chat.status.pill, serverName: chat.serverName)
                 #if DEBUG
                     // Hidden: a UI test reads it when an outage assertion fails (WP-8).
