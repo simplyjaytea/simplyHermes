@@ -391,6 +391,27 @@ struct OnDeviceModelsSelectionTests {
         #expect(setup.runtime.requestedModels == ["alpha", "alpha"])
     }
 
+    // Row 100: a reply can never be attributed to a model when none is chosen.
+    @Test func theNoModelRouteNamesNoModel() {
+        #expect(OnDeviceModelSelection.identity(of: .noModel) == nil)
+        #expect(OnDeviceModelSelection.identity(of: .apple) == .apple)
+    }
+
+    @Test func answerWithNoModelChosenThrowsAndReturnsNoLocalAnswer() async throws {
+        let setup = try Setup()
+        await setup.selection.select(.downloaded("alpha"))
+        await setup.selection.modelWillBeDeleted("alpha")
+        var answer: LocalAnswer?
+        do {
+            answer = try await setup.selection.answer(instructions: "", prompt: "hi")
+        } catch {
+            #expect(error as? OnDeviceModelError == .noModelChosen)
+        }
+        #expect(answer == nil)
+        #expect(setup.selection.answeringModel == nil)
+        #expect(setup.apple.prompts.isEmpty)
+    }
+
     @Test func deletingAnotherModelKeepsTheChoice() async throws {
         let setup = try Setup(installed: [alpha, beta])
         await setup.selection.select(.downloaded("alpha"))
