@@ -21,6 +21,7 @@
         @Environment(\.scenePhase) private var scenePhase
         @State private var showsWorkspaces = false
         @State private var showsArtifacts = false
+        @State private var showsGitReview = false
         @Environment(\.hermesPalette) private var palette
 
         var body: some View {
@@ -119,6 +120,11 @@
                         media: { await browser.mediaData($0) },
                         onJump: jumpToRow
                     )
+                }
+            }
+            .sheet(isPresented: $showsGitReview) {
+                if let folder = workspaceFolder, let browser = model.workspaceBrowser {
+                    GitReviewSheet(repoPath: folder, connections: browser.connections)
                 }
             }
             .sheet(isPresented: $showsWorkspaces) {
@@ -381,8 +387,14 @@
                     )
                     .padding(.horizontal, 12)
                     .padding(.top, 4)
-                    ArtifactsButton { showsArtifacts = true }
-                        .padding(.horizontal, 12)
+                    HStack(spacing: 8) {
+                        ArtifactsButton { showsArtifacts = true }
+                        // Git review of the chat's folder, as the desktop app's right sidebar has it.
+                        if workspaceFolder != nil, model.workspaceBrowser != nil {
+                            GitReviewButton { showsGitReview = true }
+                        }
+                    }
+                    .padding(.horizontal, 12)
                 }
             }
         }
