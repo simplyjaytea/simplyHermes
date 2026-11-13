@@ -95,9 +95,9 @@ struct NewChatCoordinatorTests {
         #expect(await down.creatorA.calls == 0)
 
         // Relaunched again with the server connected: delivered once.
-        let up = PillBox()
-        await up.set(.connected)
-        let back = try rig(cache: try HermesCache(url: url), pillA: up)
+        let connectedPill = PillBox()
+        await connectedPill.set(.connected)
+        let back = try rig(cache: try HermesCache(url: url), pillA: connectedPill)
         _ = try await back.coordinator.restore()
         #expect(await back.creatorA.calls == 1)
         #expect(await back.announced.created.count == 1)

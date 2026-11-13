@@ -67,6 +67,7 @@ enum ConnectionGuard {
             var position = 0
             while position < characters.count {
                 let rest = String(characters[position...])
+                let opener = connectionOpeners.first(where: { rest.hasPrefix($0) })
                 if characters[position] == "{" {
                     depth += 1
                 } else if characters[position] == "}" {
@@ -75,9 +76,7 @@ enum ConnectionGuard {
                     records.removeAll { $0.depth > depth }
                 } else if rest.hasPrefix("NetworkTrap.record(") {
                     records.append((index, depth))
-                } else if let opener = connectionOpeners.first(where: { rest.hasPrefix($0) }),
-                    exemptions["\(path)|\(opener)"] == nil
-                {
+                } else if let opener, exemptions["\(path)|\(opener)"] == nil {
                     if let match = records.lastIndex(where: { index - $0.line <= window }) {
                         records.remove(at: match)
                     } else {
