@@ -166,6 +166,9 @@
         /// The server this chat's waiting messages belong to. Fixed for the model's life: a server switch builds a new
         /// model. The outbox keys messages by server and chat, since two servers can share a chat id.
         var outboxConnectionID: String { serverID?.uuidString ?? "" }
+        /// This model's place among the screens that hear about its chat's outbox changes. A chat open in two windows has
+        /// two models, and both refresh (``OutboxDrainer/observe(owner:_:)``).
+        @ObservationIgnored private let outboxObserver = UUID()
         /// True while ``retryConnection()`` runs, so a second tap does nothing.
         @ObservationIgnored private var retrying = false
         /// True once the store dropped this chat (the active server changed). A retired chat connects to nothing: its pill
@@ -264,10 +267,10 @@
                 let refresh: @Sendable () async -> Void = { @MainActor [weak self] in await self?.refreshOutbox() }
                 let (drainer, isNew) = drainers.drainer(forChat: storedSessionID, connection: outboxConnectionID) {
                     OutboxDrainer(
-                        store: outbox, chatID: storedSessionID, connectionID: outboxConnectionID, submitter: controller,
-                        onChange: refresh)
+                        store: outbox, chatID: storedSessionID, connectionID: outboxConnectionID, submitter: controller)
                 }
                 self.drainer = drainer
+                await drainer.observe(owner: outboxObserver, refresh)
                 do {
                     if isNew {
                         // The chat's first attach this launch: messages that were mid-send when the app stopped go out
@@ -277,7 +280,7 @@
                         // A reattach (Try again, a screen coming back, or this chat rebuilt after a server switch or in
                         // another window). A message may be in flight on the old controller, so nothing is recovered:
                         // the drainer finishes it there and sends the rest through this one.
-                        await drainer.use(controller, onChange: refresh)
+                        await drainer.use(controller)
                     }
                     _ = try await outbox.pruneSent(inChat: storedSessionID)
                 } catch {
@@ -323,6 +326,9 @@
         func retire() {
             isRetired = true
             detach()
+            // A retired model no longer needs to hear about the chat's outbox.
+            let observer = outboxObserver
+            if let drainer { Task { await drainer.stopObserving(owner: observer) } }
         }
 
         /// Stops following. The last transcript stays on screen.

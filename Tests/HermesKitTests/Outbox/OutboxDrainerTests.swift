@@ -253,15 +253,16 @@ struct OutboxDrainerTests {
     /// One attach, as the chat model does it.
     private func attach(
         _ drainers: OutboxDrainers, store: any OutboxStore, submitter: any OutboxSubmitter,
-        onChange: @escaping @Sendable () async -> Void = {}
+        owner: UUID = UUID(), onChange: @escaping @Sendable () async -> Void = {}
     ) async throws -> OutboxDrainer {
         let (drainer, isNew) = drainers.drainer(forChat: "c1", connection: "x") {
-            OutboxDrainer(store: store, chatID: "c1", connectionID: "x", submitter: submitter, onChange: onChange)
+            OutboxDrainer(store: store, chatID: "c1", connectionID: "x", submitter: submitter)
         }
+        await drainer.observe(owner: owner, onChange)
         if isNew {
             try await drainer.recoverInterrupted()
         } else {
-            await drainer.use(submitter, onChange: onChange)
+            await drainer.use(submitter)
         }
         return drainer
     }
@@ -294,7 +295,8 @@ struct OutboxDrainerTests {
         #expect(try await states(cache) == ["a:sent", "b:sent"])
     }
 
-    @Test func theNewestModelIsTheOneThatHearsAboutChanges() async throws {
+    // #133 leftover: a chat open in two windows. Both screens refresh, not only the newest model's.
+    @Test func everyOpenCopyOfAChatHearsAboutChanges() async throws {
         let cache = try HermesCache()
         try await cache.outbox.insert(record("a"))
         let drainers = OutboxDrainers()
@@ -307,8 +309,79 @@ struct OutboxDrainerTests {
 
         try await drainer.drain()
 
-        #expect(await firstScreen.count == 0)
+        #expect(await firstScreen.count > 0)
         #expect(await secondScreen.count > 0)
+    }
+
+    @Test func aModelThatStopsObservingNoLongerHearsAndTheOtherStillDoes() async throws {
+        let cache = try HermesCache()
+        try await cache.outbox.insert(record("a"))
+        let drainers = OutboxDrainers()
+        let closed = UUID()
+        let closedScreen = Counter()
+        let openScreen = Counter()
+        _ = try await attach(
+            drainers, store: cache.outbox, submitter: ScriptedSubmitter(), owner: closed,
+            onChange: { await closedScreen.bump() })
+        let drainer = try await attach(
+            drainers, store: cache.outbox, submitter: ScriptedSubmitter(), onChange: { await openScreen.bump() })
+
+        await drainer.stopObserving(owner: closed)
+        try await drainer.drain()
+
+        #expect(await closedScreen.count == 0)
+        #expect(await openScreen.count > 0)
+    }
+
+    @Test func aModelThatReattachesHearsOnceNotTwice() async throws {
+        let cache = try HermesCache()
+        try await cache.outbox.insert(record("a"))
+        let drainers = OutboxDrainers()
+        let owner = UUID()
+        let screen = Counter()
+        _ = try await attach(
+            drainers, store: cache.outbox, submitter: ScriptedSubmitter(), owner: owner,
+            onChange: { await screen.bump() })
+        // Try again reattaches the same model: the same owner, a new controller.
+        let drainer = try await attach(
+            drainers, store: cache.outbox, submitter: ScriptedSubmitter(), owner: owner,
+            onChange: { await screen.bump() })
+
+        try await drainer.drain()
+
+        // One pending message makes two writes (sending, sent). Twice the callbacks would mean 4.
+        #expect(await screen.count == 2)
+    }
+
+    // #133 leftover: the registry forgets a chat that was deleted.
+    @Test func aDeletedChatsDrainerIsForgottenAndOnlyThatOne() throws {
+        let drainers = OutboxDrainers()
+        let store = try HermesCache().outbox
+        func make(_ chat: String, _ connection: String) -> Bool {
+            drainers.drainer(forChat: chat, connection: connection) {
+                OutboxDrainer(store: store, chatID: chat, connectionID: connection, submitter: ScriptedSubmitter())
+            }.isNew
+        }
+        #expect(make("c1", "A") && make("c1", "B") && make("c2", "A"))
+        #expect(drainers.forget(chat: "c1", connection: "A"))
+        #expect(!drainers.forget(chat: "c1", connection: "A"))
+        #expect(make("c1", "A"), "A deleted chat's drainer is new if the id is ever used again")
+        #expect(!make("c1", "B"), "The same chat id on another server keeps its drainer")
+        #expect(!make("c2", "A"))
+    }
+
+    @Test func aRemovedServersDrainersAreAllForgotten() throws {
+        let drainers = OutboxDrainers()
+        let store = try HermesCache().outbox
+        for (chat, connection) in [("c1", "A"), ("c2", "A"), ("c1", "B")] {
+            _ = drainers.drainer(forChat: chat, connection: connection) {
+                OutboxDrainer(store: store, chatID: chat, connectionID: connection, submitter: ScriptedSubmitter())
+            }
+        }
+        #expect(drainers.forgetAll(connection: "A") == 2)
+        #expect(drainers.forgetAll(connection: "A") == 0)
+        #expect(!drainers.forget(chat: "c1", connection: "A"))
+        #expect(drainers.forget(chat: "c1", connection: "B"))
     }
 
     @Test func eachChatHasItsOwnDrainerAndOnlyItsFirstAttachIsNew() throws {
