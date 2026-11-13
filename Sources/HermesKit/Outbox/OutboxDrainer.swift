@@ -30,7 +30,9 @@ public actor OutboxDrainer {
     private let connectionID: String
     private var submitter: any OutboxSubmitter
     private let clock: @Sendable () -> Date
-    private var onChange: @Sendable () async -> Void
+    /// Who wants to hear when a state is written, by owner. A chat open in two windows has two owners, and both screens
+    /// refresh; a closed model removes its own.
+    private var observers: [UUID: @Sendable () async -> Void] = [:]
     private let pauses: OutboxPauses
     private var isDraining = false
     private var drainRequested = false
@@ -49,19 +51,31 @@ public actor OutboxDrainer {
         self.connectionID = connectionID
         self.submitter = submitter
         self.clock = clock
-        self.onChange = onChange
+        observers[UUID()] = onChange
     }
 
     /// Points the drainer at a new submitter, when the chat reattaches on a new controller. A chat keeps one drainer
     /// for its life, so a pass that is still running finishes on the old submitter and the next one uses the new. A
     /// second drainer would not know about the message in flight and would send it again. Do not call
     /// ``recoverInterrupted()`` after this: it is for a relaunch, when nothing is in flight.
-    ///
-    /// `onChange`, when given, replaces the change callback too: a rebuilt chat model takes over the chat's drainer
-    /// (``OutboxDrainers``), and its screen is the one to refresh.
-    public func use(_ submitter: any OutboxSubmitter, onChange: (@Sendable () async -> Void)? = nil) {
+    public func use(_ submitter: any OutboxSubmitter) {
         self.submitter = submitter
-        if let onChange { self.onChange = onChange }
+    }
+
+    /// Registers `onChange` for `owner` (a chat model). It runs after every state the drainer writes. Registering again
+    /// under the same owner replaces that owner's callback and no other, so every open copy of a chat hears about changes
+    /// and a model that reattaches does not hear twice.
+    public func observe(owner: UUID, _ onChange: @escaping @Sendable () async -> Void) {
+        observers[owner] = onChange
+    }
+
+    /// Removes `owner`'s callback, when its chat model is retired or closed.
+    public func stopObserving(owner: UUID) {
+        observers[owner] = nil
+    }
+
+    private func notifyObservers() async {
+        for onChange in Array(observers.values) { await onChange() }
     }
 
     /// Puts messages that were being sent back to `pending`. Call it once, when the chat first attaches after a
@@ -128,7 +142,7 @@ public actor OutboxDrainer {
     /// races a send in flight throws and changes nothing, so the message cannot go out twice.
     public func retry(_ id: UUID) async throws {
         try await store.updateState(.pending, forID: id, ifCurrently: .failed)
-        await onChange()
+        await notifyObservers()
         try await drain()
     }
 
@@ -141,6 +155,6 @@ public actor OutboxDrainer {
         // Written even when this drain was cancelled. A send the server accepted must not be left looking unsent, or
         // the next attach would send it again. An unstructured task does not inherit the cancellation.
         try await Task { try await store.updateState(state, forID: id) }.value
-        await onChange()
+        await notifyObservers()
     }
 }

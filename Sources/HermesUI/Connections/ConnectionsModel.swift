@@ -260,6 +260,8 @@
         public func delete(_ id: UUID) {
             if let manager { Task { await manager.remove(id) } }
             phases[id] = nil
+            // The server's chats are gone with it, so the process need not keep a drainer for each of them.
+            OutboxServices.drainers.forgetAll(connection: id.uuidString)
             try? services.credentials.removeAll(connection: id)
             saved.remove(id: id)
             persist()

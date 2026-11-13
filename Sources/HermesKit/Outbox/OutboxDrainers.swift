@@ -18,12 +18,34 @@ public final class OutboxDrainers: @unchecked Sendable {
     public func drainer(
         forChat chatID: String, connection connectionID: String, make: () -> OutboxDrainer
     ) -> (drainer: OutboxDrainer, isNew: Bool) {
-        let key = "\(connectionID)\u{1F}\(chatID)"
+        let key = Self.key(chatID, connectionID)
         return lock.withLock {
             if let existing = drainers[key] { return (existing, false) }
             let drainer = make()
             drainers[key] = drainer
             return (drainer, true)
         }
+    }
+
+    /// Forgets the drainer of a chat the user deleted, so the registry does not keep one per chat for the whole launch.
+    /// Only for a chat that is gone: a model that still held the drainer and attached again would get a new one and
+    /// recover messages that are in flight. Returns whether there was one.
+    @discardableResult
+    public func forget(chat chatID: String, connection connectionID: String) -> Bool {
+        lock.withLock { drainers.removeValue(forKey: Self.key(chatID, connectionID)) != nil }
+    }
+
+    /// Forgets every drainer of a server that was removed. Returns how many.
+    @discardableResult
+    public func forgetAll(connection connectionID: String) -> Int {
+        lock.withLock {
+            let doomed = drainers.keys.filter { $0.hasPrefix("\(connectionID)\u{1F}") }
+            for key in doomed { drainers[key] = nil }
+            return doomed.count
+        }
+    }
+
+    private static func key(_ chatID: String, _ connectionID: String) -> String {
+        "\(connectionID)\u{1F}\(chatID)"
     }
 }

@@ -170,10 +170,13 @@
             }
             let commit: ChatDeleteQueue.Commit = { [weak self] in
                 defer { Task { await self?.showCached() } }
-                return try await ServerChatDelete.commit(
+                let result = try await ServerChatDelete.commit(
                     chatID: id, connection: connection, tombstones: .standard,
                     deleteOnServer: { try await library.delete(id) },
                     purge: { try await outbox.removeChat(id, connection: connection) })
+                // The chat is gone for good: its drainer need not live for the rest of the launch.
+                await MainActor.run { _ = OutboxServices.drainers.forget(chat: id, connection: connection) }
+                return result
             }
             deletes.delete(
                 id: id, title: item.title, connection: connection, countWaiting: countWaiting, commit: commit)
