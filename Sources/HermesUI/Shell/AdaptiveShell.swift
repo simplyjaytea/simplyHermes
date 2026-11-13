@@ -62,7 +62,9 @@
                     model.newChatQueue = queue
                 }
                 model.activeServerID = { connections.active?.id.uuidString }
-                model.startServerChat = { try await connections.startChat() }
+                model.startServerChat = { bound in
+                    try await connections.startChat(on: bound.flatMap(UUID.init(uuidString:)))
+                }
                 model.placeholderStripSource = {
                     guard let server = connections.active else { return .noServer }
                     return PlaceholderStrip.derive(

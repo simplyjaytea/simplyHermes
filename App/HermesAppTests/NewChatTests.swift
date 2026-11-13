@@ -57,7 +57,7 @@ struct NewChatTests {
     private func serverShell() -> (model: ShellModel, recorder: Recorder) {
         let model = ShellModel(sessions: [], selectedSessionID: nil)
         let recorder = Recorder()
-        model.startServerChat = { serverChat(recorder.created()) }
+        model.startServerChat = { _ in serverChat(recorder.created()) }
         model.handOffFirstMessage = { id, text, _ in recorder.handOff(id, text) }
         return (model, recorder)
     }
@@ -127,7 +127,7 @@ struct NewChatTests {
 
     @Test func failedFirstMessageKeepsTheTextAndSendsNothing() async throws {
         let (model, recorder) = serverShell()
-        model.startServerChat = { throw Offline() }
+        model.startServerChat = { _ in throw Offline() }
         let id = try typeInNewChat("hello", in: model)
 
         _ = await model.send(in: id)?.value
@@ -141,7 +141,7 @@ struct NewChatTests {
     @Test func failedFirstMessageKeepsTheOtherOpenChatsAndTheirDrafts() async throws {
         let model = ShellModel(sessions: ShellModel.sampleSessions, selectedSessionID: "blog")
         model.drafts["blog"] = "half a thought"
-        model.startServerChat = { throw Offline() }
+        model.startServerChat = { _ in throw Offline() }
         let id = try typeInNewChat("hello", in: model)
 
         _ = await model.send(in: id)?.value
@@ -155,23 +155,23 @@ struct NewChatTests {
         let (model, _) = serverShell()
         let id = try typeInNewChat("hello", in: model)
 
-        model.startServerChat = { throw ServerNotConnectedError(serverName: "Home", isConnecting: false) }
+        model.startServerChat = { _ in throw ServerNotConnectedError(serverName: "Home", isConnecting: false) }
         _ = await model.send(in: id)?.value
         #expect(model.newChatError == "Home is not connected. Connect to it, then try again.")
 
-        model.startServerChat = { throw ServerNotConnectedError(serverName: "Home", isConnecting: true) }
+        model.startServerChat = { _ in throw ServerNotConnectedError(serverName: "Home", isConnecting: true) }
         _ = await model.send(in: id)?.value
         #expect(model.newChatError == "Home is still connecting. Try again in a moment.")
     }
 
     @Test func aFailedFirstMessageCanBeSentAgain() async throws {
         let (model, recorder) = serverShell()
-        model.startServerChat = { throw Offline() }
+        model.startServerChat = { _ in throw Offline() }
         let id = try typeInNewChat("hello", in: model)
         _ = await model.send(in: id)?.value
         #expect(model.newChatError != nil)
 
-        model.startServerChat = { serverChat(recorder.created()) }
+        model.startServerChat = { _ in serverChat(recorder.created()) }
         _ = await model.send(in: id)?.value
 
         #expect(model.newChatError == nil)
@@ -182,7 +182,7 @@ struct NewChatTests {
     @Test func repeatSendWhileTheChatIsStartingSendsOnce() async throws {
         let (model, recorder) = serverShell()
         let gate = CreateGate()
-        model.startServerChat = {
+        model.startServerChat = { _ in
             await gate.begin()
             return serverChat(recorder.created())
         }
@@ -213,7 +213,7 @@ struct NewChatTests {
 
     @Test func firstMessageWithoutAnActiveServerKeepsTheText() async throws {
         let (model, recorder) = serverShell()
-        model.startServerChat = { nil }
+        model.startServerChat = { _ in nil }
         let id = try typeInNewChat("hello", in: model)
 
         _ = await model.send(in: id)?.value
@@ -268,7 +268,7 @@ struct NewChatTests {
 
     @Test func aNewChatRowFollowsAServerSwitchBeforeItsFirstMessage() throws {
         let model = ShellModel(sessions: [], selectedSessionID: nil)
-        model.startServerChat = { serverChat("stored-1") }
+        model.startServerChat = { _ in serverChat("stored-1") }
         var name = "Office Mac"
         model.placeholderStripSource = { PlaceholderStrip(serverName: name, connection: .online) }
         model.newChat()

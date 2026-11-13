@@ -144,6 +144,8 @@
         @ObservationIgnored var controller: ChatSessionController?
         /// The attempt to connect and resume that is under way, if any. Calls to ``attach()`` share it.
         @ObservationIgnored private var attaching: Task<Void, Never>?
+        /// The drainer's submitter before this attach swapped itself in, so an abandoned attach can put it back.
+        @ObservationIgnored var previousSubmitter: (any OutboxSubmitter)?
         @ObservationIgnored private var client: GatewayClient?
         @ObservationIgnored private var firstSeen: [String: Date] = [:]
         @ObservationIgnored private var wasRunning = false
@@ -167,8 +169,9 @@
         /// model. The outbox keys messages by server and chat, since two servers can share a chat id.
         var outboxConnectionID: String { serverID?.uuidString ?? "" }
         /// This model's place among the screens that hear about its chat's outbox changes. A chat open in two windows has
-        /// two models, and both refresh (``OutboxDrainer/observe(owner:_:)``).
-        @ObservationIgnored private let outboxObserver = UUID()
+        /// two models, and both refresh. Only ``retire()`` removes it: a model that is merely detached keeps refreshing its
+        /// rows until it attaches again (``OutboxDrainer/observe(owner:_:)``).
+        @ObservationIgnored let outboxObserver = UUID()
         /// True while ``retryConnection()`` runs, so a second tap does nothing.
         @ObservationIgnored private var retrying = false
         /// True once the store dropped this chat (the active server changed). A retired chat connects to nothing: its pill
@@ -179,8 +182,8 @@
         /// The latest drain of this chat's waiting messages. Detaching cancels it, so a closed chat sends nothing more.
         @ObservationIgnored var drainTask: Task<Void, Never>?
         /// The profile this chat was pinned to at its first attach: the default by name when none was active.
-        @ObservationIgnored private var pinnedProfile: String?
-        @ObservationIgnored private var profilePinned = false
+        @ObservationIgnored var pinnedProfile: String?
+        @ObservationIgnored var profilePinned = false
 
         init(
             connections: ConnectionsModel, broker: ServerRequestBroker, storedSessionID: String,
@@ -240,78 +243,97 @@
             await attempt.value
         }
 
+        /// The attach, as steps with a check after each (``ChatAttach``). The server is fixed when the attempt starts: this
+        /// chat's own, never `connections.active` again, so a switch while it waits cannot point the old session id at
+        /// the new server. If the chat is retired or another server becomes active at any await, what was done is rolled
+        /// back and nothing is committed or drained (board row 140).
         private func connectAndFollow() async {
-            guard let connection = connections.active, let manager = connections.manager else {
+            guard let connection = serverID.flatMap(connections.connection(id:)) ?? connections.active,
+                let manager = connections.manager
+            else {
                 phase = .failed("No server is selected.")
                 return
             }
+            let before = phase
             phase = .loading
             do {
-                let client = try await manager.client(for: connection)
-                await broker.install(on: client)
-                self.client = client
-                // The chat keeps the profile it first attached under. A later profile change, such as opening another
-                // bot, does not move it (WP-5).
-                if !profilePinned {
-                    // A nil active profile pins to the default by name, so a later change cannot move this chat (M4).
-                    pinnedProfile = ProfilePin.resolve(activeProfile: await client.activeProfile())
-                    profilePinned = true
+                let outcome = try await ChatAttach.run(
+                    attachSteps(for: connection, manager: manager),
+                    stillWanted: { !self.isRetired && !self.isOnAnotherServer })
+                guard outcome == .attached else {
+                    // Abandoned: the chat is no longer this attempt's to attach. Leave the phase as it was.
+                    phase = before
+                    return
                 }
-                let controller = ChatSessionController(
-                    transport: client, storedSessionID: storedSessionID, profile: pinnedProfile)
-                let states = await controller.states()
-                let pending = await broker.updates()
-                try await controller.attach()
-                self.controller = controller
-                phase = .ready
-                let refresh: @Sendable () async -> Void = { @MainActor [weak self] in await self?.refreshOutbox() }
-                let (drainer, isNew) = drainers.drainer(forChat: storedSessionID, connection: outboxConnectionID) {
-                    OutboxDrainer(
-                        store: outbox, chatID: storedSessionID, connectionID: outboxConnectionID, submitter: controller)
-                }
-                self.drainer = drainer
-                await drainer.observe(owner: outboxObserver, refresh)
-                do {
-                    if isNew {
-                        // The chat's first attach this launch: messages that were mid-send when the app stopped go out
-                        // again, once.
-                        try await drainer.recoverInterrupted()
-                    } else {
-                        // A reattach (Try again, a screen coming back, or this chat rebuilt after a server switch or in
-                        // another window). A message may be in flight on the old controller, so nothing is recovered:
-                        // the drainer finishes it there and sends the rest through this one.
-                        await drainer.use(controller)
-                    }
-                    _ = try await outbox.pruneSent(inChat: storedSessionID)
-                } catch {
-                    outboxError = Self.outboxMessage(for: error)
-                }
-                tasks = [
-                    Task { [weak self] in
-                        for await next in states {
-                            let firstInfo = self?.state.info == nil && next.transcript.info != nil
-                            self?.noteTurnEnd(next.transcript.turn != nil)
-                            self?.noteSubagents(next.transcript.subagents)
-                            self?.noteWorkspace(next.transcript.info?.cwd)
-                            self?.state = next.transcript
-                            // Hermes is free again: the next waiting message may go.
-                            if next.transcript.turn == nil { self?.drainSoon() }
-                            if firstInfo, let info = next.transcript.info { self?.restoreModelPreferences(for: info) }
-                        }
-                    },
-                    Task { [weak self] in
-                        for await list in pending { self?.setApprovals(list) }
-                    },
-                ]
-                await refreshOutbox()
-                // A New chat's first message waits here until it is saved. If the save fails it stays for the next try.
-                if let first = firstMessage, await send(first.text, attachments: first.attachments) {
-                    firstMessage = nil
-                }
-                await drainOutbox()
+                await finishAttach()
             } catch {
                 phase = .failed(Self.describe(error))
             }
+        }
+
+        func attachSteps(for connection: ServerConnection, manager: ConnectionManager) -> [ChatAttach.Step] {
+            let built = PendingAttach()
+            return [
+                ChatAttach.Step("client") { built.client = try await manager.client(for: connection) },
+                ChatAttach.Step("broker") { if let client = built.client { await self.broker.install(on: client) } },
+                ChatAttach.Step("profile") { await self.pinProfile(using: built.client) },
+                ChatAttach.Step(
+                    "controller",
+                    run: { try await self.attachController(built) },
+                    rollback: { await built.controller?.detach() }),
+                ChatAttach.Step(
+                    "outbox", run: { await self.wireOutbox(built) },
+                    rollback: { await self.unwireOutbox(built) }),
+                // The commit has no await, so the check before it and the commit cannot be split by a switch.
+                ChatAttach.Step("commit", run: { self.commit(built) }, rollback: { self.detach() }),
+            ]
+        }
+
+        private func attachController(_ built: PendingAttach) async throws {
+            guard let client = built.client else { return }
+            let controller = ChatSessionController(
+                transport: client, storedSessionID: storedSessionID, profile: pinnedProfile)
+            built.controller = controller
+            built.states = await controller.states()
+            built.approvals = await broker.updates()
+            try await controller.attach()
+        }
+
+        private func commit(_ built: PendingAttach) {
+            client = built.client
+            controller = built.controller
+            drainer = built.drainer
+            previousSubmitter = nil
+            phase = .ready
+            guard let states = built.states, let approvals = built.approvals else { return }
+            tasks = [
+                Task { [weak self] in
+                    for await next in states {
+                        let firstInfo = self?.state.info == nil && next.transcript.info != nil
+                        self?.noteTurnEnd(next.transcript.turn != nil)
+                        self?.noteSubagents(next.transcript.subagents)
+                        self?.noteWorkspace(next.transcript.info?.cwd)
+                        self?.state = next.transcript
+                        // Hermes is free again: the next waiting message may go.
+                        if next.transcript.turn == nil { self?.drainSoon() }
+                        if firstInfo, let info = next.transcript.info { self?.restoreModelPreferences(for: info) }
+                    }
+                },
+                Task { [weak self] in
+                    for await list in approvals { self?.setApprovals(list) }
+                },
+            ]
+        }
+
+        /// After the attach is committed: show the waiting messages, send a New chat's first message, and drain. Each
+        /// of these awaits, so the drain itself checks that the chat is still on its own, active server.
+        private func finishAttach() async {
+            await refreshOutbox()
+            // A New chat's first message waits here until it is saved. If the save fails it stays for the next try.
+            if let first = firstMessage, await send(first.text, attachments: first.attachments) {
+                firstMessage = nil
+            }
+            await drainOutbox()
         }
 
         /// True while another server than this chat's own is active. ``connectAndFollow()`` connects the *active* server,
@@ -325,6 +347,9 @@
         /// chat survives (Try again detaches and attaches), a retired chat never attaches again, and its pill watcher stops.
         func retire() {
             isRetired = true
+            // An attach that is waiting stops at its next check and rolls back what it did.
+            attaching?.cancel()
+            attaching = nil
             detach()
             // A retired model no longer needs to hear about the chat's outbox.
             let observer = outboxObserver

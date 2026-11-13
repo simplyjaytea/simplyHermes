@@ -37,13 +37,12 @@ public actor OutboxDrainer {
     private var isDraining = false
     private var drainRequested = false
 
-    /// Creates a drainer for one chat. `onChange` runs after every state the drainer writes, so the screen can show
-    /// the change at once instead of after the whole pass.
+    /// Creates a drainer for one chat. Screens that want to hear about every state it writes, so they can show the
+    /// change at once instead of after the whole pass, register with ``observe(owner:_:)``.
     public init(
         store: any OutboxStore, chatID: String, connectionID: String, submitter: any OutboxSubmitter,
         clock: @escaping @Sendable () -> Date = { Date() },
-        pauses: OutboxPauses = .shared,
-        onChange: @escaping @Sendable () async -> Void = {}
+        pauses: OutboxPauses = .shared
     ) {
         self.pauses = pauses
         self.store = store
@@ -51,7 +50,6 @@ public actor OutboxDrainer {
         self.connectionID = connectionID
         self.submitter = submitter
         self.clock = clock
-        observers[UUID()] = onChange
     }
 
     /// Points the drainer at a new submitter, when the chat reattaches on a new controller. A chat keeps one drainer
@@ -69,7 +67,9 @@ public actor OutboxDrainer {
         observers[owner] = onChange
     }
 
-    /// Removes `owner`'s callback, when its chat model is retired or closed.
+    /// Removes `owner`'s callback. A chat model does this when it is retired. A model that is only detached (a closed
+    /// tab, or Try again) keeps its callback, which refreshes its rows until it attaches again and registers under the
+    /// same owner.
     public func stopObserving(owner: UUID) {
         observers[owner] = nil
     }
@@ -77,6 +77,15 @@ public actor OutboxDrainer {
     private func notifyObservers() async {
         for onChange in Array(observers.values) { await onChange() }
     }
+
+    /// Replaces `current` with `previous`, only if `current` is still the submitter: an attach that was abandoned after it
+    /// swapped itself in puts back what it found. If another attach has swapped itself in since, that one stays.
+    public func replace(_ current: any OutboxSubmitter, with previous: any OutboxSubmitter) {
+        if (current as AnyObject) === (submitter as AnyObject) { submitter = previous }
+    }
+
+    /// The submitter now in use.
+    public var currentSubmitter: any OutboxSubmitter { submitter }
 
     /// Puts messages that were being sent back to `pending`. Call it once, when the chat first attaches after a
     /// launch and before the first drain. Not on a later reattach: a message may be in flight then (see ``use(_:)``).

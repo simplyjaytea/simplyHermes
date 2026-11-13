@@ -313,6 +313,41 @@ struct OutboxDrainerTests {
         #expect(await secondScreen.count > 0)
     }
 
+    // Row 140: an attach that was abandoned after it swapped itself in puts back what it found, and only if it is still
+    // the one in place.
+    @Test func anAbandonedAttachPutsBackThePreviousSubmitter() async throws {
+        let cache = try HermesCache()
+        try await cache.outbox.insert(record("a"))
+        let previous = ScriptedSubmitter()
+        let abandoned = ScriptedSubmitter()
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", connectionID: "x", submitter: previous)
+
+        let before = await drainer.currentSubmitter
+        await drainer.use(abandoned)
+        await drainer.replace(abandoned, with: before)
+        try await drainer.drain()
+
+        #expect(await previous.delivered == ["a"])
+        #expect(await abandoned.delivered.isEmpty)
+    }
+
+    @Test func anAbandonedAttachDoesNotUndoAnotherAttachThatSwappedInAfterIt() async throws {
+        let cache = try HermesCache()
+        try await cache.outbox.insert(record("a"))
+        let previous = ScriptedSubmitter()
+        let abandoned = ScriptedSubmitter()
+        let newer = ScriptedSubmitter()
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", connectionID: "x", submitter: previous)
+
+        await drainer.use(abandoned)
+        await drainer.use(newer)  // another model attached after the first swapped itself in
+        await drainer.replace(abandoned, with: previous)
+        try await drainer.drain()
+
+        #expect(await newer.delivered == ["a"])
+        #expect(await previous.delivered.isEmpty)
+    }
+
     @Test func aModelThatStopsObservingNoLongerHearsAndTheOtherStillDoes() async throws {
         let cache = try HermesCache()
         try await cache.outbox.insert(record("a"))
