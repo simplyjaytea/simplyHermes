@@ -7,6 +7,8 @@
     /// Returning false leaves the key to the text view, so the caret still moves between lines.
     final class ComposerUITextView: UITextView {
         var onRecall: ((ComposerRecallDirection) -> Bool)?
+        /// The chat this composer writes to. A focus request for another chat is ignored.
+        var focusKey: String?
 
         override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
             let key = presses.first?.key?.keyCode
@@ -17,6 +19,22 @@
                 handled = onRecall?(.newer) ?? false
             }
             if !handled { super.pressesBegan(presses, with: event) }
+        }
+
+        // "Quote in reply" asks the composer on screen to take the keyboard (`hermesComposerFocusRequest`).
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            NotificationCenter.default.removeObserver(self, name: .hermesComposerFocusRequest, object: nil)
+            if window != nil {
+                NotificationCenter.default.addObserver(
+                    self, selector: #selector(focusRequested), name: .hermesComposerFocusRequest, object: nil)
+            }
+        }
+
+        @objc private func focusRequested(_ notification: Notification) {
+            let requested = notification.userInfo?[hermesComposerFocusKey] as? String
+            guard window != nil, !isFirstResponder, requested == focusKey else { return }
+            becomeFirstResponder()
         }
     }
 
@@ -32,6 +50,7 @@
         @Binding var selection: NSRange
         var fieldAccessibilityIdentifier: String = "composer.field"
         var onRecall: ((ComposerRecallDirection) -> Bool)?
+        var focusKey: String?
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)
@@ -55,6 +74,7 @@
         func updateUIView(_ view: ComposerUITextView, context: Context) {
             context.coordinator.parent = self
             view.onRecall = onRecall
+            view.focusKey = focusKey
             // Only a change from outside, such as a cleared draft or a picked completion, rewrites the view.
             if view.text != text {
                 view.text = text

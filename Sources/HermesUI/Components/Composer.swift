@@ -28,6 +28,7 @@
         @State private var isCameraPresented = false
         @State private var problem: String?
         @Environment(\.hermesPalette) private var palette
+        @Environment(\.hermesChatFocusKey) private var focusKey
 
         /// - Parameters:
         ///   - attachments: The files waiting in the composer. Nil hides the attach menu.
@@ -165,7 +166,7 @@
                 ComposerTextView(
                     text: $text, selection: $selection,
                     fieldAccessibilityIdentifier: fieldAccessibilityIdentifier ?? "composer.field",
-                    onRecall: recall
+                    onRecall: recall, focusKey: focusKey
                 )
                 if text.isEmpty {
                     Text(placeholder)
