@@ -65,6 +65,29 @@ struct NetworkTrapTests {
         #expect(ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: text).count == 1)
     }
 
+    @Test func aTypealiasOfURLSessionOutsideTheFactoryFails() {
+        let text = "typealias Web = URLSession\nlet s = Web(configuration: .default)"
+        #expect(ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: text).count == 1)
+        let qualified = "typealias Web = Foundation.URLSession"
+        #expect(ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: qualified).count == 1)
+    }
+
+    @Test func anExtensionOfURLSessionOutsideTheFactoryFails() {
+        let text = "extension URLSession {\n    convenience init(plain: Bool) { self.init(configuration: .default) }\n}"
+        #expect(ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: text).count == 1)
+    }
+
+    @Test func theFactoryMayAliasAndExtendASession() {
+        let text = "typealias Web = URLSession\nextension URLSession {}"
+        #expect(ConnectionGuard.sessionViolations(path: ConnectionGuard.factoryPath, text: text).isEmpty)
+    }
+
+    // Types that only start with URLSession are not the session itself.
+    @Test func aTypeThatMerelyStartsWithURLSessionIsNotAViolation() {
+        let text = "typealias Socket = URLSessionWebSocketTask\nextension URLSessionWebSocketConnection: Sendable {}"
+        #expect(ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: text).isEmpty)
+    }
+
     @Test func theFactoryMayCreateASession() {
         let text = "return URLSession(configuration: configuration, delegate: delegate, delegateQueue: delegateQueue)"
         #expect(ConnectionGuard.sessionViolations(path: ConnectionGuard.factoryPath, text: text).isEmpty)
@@ -99,6 +122,68 @@ struct NetworkTrapTests {
             }
             """
         #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: text).count == 1)
+    }
+
+    // Row 88: a record counts only when it is on the opener's path.
+    @Test func aRecordInTheOtherArmOfAnIfDoesNotCover() {
+        let text = """
+            func a() {
+                if flag {
+                    NetworkTrap.record("ssh")
+                } else {
+                    let connection = ClientBootstrap(group: group)
+                }
+            }
+            """
+        #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: text).count == 1)
+    }
+
+    @Test func aRecordInABlockThatClosedBeforeTheOpenerDoesNotCover() {
+        let text = """
+            func a() {
+                if flag { NetworkTrap.record("ssh") }
+                let connection = ClientBootstrap(group: group)
+            }
+            """
+        #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: text).count == 1)
+    }
+
+    @Test func aRecordInAnEnclosingBlockCoversAnOpenerInsideABranch() {
+        let text = """
+            func a() {
+                NetworkTrap.record("ssh")
+                if flag {
+                    let connection = ClientBootstrap(group: group)
+                }
+            }
+            """
+        #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: text).isEmpty)
+    }
+
+    @Test func eachArmOfAnIfThatRecordsAndOpensPasses() {
+        let text = """
+            func a() {
+                if flag {
+                    NetworkTrap.record("ssh")
+                    let one = ClientBootstrap(group: group)
+                } else {
+                    NetworkTrap.record("ssh")
+                    let two = ClientBootstrap(group: group)
+                }
+            }
+            """
+        #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: text).isEmpty)
+    }
+
+    @Test func aBraceInAStringOrACommentDoesNotMoveTheBlock() {
+        let text = """
+            func a() {
+                NetworkTrap.record("ssh")
+                let marker = "}" // }
+                let connection = ClientBootstrap(group: group)
+            }
+            """
+        #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: text).isEmpty)
     }
 
     @Test func eachRecordedOpenerPasses() {
@@ -172,5 +257,18 @@ struct NetworkTrapTests {
         #expect(
             Set(NetworkTrap.sites).isSubset(of: recorded),
             "Listed sites never recorded: \(Set(NetworkTrap.sites).subtracting(recorded))")
+    }
+
+    // The UI test probes the sites by name. A transport added to NetworkTrap.sites but not to that list would never be
+    // checked on a device, so the two lists must be the same (row 87).
+    @Test func theUITestProbesExactlyTheSitesTheTrapKnows() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let file = root.appendingPathComponent("App/HermesAppUITests/LocalChatUITests.swift")
+        let text = try String(contentsOf: file, encoding: .utf8)
+        let list = try #require(text.firstMatch(of: #/probedSites\s*=\s*\[([^\]]*)\]/#), "probedSites not found")
+        let probed = list.1.matches(of: #/"([a-z]+)"/#).map { String($0.1) }
+        #expect(probed == NetworkTrap.sites, "UI test probes \(probed), the trap lists \(NetworkTrap.sites)")
     }
 }
