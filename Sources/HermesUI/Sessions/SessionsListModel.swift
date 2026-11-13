@@ -165,24 +165,18 @@
             guard let library, let connection = attachedConnectionID, let item = items.first(where: { $0.id == id })
             else { return }
             let outbox = cache.outbox
-            let tombstones = OutboxTombstones.standard
-            let entry = OutboxTombstones.Entry(connection: connection, chatID: id)
             let countWaiting: @MainActor () async -> Int = {
                 (try? await outbox.waitingCount(inChat: id, connection: connection)) ?? 0
             }
             let commit: ChatDeleteQueue.Commit = { [weak self] in
-                try await library.delete(id)
-                tombstones.add(entry)
                 defer { Task { await self?.showCached() } }
-                for _ in 0..<2 {
-                    if let discarded = try? await outbox.removeChat(id, connection: connection) {
-                        tombstones.remove(entry)
-                        return .deleted(discardedMessages: discarded)
-                    }
-                }
-                return .deletedCleanupPending
+                return try await ServerChatDelete.commit(
+                    chatID: id, connection: connection, tombstones: .standard,
+                    deleteOnServer: { try await library.delete(id) },
+                    purge: { try await outbox.removeChat(id, connection: connection) })
             }
-            deletes.delete(id: id, title: item.title, countWaiting: countWaiting, commit: commit)
+            deletes.delete(
+                id: id, title: item.title, connection: connection, countWaiting: countWaiting, commit: commit)
         }
 
         public func rename(_ id: String, to title: String) async {
