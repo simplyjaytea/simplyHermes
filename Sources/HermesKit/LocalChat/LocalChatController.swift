@@ -25,14 +25,22 @@ public struct LocalChatSnapshot: Sendable, Equatable {
     /// reopen.
     public var unansweredIDs: [Int]
 
+    /// The memory the model just saved on its own, for the chat's Undo bar. Nil when none.
+    public var memoryChange: LocalMemoryChange?
+    /// A memory the model wants to save that waits for the user's yes (the turn read a file). Nil when none.
+    public var memoryProposal: String?
+
     /// True when some user message has no reply. Retry asks again for each one.
     public var needsReply: Bool { !unansweredIDs.isEmpty }
 
     /// Creates a snapshot. The default is an empty new chat.
     public init(
         chat: LocalChat? = nil, messages: [LocalChatMessage] = [], isReplying: Bool = false,
-        failure: LocalChatFailure? = nil, unansweredIDs: [Int] = []
+        failure: LocalChatFailure? = nil, unansweredIDs: [Int] = [],
+        memoryChange: LocalMemoryChange? = nil, memoryProposal: String? = nil
     ) {
+        self.memoryChange = memoryChange
+        self.memoryProposal = memoryProposal
         self.chat = chat
         self.messages = messages
         self.isReplying = isReplying
@@ -63,6 +71,10 @@ public actor LocalChatController {
     public let chatID: UUID
     private let store: any LocalChatStore
     private let answerer: @Sendable () -> any LocalChatAnswerer
+    /// Read before every reply, so a memory saved or deleted in Settings applies to the next answer.
+    private let memory: @Sendable () async -> [LocalMemory]
+    /// Where the model's own saves go. Nil keeps the memory tool off.
+    private let memoryStore: (any LocalMemoryStore)?
     private let now: @Sendable () -> Date
 
     private var chat: LocalChat?
@@ -72,6 +84,10 @@ public actor LocalChatController {
     private var answering: Int?
     private var isReplying = false
     private var failure: LocalChatFailure?
+    private var memoryChange: LocalMemoryChange?
+    private var memoryProposal: String?
+    /// Set when this turn read a picked file (phase 3). A memory the model saves after that is asked first.
+    private var turnReadAFile = false
     private var subscribers: [UUID: AsyncStream<LocalChatSnapshot>.Continuation] = [:]
     private var replyTask: Task<Void, Never>?
     private var opening: Task<LocalChat, Error>?
@@ -81,10 +97,14 @@ public actor LocalChatController {
     /// once.
     public init(
         store: any LocalChatStore, answerer: @escaping @Sendable () -> any LocalChatAnswerer, chatID: UUID,
+        memory: @escaping @Sendable () async -> [LocalMemory] = { [] },
+        memoryStore: (any LocalMemoryStore)? = nil,
         now: @escaping @Sendable () -> Date = { Date() }
     ) async {
         self.store = store
         self.answerer = answerer
+        self.memory = memory
+        self.memoryStore = memoryStore
         self.chatID = chatID
         self.now = now
         if let open = try? await store.chat(chatID) {
@@ -97,7 +117,7 @@ public actor LocalChatController {
     public var snapshot: LocalChatSnapshot {
         LocalChatSnapshot(
             chat: chat, messages: messages, isReplying: isReplying, failure: failure,
-            unansweredIDs: unansweredQuestionIDs())
+            unansweredIDs: unansweredQuestionIDs(), memoryChange: memoryChange, memoryProposal: memoryProposal)
     }
 
     /// The user messages with no reply that are not waiting for one (queued, or being answered now). A reply names the
@@ -237,17 +257,97 @@ public actor LocalChatController {
         publish()
     }
 
+    /// Tool calls one reply may make before it stops (spec section 3, rule 7).
+    public static let toolCallLimit = 4
+
     private func attempt(_ prompt: LocalChatMessage) async -> Attempt {
         let model = answerer()
         if case .unavailable(let reason) = model.availability { return .failed(.unavailable(reason)) }
         // The chat before this question. Later messages, which wait for their own turn, are not part of it.
         let history = messages.filter { $0.id < prompt.id }
-        // WP-9 replaces `try?` with a typed failure that keeps the model's error.
-        let answer = try? await model.answer(
-            instructions: Self.instructions, prompt: Self.prompt(history: history, message: prompt.text))
-        let text = answer?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard let answer, !text.isEmpty else { return .failed(.modelFailed) }
-        return .answered(LocalAnswer(text: text, answeredBy: answer.answeredBy))
+        let tools = model.supportsTools && memoryStore != nil
+        var instructions = Self.instructions(memory: await memory())
+        // `/summarize …` and the other prompt-only skills apply to this one message (phase 2).
+        let skill = LocalSkillInvocation.parse(prompt.text)
+        if let skill { instructions += "\n\n" + skill.instructionsBlock }
+        if tools { instructions += "\n\n" + LocalToolCall.instructions }
+        var request = Self.prompt(history: history, message: skill?.prompt ?? prompt.text)
+        turnReadAFile = false
+        for _ in 0...Self.toolCallLimit {
+            // WP-9 replaces `try?` with a typed failure that keeps the model's error.
+            let answer = try? await model.answer(instructions: instructions, prompt: request)
+            let text = answer?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard let answer, !text.isEmpty else { return .failed(.modelFailed) }
+            guard tools, let call = LocalToolCall.parse(text) else {
+                return .answered(LocalAnswer(text: text, answeredBy: answer.answeredBy))
+            }
+            let result = await run(call)
+            request += "\n\nYou called \(call.name.rawValue). Result: \(result)\nNow answer the user."
+        }
+        // The model kept calling tools: no reply is made up for it. The question gets Retry.
+        return .failed(.modelFailed)
+    }
+
+    /// Runs one tool call and returns what the model is told.
+    private func run(_ call: LocalToolCall) async -> String {
+        switch call.name {
+        case .memorySave:
+            let decision = LocalMemoryAutoSave.decide(text: call.arguments["text"], turnReadAFile: turnReadAFile)
+            switch decision {
+            case .save(let text):
+                guard let saved = try? await memoryStore?.save(text, source: .model, at: now()) else {
+                    return "Not saved."
+                }
+                memoryChange = .saved(saved)
+                publish()
+            case .askFirst(let text):
+                memoryProposal = text
+                publish()
+            case .refuse:
+                break
+            }
+            return decision.toolResult
+        }
+    }
+
+    /// Yes on "Save this to memory?": the proposal is saved, with Undo.
+    public func confirmMemoryProposal() async {
+        guard let text = memoryProposal, let store = memoryStore else { return }
+        memoryProposal = nil
+        if let saved = try? await store.save(text, source: .model, at: now()) { memoryChange = .saved(saved) }
+        publish()
+    }
+
+    /// Tests stand in for phase 3 (a turn that read a file) by placing a proposal.
+    func setProposalForTesting(_ text: String) {
+        memoryProposal = text
+        publish()
+    }
+
+    /// No on "Save this to memory?": nothing is saved.
+    public func declineMemoryProposal() {
+        memoryProposal = nil
+        publish()
+    }
+
+    /// Undo on the "Saved to memory" bar.
+    public func undoMemoryChange() async {
+        guard let change = memoryChange, let store = memoryStore else { return }
+        memoryChange = nil
+        try? await change.undo(in: store)
+        publish()
+    }
+
+    /// The Undo bar timed out.
+    public func dismissMemoryChange() {
+        memoryChange = nil
+        publish()
+    }
+
+    /// ``instructions`` plus the user's saved memory, within ``LocalMemoryRules/promptBudget``.
+    static func instructions(memory: [LocalMemory]) -> String {
+        let block = LocalMemoryRules.instructionsBlock(memory)
+        return block.isEmpty ? instructions : instructions + "\n\n" + block
     }
 
     /// The text sent to the model: as much of the chat so far as fits in ``historyLimit`` (the newest turns win),

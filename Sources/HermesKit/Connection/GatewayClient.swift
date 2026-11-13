@@ -13,6 +13,8 @@ public actor GatewayClient {
     private let transport: any WebSocketTransport
     private let credentials: GatewayCredentialProvider
     private let clock: any GatewayClock
+    /// The sleep between attempts, so ``reconnectNow()`` can end it early.
+    private var backoffWait: Task<Void, any Error>?
     private let config: GatewayClientConfig
 
     private var profile: String?
@@ -199,8 +201,28 @@ public actor GatewayClient {
             }
             let delay = config.reconnect.delay(attempt: max(attempt - 1, 0))
             setState(.waitingToReconnect(attempt: attempt, delay: delay))
-            do { try await clock.sleep(seconds: delay) } catch { return }
+            // The wait can be cut short by ``reconnectNow()``. A cancelled run loop still ends it.
+            let wait = Task { [clock] in try await clock.sleep(seconds: delay) }
+            backoffWait = wait
+            do {
+                try await withTaskCancellationHandler {
+                    try await wait.value
+                } onCancel: {
+                    wait.cancel()
+                }
+            } catch {
+                if Task.isCancelled { return }
+            }
+            backoffWait = nil
         }
+    }
+
+    /// Skips the backoff wait and connects now, for the moments a waiting client has good reason to try again: the app
+    /// came back to the foreground, or the network path came back (WP-12). Does nothing unless the client is waiting to
+    /// reconnect: a connected or connecting client has nothing to skip, and a stopped one stays stopped.
+    public func reconnectNow() {
+        guard wanted, case .waitingToReconnect = state else { return }
+        backoffWait?.cancel()
     }
 
     private func failAndStop(_ failure: GatewayFailure) {

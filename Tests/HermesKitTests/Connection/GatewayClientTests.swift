@@ -338,6 +338,66 @@ private func connected(_ rig: Rig, socket: FakeSocket) async throws {
         await rig.client.stop()
     }
 
+    // WP-12: the app came back to the foreground, or the network came back. A waiting client connects at once instead of
+    // sitting out the rest of its backoff.
+    @Test func reconnectNowSkipsTheBackoffWait() async throws {
+        let rig = await Rig()
+        let socket = FakeSocket()
+        socket.serve()
+        rig.transport.enqueue(.fail)
+        rig.transport.enqueue(.socket(socket))
+        await rig.client.start()
+        try await waitUntil("waiting") {
+            rig.log.states.contains { if case .waitingToReconnect = $0 { true } else { false } }
+        }
+        // No clock movement: only reconnectNow can end the wait.
+        await rig.client.reconnectNow()
+        try await waitUntil("connected without waiting") { rig.log.states.contains(.connected) }
+        await rig.client.stop()
+    }
+
+    @Test func withoutReconnectNowTheClientWaitsOutItsBackoff() async throws {
+        let rig = await Rig()
+        let socket = FakeSocket()
+        socket.serve()
+        rig.transport.enqueue(.fail)
+        rig.transport.enqueue(.socket(socket))
+        await rig.client.start()
+        try await waitUntil("waiting") {
+            rig.log.states.contains { if case .waitingToReconnect = $0 { true } else { false } }
+        }
+        await settle()
+        #expect(!rig.log.states.contains(.connected))
+        await rig.client.stop()
+    }
+
+    @Test func reconnectNowDoesNothingWhileConnectedOrStopped() async throws {
+        let rig = await Rig()
+        let socket = FakeSocket()
+        socket.serve()
+        try await connected(rig, socket: socket)
+        await rig.client.reconnectNow()
+        await settle()
+        #expect(await rig.client.connectionState == .connected)
+        await rig.client.stop()
+        await rig.client.reconnectNow()
+        await settle()
+        #expect(await rig.client.connectionState == .stopped)
+    }
+
+    @Test func stoppingAWaitingClientStillEndsItsRunLoop() async throws {
+        let rig = await Rig()
+        rig.transport.enqueue(.fail)
+        await rig.client.start()
+        try await waitUntil("waiting") {
+            rig.log.states.contains { if case .waitingToReconnect = $0 { true } else { false } }
+        }
+        await rig.client.stop()
+        await rig.client.reconnectNow()
+        await settle()
+        #expect(await rig.client.connectionState == .stopped)
+    }
+
     @Test func connectTimeoutTriggersBackoff() async throws {
         let rig = await Rig()
         rig.transport.enqueue(.hang)

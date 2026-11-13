@@ -479,6 +479,8 @@
                     .accessibilityIdentifier("settings.models.keys")
                 }
                 .listRowBackground(palette.card)
+                // On-device models and local-chat memory, also with a server saved (they were only in the no-server list).
+                OnDeviceSettingsSection()
                 SettingsToolsSection(connections: connections)
                     .listRowBackground(palette.card)
                 SettingsServerSection(connections: connections)
@@ -487,6 +489,7 @@
                     .listRowBackground(palette.card)
                 SettingsAssistantSection(connections: connections)
                     .listRowBackground(palette.card)
+                NotificationSettingsSection()
                 QuickActionPrivacySection()
                     .listRowBackground(palette.card)
                 Section("Support") {

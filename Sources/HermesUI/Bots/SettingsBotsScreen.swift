@@ -40,6 +40,7 @@
                                     Image(systemName: "chevron.right")
                                         .font(HermesFont.footnote)
                                         .foregroundStyle(HermesColor.secondaryText)
+                                        .accessibilityHidden(true)
                                 }
                             }
                             .accessibilityIdentifier("settings.bots.\(entry.profile)")

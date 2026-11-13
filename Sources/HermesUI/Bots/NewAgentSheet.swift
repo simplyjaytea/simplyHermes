@@ -11,6 +11,9 @@
         @State private var isAdvancedExpanded = false
         @State private var localError: String?
         @State private var lookSaveWarning = false
+        /// The profile whose skills, tools or servers did not save, once the agent was created. Retry writes them again.
+        @State private var unsavedSettings: String?
+        @State private var lookDidSave = true
 
         var body: some View {
             NavigationStack {
@@ -21,6 +24,16 @@
                                 .font(HermesFont.footnote)
                                 .foregroundStyle(HermesColor.destructive)
                                 .accessibilityIdentifier("newAgent.error")
+                        }
+                    }
+
+                    if let profile = unsavedSettings {
+                        Section {
+                            Button("Retry saving skills, tools and servers") {
+                                Task { await retrySettings(of: profile) }
+                            }
+                            .disabled(isCreating)
+                            .accessibilityIdentifier("newAgent.retrySettings")
                         }
                     }
 
@@ -108,7 +121,9 @@
             model.errorMessage = nil
             defer { isCreating = false }
             if let created = await model.createAgent(draft) {
-                if !created.lookSaved {
+                unsavedSettings = created.settingsSaved ? nil : created.profile
+                lookDidSave = created.lookSaved
+                if !created.lookSaved || !created.settingsSaved {
                     lookSaveWarning = true
                     localError =
                         model.errorMessage
@@ -118,6 +133,23 @@
                 }
             } else {
                 localError = model.errorMessage ?? "Could not create agent."
+            }
+        }
+
+        /// Writes the staged settings of an agent that was created again. The profile is not created a second time.
+        private func retrySettings(of profile: String) async {
+            isCreating = true
+            model.errorMessage = nil
+            defer { isCreating = false }
+            if await model.finishStagedSettings(draft, profile: profile) {
+                unsavedSettings = nil
+                if lookDidSave {
+                    dismiss()
+                } else {
+                    localError = "\(profile) was created, but its title or avatar did not save. Edit it from its menu."
+                }
+            } else {
+                localError = model.errorMessage ?? "The settings still did not save. Try again."
             }
         }
     }

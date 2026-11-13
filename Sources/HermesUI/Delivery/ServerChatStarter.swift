@@ -43,24 +43,14 @@
         private func connectedClient(
             of manager: ConnectionManager, for connection: ServerConnection
         ) async throws(NewChatFailure) -> GatewayClient {
-            await manager.connect(connection)
-            let began = Date()
-            while !Task.isCancelled {
-                let phase = await manager.phase(of: connection.id)
-                switch ConnectWait.next(phase: phase, waited: Date().timeIntervalSince(began)) {
-                case .proceed:
-                    do {
-                        return try await manager.client(for: connection)
-                    } catch {
-                        throw .notReachable
-                    }
-                case .giveUp:
-                    throw .notReachable
-                case .wait:
-                    try? await Task.sleep(for: .milliseconds(250))
-                }
+            let ready = await ConnectWait.connected(
+                connect: { await manager.connect(connection) }, phase: { await manager.phase(of: connection.id) })
+            guard ready else { throw .notReachable }
+            do {
+                return try await manager.client(for: connection)
+            } catch {
+                throw .notReachable
             }
-            throw .notReachable
         }
     }
 #endif
