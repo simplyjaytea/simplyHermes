@@ -161,7 +161,7 @@ final class ConnectionFormStaleTestTests: XCTestCase {
     func testAnEditedAddressDiscardsTheCompletedTestAndItsAdaptedEndpoint() async throws {
         let gate = TestGate()
         var report = ConnectionTestReport(serverVersion: "git.test")
-        report.adaptedEndpoint = HermesEndpoint(string: "http://100.64.150.77:9119")
+        report.adaptedEndpoint = HermesEndpoint(string: "http://100.64.10.20:9119")
         let (form, connections) = makeGatewayForm(GatedTester(gate: gate, report: report, failure: nil))
 
         let finished = CompletionFlag()
