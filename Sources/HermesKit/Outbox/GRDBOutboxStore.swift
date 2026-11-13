@@ -76,6 +76,24 @@ public struct GRDBOutboxStore: OutboxStore {
         }
     }
 
+    @discardableResult
+    public func rebind(chat oldID: String, to newID: String, connection: String) async throws -> Int {
+        try await database.write { handle in
+            let rows = try Row.fetchAll(
+                handle,
+                sql: "SELECT id, json FROM outbound_messages WHERE chat_id = ? AND connection_id = ? ORDER BY rowid",
+                arguments: [oldID, connection])
+            for row in rows {
+                var record = try Self.decoder.decode(OutboundRecord.self, from: row["json"] as Data)
+                record.chatID = newID
+                try handle.execute(
+                    sql: "UPDATE outbound_messages SET chat_id = ?, json = ? WHERE id = ?",
+                    arguments: [newID, try Self.encoder.encode(record), row["id"] as String])
+            }
+            return rows.count
+        }
+    }
+
     public func remove(id: UUID, ifCurrently current: DeliveryKind) async throws {
         try await database.write { handle in
             guard

@@ -41,7 +41,8 @@ final class OnDeviceModelServices {
         answerer = { selection }
         model = OnDeviceModelsModel(
             controller: OnDeviceModelController(
-                manager: manager, selection: selection, availableMemory: gate.availableBytes),
+                manager: manager, selection: selection, availableMemory: gate.availableBytes,
+                deviceMemory: ProcessInfo.processInfo.physicalMemory),
             storage: storage)
         observe()
         Task { await manager.reload() }

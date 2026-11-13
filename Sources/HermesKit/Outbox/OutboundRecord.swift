@@ -58,8 +58,9 @@ public struct OutboundRecord: Sendable, Equatable, Identifiable, Codable {
     public let id: UUID
     /// The saved server connection the chat belongs to, so a removed server takes its waiting messages with it.
     public let connectionID: String
-    /// The chat the message belongs to.
-    public let chatID: String
+    /// The chat the message belongs to. It changes once, when a New chat's first message moves from its placeholder to the
+    /// server session (``OutboxStore/rebind(chat:to:connection:)``).
+    public internal(set) var chatID: String
     /// The message text.
     public var text: String
     /// References to the message's attachments.

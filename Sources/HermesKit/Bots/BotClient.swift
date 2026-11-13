@@ -169,16 +169,21 @@ public struct BotClient: Sendable {
         public var profile: String
         /// False when the title or avatar did not save. The bot can be edited later.
         public var lookSaved: Bool
+        /// False when the staged skills, toolsets or MCP servers did not save. ``finishStagedSettings(_:profile:)``
+        /// writes them again without creating the profile twice.
+        public var settingsSaved: Bool
 
-        public init(profile: String, lookSaved: Bool) {
+        public init(profile: String, lookSaved: Bool, settingsSaved: Bool = true) {
             self.profile = profile
             self.lookSaved = lookSaved
+            self.settingsSaved = settingsSaved
         }
     }
 
     /// Creates an agent: the profile, its staged skills, toolsets and MCP servers, then its title, look and avatar. The
-    /// Bot Chat is created when the bot is first opened, not here. A failed look write does not fail the call: the
-    /// profile already exists, and a retry would only hit `nameTaken`.
+    /// Bot Chat is created when the bot is first opened, not here. A failed settings or look write does not fail the
+    /// call, because the profile already exists and a second create would only hit `nameTaken`. The result says which
+    /// part did not save, so the caller can tell the user and retry only that part.
     public func createAgent(
         _ draft: NewAgentDraft, existingProfiles: Set<String>, now: Date = Date()
     ) async throws -> CreatedAgent {
@@ -187,9 +192,13 @@ public struct BotClient: Sendable {
         let created = try await gateway.call(
             "profiles.create", params: draft.createParams(), as: ProfilesCreateResult.self)
         let name = created.name
-        // The staged lists are best effort, as Desktop treats them: the profile already exists.
-        if let staged = draft.stagedConfigureParams() {
-            _ = try? await gateway.call("profiles.configure", params: staged, as: ProfilesConfigureResult.self)
+        // The staged lists do not fail the create, as Desktop treats them: the profile already exists. A failure is
+        // reported in the result instead of being dropped.
+        var settingsSaved = true
+        do {
+            try await finishStagedSettings(draft, profile: name)
+        } catch {
+            settingsSaved = false
         }
         do {
             let shownTitle = draft.shownTitle
@@ -205,10 +214,19 @@ public struct BotClient: Sendable {
                     object = BotAppLook(avatar: avatar).applied(to: object)
                 }
             }
-            return CreatedAgent(profile: name, lookSaved: true)
+            return CreatedAgent(profile: name, lookSaved: true, settingsSaved: settingsSaved)
         } catch {
-            return CreatedAgent(profile: name, lookSaved: false)
+            return CreatedAgent(profile: name, lookSaved: false, settingsSaved: settingsSaved)
         }
+    }
+
+    /// Writes the draft's staged skills, toolsets and MCP servers to an existing profile. A draft with none writes
+    /// nothing. It never creates the profile, so it is the retry after a create whose settings did not save.
+    public func finishStagedSettings(_ draft: NewAgentDraft, profile: String) async throws {
+        guard var staged = draft.stagedConfigureParams() else { return }
+        staged.profile = profile
+        staged.name = profile
+        _ = try await gateway.call("profiles.configure", params: staged, as: ProfilesConfigureResult.self)
     }
 
     /// Sets the role text, which is the profile's description. Desktop writes it the same way.

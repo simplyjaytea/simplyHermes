@@ -93,3 +93,7 @@ CI builds and tests the app on macOS runners, so a local Mac is not required. Co
 ## Releases
 
 Alpha builds come from `.github/workflows/release.yml`, which runs on a tag such as `v0.1.0-alpha.1`. [CLAUDE.md](CLAUDE.md) has the tag rules.
+
+## License
+
+[MIT](LICENSE). Dependencies keep their own licenses: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

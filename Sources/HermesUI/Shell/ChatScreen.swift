@@ -44,6 +44,7 @@
             case .standard:
                 VStack(spacing: 0) {
                     transcript
+                    placeholderOutbox
                     notConnectedNote
                     Composer(text: model.draftBinding(for: sessionID)) { model.send(in: sessionID) }
                         .disabled(!model.canStartChat(sessionID))
@@ -56,6 +57,7 @@
                         .frame(maxHeight: .infinity)
                     Divider()
                     VStack(spacing: 8) {
+                        placeholderOutbox
                         notConnectedNote
                         Composer(text: model.draftBinding(for: sessionID)) { model.send(in: sessionID) }
                             .disabled(!model.canStartChat(sessionID))
@@ -67,6 +69,14 @@
                     .background(palette.groupedBackground)
                 }
                 .background(palette.groupedBackground)
+            }
+        }
+
+        /// A New chat's outage banner, waiting message and failed row (board row 104). Nothing without the queue.
+        @ViewBuilder
+        private var placeholderOutbox: some View {
+            if let queue = model.newChatQueue {
+                PlaceholderOutboxView(model: model, queue: queue, sessionID: sessionID)
             }
         }
 
@@ -122,9 +132,11 @@
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .top) {
                 if let session = model.session(id: sessionID) {
+                    // A New chat shows the real server and its state. Only the demo chats keep their sample strip.
+                    let placeholder = model.isSampleChat(sessionID) ? nil : model.placeholderStrip()
                     StatusStrip(
-                        connection: .connected,
-                        serverName: session.serverName,
+                        connection: placeholder.map { StatusStrip.Connection($0.connection) } ?? .connected,
+                        serverName: placeholder?.serverName ?? session.serverName,
                         runningTurn: model.isStreaming(sessionID) ? "Hermes is replying" : nil,
                         onStop: model.isStreaming(sessionID) ? { model.stop(in: sessionID) } : nil
                     )

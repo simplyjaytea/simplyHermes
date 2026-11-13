@@ -123,6 +123,33 @@ public enum ConnectWait: Equatable, Sendable {
             waited < patience ? .wait : .giveUp
         }
     }
+
+    /// Connects the saved server if it is not, then waits up to ``patience`` for it. True once it is connected. False
+    /// when it gave up: a failed connection, a server only the user can fix, the patience ran out, or the task was
+    /// cancelled. Nothing is sent from here, so a false answer loses nothing.
+    ///
+    /// - Parameters:
+    ///   - connect: asks the connection to start. It must do nothing while a connection is busy or connected.
+    ///   - phase: where the connection is now.
+    ///   - now: the clock. A test passes its own.
+    ///   - pause: waits before the next look. A test passes one that moves its clock.
+    public static func connected(
+        connect: @Sendable () async -> Void,
+        phase: @Sendable () async -> ConnectionPhase,
+        now: @Sendable () -> Date = { Date() },
+        pause: @Sendable () async -> Void = { try? await Task.sleep(for: .milliseconds(250)) }
+    ) async -> Bool {
+        await connect()
+        let began = now()
+        while !Task.isCancelled {
+            switch next(phase: await phase(), waited: now().timeIntervalSince(began)) {
+            case .proceed: return true
+            case .giveUp: return false
+            case .wait: await pause()
+            }
+        }
+        return false
+    }
 }
 
 // MARK: - Keeping a new chat in the list

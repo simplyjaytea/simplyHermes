@@ -26,6 +26,12 @@
         @State private var terminals = TerminalModel()
         @State private var columnVisibility: NavigationSplitViewVisibility = .all
         @State private var botSettingsEntryForChat: BotRosterEntry?
+        /// Search on the chat list shown when no server is active (#116 follow-up).
+        @State private var localChatSearch = ""
+        @State private var isLocalChatSearchPresented = false
+        /// Search on the unfolded sidebar's chats (row 122). It filters what the sidebar lists, with or without a server.
+        @State private var sidebarChatSearch = ""
+        @State private var isSidebarSearchPresented = false
 
         /// `connections` fills Settings > Servers and the server switcher (WP-22). Nil shows placeholders.
         /// `sessionsList` lists the active server's chats (WP-40). Nil keeps the sample chats.
@@ -41,7 +47,26 @@
             // Kept across re-renders: a new one would lose the folder on screen and leave views holding the old one.
             if model.workspaceBrowser == nil { model.workspaceBrowser = connections.map(WorkspaceBrowserModel.init) }
             if let connections {
+                // Board row 104: a New chat's first message is saved first and goes out once its own server is connected.
+                if OutboxServices.isDurable, let placeholders = OutboxServices.placeholders, model.newChatQueue == nil {
+                    let queue = NewChatQueue(
+                        connections: connections, placeholders: placeholders, outbox: OutboxServices.store)
+                    queue.onCreated = { [weak model] row, session, name, connectionID in
+                        model?.adoptQueuedChat(row: row, sessionID: session, serverName: name)
+                        // Attach now, so the waiting message goes out even when the chat is not on screen. Only on the
+                        // server the chat was made on: another active server must never get this session id.
+                        if connections.active?.id.uuidString == connectionID {
+                            Task { await liveChats?.chat(for: session)?.attach() }
+                        }
+                    }
+                    model.newChatQueue = queue
+                }
                 model.startServerChat = { try await connections.startChat() }
+                model.placeholderStripSource = {
+                    guard let server = connections.active else { return .noServer }
+                    return PlaceholderStrip.derive(
+                        serverName: server.name, phase: connections.phases[server.id], path: NetworkMonitor.shared.path)
+                }
                 model.handOffFirstMessage = { id, text, files in
                     liveChats?.chat(for: id)?.queueFirstMessage(text, attachments: files)
                 }
@@ -52,6 +77,14 @@
                 initialValue: connections.map { BotsModel(connections: $0, profiles: profileList, shell: model) })
             _rooms = State(initialValue: connections.map { RoomsModel(connections: $0) })
             self.showsDebugLayoutMenu = showsDebugLayoutMenu
+        }
+
+        /// The saved servers that are connected now. A New chat waiting for one of them delivers when it appears here.
+        private var connectedServers: [String] {
+            guard let connections else { return [] }
+            return connections.phases.compactMap { id, phase in
+                if case .connected = phase { id.uuidString } else { nil }
+            }.sorted()
         }
 
         /// A posture forced from outside (launch argument or preview) wins; otherwise the hinge decides (WP-02).
@@ -77,16 +110,31 @@
                     .environment(\.hermesPosture, posture)
                     .task(id: forcedPosture) { applyForcedPosture() }
                     .task(id: sessionScopeKey) { await attachSessions() }
+                    .task {
+                        if let queue = model.newChatQueue { model.restoreQueuedChats(await queue.restore()) }
+                    }
+                    .task(id: connectedServers) {
+                        for id in connectedServers { await model.newChatQueue?.serverMayBeBack(id) }
+                    }
                     .task(id: connections?.active?.id) {
                         await bots?.reload()
                         await rooms?.reload()
                     }
                     .onChange(of: connections?.active?.id) { _, _ in model.forgetServerChats() }
-                    .onChange(of: model.chatSearchRequest) { _, _ in sessionsList?.isSearchPresented = true }
+                    // `.task(id:)` also runs on appear, so a request from before the shell existed isn't lost.
+                    .task(id: model.chatSearchRequest) { presentChatSearchIfRequested() }
                     .task(id: model.pendingSessionReference) { await openPendingSession() }
                     // Leaving the foreground cancels every pending delete: nothing is deleted the user can't see undone.
                     .onChange(of: scenePhase) { _, phase in
                         if phase == .background { deletes.cancelAll() }
+                        // WP-12: back in the foreground, a client waiting out its backoff connects now.
+                        if phase == .active { Task { await connections?.manager?.reconnectAllNow() } }
+                    }
+                    // WP-12: the network path came back, so waiting clients connect now instead of after their backoff.
+                    .onChange(of: NetworkMonitor.shared.path) { old, new in
+                        if new == .satisfied, old != .satisfied {
+                            Task { await connections?.manager?.reconnectAllNow() }
+                        }
                     }
             }
         }
@@ -269,12 +317,13 @@
             if let sessionsList, connections?.active != nil {
                 SessionsListView(model: sessionsList, needsApproval: model.needsApproval) { model.show($0) }
             } else {
-                List(visibleSessions) { session in
+                List(searchedSessions) { session in
                     Button {
                         model.open(session.id)
                     } label: {
                         SessionRow(
                             session: session,
+                            serverName: model.serverName(of: session),
                             isStreaming: model.isStreaming(session.id),
                             needsApproval: model.needsApproval(session.id)
                         )
@@ -286,6 +335,7 @@
                 .scrollContentBackground(.hidden)
                 .background(palette.groupedBackground)
                 .toolbarBackground(palette.groupedBackground, for: .navigationBar)
+                .searchable(text: $localChatSearch, isPresented: $isLocalChatSearchPresented, prompt: "Search chats")
             }
         }
 
@@ -298,9 +348,10 @@
                         Section { InlineTipCard(kind: tip) }
                     }
                     Section("Chats") {
-                        ForEach(visibleSessions) { session in
+                        ForEach(sessions(matching: sidebarChatSearch)) { session in
                             SessionRow(
                                 session: session,
+                                serverName: model.serverName(of: session),
                                 isStreaming: model.isStreaming(session.id),
                                 needsApproval: model.needsApproval(session.id)
                             )
@@ -315,6 +366,10 @@
                         }
                     }
                 }
+                .searchable(
+                    text: $sidebarChatSearch, isPresented: $isSidebarSearchPresented, placement: .sidebar,
+                    prompt: "Search chats"
+                )
                 .safeAreaInset(edge: .top, spacing: 0) { AppUpdateBanner() }
                 .safeAreaInset(edge: .bottom, spacing: 0) { ChatDeleteToast() }
                 .navigationTitle("simplyHermes")
@@ -609,6 +664,38 @@
             } else {
                 content
             }
+        }
+    }
+
+    // MARK: Chat search (#125, row 122)
+
+    extension AdaptiveShell {
+
+        /// Opens the search field of whichever chat list is showing: the server's, or the local one when no server is
+        /// active. The request is consumed on the model (set back to 0), so it is answered once even when the app swaps
+        /// this shell for the welcome screen and back: a new shell finds no request waiting. A request made before the
+        /// shell appeared, as on a cold launch from the home-screen action, is still waiting and is answered on appear.
+        private func presentChatSearchIfRequested() {
+            guard model.chatSearchRequest > 0 else { return }
+            model.chatSearchRequest = 0
+            if let sessionsList, connections?.active != nil {
+                sessionsList.isSearchPresented = true
+            } else {
+                isLocalChatSearchPresented = true
+            }
+            // Only one layout is on screen; the other's flag is harmless. The unfolded layout shows its sidebar first.
+            columnVisibility = .all
+            isSidebarSearchPresented = true
+        }
+
+        /// ``visibleSessions`` matching the local list's search, by title or subtitle.
+        private var searchedSessions: [ChatSessionSummary] {
+            sessions(matching: localChatSearch)
+        }
+
+        /// ``visibleSessions`` whose row matches `query` (``ChatSearchFilter``: every word, any order, any case).
+        private func sessions(matching query: String) -> [ChatSessionSummary] {
+            visibleSessions.filter { ChatSearchFilter.matches(query, in: [$0.title, $0.subtitle, $0.serverName]) }
         }
     }
 #endif

@@ -276,6 +276,39 @@ private func feedJSON(build: Int = 3, url: String = signulous, notes: String = "
         #expect(AppUpdateRecord(defaults: defaults).lastError == "no release has update information yet.")
     }
 
+    @Test func aWithdrawnFeedForgetsTheCachedUpdate() async {
+        let defaults = makeDefaults()
+        _ = await checker(defaults: defaults).check()
+        #expect(checker(defaults: defaults).cachedOffer()?.build == 3)
+        let withdrawn = checker(defaults: defaults, result: { throw AppUpdateFeedError.notPublished })
+        #expect(await withdrawn.check(force: true) == .failed(.notPublished))
+        #expect(withdrawn.cachedOffer() == nil, "A pulled build is not offered again")
+        #expect(AppUpdateRecord(defaults: defaults).cachedFeed == nil)
+        #expect(checker(defaults: defaults).cachedOffer() == nil, "Nor after a relaunch")
+    }
+
+    @Test(arguments: [
+        AppUpdateFeedError.unreachable("The request timed out."), .httpStatus(500), .httpStatus(503), .malformed,
+    ])
+    func otherFailuresKeepTheCachedUpdate(error: AppUpdateFeedError) async {
+        let defaults = makeDefaults()
+        _ = await checker(defaults: defaults).check()
+        let failing = checker(defaults: defaults, result: { throw error })
+        #expect(await failing.check(force: true) == .failed(error))
+        #expect(failing.cachedOffer()?.build == 3, "Only a 404 withdraws the update")
+    }
+
+    @Test func aTimeoutKeepsTheCachedUpdate() async {
+        let defaults = makeDefaults()
+        _ = await checker(defaults: defaults).check()
+        let timedOut = checker(defaults: defaults, result: { throw URLError(.timedOut) })
+        guard case .failed(.unreachable) = await timedOut.check(force: true) else {
+            Issue.record("Expected an unreachable failure")
+            return
+        }
+        #expect(timedOut.cachedOffer()?.build == 3)
+    }
+
     @Test func aBadFeedIsRecordedAndAGoodOneClearsIt() async {
         let defaults = makeDefaults()
         let bad = await checker(defaults: defaults, result: { Data("[]".utf8) }).check()

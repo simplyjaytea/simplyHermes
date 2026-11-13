@@ -7,12 +7,15 @@ public struct OnDeviceModelController: Sendable {
     public let selection: OnDeviceModelSelection
     public let catalog: OnDeviceModelCatalog
     private let availableMemory: @Sendable () -> Int64?
+    private let deviceMemory: UInt64
 
     /// `availableMemory` is what this app may still allocate, from `os_proc_available_memory()`; nil when unknown.
+    /// `deviceMemory` is the phone's memory (`ProcessInfo.physicalMemory`); 0, as in tests, means unknown.
     public init(
         manager: OnDeviceModelManager, selection: OnDeviceModelSelection, catalog: OnDeviceModelCatalog = .standard,
-        availableMemory: @escaping @Sendable () -> Int64? = { nil }
+        availableMemory: @escaping @Sendable () -> Int64? = { nil }, deviceMemory: UInt64 = 0
     ) {
+        self.deviceMemory = deviceMemory
         self.manager = manager
         self.selection = selection
         self.catalog = catalog
@@ -29,7 +32,8 @@ public struct OnDeviceModelController: Sendable {
         return catalog.models.map { model in
             OnDeviceModelRow(
                 model: model, state: states[model.id] ?? .notDownloaded, isSelected: route == .downloaded(model),
-                canRun: canRun, availableMemoryBytes: memory, isRepairing: repairing.contains(model.id))
+                canRun: canRun, availableMemoryBytes: memory, isRepairing: repairing.contains(model.id),
+                deviceMemoryBytes: deviceMemory)
         }
     }
 

@@ -5,6 +5,9 @@ import Foundation
 ///
 /// Pauses live in memory only: a pending delete doesn't survive a relaunch, so neither does its pause.
 ///
+/// A pause names the server as well as the chat (row 99 n2): two servers can have a chat with the same id, and pausing
+/// one must not hold back the other's messages. A local chat has no server (`connection` nil).
+///
 /// A pause is not instant. The drainer checks it right before it moves a message to `sending`, so a pause that lands
 /// between that check and the move lets that one message go out early in the Undo window. Nothing is lost: the message
 /// is sent, it is not counted as discarded, and the purge at the end of the window can't bring it back.
@@ -13,19 +16,24 @@ public final class OutboxPauses: @unchecked Sendable {
     public static let shared = OutboxPauses()
 
     private let lock = NSLock()
-    private var paused: Set<String> = []
+    private struct Key: Hashable {
+        let connection: String?
+        let chatID: String
+    }
+
+    private var paused: Set<Key> = []
 
     public init() {}
 
-    public func pause(_ chatID: String) {
-        lock.withLock { _ = paused.insert(chatID) }
+    public func pause(_ chatID: String, connection: String?) {
+        lock.withLock { _ = paused.insert(Key(connection: connection, chatID: chatID)) }
     }
 
-    public func resume(_ chatID: String) {
-        lock.withLock { _ = paused.remove(chatID) }
+    public func resume(_ chatID: String, connection: String?) {
+        lock.withLock { _ = paused.remove(Key(connection: connection, chatID: chatID)) }
     }
 
-    public func isPaused(_ chatID: String) -> Bool {
-        lock.withLock { paused.contains(chatID) }
+    public func isPaused(_ chatID: String, connection: String?) -> Bool {
+        lock.withLock { paused.contains(Key(connection: connection, chatID: chatID)) }
     }
 }

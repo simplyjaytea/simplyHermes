@@ -39,6 +39,12 @@ public protocol OutboxStore: Sendable {
     /// Deletes one message only while it is in the state `current`. A message that is being sent cannot be deleted.
     func remove(id: UUID, ifCurrently current: DeliveryKind) async throws
 
+    /// Moves every message of one server's chat to another chat id in one write, keeping their order and states. A New
+    /// chat's first message waits under its placeholder id and moves to the server session id once the server made the
+    /// chat. `connection` scopes it, so another server's chat with the same id is never touched. Returns how many moved.
+    @discardableResult
+    func rebind(chat oldID: String, to newID: String, connection: String) async throws -> Int
+
     /// Deletes every message of one server's chat in one write, for a chat the user deleted. Two servers can reuse a
     /// chat id, so `connection` scopes it: another server's messages are never touched. Returns how many of the
     /// removed messages were waiting (pending or failed), so the app can say how many were discarded.
@@ -47,6 +53,11 @@ public protocol OutboxStore: Sendable {
 }
 
 extension OutboxStore {
+    /// A store that cannot rebind refuses, so no message is ever moved without being kept. The database store overrides it.
+    public func rebind(chat oldID: String, to newID: String, connection: String) async throws -> Int {
+        throw OutboxRebindUnsupported()
+    }
+
     /// How many of one server's chat messages are waiting: pending or failed. A message already sending is not counted,
     /// so the Undo toast never promises to discard a message that is going out.
     public func waitingCount(inChat chatID: String, connection: String) async throws -> Int {
@@ -55,3 +66,6 @@ extension OutboxStore {
         }.count
     }
 }
+
+/// The store has no atomic rebind.
+public struct OutboxRebindUnsupported: Error, Sendable {}

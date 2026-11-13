@@ -95,11 +95,10 @@ public actor ChatSessionController: OutboxSubmitter {
     private let storedSessionID: String
     private let profile: String?
     private var state: TranscriptState
-    private var queue = MessageQueue()
     private var submitCount = 0
     private var noticeCount = 0
     private var isSubmitting = false
-    /// True from an accepted prompt until its turn shows up in the events, so a queued message cannot overtake it.
+    /// True from an accepted prompt until its turn shows up in the events, so a waiting message cannot overtake it.
     private var awaitingTurn = false
     /// Events that came in while an edit waited for the server. Nil when no edit waits. They are applied after the cut.
     private var heldEvents: [GatewayClientEvent]?
@@ -121,15 +120,12 @@ public actor ChatSessionController: OutboxSubmitter {
     /// The current transcript.
     public var current: TranscriptState { state }
 
-    /// The messages waiting for Hermes to be free.
-    public var pendingMessages: MessageQueue { queue }
-
     /// A stream of the transcript, starting with the current value and yielding after every change.
     public func states() -> AsyncStream<ChatSnapshot> {
         let id = UUID()
         let (stream, continuation) = AsyncStream<ChatSnapshot>.makeStream(bufferingPolicy: .bufferingNewest(1))
         subscribers[id] = continuation
-        continuation.yield(ChatSnapshot(transcript: state, queue: queue))
+        continuation.yield(ChatSnapshot(transcript: state))
         continuation.onTermination = { [weak self] _ in
             guard let self else { return }
             Task { await self.removeSubscriber(id) }
@@ -192,12 +188,11 @@ public actor ChatSessionController: OutboxSubmitter {
                 break
             }
         }
-        // A queue in memory would lose the message if the app stopped before the turn ended (Moss, 54b698d).
-        guard isIdle, queue.isEmpty else { return .notSent }
+        // Nothing waits in memory: a message would be lost if the app stopped before the turn ended (Moss, 54b698d).
+        guard isIdle else { return .notSent }
         if let failure = await submit(prompt, attachments: attachments, shownAs: shownAs) {
             return .failed(failure)
         }
-        await drainIfIdle()
         return .sent
     }
 
@@ -206,7 +201,7 @@ public actor ChatSessionController: OutboxSubmitter {
     /// appears only once the server has accepted the prompt, so the message is never shown twice.
     public func deliver(_ record: OutboundRecord) async -> SubmitOutcome {
         // A chat that was detached (closed, or its server changed) sends nothing. The outbox keeps the message.
-        guard !isDetached, let live = state.liveSessionID, isIdle, queue.isEmpty else { return .deferred }
+        guard !isDetached, let live = state.liveSessionID, isIdle else { return .deferred }
         isSubmitting = true
         defer { isSubmitting = false }
         do {
@@ -253,7 +248,6 @@ public actor ChatSessionController: OutboxSubmitter {
         }.first
         guard let last else { return }
         await submit(last)
-        await drainIfIdle()
     }
 
     /// Replaces the user turn at `rowID`, and every row after it, with `text` (edit and regenerate, WP-34). The old
@@ -287,7 +281,6 @@ public actor ChatSessionController: OutboxSubmitter {
         let held = heldEvents ?? []
         heldEvents = nil
         for event in held { await handle(event) }
-        await drainIfIdle()
         return outcome
     }
 
@@ -298,31 +291,6 @@ public actor ChatSessionController: OutboxSubmitter {
         guard let history = try? await transport.sessionHistory(params) else { return }
         state.apply(.history(history.messages))
         publish()
-    }
-
-    /// Changes the text of a waiting message. Blank text removes it.
-    public func editQueued(_ id: Int, to text: String) {
-        queue.edit(id, to: text)
-        publish()
-    }
-
-    /// Removes a waiting message.
-    public func removeQueued(_ id: Int) {
-        queue.remove(id)
-        publish()
-    }
-
-    /// Moves a waiting message to a new position.
-    public func moveQueued(_ id: Int, to position: Int) {
-        queue.move(id, to: position)
-        publish()
-    }
-
-    /// Holds or releases the queue. Releasing sends the next message at once when Hermes is free.
-    public func setQueuePaused(_ paused: Bool) async {
-        queue.isPaused = paused
-        publish()
-        if !paused { await drainIfIdle() }
     }
 
     /// What a slash command did, once the server answered it.
@@ -448,14 +416,6 @@ public actor ChatSessionController: OutboxSubmitter {
         text.isEmpty ? attachments.map(\.name).joined(separator: ", ") : text
     }
 
-    /// Sends the next waiting message when Hermes is free.
-    private func drainIfIdle() async {
-        // One message per idle moment: the next turn's events decide when the following one may go.
-        guard isIdle, let next = queue.takeNext() else { return }
-        publish()
-        await submit(next.text, attachments: next.attachments)
-    }
-
     /// Interrupts the running turn.
     public func stop() async {
         guard let live = state.liveSessionID else { return }
@@ -492,11 +452,10 @@ public actor ChatSessionController: OutboxSubmitter {
             }
         }
         publish()
-        await drainIfIdle()
     }
 
     private func publish() {
-        for continuation in subscribers.values { continuation.yield(ChatSnapshot(transcript: state, queue: queue)) }
+        for continuation in subscribers.values { continuation.yield(ChatSnapshot(transcript: state)) }
     }
 
     private func removeSubscriber(_ id: UUID) {

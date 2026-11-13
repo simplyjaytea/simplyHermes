@@ -27,7 +27,9 @@ let package = Package(
             dependencies: [
                 .product(name: "Crypto", package: "swift-crypto"),
                 .product(name: "GRDB", package: "GRDB.swift"),
-            ]),
+            ],
+            // Settings › About › Acknowledgements, written by tools/acknowledgements/generate.py.
+            resources: [.copy("Acknowledgements/acknowledgements.json")]),
         // SSH session, exec, loopback forwarder. Must build on Linux.
         .target(
             name: "HermesSSH",

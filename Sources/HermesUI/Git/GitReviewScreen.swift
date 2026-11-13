@@ -47,6 +47,7 @@
                         Text(errorText)
                             .font(.footnote)
                             .foregroundStyle(.red)
+                            .accessibilityIdentifier("gitReview.error")
                     }
                 }
             }
@@ -177,6 +178,44 @@
                     .foregroundStyle(HermesColor.secondaryText)
             }
             .accessibilityElement(children: .combine)
+        }
+    }
+
+    /// The button in the chat header that opens the Git review of the chat's folder. The desktop app keeps the same
+    /// review in the chat's right sidebar, next to its files.
+    struct GitReviewButton: View {
+        let action: () -> Void
+
+        var body: some View {
+            Button(action: action) {
+                Label("Review changes", systemImage: "arrow.triangle.branch")
+                    .font(HermesFont.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: HermesMetrics.minTapTarget - 8)
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular, in: Capsule())
+            .accessibilityIdentifier("chat.gitReview")
+        }
+    }
+
+    /// ``GitReviewScreen`` for one folder, in a sheet with its own navigation for the diffs and a Done button.
+    struct GitReviewSheet: View {
+        let repoPath: String
+        let connections: ConnectionsModel
+        @Environment(\.dismiss) private var dismiss
+
+        var body: some View {
+            NavigationStack {
+                GitReviewScreen(repoPath: repoPath, connections: connections)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { dismiss() }
+                                .accessibilityIdentifier("gitReview.done")
+                        }
+                    }
+            }
         }
     }
 #endif

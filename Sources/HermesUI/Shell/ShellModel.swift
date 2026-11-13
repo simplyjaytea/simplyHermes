@@ -218,10 +218,13 @@
         @ObservationIgnored public var startServerChat: (@MainActor () async throws -> SessionListItem?)?
         /// Hands a New chat's first message and its files to the chat's live model, which sends them on attach.
         @ObservationIgnored public var handOffFirstMessage: (@MainActor (String, String, [ComposerAttachment]) -> Void)?
+        /// Queues a New chat's first message and delivers it when its server is connected (board row 104). Nil keeps the
+        /// older path: the chat is made at the first send, or the send is refused.
+        @ObservationIgnored public var newChatQueue: NewChatQueue?
         /// New chats whose server chat is created by their first message. Until then they are placeholders.
-        @ObservationIgnored private var unstartedChatIDs: Set<String> = []
+        @ObservationIgnored var unstartedChatIDs: Set<String> = []
         /// The first message being sent in each New chat. A repeat send there joins it, so a double tap sends once.
-        @ObservationIgnored private var startingChats: [String: Task<Void, Never>] = [:]
+        @ObservationIgnored var startingChats: [String: Task<Void, Never>] = [:]
         /// Counts placeholder ids, so a new placeholder never reuses the id of one still open.
         @ObservationIgnored private var placeholderCount = 0
         /// Why the last first message failed, in words. The shell shows it in an alert, which clears it.
@@ -237,6 +240,7 @@
             if let empty = sessions.first(where: { session in
                 unstartedChatIDs.contains(session.id) && drafts[session.id, default: ""].isEmpty
                     && attachments[session.id, default: []].isEmpty && transcripts[session.id, default: []].isEmpty
+                    && (newChatQueue?.waiting[session.id] ?? []).isEmpty
             }) {
                 open(empty.id)
                 return
@@ -363,7 +367,7 @@
         }
 
         /// Gives a New chat its server id. The sidebar row, tab, transcript, draft and files move to the server chat.
-        private func adopt(_ item: SessionListItem, replacing placeholderID: String) {
+        func adopt(_ item: SessionListItem, replacing placeholderID: String) {
             unstartedChatIDs.remove(placeholderID)
             startedChats.note(item.id)
             serverSessionIDs.insert(item.id)
@@ -393,13 +397,38 @@
             return "Could not start a new chat. Try again."
         }
 
+        /// Reads the saved server the New chat will start on, and whether it is connected now. The shell sets it. Without
+        /// one, no server is saved, and a placeholder says so instead of naming a server it does not have.
+        @ObservationIgnored public var placeholderStripSource: (@MainActor () -> PlaceholderStrip)?
+
+        /// The top strip of a New chat: the real server name and connection state (board row 107).
+        public func placeholderStrip() -> PlaceholderStrip {
+            placeholderStripSource?() ?? .noServer
+        }
+
+        /// The server name a chat row shows. A New chat that has not started yet reads the active server now, so a switch
+        /// before the first message moves it. Every other chat keeps the server it was made on.
+        public func serverName(of session: ChatSessionSummary) -> String {
+            unstartedChatIDs.contains(session.id) ? placeholderStrip().serverName : session.serverName
+        }
+
+        /// Whether `id` is a chat the demo data made. Its strip is part of the sample.
+        func isSampleChat(_ id: String) -> Bool {
+            #if DEBUG
+                Self.sampleSessions.contains { $0.id == id }
+            #else
+                false
+            #endif
+        }
+
         /// Adds an empty chat at the top of the list and opens it. Ids count up: a count of chats can repeat after a
         /// list sync and reuse an id that is still open.
         private func addPlaceholderChat() -> String {
             placeholderCount += 1
             let id = "new-\(placeholderCount)"
             sessions.insert(
-                ChatSessionSummary(id: id, title: "New chat", subtitle: "Now", serverName: "home-server"), at: 0)
+                ChatSessionSummary(
+                    id: id, title: "New chat", subtitle: "Now", serverName: placeholderStrip().serverName), at: 0)
             transcripts[id] = []
             open(id)
             return id
@@ -407,6 +436,9 @@
 
         /// Local chats by sidebar id. They are made when a screen first shows one.
         @ObservationIgnored private var localChatModels: [String: LocalChatModel] = [:]
+
+        /// The local chat model already made for `id`, without making one. Notifications read it.
+        func existingLocalChat(for id: String) -> LocalChatModel? { localChatModels[id] }
 
         /// The live chat for a listed server session, or nil for a placeholder chat.
         func liveChat(for id: String) -> LiveChatModel? {
@@ -498,7 +530,13 @@
         /// it, so nothing is sent and the draft stays.
         @discardableResult
         public func send(in id: String) -> Task<Void, Never>? {
-            if unstartedChatIDs.contains(id) { return startFirstMessage(in: id) }
+            if unstartedChatIDs.contains(id) {
+                // Files cannot wait in the outbox yet, so a first message with files takes the older path.
+                if let queue = newChatQueue, attachments[id, default: []].isEmpty {
+                    return queueFirstMessage(in: id, using: queue)
+                }
+                return startFirstMessage(in: id)
+            }
             #if DEBUG
                 let text = drafts[id, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else { return nil }
