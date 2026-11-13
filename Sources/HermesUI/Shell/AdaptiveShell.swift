@@ -47,6 +47,20 @@
             // Kept across re-renders: a new one would lose the folder on screen and leave views holding the old one.
             if model.workspaceBrowser == nil { model.workspaceBrowser = connections.map(WorkspaceBrowserModel.init) }
             if let connections {
+                // Board row 104: a New chat's first message is saved first and goes out once its own server is connected.
+                if OutboxServices.isDurable, let placeholders = OutboxServices.placeholders, model.newChatQueue == nil {
+                    let queue = NewChatQueue(
+                        connections: connections, placeholders: placeholders, outbox: OutboxServices.store)
+                    queue.onCreated = { [weak model] row, session, name, connectionID in
+                        model?.adoptQueuedChat(row: row, sessionID: session, serverName: name)
+                        // Attach now, so the waiting message goes out even when the chat is not on screen. Only on the
+                        // server the chat was made on: another active server must never get this session id.
+                        if connections.active?.id.uuidString == connectionID {
+                            Task { await liveChats?.chat(for: session)?.attach() }
+                        }
+                    }
+                    model.newChatQueue = queue
+                }
                 model.startServerChat = { try await connections.startChat() }
                 model.placeholderStripSource = {
                     guard let server = connections.active else { return .noServer }
@@ -63,6 +77,14 @@
                 initialValue: connections.map { BotsModel(connections: $0, profiles: profileList, shell: model) })
             _rooms = State(initialValue: connections.map { RoomsModel(connections: $0) })
             self.showsDebugLayoutMenu = showsDebugLayoutMenu
+        }
+
+        /// The saved servers that are connected now. A New chat waiting for one of them delivers when it appears here.
+        private var connectedServers: [String] {
+            guard let connections else { return [] }
+            return connections.phases.compactMap { id, phase in
+                if case .connected = phase { id.uuidString } else { nil }
+            }.sorted()
         }
 
         /// A posture forced from outside (launch argument or preview) wins; otherwise the hinge decides (WP-02).
@@ -88,6 +110,12 @@
                     .environment(\.hermesPosture, posture)
                     .task(id: forcedPosture) { applyForcedPosture() }
                     .task(id: sessionScopeKey) { await attachSessions() }
+                    .task {
+                        if let queue = model.newChatQueue { model.restoreQueuedChats(await queue.restore()) }
+                    }
+                    .task(id: connectedServers) {
+                        for id in connectedServers { await model.newChatQueue?.serverMayBeBack(id) }
+                    }
                     .task(id: connections?.active?.id) {
                         await bots?.reload()
                         await rooms?.reload()

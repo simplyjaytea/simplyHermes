@@ -218,10 +218,13 @@
         @ObservationIgnored public var startServerChat: (@MainActor () async throws -> SessionListItem?)?
         /// Hands a New chat's first message and its files to the chat's live model, which sends them on attach.
         @ObservationIgnored public var handOffFirstMessage: (@MainActor (String, String, [ComposerAttachment]) -> Void)?
+        /// Queues a New chat's first message and delivers it when its server is connected (board row 104). Nil keeps the
+        /// older path: the chat is made at the first send, or the send is refused.
+        @ObservationIgnored public var newChatQueue: NewChatQueue?
         /// New chats whose server chat is created by their first message. Until then they are placeholders.
-        @ObservationIgnored private var unstartedChatIDs: Set<String> = []
+        @ObservationIgnored var unstartedChatIDs: Set<String> = []
         /// The first message being sent in each New chat. A repeat send there joins it, so a double tap sends once.
-        @ObservationIgnored private var startingChats: [String: Task<Void, Never>] = [:]
+        @ObservationIgnored var startingChats: [String: Task<Void, Never>] = [:]
         /// Counts placeholder ids, so a new placeholder never reuses the id of one still open.
         @ObservationIgnored private var placeholderCount = 0
         /// Why the last first message failed, in words. The shell shows it in an alert, which clears it.
@@ -237,6 +240,7 @@
             if let empty = sessions.first(where: { session in
                 unstartedChatIDs.contains(session.id) && drafts[session.id, default: ""].isEmpty
                     && attachments[session.id, default: []].isEmpty && transcripts[session.id, default: []].isEmpty
+                    && (newChatQueue?.waiting[session.id] ?? []).isEmpty
             }) {
                 open(empty.id)
                 return
@@ -363,7 +367,7 @@
         }
 
         /// Gives a New chat its server id. The sidebar row, tab, transcript, draft and files move to the server chat.
-        private func adopt(_ item: SessionListItem, replacing placeholderID: String) {
+        func adopt(_ item: SessionListItem, replacing placeholderID: String) {
             unstartedChatIDs.remove(placeholderID)
             startedChats.note(item.id)
             serverSessionIDs.insert(item.id)
@@ -523,7 +527,13 @@
         /// it, so nothing is sent and the draft stays.
         @discardableResult
         public func send(in id: String) -> Task<Void, Never>? {
-            if unstartedChatIDs.contains(id) { return startFirstMessage(in: id) }
+            if unstartedChatIDs.contains(id) {
+                // Files cannot wait in the outbox yet, so a first message with files takes the older path.
+                if let queue = newChatQueue, attachments[id, default: []].isEmpty {
+                    return queueFirstMessage(in: id, using: queue)
+                }
+                return startFirstMessage(in: id)
+            }
             #if DEBUG
                 let text = drafts[id, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else { return nil }

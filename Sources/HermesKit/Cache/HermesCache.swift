@@ -154,6 +154,21 @@ public final class HermesCache: Sendable {
                     DROP TABLE offline_chat;
                     """)
         }
+        // Board row 104: a New chat belongs to one saved server from the start and keeps a durable id, so a first message
+        // waiting for its server survives a relaunch. `session_id` is set once the server made the chat.
+        migrator.registerMigration("placeholder-chats-v1") { handle in
+            try handle.execute(
+                sql: """
+                    CREATE TABLE placeholder_chats (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        connection_id TEXT NOT NULL,
+                        server_name TEXT NOT NULL,
+                        session_id TEXT,
+                        created_at REAL NOT NULL
+                    );
+                    CREATE INDEX placeholder_chats_connection ON placeholder_chats (connection_id);
+                    """)
+        }
         return migrator
     }
 
@@ -293,6 +308,7 @@ public final class HermesCache: Sendable {
                 try handle.execute(sql: "DELETE FROM \(table) WHERE connection = ?", arguments: [connection])
             }
             try handle.execute(sql: "DELETE FROM outbound_messages WHERE connection_id = ?", arguments: [connection])
+            try handle.execute(sql: "DELETE FROM placeholder_chats WHERE connection_id = ?", arguments: [connection])
         }
     }
 
@@ -305,6 +321,9 @@ public final class HermesCache: Sendable {
 
     /// Messages waiting to reach the server (WP-2). They share the file but not the rows of the server's data.
     public var outbox: GRDBOutboxStore { GRDBOutboxStore(database: database) }
+
+    /// New chats that have no server session yet (board row 104).
+    public var placeholders: GRDBPlaceholderStore { GRDBPlaceholderStore(database: database) }
 
     private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()

@@ -44,6 +44,7 @@
             case .standard:
                 VStack(spacing: 0) {
                     transcript
+                    placeholderOutbox
                     notConnectedNote
                     Composer(text: model.draftBinding(for: sessionID)) { model.send(in: sessionID) }
                         .disabled(!model.canStartChat(sessionID))
@@ -56,6 +57,7 @@
                         .frame(maxHeight: .infinity)
                     Divider()
                     VStack(spacing: 8) {
+                        placeholderOutbox
                         notConnectedNote
                         Composer(text: model.draftBinding(for: sessionID)) { model.send(in: sessionID) }
                             .disabled(!model.canStartChat(sessionID))
@@ -67,6 +69,14 @@
                     .background(palette.groupedBackground)
                 }
                 .background(palette.groupedBackground)
+            }
+        }
+
+        /// A New chat's outage banner, waiting message and failed row (board row 104). Nothing without the queue.
+        @ViewBuilder
+        private var placeholderOutbox: some View {
+            if let queue = model.newChatQueue {
+                PlaceholderOutboxView(model: model, queue: queue, sessionID: sessionID)
             }
         }
 
