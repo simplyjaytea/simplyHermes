@@ -69,12 +69,11 @@
                 outboxError = String(localized: "Messages can't be saved on this device, so nothing was sent.")
                 return false
             }
-            // A live chat always belongs to the active server. Without one the text is still kept, under no server.
-            let connectionID = connections.active?.id.uuidString ?? ""
+            // The chat's own server, the same key its drainer sends under. Without one the text is still kept.
             do {
                 try await outbox.insert(
                     OutboundRecord(
-                        connectionID: connectionID, chatID: storedSessionID, text: trimmed, createdAt: Date()))
+                        connectionID: outboxConnectionID, chatID: storedSessionID, text: trimmed, createdAt: Date()))
             } catch {
                 outboxError = Self.saveFailureMessage
                 return false
@@ -149,7 +148,9 @@
 
         func refreshOutbox() async {
             do {
-                outboxRows = try await outbox.records(inChat: storedSessionID).filter { !$0.state.isSent }
+                outboxRows = try await outbox.records(inChat: storedSessionID).filter {
+                    !$0.state.isSent && $0.connectionID == outboxConnectionID
+                }
             } catch {
                 outboxError = Self.outboxMessage(for: error)
             }

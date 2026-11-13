@@ -164,7 +164,7 @@ final class ModelPhone: @unchecked Sendable {
         self.server = server
         disk = try HermesCache(url: url).outbox
         process = ProcessStore(try HermesCache(url: url).outbox)
-        drainer = OutboxDrainer(store: process, chatID: "c1", submitter: server)
+        drainer = OutboxDrainer(store: process, chatID: "c1", connectionID: "x", submitter: server)
     }
 
     /// The user writes a message. It is saved before anything is sent.
@@ -214,7 +214,7 @@ final class ModelPhone: @unchecked Sendable {
         }
         await server.script([])
         process = ProcessStore(try HermesCache(url: url).outbox)
-        drainer = OutboxDrainer(store: process, chatID: "c1", submitter: server)
+        drainer = OutboxDrainer(store: process, chatID: "c1", connectionID: "x", submitter: server)
         try await drainer.recoverInterrupted()
         isDead = false
     }

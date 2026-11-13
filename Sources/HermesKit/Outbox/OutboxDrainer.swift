@@ -25,9 +25,12 @@ public protocol OutboxSubmitter: Sendable {
 public actor OutboxDrainer {
     private let store: any OutboxStore
     private let chatID: String
+    /// The server this chat lives on. Two servers can have a chat with the same id (the same Hermes saved under two
+    /// addresses shares every id), and a message must only ever go to the server it was written for.
+    private let connectionID: String
     private var submitter: any OutboxSubmitter
     private let clock: @Sendable () -> Date
-    private let onChange: @Sendable () async -> Void
+    private var onChange: @Sendable () async -> Void
     private let pauses: OutboxPauses
     private var isDraining = false
     private var drainRequested = false
@@ -35,7 +38,7 @@ public actor OutboxDrainer {
     /// Creates a drainer for one chat. `onChange` runs after every state the drainer writes, so the screen can show
     /// the change at once instead of after the whole pass.
     public init(
-        store: any OutboxStore, chatID: String, submitter: any OutboxSubmitter,
+        store: any OutboxStore, chatID: String, connectionID: String, submitter: any OutboxSubmitter,
         clock: @escaping @Sendable () -> Date = { Date() },
         pauses: OutboxPauses = .shared,
         onChange: @escaping @Sendable () async -> Void = {}
@@ -43,6 +46,7 @@ public actor OutboxDrainer {
         self.pauses = pauses
         self.store = store
         self.chatID = chatID
+        self.connectionID = connectionID
         self.submitter = submitter
         self.clock = clock
         self.onChange = onChange
@@ -52,14 +56,18 @@ public actor OutboxDrainer {
     /// for its life, so a pass that is still running finishes on the old submitter and the next one uses the new. A
     /// second drainer would not know about the message in flight and would send it again. Do not call
     /// ``recoverInterrupted()`` after this: it is for a relaunch, when nothing is in flight.
-    public func use(_ submitter: any OutboxSubmitter) {
+    ///
+    /// `onChange`, when given, replaces the change callback too: a rebuilt chat model takes over the chat's drainer
+    /// (``OutboxDrainers``), and its screen is the one to refresh.
+    public func use(_ submitter: any OutboxSubmitter, onChange: (@Sendable () async -> Void)? = nil) {
         self.submitter = submitter
+        if let onChange { self.onChange = onChange }
     }
 
     /// Puts messages that were being sent back to `pending`. Call it once, when the chat first attaches after a
     /// launch and before the first drain. Not on a later reattach: a message may be in flight then (see ``use(_:)``).
     public func recoverInterrupted() async throws {
-        for record in try await store.records(inChat: chatID) where record.state.kind == .sending {
+        for record in try await ownRecords() where record.state.kind == .sending {
             try await move(record.id, to: .pending)
         }
     }
@@ -74,14 +82,23 @@ public actor OutboxDrainer {
         }
         isDraining = true
         defer { isDraining = false }
+        var isFirstPass = true
         repeat {
             drainRequested = false
-            try await sendPending()
+            if isFirstPass {
+                try await sendPending()
+            } else {
+                // A later pass was asked for by another caller, such as a rebuilt chat model after this caller's
+                // model detached and cancelled it. It must not inherit this caller's cancellation, or the next waiting
+                // message would sit until some later trigger. An unstructured task doesn't (Dinesh's #133 review, M1).
+                try await Task { try await self.sendPending() }.value
+            }
+            isFirstPass = false
         } while drainRequested
     }
 
     private func sendPending() async throws {
-        for record in try await store.records(inChat: chatID) {
+        for record in try await ownRecords() {
             // A cancelled drain sends nothing more. The message in flight, if any, is already recorded.
             if Task.isCancelled { return }
             // The chat is waiting out its Undo window after Delete: nothing more goes to it until Undo resumes it. The
@@ -113,6 +130,11 @@ public actor OutboxDrainer {
         try await store.updateState(.pending, forID: id, ifCurrently: .failed)
         await onChange()
         try await drain()
+    }
+
+    /// This chat's messages on this drainer's server, oldest first. Another server's chat with the same id is not ours.
+    private func ownRecords() async throws -> [OutboundRecord] {
+        try await store.records(inChat: chatID).filter { $0.connectionID == connectionID }
     }
 
     private func move(_ id: UUID, to state: DeliveryState) async throws {
