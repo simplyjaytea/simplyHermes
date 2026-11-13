@@ -149,6 +149,24 @@ final class LocalChatUITests: XCTestCase {
         XCTAssertFalse(element(app, "composer.field").waitForExistence(timeout: 3), "No chat opened")
     }
 
+    /// #116 follow-up: Search chats with no server saved opens the local chat list's search field, also on a cold
+    /// launch, where the action arrives before the shell is on screen.
+    @MainActor
+    func testSearchChatsActionOpensSearchWithNoServerOnColdLaunch() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-HermesOnboarding", "skip", "-HermesLayout", "compact", "-chatModeDefault", "local",
+            "-uiTestLocalExecutor=\(fakeName)", "-HermesQuickAction", "searchChats",
+        ]
+        app.launch()
+        let search = app.searchFields["Search chats"]
+        XCTAssertTrue(search.waitForExistence(timeout: 15), "The chat list has a search field")
+        // Focus, not the on-screen keyboard: a simulator with a hardware keyboard attached never shows one.
+        let focused = expectation(for: NSPredicate(format: "hasKeyboardFocus == true"), evaluatedWith: search)
+        XCTAssertEqual(XCTWaiter.wait(for: [focused], timeout: 10), .completed, "Search is open, ready to type")
+        XCTAssertFalse(element(app, "composer.field").exists, "No chat opened")
+    }
+
     /// Feature C: Delete hides the chat and offers Undo for 5 s; Undo brings it back. A local chat, so no server is
     /// needed and nothing is deleted from one.
     @MainActor

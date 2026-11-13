@@ -7,6 +7,11 @@ import Testing
 /// never ended hung `tunnel.start` until the test suite's 5-minute limit (Testbed smoke runs 41351410493 and
 /// 41458357870).
 struct SSHTunnelDeadlineTests {
+    /// What "answered at once" means here: long before the 60 s the body or the close would take. Not a tight bound on
+    /// the 200 ms deadline: in the full parallel suite the shared thread pool can be busy for seconds (8.6 s seen on a
+    /// loaded host, 2026-11-12), while alone these run in 0.3 s. A hang still fails: it would take 60 s.
+    static let wellBeforeTheHang: Duration = .seconds(30)
+
     @Test func aCommandThatFinishesInTimeReturnsItsOutput() async throws {
         let output = try await SSHTunnel.withDeadline(
             .seconds(5), step: "probe", onTimeout: {}, body: { "HERMES_VERSION 1" })
@@ -23,7 +28,7 @@ struct SSHTunnelDeadlineTests {
                     return "never"
                 })
         }
-        #expect(start.duration(to: .now) < .seconds(5))
+        #expect(start.duration(to: .now) < Self.wellBeforeTheHang)
     }
 
     /// A stream that ignores cancellation, like a stuck SSH channel, ends only when the connection closes. The deadline
@@ -62,7 +67,7 @@ struct SSHTunnelDeadlineTests {
                     return "never"
                 })
         }
-        #expect(start.duration(to: .now) < .seconds(5))
+        #expect(start.duration(to: .now) < Self.wellBeforeTheHang)
     }
 
     /// Dinesh's m1 on #118: a command that finishes before the deadline keeps its connection.
@@ -73,6 +78,19 @@ struct SSHTunnelDeadlineTests {
         #expect(output == "done")
         try await Task.sleep(for: .milliseconds(300))
         #expect(!closed.isSet, "A finished command must not close the connection when its deadline passes")
+    }
+
+    /// The tunnel test's own steps fail at their deadline and name the step, so a hang through the forwarder costs
+    /// seconds, not the 5-minute suite limit (row quarantine-ssh-tunnel-chat-turn).
+    @Test func aTestbedStepThatNeverEndsFailsAtItsDeadline() async {
+        let start = ContinuousClock.now
+        await #expect(throws: SSHTunnelError.commandTimedOut(step: "ws.chatTurn")) {
+            _ = try await SSHTestbed.step("ws.chatTurn", deadline: 1) { () -> Int in
+                try await Task.sleep(for: .seconds(60))
+                return 0
+            }
+        }
+        #expect(start.duration(to: .now) < Self.wellBeforeTheHang)
     }
 
     @Test func aCancelledCallerIsAnsweredAtOnce() async {
@@ -88,7 +106,7 @@ struct SSHTunnelDeadlineTests {
         try? await Task.sleep(for: .milliseconds(100))
         call.cancel()
         await #expect(throws: CancellationError.self) { _ = try await call.value }
-        #expect(start.duration(to: .now) < .seconds(5))
+        #expect(start.duration(to: .now) < Self.wellBeforeTheHang)
     }
 
     @Test func anErrorBeforeTheDeadlineIsPassedOn() async {

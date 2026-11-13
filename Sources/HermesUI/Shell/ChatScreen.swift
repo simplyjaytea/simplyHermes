@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+    import HermesKit
     import SwiftUI
 
     /// One chat: transcript, status strip and composer. The half-fold style moves the composer
@@ -22,6 +23,12 @@
         @Environment(\.hermesPalette) private var palette
 
         var body: some View {
+            // "Quote in reply" focuses only this chat's composer, not one in another window.
+            screen.environment(\.hermesChatFocusKey, sessionID)
+        }
+
+        @ViewBuilder
+        private var screen: some View {
             if let live = model.liveChat(for: sessionID) {
                 LiveChatScreen(chat: live, model: model, sessionID: sessionID, style: style)
             } else if let local = model.localChat(for: sessionID) {
@@ -125,9 +132,11 @@
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .top) {
                 if let session = model.session(id: sessionID) {
+                    // A New chat shows the real server and its state. Only the demo chats keep their sample strip.
+                    let placeholder = model.isSampleChat(sessionID) ? nil : model.placeholderStrip()
                     StatusStrip(
-                        connection: .connected,
-                        serverName: session.serverName,
+                        connection: placeholder.map { StatusStrip.Connection($0.connection) } ?? .connected,
+                        serverName: placeholder?.serverName ?? session.serverName,
                         runningTurn: model.isStreaming(sessionID) ? "Hermes is replying" : nil,
                         onStop: model.isStreaming(sessionID) ? { model.stop(in: sessionID) } : nil
                     )
@@ -157,13 +166,20 @@
             return messages.first { visibleIDs.contains($0.id) }?.id
         }
 
+        /// "Quote in reply": the quote goes in front of this chat's draft. Nothing is sent.
+        private func quote(_ text: String) {
+            model.drafts[sessionID] = MessageQuote.inserting(text, into: model.drafts[sessionID, default: ""])
+        }
+
         @ViewBuilder
         private func row(for message: ShellMessage) -> some View {
             switch message.kind {
             case .user:
                 MessageBubble(role: .user, text: message.text)
+                    .messageActions(text: message.text, onQuote: quote)
             case .assistant:
                 MessageBubble(role: .assistant, text: message.text)
+                    .messageActions(text: message.text, onQuote: quote)
             case .tool(let command):
                 ToolOutputBubble(command: command, output: message.text)
             case .approval:

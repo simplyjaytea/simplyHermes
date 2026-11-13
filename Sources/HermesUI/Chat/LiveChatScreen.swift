@@ -17,10 +17,13 @@
         @State private var currentMatch: String?
         @State private var voice: VoiceInputModel?
         @State private var announcedReplyID: String?
+        /// The new-reply dot on the scroll-to-latest button (row 74).
+        @State private var replyDot = NewReplyDot()
         @FocusState private var findFocused: Bool
         @Environment(\.scenePhase) private var scenePhase
         @State private var showsWorkspaces = false
         @State private var showsArtifacts = false
+        @State private var showsGitReview = false
         @Environment(\.hermesPalette) private var palette
 
         var body: some View {
@@ -28,9 +31,6 @@
                 content
                     .frame(maxHeight: .infinity)
                 if style == .halfFold { Divider() }
-                if !chat.queue.isEmpty {
-                    QueuedMessagesView(chat: chat)
-                }
                 ChatStatusBar(strip: chat.strip, pill: chat.status.pill, serverName: chat.serverName)
                 #if DEBUG
                     // Hidden: a UI test reads it when an outage assertion fails (WP-8).
@@ -124,6 +124,11 @@
                     )
                 }
             }
+            .sheet(isPresented: $showsGitReview) {
+                if let folder = workspaceFolder, let browser = model.workspaceBrowser {
+                    GitReviewSheet(repoPath: folder, connections: browser.connections)
+                }
+            }
             .sheet(isPresented: $showsWorkspaces) {
                 if let browser = model.workspaceBrowser {
                     WorkspacePickerSheet(browser: browser, current: workspaceFolder) { folder in
@@ -160,7 +165,8 @@
                             item: item, isLast: item.id == chat.state.items.last?.id, chat: chat,
                             onBranch: {
                                 model.openBranch($0, serverName: model.session(id: sessionID)?.serverName ?? "")
-                            }
+                            },
+                            onQuote: quote
                         )
                         .overlay {
                             if isFinding, item.id == currentMatch {
@@ -238,6 +244,17 @@
             }
             .onChange(of: followKey) {
                 if isFollowing { position.scrollTo(edge: .bottom) }
+                if replyDot.update(chatID: sessionID, items: chat.state.items, isFollowing: isFollowing) != nil {
+                    AccessibilityNotification.Announcement("New reply").post()
+                }
+            }
+            // What is already in the chat when it opens is not new. The screen is reused across chats, so this also
+            // runs on a switch; the dot itself starts over for a new chat id (review m1).
+            .onChange(of: sessionID, initial: true) {
+                _ = replyDot.update(chatID: sessionID, items: chat.state.items, isFollowing: true)
+            }
+            .onChange(of: isFollowing) { _, following in
+                if following { replyDot.reachedBottom() }
             }
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .top) {
@@ -260,13 +277,22 @@
                 } label: {
                     Image(systemName: "arrow.down")
                         .font(.body.weight(.semibold))
+                        .cappedSymbolSize()
                         .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                 }
                 .buttonStyle(.plain)
                 .glassEffect(.regular, in: Circle())
+                .overlay(alignment: .topTrailing) {
+                    if replyDot.isShowing {
+                        Circle()
+                            .fill(palette.accent)
+                            .frame(width: 10, height: 10)
+                            .accessibilityIdentifier("chat.newReplyDot")
+                    }
+                }
                 .padding(12)
                 .accessibilityIdentifier("chat.scrollToBottom")
-                .accessibilityLabel(Text("Scroll to latest"))
+                .accessibilityLabel(Text(replyDot.isShowing ? "Scroll to latest, new reply" : "Scroll to latest"))
                 .transition(.scale.combined(with: .opacity))
             }
         }
@@ -283,6 +309,7 @@
                     findFocused = true
                 } label: {
                     Image(systemName: "magnifyingglass")
+                        .cappedSymbolSize()
                         .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                 }
                 .buttonStyle(.plain)
@@ -363,6 +390,11 @@
             withAnimation(HermesMotion.snappy) { position.scrollTo(id: currentMatch, anchor: .center) }
         }
 
+        /// "Quote in reply": the quote goes in front of this chat's draft. Nothing is sent.
+        private func quote(_ text: String) {
+            model.drafts[sessionID] = MessageQuote.inserting(text, into: model.drafts[sessionID, default: ""])
+        }
+
         /// The folder this chat runs in: the one it moved to this run, else the one the server reported.
         private var workspaceFolder: String? { chat.workspaceCwd ?? chat.state.info?.cwd }
 
@@ -378,8 +410,14 @@
                     )
                     .padding(.horizontal, 12)
                     .padding(.top, 4)
-                    ArtifactsButton { showsArtifacts = true }
-                        .padding(.horizontal, 12)
+                    HStack(spacing: 8) {
+                        ArtifactsButton { showsArtifacts = true }
+                        // Git review of the chat's folder, as the desktop app's right sidebar has it.
+                        if workspaceFolder != nil, model.workspaceBrowser != nil {
+                            GitReviewButton { showsGitReview = true }
+                        }
+                    }
+                    .padding(.horizontal, 12)
                 }
             }
         }

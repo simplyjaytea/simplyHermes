@@ -21,7 +21,8 @@
         public private(set) var preview: FsText?
         /// A binary file copied to the temporary folder, shown in QuickLook until it closes (WP-37).
         public private(set) var quickLookURL: URL?
-        @ObservationIgnored private let connections: ConnectionsModel
+        /// Also opens the chat's Git review on the same server.
+        @ObservationIgnored let connections: ConnectionsModel
         /// The server that `workspaces`, `folder` and `entries` came from.
         @ObservationIgnored private var serverID: UUID?
         /// Counts requests and server changes, so an answer that comes in late is dropped.

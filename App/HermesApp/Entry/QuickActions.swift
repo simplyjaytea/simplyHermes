@@ -125,6 +125,10 @@ final class QuickActionCoordinator {
 
     /// The chat list may still be loading at launch, so wait for the chat for a while. A server chat comes from the
     /// cache even when its server can't be reached, so an offline chat still opens in its own not-connected state.
+    ///
+    /// Giving up after the wait shows the list but keeps the last-chat item: a slow server switch is not a deleted
+    /// chat. The menu refresh then drops the item only if the chat is really gone (a loaded list without it, a missing
+    /// local chat, or a removed server), by the same rule as every other refresh.
     private func open(_ id: String) async {
         for _ in 0..<40 {
             if model.session(id: id) != nil {
@@ -133,12 +137,18 @@ final class QuickActionCoordinator {
             }
             try? await Task.sleep(for: .milliseconds(250))
         }
-        showListAndForgetLastChat()
+        showList()
+        refreshMenu()
     }
 
-    private func showListAndForgetLastChat() {
+    private func showList() {
         model.selectedSection = .chats
         model.selectedSessionID = nil
+    }
+
+    /// The planner found the chat's server is no longer saved: the item can never open, so it goes.
+    private func showListAndForgetLastChat() {
+        showList()
         store.lastChat = nil
         refreshMenu()
     }
@@ -155,8 +165,13 @@ final class QuickActionCoordinator {
     // MARK: The menu
 
     /// Writes the icon's menu. Called when the app goes to the background and when it becomes active.
+    ///
+    /// The check for a local chat is async, so the write runs inside a background task: on the way to the
+    /// background, iOS would otherwise suspend the app before the menu (and the title setting) is written.
     func refreshMenu() {
+        let background = BackgroundTaskToken(name: "Quick action menu")
         Task { [weak self] in
+            defer { background.end() }
             guard let self else { return }
             var last = self.store.lastChat
             if let current = last, !(await self.keeps(current)) {
@@ -228,4 +243,22 @@ final class QuickActionCoordinator {
             }
         }
     #endif
+}
+
+/// One `UIApplication` background task, ended exactly once: by ``end()`` or when iOS says time is up.
+@MainActor
+private final class BackgroundTaskToken {
+    private var id = UIBackgroundTaskIdentifier.invalid
+
+    init(name: String) {
+        id = UIApplication.shared.beginBackgroundTask(withName: name) { [weak self] in
+            MainActor.assumeIsolated { self?.end() }
+        }
+    }
+
+    func end() {
+        guard id != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(id)
+        id = .invalid
+    }
 }

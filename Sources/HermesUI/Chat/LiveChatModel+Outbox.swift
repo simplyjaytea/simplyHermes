@@ -16,19 +16,23 @@
             }
         }
 
-        private func pillChanged() {
+        func pillChanged() {
+            // A retired chat belongs to a server that is no longer active, and it does not watch again, so it can be
+            // freed (row 108). The decision is OutboxResume.reaction.
+            guard !isRetired else { return }
             let now = status.pill
             let previous = lastPill
             lastPill = now
-            if OutboxResume.shouldDrain(from: previous, to: now) {
-                if drainer == nil {
-                    // Detached (the chat is not open): attaching connects it, and attaching sends the waiting messages.
-                    Task { await attach() }
-                } else {
-                    // Not `drainSoon()`: another screen may have changed the outbox since this chat last refreshed it, and
-                    // the drain reads the records itself.
-                    drainTask = Task { await drainOutbox() }
-                }
+            switch OutboxResume.reaction(from: previous, to: now, isRetired: isRetired, isAttached: controller != nil) {
+            case .nothing:
+                break
+            case .attach:
+                // Detached (the chat is not open): attaching connects it, and attaching sends the waiting messages.
+                Task { await attach() }
+            case .drain:
+                // Not `drainSoon()`: another screen may have changed the outbox since this chat last refreshed it, and
+                // the drain reads the records itself.
+                drainTask = Task { await drainOutbox() }
             }
             watchPill()
         }
@@ -69,12 +73,11 @@
                 outboxError = String(localized: "Messages can't be saved on this device, so nothing was sent.")
                 return false
             }
-            // A live chat always belongs to the active server. Without one the text is still kept, under no server.
-            let connectionID = connections.active?.id.uuidString ?? ""
+            // The chat's own server, the same key its drainer sends under. Without one the text is still kept.
             do {
                 try await outbox.insert(
                     OutboundRecord(
-                        connectionID: connectionID, chatID: storedSessionID, text: trimmed, createdAt: Date()))
+                        connectionID: outboxConnectionID, chatID: storedSessionID, text: trimmed, createdAt: Date()))
             } catch {
                 outboxError = Self.saveFailureMessage
                 return false
@@ -98,7 +101,7 @@
 
         /// Sends the chat's waiting messages if Hermes can take them, then refreshes the rows the screen shows.
         func drainOutbox() async {
-            guard let drainer else { return }
+            guard controller != nil, let drainer else { return }
             // WP-8: while the chat cannot reach its server, its waiting messages stay where they are. Nothing is submitted
             // over a socket the status says is down, and the drain runs again when the chat recovers.
             guard status.pill != .unreachable else {
@@ -117,7 +120,7 @@
         public func retryOutbox(_ id: UUID) {
             Task {
                 do {
-                    if let drainer {
+                    if controller != nil, let drainer {
                         try await drainer.retry(id)
                     } else {
                         try await outbox.updateState(.pending, forID: id, ifCurrently: .failed)
@@ -149,7 +152,9 @@
 
         func refreshOutbox() async {
             do {
-                outboxRows = try await outbox.records(inChat: storedSessionID).filter { !$0.state.isSent }
+                outboxRows = try await outbox.records(inChat: storedSessionID).filter {
+                    !$0.state.isSent && $0.connectionID == outboxConnectionID
+                }
             } catch {
                 outboxError = Self.outboxMessage(for: error)
             }

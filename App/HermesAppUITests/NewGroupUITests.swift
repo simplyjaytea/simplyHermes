@@ -25,7 +25,7 @@ final class NewGroupUITests: XCTestCase {
         ]
         app.launch()
 
-        try addTestbedGateway(app, url: url)
+        testbedSignIn(app, url: url)
 
         // Reach the Bots section
         if !app.navigationBars["Bots"].waitForExistence(timeout: 5) {
@@ -97,35 +97,6 @@ final class NewGroupUITests: XCTestCase {
             element(app, "room.settings").waitForExistence(timeout: 5),
             "The room should offer Group Settings"
         )
-    }
-
-    @MainActor
-    private func addTestbedGateway(_ app: XCUIApplication, url: String) throws {
-        let addGateway = element(app, "welcome.addGateway")
-        XCTAssertTrue(addGateway.waitForExistence(timeout: 10))
-        addGateway.tap()
-
-        let field = element(app, "connection.url")
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
-        field.tap()
-        field.typeText(url)
-
-        let username = element(app, "connection.username")
-        XCTAssertTrue(username.waitForExistence(timeout: 10), "Password sign-in should be picked from probe")
-        username.tap()
-        username.typeText("tester")
-        let password = element(app, "connection.password")
-        password.tap()
-        password.typeText("testbed-password")
-
-        let test = element(app, "connection.test")
-        if !test.isHittable { app.swipeUp() }
-        test.tap()
-        let passed = element(app, "connection.testPassed")
-        XCTAssertTrue(passed.waitForExistence(timeout: 30))
-
-        element(app, "connection.save").tap()
-        XCTAssertTrue(element(app, "welcome.addGateway").waitForNonExistence(timeout: 10))
     }
 
     @MainActor

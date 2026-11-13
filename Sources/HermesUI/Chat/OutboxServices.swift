@@ -11,6 +11,10 @@
             return cache.outbox
         }()
 
+        /// One drainer per chat for the whole app, shared by every chat model, so a rebuilt model never sends a message
+        /// that is still in flight on the old one (``OutboxDrainers``).
+        public static private(set) var drainers = OutboxDrainers()
+
         /// Where New chats that have no server session yet are kept (board row 104). Nil keeps no queue for them.
         public static var placeholders: (any PlaceholderStore)?
 
@@ -25,6 +29,8 @@
             self.store = store
             self.placeholders = placeholders
             isDurable = durable
+            // Drainers write to the store they were made with, so a new store starts a new set.
+            drainers = OutboxDrainers()
         }
     }
 #endif
