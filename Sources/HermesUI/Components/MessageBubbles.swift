@@ -10,8 +10,22 @@
     extension View {
         /// Places a bubble on its side of the transcript and keeps the far side free.
         public func bubbleRow(_ side: BubbleSide) -> some View {
-            frame(maxWidth: .infinity, alignment: side == .trailing ? .trailing : .leading)
-                .padding(side == .trailing ? .leading : .trailing, HermesMetrics.bubbleSideInset)
+            modifier(BubbleRowLayout(side: side))
+        }
+    }
+
+    /// At the accessibility text sizes the free side shrinks, so large text gets the width instead of a gap.
+    private struct BubbleRowLayout: ViewModifier {
+        let side: BubbleSide
+        @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+        func body(content: Content) -> some View {
+            content
+                .frame(maxWidth: .infinity, alignment: side == .trailing ? .trailing : .leading)
+                .padding(
+                    side == .trailing ? .leading : .trailing,
+                    dynamicTypeSize.isAccessibilitySize
+                        ? HermesMetrics.bubbleSideInset / 4 : HermesMetrics.bubbleSideInset)
         }
     }
 
