@@ -2,6 +2,7 @@ import HermesKit
 import HermesUI
 import OSLog
 import Observation
+import UIKit
 import WidgetKit
 
 /// Watches the shell's chats and drives the Live Activities, Keep bots live and the widget cache.
@@ -19,15 +20,20 @@ final class LiveTurnMonitor {
     private var startedAt: [String: Date] = [:]
     /// Chats stopped from a Live Activity or widget, so their final state reads "Stopped".
     private var stopped: Set<String> = []
+    /// Turn starts and ends, and approvals, as the notifications see them (HermesKit, Linux-tested).
+    private var watcher = TurnWatcher()
+    private let notifications: LocalNotifications
     private let logger = Logger(subsystem: "com.simplyjaytea.simplyhermes", category: "LiveTurnMonitor")
 
     init(
         model: ShellModel,
         activities: LiveActivityController,
         keepAlive: KeepBotsLiveService,
-        sharedContainer: SharedContainer.Resolution
+        sharedContainer: SharedContainer.Resolution,
+        notifications: LocalNotifications = .shared
     ) {
         self.model = model
+        self.notifications = notifications
         self.activities = activities
         self.keepAlive = keepAlive
         widgetStore = sharedContainer.directory.map(WidgetSnapshotStore.init(directory:))
@@ -57,8 +63,12 @@ final class LiveTurnMonitor {
         var running = 0
         for session in model.sessions {
             let id = session.id
-            let isStreaming = model.isStreaming(id)
+            // The real chats' state (review M1 on #136): a server chat's turn and approvals, a local chat's reply.
+            // The demo flag stays for DEBUG sample chats.
+            let activity = model.chatActivity(of: id)
+            let isStreaming = model.isStreaming(id) || activity?.isRunning == true
             let approval = model.pendingApproval(in: id)
+            var stoppedByUser = false
             if isStreaming || (approval != nil && startedAt[id] != nil) {
                 let started = startedAt[id] ?? now
                 startedAt[id] = started
@@ -67,9 +77,11 @@ final class LiveTurnMonitor {
                 activities.apply(sessionID: id, serverName: session.serverName, state: state, now: now)
             } else if let started = startedAt.removeValue(forKey: id) {
                 var state = turnState(for: session, approval: nil, startedAt: started)
-                state.phase = stopped.remove(id) == nil ? .done : .stopped
+                stoppedByUser = stopped.remove(id) != nil
+                state.phase = stoppedByUser ? .stopped : .done
                 activities.finish(sessionID: id, state: state)
             }
+            if let activity { notify(session, activity, stoppedByUser: stoppedByUser, now: now) }
         }
         keepAlive.update(runningTurns: running)
         activities.keepsAppAlive = keepAlive.isHolding
@@ -94,6 +106,42 @@ final class LiveTurnMonitor {
             pendingCommand: approval?.text,
             startedAt: startedAt
         )
+    }
+
+    // MARK: Notifications
+
+    private func notificationContext(now: Date) -> NotificationContext {
+        let servers = Set(model.sessions.filter { !$0.id.hasPrefix("local-") }.map(\.serverName))
+        return NotificationContext(
+            appIsActive: UIApplication.shared.applicationState == .active, chatOnScreen: model.selectedSessionID,
+            multipleServers: servers.count > 1, now: now)
+    }
+
+    private func notificationChat(_ session: ChatSessionSummary) -> NotificationChat {
+        NotificationChat(
+            id: session.id, title: session.title,
+            serverName: session.id.hasPrefix("local-") ? nil : session.serverName)
+    }
+
+    /// Turns this chat's change into notifications, and offers them in the chat after a long turn or an approval.
+    private func notify(_ session: ChatSessionSummary, _ activity: ChatActivity, stoppedByUser: Bool, now: Date) {
+        let ranFor = watcher.runningFor(session.id, now: now)
+        let events = watcher.observe(notificationChat(session), activity, stoppedByUser: stoppedByUser, now: now)
+        guard !events.isEmpty else { return }
+        let context = notificationContext(now: now)
+        for event in events {
+            notifications.handle(event, context: context)
+            guard context.appIsActive else { continue }
+            switch event {
+            case .turnEnded(_, _, _, _, let outcome, _)
+            where outcome != .stopped && (ranFor ?? 0) >= NotificationOffer.longTurn:
+                NotificationOfferModel.shared.noteLongTurn()
+            case .approvalWaiting:
+                NotificationOfferModel.shared.noteLongTurn()
+            default:
+                break
+            }
+        }
     }
 
     /// Writes only when what a widget shows changed, then reloads the widgets.
