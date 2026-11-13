@@ -216,4 +216,31 @@ struct OutboxDrainerTests {
         #expect(await submitter.delivered == ["a", "b"])
         #expect(try await states(cache) == ["a:sent", "b:sent"])
     }
+
+    // Try again can reattach a chat while one of its messages is in flight on the old controller. The chat keeps one
+    // drainer for its life and points it at the new controller, so the message goes out once (PR #113 review, M1).
+
+    @Test func swappingTheSubmitterWhileAMessageIsInFlightSendsItOnce() async throws {
+        let cache = try HermesCache()
+        for text in ["a", "b"] { try await cache.outbox.insert(record(text)) }
+        let old = ScriptedSubmitter()
+        let new = ScriptedSubmitter()
+        let drainer = OutboxDrainer(store: cache.outbox, chatID: "c1", submitter: old)
+
+        await old.block(true)
+        let firstPass = Task { try await drainer.drain() }
+        while await old.delivered.isEmpty { try await Task.sleep(for: .milliseconds(2)) }
+
+        // The chat reattaches on a new controller while `a` is still in flight on the old one.
+        await drainer.use(new)
+        try await drainer.drain()
+        #expect(await new.delivered.isEmpty)
+
+        await old.block(false)
+        try await firstPass.value
+
+        #expect(await old.delivered == ["a"])
+        #expect(await new.delivered == ["b"])
+        #expect(try await states(cache) == ["a:sent", "b:sent"])
+    }
 }

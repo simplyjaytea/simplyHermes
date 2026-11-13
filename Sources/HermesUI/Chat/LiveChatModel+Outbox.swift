@@ -21,7 +21,7 @@
             let previous = lastPill
             lastPill = now
             if OutboxResume.shouldDrain(from: previous, to: now) {
-                if drainer == nil {
+                if controller == nil {
                     // Detached (the chat is not open): attaching connects it, and attaching sends the waiting messages.
                     Task { await attach() }
                 } else {
@@ -98,7 +98,7 @@
 
         /// Sends the chat's waiting messages if Hermes can take them, then refreshes the rows the screen shows.
         func drainOutbox() async {
-            guard let drainer else { return }
+            guard controller != nil, let drainer else { return }
             // WP-8: while the chat cannot reach its server, its waiting messages stay where they are. Nothing is submitted
             // over a socket the status says is down, and the drain runs again when the chat recovers.
             guard status.pill != .unreachable else {
@@ -117,7 +117,7 @@
         public func retryOutbox(_ id: UUID) {
             Task {
                 do {
-                    if let drainer {
+                    if controller != nil, let drainer {
                         try await drainer.retry(id)
                     } else {
                         try await outbox.updateState(.pending, forID: id, ifCurrently: .failed)

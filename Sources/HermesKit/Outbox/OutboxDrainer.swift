@@ -25,7 +25,7 @@ public protocol OutboxSubmitter: Sendable {
 public actor OutboxDrainer {
     private let store: any OutboxStore
     private let chatID: String
-    private let submitter: any OutboxSubmitter
+    private var submitter: any OutboxSubmitter
     private let clock: @Sendable () -> Date
     private let onChange: @Sendable () async -> Void
     private let pauses: OutboxPauses
@@ -48,7 +48,16 @@ public actor OutboxDrainer {
         self.onChange = onChange
     }
 
-    /// Puts messages that were being sent back to `pending`. Call it once per attach, before the first drain.
+    /// Points the drainer at a new submitter, when the chat reattaches on a new controller. A chat keeps one drainer
+    /// for its life, so a pass that is still running finishes on the old submitter and the next one uses the new. A
+    /// second drainer would not know about the message in flight and would send it again. Do not call
+    /// ``recoverInterrupted()`` after this: it is for a relaunch, when nothing is in flight.
+    public func use(_ submitter: any OutboxSubmitter) {
+        self.submitter = submitter
+    }
+
+    /// Puts messages that were being sent back to `pending`. Call it once, when the chat first attaches after a
+    /// launch and before the first drain. Not on a later reattach: a message may be in flight then (see ``use(_:)``).
     public func recoverInterrupted() async throws {
         for record in try await store.records(inChat: chatID) where record.state.kind == .sending {
             try await move(record.id, to: .pending)
