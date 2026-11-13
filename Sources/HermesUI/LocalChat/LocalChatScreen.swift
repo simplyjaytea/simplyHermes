@@ -32,7 +32,8 @@
                 } else if let remembered {
                     rememberedBar(remembered, undo: { undoRemembered(remembered) }, dismiss: { self.remembered = nil })
                 }
-                Composer(text: $draft) { submit() }
+                // `/` lists the prompt-only skills (local agent abilities, phase 2). They are text; nothing is fetched.
+                Composer(text: $draft, completer: Self.skillCompleter) { submit() }
                     .background(palette.background)
             }
             .background(palette.background)
@@ -140,6 +141,11 @@
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+
+        private static let skillCompleter: CompletionLookup = { trigger in
+            guard case .slash(let query) = trigger else { return [] }
+            return LocalSkillInvocation.completions(query)
         }
 
         /// "Remember this": saves the message to on-device memory (local chats only, never sent to a server).
