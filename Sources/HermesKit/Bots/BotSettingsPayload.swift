@@ -633,7 +633,7 @@ public enum BotSettingsError: Sendable {
                 return "Those settings are too large to save."
             case .metaConflict:
                 return "Someone else changed this bot at the same time. Try again."
-            case .metaNotSaved, .roleNotSaved:
+            case .metaNotSaved, .roleNotSaved, .settingsNotSaved:
                 return "The server did not save the change."
             case .profileNotFound:
                 return "That bot is no longer on the server."
