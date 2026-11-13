@@ -53,20 +53,42 @@ public struct NotificationPreferences: Sendable, Equatable {
     }
 }
 
+/// One chat on one server. Two saved servers can have a chat with the same id, so a notification is named by both
+/// (as the outbox is since #133). A local chat has no server (`connection` nil); its `local-<uuid>` id is unique.
+public struct NotificationChatKey: Hashable, Sendable {
+    /// The saved server's connection id, or nil for a local chat.
+    public var connection: String?
+    public var chatID: String
+
+    public init(connection: String?, chatID: String) {
+        self.connection = connection
+        self.chatID = chatID
+    }
+
+    /// The key as one string for system identifiers: `<server or "local">/<chat>`.
+    public var scope: String { "\(connection ?? "local")/\(chatID)" }
+}
+
 /// Which chat an event belongs to, as the notification names it.
 public struct NotificationChat: Sendable, Equatable {
     public var id: String
     public var title: String
     /// The server's name, or nil for a local chat (answered on this iPhone).
     public var serverName: String?
+    /// The saved server's connection id, or nil for a local chat.
+    public var connection: String?
 
-    public init(id: String, title: String, serverName: String?) {
+    public init(id: String, title: String, serverName: String?, connection: String? = nil) {
         self.id = id
         self.title = title
         self.serverName = serverName
+        self.connection = connection
     }
 
     public var isLocal: Bool { serverName == nil }
+
+    /// What names this chat in every notification identifier.
+    public var key: NotificationChatKey { NotificationChatKey(connection: connection, chatID: id) }
 }
 
 /// Something that may deserve a notification.
@@ -85,20 +107,20 @@ public enum NotificationEvent: Sendable, Equatable {
     /// An approval started waiting.
     case approvalWaiting(NotificationChat, requestID: String, command: String)
     /// An approval was answered or withdrawn, here or anywhere else.
-    case approvalResolved(chatID: String, requestID: String)
+    case approvalResolved(NotificationChatKey, requestID: String)
 }
 
 /// Where the user is when the event happens.
 public struct NotificationContext: Sendable, Equatable {
     /// The app is in the foreground and its window is in use.
     public var appIsActive: Bool
-    /// The chat on screen, if any.
-    public var chatOnScreen: String?
+    /// The chat on screen, if any, with its server: the same chat id on another server is a different chat.
+    public var chatOnScreen: NotificationChatKey?
     /// More than one server is saved, so a notification names its server.
     public var multipleServers: Bool
     public var now: Date
 
-    public init(appIsActive: Bool, chatOnScreen: String?, multipleServers: Bool, now: Date) {
+    public init(appIsActive: Bool, chatOnScreen: NotificationChatKey?, multipleServers: Bool, now: Date) {
         self.appIsActive = appIsActive
         self.chatOnScreen = chatOnScreen
         self.multipleServers = multipleServers
@@ -119,6 +141,8 @@ public struct NotificationRequest: Sendable, Equatable {
     public var threadID: String
     /// The chat a tap opens.
     public var chatID: String
+    /// Its server, or nil for a local chat. A tap opens the chat only on this server.
+    public var connection: String?
     public var kind: Kind
     public var title: String
     public var body: String
@@ -151,25 +175,25 @@ public struct NotificationPlanner: Sendable {
         _ event: NotificationEvent, context: NotificationContext, preferences: NotificationPreferences
     ) -> [NotificationAction] {
         switch event {
-        case .approvalResolved(let chatID, let requestID):
-            return [.remove([Self.approvalID(chatID: chatID, requestID: requestID)])]
+        case .approvalResolved(let chat, let requestID):
+            return [.remove([Self.approvalID(chat, requestID: requestID)])]
 
         case .approvalWaiting(let chat, let requestID, let command):
-            let key = "\(chat.id):approval:\(requestID)"
-            guard preferences.approvalWaiting, !isSeen(key), Self.shouldTell(chat.id, context) else { return [] }
+            let key = "\(chat.key.scope):approval:\(requestID)"
+            guard preferences.approvalWaiting, !isSeen(key), Self.shouldTell(chat.key, context) else { return [] }
             return [
                 .post(
                     request(
                         Draft(
                             kind: .approval, chat: chat, key: key,
-                            id: Self.approvalID(chatID: chat.id, requestID: requestID),
+                            id: Self.approvalID(chat.key, requestID: requestID),
                             headline: "Hermes needs your OK", detail: command),
                         context, preferences))
             ]
 
         case .turnEnded(let chat, let turnID, _, let endedAt, let outcome, let reply):
-            let key = "\(chat.id):turn:\(turnID)"
-            guard outcome != .stopped, preferences.replyFinished, !isSeen(key), Self.shouldTell(chat.id, context),
+            let key = "\(chat.key.scope):turn:\(turnID)"
+            guard outcome != .stopped, preferences.replyFinished, !isSeen(key), Self.shouldTell(chat.key, context),
                 context.now.timeIntervalSince(endedAt) <= Self.staleAfter
             else { return [] }
             let headline = outcome == .failed ? "Hermes stopped with an error" : "Hermes replied"
@@ -177,7 +201,7 @@ public struct NotificationPlanner: Sendable {
                 .post(
                     request(
                         Draft(
-                            kind: .reply, chat: chat, key: key, id: "reply.\(chat.id)", headline: headline,
+                            kind: .reply, chat: chat, key: key, id: "reply.\(chat.key.scope)", headline: headline,
                             detail: outcome == .failed ? "" : reply),
                         context, preferences))
             ]
@@ -190,12 +214,12 @@ public struct NotificationPlanner: Sendable {
     }
 
     /// Not for the chat the user is looking at in the active app: that chat already plays its sound.
-    static func shouldTell(_ chatID: String, _ context: NotificationContext) -> Bool {
-        !(context.appIsActive && context.chatOnScreen == chatID)
+    static func shouldTell(_ chat: NotificationChatKey, _ context: NotificationContext) -> Bool {
+        !(context.appIsActive && context.chatOnScreen == chat)
     }
 
-    static func approvalID(chatID: String, requestID: String) -> String {
-        "approval.\(chatID).\(requestID)"
+    static func approvalID(_ chat: NotificationChatKey, requestID: String) -> String {
+        "approval.\(chat.scope).\(requestID)"
     }
 
     /// One notification before its text is decided.
@@ -232,7 +256,8 @@ public struct NotificationPlanner: Sendable {
             body = Self.hiddenBody
         }
         return NotificationRequest(
-            id: id, threadID: chat.id, chatID: chat.id, kind: kind, title: title, body: body,
+            id: id, threadID: chat.key.scope, chatID: chat.id, connection: chat.connection, kind: kind, title: title,
+            body: body,
             playsSound: preferences.sound, dedupeKey: key)
     }
 

@@ -34,7 +34,9 @@ struct LocalNotificationsTests {
     }
 
     private func context(active: Bool = false, onScreen: String? = nil) -> NotificationContext {
-        NotificationContext(appIsActive: active, chatOnScreen: onScreen, multipleServers: false, now: start)
+        NotificationContext(
+            appIsActive: active, chatOnScreen: onScreen.map { NotificationChatKey(connection: nil, chatID: $0) },
+            multipleServers: false, now: start)
     }
 
     private func settle(_ center: FakeCenter, count: Int) async {
@@ -54,8 +56,8 @@ struct LocalNotificationsTests {
         try? await Task.sleep(for: .milliseconds(50))
         #expect(center.added.count == 1, "never twice")
         let request = center.added[0]
-        #expect(request.identifier == "reply.s1")
-        #expect(request.content.threadIdentifier == "s1")
+        #expect(request.identifier == "reply.local/s1")
+        #expect(request.content.threadIdentifier == "local/s1")
         #expect(request.content.userInfo["chat"] as? String == "s1")
         #expect(request.content.interruptionLevel == .active, "no Time Sensitive entitlement needed")
         #expect(request.content.title == "Hermes replied")
@@ -81,10 +83,10 @@ struct LocalNotificationsTests {
         let poster = LocalNotifications(center: center, defaults: defaults())
         poster.handle(.approvalWaiting(chat, requestID: "r1", command: "rm -rf build"), context: context())
         await settle(center, count: 1)
-        #expect(center.added.first?.identifier == "approval.s1.r1")
-        poster.handle(.approvalResolved(chatID: "s1", requestID: "r1"), context: context())
-        #expect(center.removedDelivered == [["approval.s1.r1"]])
-        #expect(center.removedPending == [["approval.s1.r1"]])
+        #expect(center.added.first?.identifier == "approval.local/s1.r1")
+        poster.handle(.approvalResolved(chat.key, requestID: "r1"), context: context())
+        #expect(center.removedDelivered == [["approval.local/s1.r1"]])
+        #expect(center.removedPending == [["approval.local/s1.r1"]])
     }
 
     @Test func soundOffIsSilent() async {

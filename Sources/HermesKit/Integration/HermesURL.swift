@@ -14,6 +14,22 @@ public enum HermesURL {
         return components.url ?? URL(string: "\(scheme)://chat")!
     }
 
+    /// `simplyhermes://chat/<session id>?server=<connection id>`: a chat on one saved server, from a notification. The app
+    /// opens it only while that server is the active one; it never switches servers by itself (no auto-switch).
+    public static func chat(_ sessionID: String, server: String?) -> URL {
+        guard let server, var components = URLComponents(url: chat(sessionID), resolvingAgainstBaseURL: false) else {
+            return chat(sessionID)
+        }
+        components.queryItems = [URLQueryItem(name: "server", value: server)]
+        return components.url ?? chat(sessionID)
+    }
+
+    /// The server a chat URL names, or nil when it names none (widgets, the Live Activity, a local chat).
+    public static func chatServer(from url: URL) -> String? {
+        guard chatID(from: url) != nil else { return nil }
+        return URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "server" }?.value
+    }
+
     /// The session ID in a chat URL, or `nil` for any other URL.
     public static func chatID(from url: URL) -> String? {
         guard url.scheme == scheme, url.host == "chat" else { return nil }
