@@ -22,7 +22,8 @@
             let controller = Task {
                 await LocalChatController(
                     store: services.store, answerer: services.answerer, chatID: chatID,
-                    memory: { [memory = services.memory] in (try? await memory?.memories()) ?? [] })
+                    memory: { [memory = services.memory] in (try? await memory?.memories()) ?? [] },
+                    memoryStore: services.memory)
             }
             self.controller = controller
             follow = Task { [weak self] in
@@ -46,6 +47,23 @@
             Task {
                 let open = await controller.value
                 await open.retry(messageID: messageID)
+            }
+        }
+
+        /// Memory the model saved on its own: Undo, or let the bar go.
+        public func undoMemoryChange() {
+            Task { await controller.value.undoMemoryChange() }
+        }
+
+        public func dismissMemoryChange() {
+            Task { await controller.value.dismissMemoryChange() }
+        }
+
+        /// "Save this to memory?" after a turn that read a file: yes or no.
+        public func answerMemoryProposal(save: Bool) {
+            Task {
+                let open = await controller.value
+                if save { await open.confirmMemoryProposal() } else { await open.declineMemoryProposal() }
             }
         }
 
