@@ -159,6 +159,28 @@ private let saved = #"{"ok": true, "applied": {"ui_meta": true}}"#
         #expect(created == BotClient.CreatedAgent(profile: "ops-two", lookSaved: false))
     }
 
+    @Test func createAgentReportsWhenTheStagedSettingsDoNotSave() async throws {
+        // The first profiles.configure is the staged skills and toolsets. It fails; the look writes after it succeed.
+        let gateway = FakeBotGateway([
+            "profiles.create": [.json(#"{"ok": true, "name": "ops-two", "path": "/p/ops-two"}"#)],
+            "profiles.list": [.json(listing("ops-two"))],
+            "profiles.configure": [.failure(RPCError(code: 5000, message: "disk full")), .json(saved)],
+        ])
+        let draft = NewAgentDraft(name: "Ops Two", enabledToolsets: ["web"])
+        let created = try await BotClient(gateway: gateway).createAgent(draft, existingProfiles: ["ops"])
+        #expect(created.profile == "ops-two")
+        #expect(!created.settingsSaved)
+        #expect(created.lookSaved)
+    }
+
+    @Test func retryingTheStagedSettingsDoesNotCreateTheProfileAgain() async throws {
+        let gateway = FakeBotGateway(["profiles.configure": [.json(saved)]])
+        let draft = NewAgentDraft(name: "Ops Two", enabledToolsets: ["web"])
+        try await BotClient(gateway: gateway).finishStagedSettings(draft, profile: "ops-two")
+        let methods = await gateway.calls.map(\.method)
+        #expect(methods == ["profiles.configure"])
+    }
+
     @Test func createAgentRefusesATakenNameWithoutCalling() async throws {
         let gateway = FakeBotGateway([:])
         await #expect(throws: BotError.invalidDraft([.nameTaken])) {
