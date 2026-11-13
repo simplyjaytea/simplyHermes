@@ -20,7 +20,9 @@
         public init(chatID: UUID, services: LocalChatServices) {
             self.chatID = chatID
             let controller = Task {
-                await LocalChatController(store: services.store, answerer: services.answerer, chatID: chatID)
+                await LocalChatController(
+                    store: services.store, answerer: services.answerer, chatID: chatID,
+                    memory: { [memory = services.memory] in (try? await memory?.memories()) ?? [] })
             }
             self.controller = controller
             follow = Task { [weak self] in

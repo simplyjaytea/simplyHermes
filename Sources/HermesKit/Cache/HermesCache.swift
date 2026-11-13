@@ -154,6 +154,19 @@ public final class HermesCache: Sendable {
                     DROP TABLE offline_chat;
                     """)
         }
+        // Local agent abilities, phase 1: what the local assistant knows about the user. App storage only.
+        migrator.registerMigration("local-memory-v1") { handle in
+            try handle.execute(
+                sql: """
+                    CREATE TABLE local_memory (
+                        memory_id TEXT NOT NULL PRIMARY KEY,
+                        text TEXT NOT NULL,
+                        pinned INTEGER NOT NULL DEFAULT 0,
+                        source TEXT NOT NULL,
+                        created_at REAL NOT NULL
+                    ) WITHOUT ROWID;
+                    """)
+        }
         // Board row 104: a New chat belongs to one saved server from the start and keeps a durable id, so a first message
         // waiting for its server survives a relaunch. `session_id` is set once the server made the chat.
         migrator.registerMigration("placeholder-chats-v1") { handle in
@@ -316,6 +329,8 @@ public final class HermesCache: Sendable {
 
     /// The local chats kept in this database (WP-7). They share the file but not the rows of the server's data.
     public var localChats: GRDBLocalChatStore { GRDBLocalChatStore(database: database) }
+    /// What the local assistant knows about the user (local chats only, never sent to a server).
+    public var localMemory: GRDBLocalMemoryStore { GRDBLocalMemoryStore(database: database) }
 
     // MARK: - Outbox
 

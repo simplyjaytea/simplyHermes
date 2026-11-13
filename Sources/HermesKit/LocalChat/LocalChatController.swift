@@ -63,6 +63,8 @@ public actor LocalChatController {
     public let chatID: UUID
     private let store: any LocalChatStore
     private let answerer: @Sendable () -> any LocalChatAnswerer
+    /// Read before every reply, so a memory saved or deleted in Settings applies to the next answer.
+    private let memory: @Sendable () async -> [LocalMemory]
     private let now: @Sendable () -> Date
 
     private var chat: LocalChat?
@@ -81,10 +83,12 @@ public actor LocalChatController {
     /// once.
     public init(
         store: any LocalChatStore, answerer: @escaping @Sendable () -> any LocalChatAnswerer, chatID: UUID,
+        memory: @escaping @Sendable () async -> [LocalMemory] = { [] },
         now: @escaping @Sendable () -> Date = { Date() }
     ) async {
         self.store = store
         self.answerer = answerer
+        self.memory = memory
         self.chatID = chatID
         self.now = now
         if let open = try? await store.chat(chatID) {
@@ -244,10 +248,17 @@ public actor LocalChatController {
         let history = messages.filter { $0.id < prompt.id }
         // WP-9 replaces `try?` with a typed failure that keeps the model's error.
         let answer = try? await model.answer(
-            instructions: Self.instructions, prompt: Self.prompt(history: history, message: prompt.text))
+            instructions: Self.instructions(memory: await memory()),
+            prompt: Self.prompt(history: history, message: prompt.text))
         let text = answer?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard let answer, !text.isEmpty else { return .failed(.modelFailed) }
         return .answered(LocalAnswer(text: text, answeredBy: answer.answeredBy))
+    }
+
+    /// ``instructions`` plus the user's saved memory, within ``LocalMemoryRules/promptBudget``.
+    static func instructions(memory: [LocalMemory]) -> String {
+        let block = LocalMemoryRules.instructionsBlock(memory)
+        return block.isEmpty ? instructions : instructions + "\n\n" + block
     }
 
     /// The text sent to the model: as much of the chat so far as fits in ``historyLimit`` (the newest turns win),
