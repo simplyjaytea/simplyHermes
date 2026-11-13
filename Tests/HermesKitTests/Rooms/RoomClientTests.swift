@@ -444,4 +444,32 @@ private func refusal(_ body: () async throws -> Void) async -> RoomError? {
             code: 5000, message: "Conflict", data: ["reason": JSONValue.string("authority_conflict")])
         #expect(RoomFailure.message(for: authorityError) == "This Group Chat is managed by another gateway.")
     }
+
+    // The composer stays editable while a send is in flight (row 62).
+    private let accepted = RoomSendOutcome(shouldClearDraft: true, shouldClearOutgoing: true)
+    private let refused = RoomSendOutcome(shouldClearDraft: false, shouldClearOutgoing: false)
+
+    @Test func anAcceptedSendClearsTheDraftItSent() throws {
+        let sent = try #require(RoomOutgoingMessage(text: "Plan for group sync"))
+        #expect(RoomSendOutcome.draftAfterSend(sent: sent, current: "Plan for group sync", outcome: accepted) == "")
+        #expect(RoomSendOutcome.draftAfterSend(sent: sent, current: "  Plan for group sync\n", outcome: accepted) == "")
+    }
+
+    @Test func anAcceptedSendKeepsWhatTheUserTypedWhileItRan() throws {
+        let sent = try #require(RoomOutgoingMessage(text: "Plan for group sync"))
+        #expect(
+            RoomSendOutcome.draftAfterSend(
+                sent: sent, current: "Plan for group sync, and also lunch", outcome: accepted)
+                == "Plan for group sync, and also lunch")
+        #expect(
+            RoomSendOutcome.draftAfterSend(sent: sent, current: "Another thought", outcome: accepted)
+                == "Another thought")
+    }
+
+    @Test func aRefusedSendLeavesTheDraftAlone() throws {
+        let sent = try #require(RoomOutgoingMessage(text: "Plan for group sync"))
+        #expect(
+            RoomSendOutcome.draftAfterSend(sent: sent, current: "Plan for group sync", outcome: refused)
+                == "Plan for group sync")
+    }
 }
