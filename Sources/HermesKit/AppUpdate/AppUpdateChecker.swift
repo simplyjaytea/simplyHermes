@@ -291,7 +291,9 @@ public struct AppUpdateChecker: Sendable {
     }
 
     /// Runs a check. Without `force`, it fetches at most once every 24 hours, or an hour after a failed try.
-    /// A failed check keeps the cached feed and the last good check time.
+    /// A failed check keeps the last good check time. It keeps the cached feed too (offline, a timeout or a 5xx says
+    /// nothing about the release), except for ``AppUpdateFeedError/notPublished``: a 404 means the feed was
+    /// withdrawn, so the remembered build is forgotten and the banner stops offering it.
     public func check(force: Bool = false) async -> AppUpdateResult {
         let time = now()
         guard force || AppUpdateRules.isDue(lastCheck: record.lastCheck, lastAttempt: record.lastAttempt, now: time)
@@ -331,6 +333,7 @@ public struct AppUpdateChecker: Sendable {
     }
 
     private func fail(_ error: AppUpdateFeedError) -> AppUpdateResult {
+        if error == .notPublished { record.cachedFeed = nil }
         record.lastError = error.message
         return .failed(error)
     }
