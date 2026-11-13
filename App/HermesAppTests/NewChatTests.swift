@@ -272,7 +272,8 @@ struct NewChatTests {
         var name = "Office Mac"
         model.placeholderStripSource = { PlaceholderStrip(serverName: name, connection: .online) }
         model.newChat()
-        let session = try #require(model.session(id: try #require(model.selectedSessionID)))
+        let selected = try #require(model.selectedSessionID)
+        let session = try #require(model.session(id: selected))
         #expect(model.serverName(of: session) == "Office Mac")
 
         name = "Home Pi"
