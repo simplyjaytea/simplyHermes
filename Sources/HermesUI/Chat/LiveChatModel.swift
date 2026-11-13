@@ -201,7 +201,7 @@
         /// server is still down the transcript stays on screen and the banner stays.
         public func retryConnection() async {
             // A second tap while a retry runs does nothing: two retries would race each other over the controller.
-            guard !retrying, !isRetired else { return }
+            guard !retrying, !isRetired, !isOnAnotherServer else { return }
             retrying = true
             defer { retrying = false }
             guard let serverID, let connection = connections.connection(id: serverID), let manager = connections.manager
@@ -223,7 +223,7 @@
         /// Connects, resumes the session and starts following it. Safe to call again after a failure. A call made
         /// while another is still connecting waits for that one, so the session is never opened twice at once.
         public func attach() async {
-            guard !isRetired else { return }
+            guard !isRetired, !isOnAnotherServer else { return }
             if let attempt = attaching {
                 await attempt.value
                 return
@@ -309,6 +309,13 @@
             } catch {
                 phase = .failed(Self.describe(error))
             }
+        }
+
+        /// True while another server than this chat's own is active. ``connectAndFollow()`` connects the *active* server,
+        /// so attaching now would open this chat's session id on the wrong server (board row 140).
+        var isOnAnotherServer: Bool {
+            OutboxResume.isOnAnotherServer(
+                chatServer: serverID?.uuidString, activeServer: connections.active?.id.uuidString)
         }
 
         /// Ends this chat for good: the store dropped it because the active server changed. Unlike ``detach()``, which a
@@ -673,6 +680,15 @@
                 drainers: OutboxServices.drainers)
             chats[sessionID] = chat
             return chat
+        }
+
+        /// The active server changed: every chat of the old one is retired now, not when the next chat is asked for. A
+        /// chat that is still referenced can no longer attach to the new server (board row 140).
+        public func activeServerChanged() {
+            guard serverID != connections.active?.id else { return }
+            for chat in chats.values { chat.retire() }
+            chats = [:]
+            serverID = connections.active?.id
         }
 
         /// The chat for a stored session id if the store already holds one. Unlike ``chat(for:)``, it never creates one.

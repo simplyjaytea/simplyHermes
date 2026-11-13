@@ -173,8 +173,53 @@ private let saved = #"{"ok": true, "applied": {"ui_meta": true}}"#
         #expect(created.lookSaved)
     }
 
+    // Row 134: the server can answer a refused section with `applied.toolsets == false` (or `ok == false`) and still
+    // answer the call. That is not saved.
+    @Test func aRefusedSettingsWriteIsNotCountedAsSaved() async throws {
+        for refusal in [
+            #"{"ok": true, "applied": {"toolsets": false}}"#,
+            #"{"ok": true, "applied": {}}"#,
+            #"{"ok": false, "applied": {"toolsets": true}}"#,
+        ] {
+            let gateway = FakeBotGateway([
+                "profiles.create": [.json(#"{"ok": true, "name": "ops-two", "path": "/p/ops-two"}"#)],
+                "profiles.list": [.json(listing("ops-two"))],
+                "profiles.configure": [.json(refusal), .json(saved)],
+            ])
+            let draft = NewAgentDraft(name: "Ops Two", enabledToolsets: ["web"])
+            let created = try await BotClient(gateway: gateway).createAgent(draft, existingProfiles: ["ops"])
+            #expect(!created.settingsSaved, "\(refusal)")
+            #expect(created.lookSaved)
+        }
+    }
+
+    @Test func everyStagedSectionMustBeAppliedForTheSettingsToCountAsSaved() async throws {
+        let gateway = FakeBotGateway([
+            "profiles.configure": [.json(#"{"ok": true, "applied": {"toolsets": true, "skills": false}}"#)]
+        ])
+        let draft = NewAgentDraft(name: "Ops Two", disabledSkills: ["x"], enabledToolsets: ["web"])
+        await #expect(throws: BotError.settingsNotSaved("ops-two", sections: ["skills"])) {
+            try await BotClient(gateway: gateway).finishStagedSettings(draft, profile: "ops-two")
+        }
+    }
+
+    @Test func aSettingsWriteThatTheServerAppliedCountsAsSaved() async throws {
+        let gateway = FakeBotGateway([
+            "profiles.create": [.json(#"{"ok": true, "name": "ops-two", "path": "/p/ops-two"}"#)],
+            "profiles.list": [.json(listing("ops-two"))],
+            "profiles.configure": [
+                .json(#"{"ok": true, "applied": {"skills": true, "toolsets": true, "mcp_servers": true}}"#),
+                .json(saved),
+            ],
+        ])
+        let draft = NewAgentDraft(
+            name: "Ops Two", disabledSkills: ["x"], enabledToolsets: ["web"], enabledMCPServers: ["m"])
+        let created = try await BotClient(gateway: gateway).createAgent(draft, existingProfiles: ["ops"])
+        #expect(created.settingsSaved)
+    }
+
     @Test func retryingTheStagedSettingsDoesNotCreateTheProfileAgain() async throws {
-        let gateway = FakeBotGateway(["profiles.configure": [.json(saved)]])
+        let gateway = FakeBotGateway(["profiles.configure": [.json(#"{"ok": true, "applied": {"toolsets": true}}"#)]])
         let draft = NewAgentDraft(name: "Ops Two", enabledToolsets: ["web"])
         try await BotClient(gateway: gateway).finishStagedSettings(draft, profile: "ops-two")
         let methods = await gateway.calls.map(\.method)

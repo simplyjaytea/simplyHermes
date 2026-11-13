@@ -63,7 +63,9 @@ struct AcknowledgementsTests {
 
     @Test func everyEntryCarriesItsLicenseText() throws {
         let list = try bundled()
-        #expect(list.packages.count >= 30)
+        #expect(
+            list.packages.count >= 15,
+            "the shipped set is about twenty packages; see theListIsExactlyTheResolvedAppGraph")
         for entry in list.sortedPackages {
             #expect(entry.license != "NOASSERTION", "\(entry.name) has no license the generator could read")
             #expect(entry.licenseText.count > 500, "\(entry.name): license text missing")
@@ -87,5 +89,30 @@ struct AcknowledgementsTests {
         #expect(list.buildOnly["swift-syntax"] != nil)
         #expect(list.buildOnly.values.allSatisfy { !$0.isEmpty })
         #expect(list.packages["swift-syntax"] == nil)
+    }
+
+    /// The packages a built app contains, exactly: `tools/acknowledgements/app-graph.resolved` is SwiftPM's resolution of
+    /// the app's own package set (this package plus project.yml's MLX and swift-transformers), made with a toolchain
+    /// that can read mlx-swift's manifest. The list names exactly those, at those versions: none missing, none extra.
+    @Test func theListIsExactlyTheResolvedAppGraph() throws {
+        let data = try Data(
+            contentsOf: Self.root.appendingPathComponent("tools/acknowledgements/app-graph.resolved"))
+        let pins = try #require(
+            (try JSONSerialization.jsonObject(with: data) as? [String: Any])?["pins"] as? [[String: Any]])
+        let list = try bundled()
+        var resolved: [String: String] = [:]
+        for pin in pins {
+            let id = try #require(pin["identity"] as? String)
+            guard list.buildOnly[id] == nil else { continue }
+            resolved[id] = ((pin["state"] as? [String: Any])?["version"] as? String) ?? ""
+        }
+        #expect(resolved.count > 15)
+        let listed = Set(list.packages.keys)
+        #expect(listed.subtracting(resolved.keys).sorted() == [], "listed but not in a built app")
+        #expect(Set(resolved.keys).subtracting(listed).sorted() == [], "in a built app but not listed")
+        for (id, version) in resolved {
+            #expect(list.packages[id]?.version == version, "\(id) should be \(version)")
+        }
+        #expect(list.packages.values.allSatisfy { $0.version != nil }, "every version is exact")
     }
 }

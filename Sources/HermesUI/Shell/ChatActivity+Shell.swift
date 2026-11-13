@@ -15,5 +15,11 @@
             }
             return nil
         }
+
+        /// The saved server a server chat belongs to (its model's own server), or nil for a local chat, a chat with no
+        /// model open, or a DEBUG sample chat. Notifications key on it, so the same chat id on two servers never mixes.
+        public func chatServer(of id: String) -> String? {
+            liveChats?.existingChat(for: id)?.serverID?.uuidString
+        }
     }
 #endif

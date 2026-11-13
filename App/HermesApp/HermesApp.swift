@@ -57,7 +57,10 @@ struct HermesApp: App {
                     if phase == .active { Task { await AppUpdateModel.shared.checkIfDue() } }
                 }
                 .onOpenURL { url in
-                    if let id = HermesURL.chatID(from: url), model.session(id: id) != nil {
+                    // A link that names a server (a notification) opens only on that server: never the same id on
+                    // another server, and never an automatic switch.
+                    let onItsServer = HermesURL.chatServer(from: url).map { $0 == connections.active?.id.uuidString }
+                    if let id = HermesURL.chatID(from: url), model.session(id: id) != nil, onItsServer ?? true {
                         model.open(id)
                     } else if let reference = HermesURL.sessionReference(from: url) {
                         model.pendingSessionReference = reference

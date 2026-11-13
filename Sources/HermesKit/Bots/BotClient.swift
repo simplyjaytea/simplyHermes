@@ -28,6 +28,9 @@ public enum BotError: Error, Sendable, Equatable {
     case chatInconsistent(String)
     /// `profiles.configure` did not report the role (the profile description) as written.
     case roleNotSaved(String)
+    /// `profiles.configure` answered, but did not report every staged section (skills, toolsets, MCP servers) as
+    /// applied. The sections are the ones that were not.
+    case settingsNotSaved(String, sections: [String])
 }
 
 /// The rich roster of the connected gateway, from `profiles.list {include_sessions: true}`.
@@ -226,7 +229,15 @@ public struct BotClient: Sendable {
         guard var staged = draft.stagedConfigureParams() else { return }
         staged.profile = profile
         staged.name = profile
-        _ = try await gateway.call("profiles.configure", params: staged, as: ProfilesConfigureResult.self)
+        let result = try await gateway.call("profiles.configure", params: staged, as: ProfilesConfigureResult.self)
+        // The server answers a refused section with `applied.<section> == false`, or leaves it out, and still answers the
+        // call. Only a section reported as applied is saved. `ok == false` means nothing was.
+        var refused: [String] = []
+        if staged.disabledSkills != nil, result.applied.skills != true { refused.append("skills") }
+        if staged.enabledToolsets != nil, result.applied.toolsets != true { refused.append("toolsets") }
+        if staged.enabledMCPServers != nil, result.applied.mcpServers != true { refused.append("mcp_servers") }
+        if !result.ok && refused.isEmpty { refused = ["settings"] }
+        guard refused.isEmpty, result.ok else { throw BotError.settingsNotSaved(profile, sections: refused) }
     }
 
     /// Sets the role text, which is the profile's description. Desktop writes it the same way.

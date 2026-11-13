@@ -21,7 +21,7 @@ struct TurnWatcherTests {
         let step2 = watcher.observe(chat, ChatActivity(isRunning: true, latestReply: before.latestReply), now: at(1))
         #expect(
             step2.isEmpty)
-        #expect(watcher.runningFor("s1", now: at(26)) == 25)
+        #expect(watcher.runningFor(chat.key, now: at(26)) == 25)
         let done = ChatActivity(isRunning: false, latestReply: reply("row-2", "new answer"))
         let events = watcher.observe(chat, done, now: at(30))
         #expect(
@@ -98,13 +98,13 @@ struct TurnWatcherTests {
         let step6 = watcher.observe(chat, next, now: at(2))
         #expect(
             step6 == [
-                .approvalResolved(chatID: "s1", requestID: "r1"),
+                .approvalResolved(chat.key, requestID: "r1"),
                 .approvalWaiting(chat, requestID: "r2", command: "ls"),
             ])
         let step7 = watcher.observe(chat, ChatActivity(isRunning: true), now: at(3))
         #expect(
             step7 == [
-                .approvalResolved(chatID: "s1", requestID: "r2")
+                .approvalResolved(chat.key, requestID: "r2")
             ])
     }
 

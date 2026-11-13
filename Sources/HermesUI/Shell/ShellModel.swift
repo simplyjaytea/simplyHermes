@@ -217,6 +217,9 @@
         /// placeholders.
         @ObservationIgnored public var startServerChat: (@MainActor () async throws -> SessionListItem?)?
         /// Hands a New chat's first message and its files to the chat's live model, which sends them on attach.
+        /// The active server now, as the id the first message is bound to. The shell sets it. A New chat's first message
+        /// goes only to the server that was active when the user sent it (``NewChatStarter``).
+        @ObservationIgnored public var activeServerID: (@MainActor () -> String?)?
         @ObservationIgnored public var handOffFirstMessage: (@MainActor (String, String, [ComposerAttachment]) -> Void)?
         /// Queues a New chat's first message and delivers it when its server is connected (board row 104). Nil keeps the
         /// older path: the chat is made at the first send, or the send is refused.
@@ -347,11 +350,18 @@
             let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty || !attachments[id, default: []].isEmpty else { return nil }
             newChatError = nil
+            // The server the text was written for. Read now, not after the wait: the user may switch servers meanwhile.
+            let boundServer = activeServerID?()
             let task: Task<Void, Never> = Task {
                 defer { self.startingChats[id] = nil }
                 do {
                     guard let item = try await startServerChat() else {
                         self.newChatError = Self.newChatMessage(for: nil)
+                        return
+                    }
+                    // Another server is active now: the chat is not adopted and the text stays in the composer.
+                    if let boundServer, self.activeServerID?() != boundServer {
+                        self.newChatError = Self.newChatMessage(for: NewChatServerChanged(serverName: item.serverName))
                         return
                     }
                     self.adopt(item, replacing: id)
@@ -393,6 +403,10 @@
                 return offline.isConnecting
                     ? "\(offline.serverName) is still connecting. Try again in a moment."
                     : "\(offline.serverName) is not connected. Connect to it, then try again."
+            }
+            if let changed = error as? NewChatServerChanged {
+                return
+                    "You switched away from \(changed.serverName), so the message was not sent. It is still in the box."
             }
             return "Could not start a new chat. Try again."
         }

@@ -113,20 +113,25 @@ final class LiveTurnMonitor {
     private func notificationContext(now: Date) -> NotificationContext {
         let servers = Set(model.sessions.filter { !$0.id.hasPrefix("local-") }.map(\.serverName))
         return NotificationContext(
-            appIsActive: UIApplication.shared.applicationState == .active, chatOnScreen: model.selectedSessionID,
+            appIsActive: UIApplication.shared.applicationState == .active,
+            chatOnScreen: model.selectedSessionID.map {
+                NotificationChatKey(connection: model.chatServer(of: $0), chatID: $0)
+            },
             multipleServers: servers.count > 1, now: now)
     }
 
     private func notificationChat(_ session: ChatSessionSummary) -> NotificationChat {
         NotificationChat(
             id: session.id, title: session.title,
-            serverName: session.id.hasPrefix("local-") ? nil : session.serverName)
+            serverName: session.id.hasPrefix("local-") ? nil : session.serverName,
+            connection: model.chatServer(of: session.id))
     }
 
     /// Turns this chat's change into notifications, and offers them in the chat after a long turn or an approval.
     private func notify(_ session: ChatSessionSummary, _ activity: ChatActivity, stoppedByUser: Bool, now: Date) {
-        let ranFor = watcher.runningFor(session.id, now: now)
-        let events = watcher.observe(notificationChat(session), activity, stoppedByUser: stoppedByUser, now: now)
+        let chat = notificationChat(session)
+        let ranFor = watcher.runningFor(chat.key, now: now)
+        let events = watcher.observe(chat, activity, stoppedByUser: stoppedByUser, now: now)
         guard !events.isEmpty else { return }
         let context = notificationContext(now: now)
         for event in events {
