@@ -29,6 +29,9 @@
         /// Search on the chat list shown when no server is active (#116 follow-up).
         @State private var localChatSearch = ""
         @State private var isLocalChatSearchPresented = false
+        /// Search on the unfolded sidebar's chats (row 122). It filters what the sidebar lists, with or without a server.
+        @State private var sidebarChatSearch = ""
+        @State private var isSidebarSearchPresented = false
 
         /// `connections` fills Settings > Servers and the server switcher (WP-22). Nil shows placeholders.
         /// `sessionsList` lists the active server's chats (WP-40). Nil keeps the sample chats.
@@ -118,20 +121,6 @@
             }
             if let notice = await sessionsList.open(reference, in: model, profiles: profiles) {
                 model.sessionNotice = notice
-            }
-        }
-
-        /// Opens the search field of whichever chat list is showing: the server's, or the local one when no server is
-        /// active. The request is consumed on the model (set back to 0), so it is answered once even when the app swaps
-        /// this shell for the welcome screen and back: a new shell finds no request waiting. A request made before the
-        /// shell appeared, as on a cold launch from the home-screen action, is still waiting and is answered on appear.
-        private func presentChatSearchIfRequested() {
-            guard model.chatSearchRequest > 0 else { return }
-            model.chatSearchRequest = 0
-            if let sessionsList, connections?.active != nil {
-                sessionsList.isSearchPresented = true
-            } else {
-                isLocalChatSearchPresented = true
             }
         }
 
@@ -282,15 +271,6 @@
             return hidden.isEmpty ? model.sessions : model.sessions.filter { !hidden.contains($0.id) }
         }
 
-        /// ``visibleSessions`` matching the local list's search, by title or subtitle.
-        private var searchedSessions: [ChatSessionSummary] {
-            let query = localChatSearch.trimmingCharacters(in: .whitespaces)
-            guard !query.isEmpty else { return visibleSessions }
-            return visibleSessions.filter {
-                $0.title.localizedCaseInsensitiveContains(query) || $0.subtitle.localizedCaseInsensitiveContains(query)
-            }
-        }
-
         @ViewBuilder
         private var chatList: some View {
             if let sessionsList, connections?.active != nil {
@@ -326,7 +306,7 @@
                         Section { InlineTipCard(kind: tip) }
                     }
                     Section("Chats") {
-                        ForEach(visibleSessions) { session in
+                        ForEach(sessions(matching: sidebarChatSearch)) { session in
                             SessionRow(
                                 session: session,
                                 isStreaming: model.isStreaming(session.id),
@@ -343,6 +323,10 @@
                         }
                     }
                 }
+                .searchable(
+                    text: $sidebarChatSearch, isPresented: $isSidebarSearchPresented, placement: .sidebar,
+                    prompt: "Search chats"
+                )
                 .safeAreaInset(edge: .top, spacing: 0) { AppUpdateBanner() }
                 .safeAreaInset(edge: .bottom, spacing: 0) { ChatDeleteToast() }
                 .navigationTitle("simplyHermes")
@@ -637,6 +621,38 @@
             } else {
                 content
             }
+        }
+    }
+
+    // MARK: Chat search (#125, row 122)
+
+    extension AdaptiveShell {
+
+        /// Opens the search field of whichever chat list is showing: the server's, or the local one when no server is
+        /// active. The request is consumed on the model (set back to 0), so it is answered once even when the app swaps
+        /// this shell for the welcome screen and back: a new shell finds no request waiting. A request made before the
+        /// shell appeared, as on a cold launch from the home-screen action, is still waiting and is answered on appear.
+        private func presentChatSearchIfRequested() {
+            guard model.chatSearchRequest > 0 else { return }
+            model.chatSearchRequest = 0
+            if let sessionsList, connections?.active != nil {
+                sessionsList.isSearchPresented = true
+            } else {
+                isLocalChatSearchPresented = true
+            }
+            // Only one layout is on screen; the other's flag is harmless. The unfolded layout shows its sidebar first.
+            columnVisibility = .all
+            isSidebarSearchPresented = true
+        }
+
+        /// ``visibleSessions`` matching the local list's search, by title or subtitle.
+        private var searchedSessions: [ChatSessionSummary] {
+            sessions(matching: localChatSearch)
+        }
+
+        /// ``visibleSessions`` whose row matches `query` (``ChatSearchFilter``: every word, any order, any case).
+        private func sessions(matching query: String) -> [ChatSessionSummary] {
+            visibleSessions.filter { ChatSearchFilter.matches(query, in: [$0.title, $0.subtitle, $0.serverName]) }
         }
     }
 #endif
