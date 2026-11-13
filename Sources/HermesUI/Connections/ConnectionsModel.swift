@@ -211,23 +211,31 @@
             Task { await manager.disconnect(id) }
         }
 
-        /// Creates an empty chat on the active server and returns it as a chat row. Nil when no server is saved. A server
-        /// that is not connected is connected first, as for Siri and Spotlight (``ServerChatStarter``), and waited for up
-        /// to ``ConnectWait/patience``. If it does not connect in that time, or only the user can fix it, this throws
-        /// ``ServerNotConnectedError`` and nothing is sent: the composer keeps the text. The wait is bounded, because
-        /// `client(for:)` waits with no timeout, and a chat that opens minutes later pulls the user away from what they
-        /// are doing.
-        public func startChat() async throws -> SessionListItem? {
-            guard let connection = active, let manager else { return nil }
-            let ready = await ConnectWait.connected(
-                connect: { await manager.connect(connection) }, phase: { await manager.phase(of: connection.id) })
-            guard ready else {
+        /// Creates an empty chat and returns it as a chat row. Nil when no server is saved. `server` is the server the first
+        /// message was written for (the active one when nil): the chat is made there and nowhere else. A server that is
+        /// not connected is connected first, as for Siri and Spotlight (``ServerChatStarter``), and waited for up to
+        /// ``ConnectWait/patience``. If it does not connect in that time, or only the user can fix it, this throws
+        /// ``ServerNotConnectedError``. If the user switched servers meanwhile it throws ``NewChatServerChanged``. Either
+        /// way nothing is sent and the composer keeps the text. The wait is bounded, because `client(for:)` waits with no
+        /// timeout, and a chat that opens minutes later pulls the user away from what they are doing.
+        public func startChat(on server: UUID? = nil) async throws -> SessionListItem? {
+            guard let connection = server.flatMap(self.connection(id:)) ?? active, let manager else { return nil }
+            let session = try await NewChatStarter.start(
+                bound: connection.id.uuidString, serverName: connection.name,
+                active: { await MainActor.run { self.active?.id.uuidString } },
+                wait: {
+                    await ConnectWait.connected(
+                        connect: { await manager.connect(connection) },
+                        phase: { await manager.phase(of: connection.id) })
+                },
+                create: { try await manager.client(for: connection).createEmptySession() })
+            // Nil means the server did not connect in time, or only the user can fix it.
+            guard let session else {
                 let phase = await manager.phase(of: connection.id)
                 throw ServerNotConnectedError(serverName: connection.name, isConnecting: phase.isBusy)
             }
-            let client = try await manager.client(for: connection)
-            let id = try await client.createEmptySession()
-            return SessionListItem(id: id, title: "New chat", time: "Now", isPinned: false, serverName: connection.name)
+            return SessionListItem(
+                id: session, title: "New chat", time: "Now", isPinned: false, serverName: connection.name)
         }
 
         private func markConnected(_ id: UUID) {
