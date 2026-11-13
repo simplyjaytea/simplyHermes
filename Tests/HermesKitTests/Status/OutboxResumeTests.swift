@@ -29,29 +29,66 @@ struct OutboxResumeTests {
     // Row 108: the pill watcher's whole decision.
     @Test func aLiveChatThatComesBackAttachesOrDrains() {
         #expect(
-            OutboxResume.reaction(from: .unreachable, to: .connected, isRetired: false, isAttached: false) == .attach)
+            OutboxResume.reaction(
+                from: .unreachable, to: .connected, isRetired: false, isAttached: false, isOnAnotherServer: false)
+                == .attach)
         #expect(
-            OutboxResume.reaction(from: .unreachable, to: .connected, isRetired: false, isAttached: true) == .drain)
+            OutboxResume.reaction(
+                from: .unreachable, to: .connected, isRetired: false, isAttached: true, isOnAnotherServer: false)
+                == .drain)
     }
 
     @Test func aRetiredChatNeverReactsEvenWhenItsPillComesBack() {
         for attached in [false, true] {
             #expect(
-                OutboxResume.reaction(from: .unreachable, to: .connected, isRetired: true, isAttached: attached)
+                OutboxResume.reaction(
+                    from: .unreachable, to: .connected, isRetired: true, isAttached: attached, isOnAnotherServer: false)
                     == .nothing)
             #expect(
-                OutboxResume.reaction(from: nil, to: .connected, isRetired: true, isAttached: attached) == .nothing)
+                OutboxResume.reaction(
+                    from: nil, to: .connected, isRetired: true, isAttached: attached, isOnAnotherServer: false
+                ) == .nothing)
         }
     }
 
     @Test func aPillThatDidNotComeBackOnlineDoesNothingWhetherRetiredOrNot() {
         for retired in [false, true] {
             #expect(
-                OutboxResume.reaction(from: .connected, to: .connected, isRetired: retired, isAttached: true)
+                OutboxResume.reaction(
+                    from: .connected, to: .connected, isRetired: retired, isAttached: true, isOnAnotherServer: false)
                     == .nothing)
             #expect(
-                OutboxResume.reaction(from: .connected, to: .unreachable, isRetired: retired, isAttached: true)
+                OutboxResume.reaction(
+                    from: .connected, to: .unreachable, isRetired: retired, isAttached: true, isOnAnotherServer: false)
                     == .nothing)
         }
+    }
+
+    // Row 140: the old chat is not retired yet, but its server is no longer the active one.
+    @Test func aChatOnAnotherServerThanTheActiveOneNeverReactsEvenBeforeItIsRetired() {
+        for attached in [false, true] {
+            #expect(
+                OutboxResume.reaction(
+                    from: .unreachable, to: .connected, isRetired: false, isAttached: attached,
+                    isOnAnotherServer: OutboxResume.isOnAnotherServer(chatServer: "A", activeServer: "B")) == .nothing)
+        }
+        // With no active server at all, a chat bound to A is not on the active server either.
+        #expect(
+            OutboxResume.reaction(
+                from: .unreachable, to: .connected, isRetired: false, isAttached: false,
+                isOnAnotherServer: OutboxResume.isOnAnotherServer(chatServer: "A", activeServer: nil)) == .nothing)
+    }
+
+    @Test func aChatOnTheActiveServerStillReacts() {
+        #expect(
+            OutboxResume.reaction(
+                from: .unreachable, to: .connected, isRetired: false, isAttached: false,
+                isOnAnotherServer: OutboxResume.isOnAnotherServer(chatServer: "B", activeServer: "B")) == .attach)
+    }
+
+    @Test func aChatWithNoRecordedServerHasNothingToCompare() {
+        #expect(!OutboxResume.isOnAnotherServer(chatServer: nil, activeServer: "B"))
+        #expect(OutboxResume.isOnAnotherServer(chatServer: "A", activeServer: "B"))
+        #expect(!OutboxResume.isOnAnotherServer(chatServer: "A", activeServer: "A"))
     }
 }

@@ -23,7 +23,10 @@
             let now = status.pill
             let previous = lastPill
             lastPill = now
-            switch OutboxResume.reaction(from: previous, to: now, isRetired: isRetired, isAttached: controller != nil) {
+            let reaction = OutboxResume.reaction(
+                from: previous, to: now, isRetired: isRetired, isAttached: controller != nil,
+                isOnAnotherServer: isOnAnotherServer)
+            switch reaction {
             case .nothing:
                 break
             case .attach:

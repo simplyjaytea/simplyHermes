@@ -18,13 +18,23 @@ public enum OutboxResume {
         case drain
     }
 
+    /// True when a chat belongs to a server that is not the active one. Such a chat reads the *active* server's status
+    /// (the pill is derived from it), so it would see the other server connect and reattach itself there with its own
+    /// server's session id. A chat with no recorded server is not stale: it has nothing to compare.
+    public static func isOnAnotherServer(chatServer: String?, activeServer: String?) -> Bool {
+        guard let chatServer else { return false }
+        return chatServer != activeServer
+    }
+
     /// The whole decision of a chat's pill watcher. A retired chat (the store dropped it because the active server
-    /// changed, board row 108) does nothing: attaching it would connect it to the new server with the old server's
-    /// session id. Pure, so every row has a test; the screen model only carries it out.
+    /// changed, board row 108) does nothing, and neither does a chat on another server than the active one
+    /// (``isOnAnotherServer(chatServer:activeServer:)``), even before the store has retired it (board row 140):
+    /// attaching it would connect it to the new server with the old server's session id. Pure, so every row has a test;
+    /// the screen model only carries it out.
     public static func reaction(
-        from previous: PillState?, to next: PillState, isRetired: Bool, isAttached: Bool
+        from previous: PillState?, to next: PillState, isRetired: Bool, isAttached: Bool, isOnAnotherServer: Bool
     ) -> Reaction {
-        guard !isRetired, shouldDrain(from: previous, to: next) else { return .nothing }
+        guard !isRetired, !isOnAnotherServer, shouldDrain(from: previous, to: next) else { return .nothing }
         return isAttached ? .drain : .attach
     }
 }
