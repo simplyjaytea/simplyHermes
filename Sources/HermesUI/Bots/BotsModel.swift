@@ -238,7 +238,7 @@
                 switch bot {
                 case .metaTooLarge: return "Those settings are too large to save."
                 case .metaConflict: return "Someone else changed this bot at the same time. Try again."
-                case .metaNotSaved, .roleNotSaved: return "The server did not save the change."
+                case .metaNotSaved, .roleNotSaved, .settingsNotSaved: return "The server did not save the change."
                 case .profileNotFound: return "That bot is no longer on the server."
                 case .chatInconsistent: return "Its chat could not be found, so nothing was opened."
                 case .invalidDraft: return "Check the name and the model."
