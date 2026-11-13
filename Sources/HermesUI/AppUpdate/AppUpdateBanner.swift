@@ -253,6 +253,9 @@
                         .foregroundStyle(palette.secondaryText)
                         .accessibilityIdentifier("settings.appUpdateError")
                 }
+                // Licenses of simplyHermes and every package in it (row 132); a public build must carry them.
+                NavigationLink("Acknowledgements") { AcknowledgementsScreen() }
+                    .accessibilityIdentifier("settings.acknowledgements")
             } header: {
                 Text("About")
             } footer: {
