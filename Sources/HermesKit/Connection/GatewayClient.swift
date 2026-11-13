@@ -34,9 +34,9 @@ public actor GatewayClient {
     private var lastInbound = 0.0
     private var lastEpoch: String?
     private var readyEvent: GatewayReadyEvent?
-    private var sessions: [String: GatewayTrackedSession] = [:]
-    private var resyncing: Set<String> = []
-    private var buffered: [String: [GatewayEventEnvelope]] = [:]
+    var sessions: [String: GatewayTrackedSession] = [:]
+    var resyncing: Set<String> = []
+    var buffered: [String: [GatewayEventEnvelope]] = [:]
     private var setupTask: Task<Void, Never>?
 
     private struct PendingRequest {
@@ -401,7 +401,7 @@ public actor GatewayClient {
         deliver(envelope, replayed: false)
     }
 
-    private func deliver(_ envelope: GatewayEventEnvelope, replayed: Bool) {
+    func deliver(_ envelope: GatewayEventEnvelope, replayed: Bool) {
         if var tracked = sessions[envelope.sessionID], let seq = envelope.seq {
             if let mark = tracked.watermark, seq <= mark { return }
             tracked.watermark = seq
@@ -470,94 +470,6 @@ public actor GatewayClient {
         await socket?.close()
     }
 
-    private func resync(liveID: String, forceCold: Bool) async {
-        guard let tracked = sessions[liveID] else { return }
-        resyncing.insert(liveID)
-        defer {
-            resyncing.remove(liveID)
-        }
-        do {
-            var cold = forceCold
-            var attach: SessionAttachResult?
-            if !cold {
-                do {
-                    attach = try await callAttach(
-                        "session.activate", SessionActivateParams(sessionID: liveID, profile: tracked.profile))
-                } catch let error as RPCError where Self.isSessionNotFound(error) {
-                    cold = true
-                }
-            }
-            if cold {
-                let result = try await callAttach(
-                    "session.resume", SessionResumeParams(sessionID: tracked.storedID, profile: tracked.profile))
-                rekey(
-                    old: liveID, new: result.sessionID, storedID: result.storedSessionID ?? tracked.storedID,
-                    profile: tracked.profile)
-                buffered[liveID] = nil
-                emit(.sessionReattached(oldLiveID: liveID, result: result, how: .cold))
-                resyncing.insert(result.sessionID)
-                flush(liveID: result.sessionID)
-                return
-            }
-            let since: SessionEventsSinceResult = try await callTyped(
-                "session.events.since",
-                SessionEventsSinceParams(
-                    sessionID: liveID, profile: tracked.profile, lastSeen: sessions[liveID]?.watermark))
-            replay(since, liveID: liveID)
-            if let attach { emit(.sessionReattached(oldLiveID: liveID, result: attach, how: .live)) }
-            flush(liveID: liveID)
-        } catch {
-            buffered[liveID] = nil
-            emit(.resyncFailed(sessionID: liveID, message: "\(error)"))
-        }
-    }
-
-    private func replay(_ since: SessionEventsSinceResult, liveID: String) {
-        if since.truncated {
-            if var tracked = sessions[liveID] {
-                tracked.watermark = since.latestSeq
-                sessions[liveID] = tracked
-            }
-            emit(.replayTruncated(sessionID: liveID, latestSeq: since.latestSeq))
-        } else {
-            for envelope in since.events { deliver(envelope, replayed: true) }
-        }
-        for request in since.openRequests {
-            emit(.openRequestReplayed(sessionID: liveID, request: request))
-        }
-    }
-
-    private func flush(liveID: String) {
-        let queued = buffered.removeValue(forKey: liveID) ?? []
-        resyncing.remove(liveID)
-        for envelope in queued { deliver(envelope, replayed: false) }
-    }
-
-    private func rekey(old: String, new: String, storedID: String, profile: String?) {
-        sessions[old] = nil
-        sessions[new] = GatewayTrackedSession(liveID: new, storedID: storedID, watermark: nil, profile: profile)
-    }
-
-    private static func isSessionNotFound(_ error: RPCError) -> Bool {
-        error.code == HermesErrorCode.sessionNotFound || error.code == HermesErrorCode.sessionNotFoundAlternate
-    }
-
-    private func callAttach(_ method: String, _ params: some Encodable & Sendable) async throws -> SessionAttachResult {
-        try await callTyped(method, params)
-    }
-
-    private func callTyped<Params: Encodable & Sendable, Result: Decodable & Sendable>(
-        _ method: String, _ params: Params
-    ) async throws -> Result {
-        let response = try await sendRaw(method: method, params: try JSONValue(encoding: params), timeout: nil)
-        if let error = response.error { throw error }
-        guard let value = try response.decodeResult(Result.self) else {
-            throw DecodingError.valueNotFound(
-                Result.self, .init(codingPath: [], debugDescription: "response to \(method) has no result"))
-        }
-        return value
-    }
-
     // MARK: - Requests
 
     private func allocateID() -> RPCID {
@@ -565,7 +477,7 @@ public actor GatewayClient {
         return .string("c\(nextRequestNumber)")
     }
 
-    private func sendRaw(method: String, params: JSONValue?, timeout: Double?) async throws -> RPCResponse {
+    func sendRaw(method: String, params: JSONValue?, timeout: Double?) async throws -> RPCResponse {
         guard let socket = connection else { throw GatewayClientError.notConnected }
         let id = allocateID()
         let request = RPCRequest(id: id, method: method, params: params)
@@ -612,7 +524,7 @@ public actor GatewayClient {
         emit(.state(new))
     }
 
-    private func emit(_ event: GatewayClientEvent) {
+    func emit(_ event: GatewayClientEvent) {
         for continuation in subscribers.values { continuation.yield(event) }
     }
 
@@ -623,7 +535,7 @@ public actor GatewayClient {
 
 /// What the client keeps about one live session it must re-attach after a reconnect. Lives outside the actor so the
 /// actor body stays under the lint limit.
-private struct GatewayTrackedSession {
+struct GatewayTrackedSession {
     var liveID: String
     var storedID: String
     var watermark: Int?

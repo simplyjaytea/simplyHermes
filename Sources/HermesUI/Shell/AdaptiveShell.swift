@@ -462,42 +462,9 @@
         }
 
         private func botEntry(for sessionID: String) -> BotRosterEntry? {
-            if let entry = bots?.entries.first(where: { $0.canonicalSessionID == sessionID }) {
-                return entry
-            }
-            let sessionTitle = model.session(id: sessionID)?.title
-            if let sessionTitle, let entry = bots?.entries.first(where: { $0.title == sessionTitle }) {
-                return entry
-            }
-            if let chosen = profiles?.selection.chosen {
-                if let entry = bots?.entries.first(where: { $0.profile == chosen }) {
-                    return entry
-                }
-            }
-            guard let connection = connections?.active else { return nil }
-            let profile = profiles?.selection.chosen ?? "default"
-            let title = sessionTitle ?? ProfileSelection.title(of: profiles?.selection.current) ?? profile
-            return BotRosterEntry(
-                connectionID: connection.id,
-                sourceLabel: connection.name,
-                profile: profile,
-                handle: profile,
-                title: title,
-                monogram: BotMonogram.text(for: title),
-                tint: BotTint.name(for: profile),
-                avatar: nil,
-                status: .ready,
-                isRetained: true,
-                isPinned: false,
-                isHidden: false,
-                isDefault: profile == "default",
-                role: nil,
-                preview: nil,
-                lastActive: nil,
-                workerActiveAt: nil,
-                canonicalSessionID: sessionID,
-                activity: Date().timeIntervalSince1970 * 1000
-            )
+            BotEntryLookup.entry(
+                for: sessionID, sessionTitle: model.session(id: sessionID)?.title, bots: bots, profiles: profiles,
+                connections: connections)
         }
 
         @ViewBuilder
