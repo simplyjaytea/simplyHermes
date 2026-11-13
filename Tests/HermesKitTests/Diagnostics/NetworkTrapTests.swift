@@ -88,6 +88,80 @@ struct NetworkTrapTests {
         #expect(ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: text).isEmpty)
     }
 
+    // Moss's bypass 1 (QA round 4, #138): the type as a value, then `.init`.
+    @Test func theSessionTypeTakenAsAValueFails() {
+        let text = "let sessionType = URLSession.self\nreturn sessionType.init(configuration: .default)"
+        #expect(ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: text).count == 1)
+        for form in ["Foundation.URLSession.self", "URLSession.Type", "URLSession . self"] {
+            let other = "let t = \(form)"
+            #expect(
+                ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: other).count == 1, "\(form)")
+        }
+    }
+
+    @Test func aSessionWrittenWithWhiteSpaceOrAModulePrefixFails() {
+        for form in [
+            "URLSession (configuration: .default)", "Foundation.URLSession(configuration: .default)",
+            "URLSession . init(configuration: .default)", "URLSession\n.shared",
+        ] {
+            #expect(
+                !ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: "let s = \(form)").isEmpty,
+                "\(form)")
+        }
+    }
+
+    // A connection written inside quoted text: code in an interpolation is code.
+    @Test func aSessionCreatedInsideAStringInterpolationFails() {
+        let text = #"let note = "opened \(URLSession(configuration: .default))""#
+        #expect(ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: text).count == 1)
+        let nested = #"let note = "a \("b \(URLSession.shared)")""#
+        #expect(ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: nested).count == 1)
+        let raw = ##"let note = #"x \#(URLSession.shared) y"#"##
+        #expect(ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: raw).count == 1)
+    }
+
+    // Ways to reach a session without writing its name next to a call.
+    @Test func aSubclassOrAConstrainedGenericOrTypeOfInitFails() {
+        for text in [
+            "final class Evil: URLSession {}",
+            "class Evil<T>: NSObject, URLSession {}",
+            "func make<T: URLSession>(_ type: T.Type) -> T { type.init(configuration: .default) }",
+            "func make<T>(_ type: T.Type) -> T where T: URLSession { type.init(configuration: .default) }",
+            "let copy = type(of: existing).init(configuration: .default)",
+            "let make = URLSession.init",
+        ] {
+            #expect(!ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: text).isEmpty, "\(text)")
+        }
+    }
+
+    @Test func aDelegateOrAParameterOfTheTypeIsNotASessionBypass() {
+        for text in [
+            "final class Watcher: NSObject, URLSessionDelegate {}",
+            "func urlSession(_ session: URLSession, task: URLSessionTask) {}",
+            "func fetch(_ session: URLSession, _ request: URLRequest) async throws {}",
+        ] {
+            #expect(ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: text).isEmpty, "\(text)")
+        }
+    }
+
+    @Test func aNameInPlainTextOrACommentIsNotASession() {
+        let text = """
+            // URLSession(configuration: .default) in a comment
+            /* URLSession.shared
+               in a block comment */
+            let message = "Use URLSession(configuration:) only in the factory"
+            let multi = \"\"\"
+                URLSession.shared is text here
+                \"\"\"
+            """
+        #expect(ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: text).isEmpty)
+    }
+
+    @Test func aTypeThatOnlyStartsWithURLSessionIsNotASessionTypeValue() {
+        let text = "let t = URLSessionWebSocketTask.self\nlet u = URLSessionConfiguration.default"
+        #expect(ConnectionGuard.sessionViolations(path: "HermesKit/Scratch.swift", text: text).isEmpty)
+    }
+
     @Test func theFactoryMayCreateASession() {
         let text = "return URLSession(configuration: configuration, delegate: delegate, delegateQueue: delegateQueue)"
         #expect(ConnectionGuard.sessionViolations(path: ConnectionGuard.factoryPath, text: text).isEmpty)
@@ -184,6 +258,94 @@ struct NetworkTrapTests {
             }
             """
         #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: text).isEmpty)
+    }
+
+    // Moss's bypass 2 (QA round 4, #138): the qualified type as a value, then `.init`.
+    @Test func aQualifiedBootstrapTakenAsAValueFails() {
+        let text = "let bootstrapType = NIOPosix.ClientBootstrap.self\n_ = bootstrapType.init(group: group)"
+        #expect(!ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: text).isEmpty)
+        for name in ["ClientBootstrap", "NIOTSConnectionBootstrap", "NWConnection", "ServerBootstrap", "SSHClient"] {
+            for form in ["\(name).self", "NIOPosix.\(name).Type"] {
+                let other = "func a() {\n    NetworkTrap.record(\"ssh\")\n    let t = \(form)\n}"
+                #expect(
+                    ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: other).count == 1,
+                    "\(form)")
+            }
+        }
+    }
+
+    @Test func anAliasOfAConnectionTypeFails() {
+        for name in ["ClientBootstrap", "NWConnection", "SSHClient"] {
+            let text = "typealias Opener = NIOPosix.\(name)"
+            #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: text).count == 1, "\(name)")
+        }
+    }
+
+    @Test func aQualifiedOrInitCallStillNeedsItsRecord() {
+        for call in [
+            "NIOPosix.ClientBootstrap(group: group)", "ClientBootstrap.init(group: group)",
+            "ClientBootstrap (group: group)",
+        ] {
+            let bare = "func a() {\n    let c = \(call)\n}"
+            #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: bare).count == 1, "\(call)")
+            let recorded = "func a() {\n    NetworkTrap.record(\"ssh\")\n    let c = \(call)\n}"
+            #expect(
+                ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: recorded).isEmpty, "\(call)")
+        }
+    }
+
+    @Test func aReferenceToSSHConnectIsAnOpener() {
+        let bare = "func a() {\n    let connect = SSHClient.connect\n}"
+        #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: bare).count == 1)
+        let recorded = "func a() {\n    NetworkTrap.record(\"ssh\")\n    let connect = SSHClient.connect\n}"
+        #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: recorded).isEmpty)
+    }
+
+    // A connection written inside quoted text: code in an interpolation is code, text is not.
+    @Test func anOpenerInsideAStringInterpolationNeedsItsRecord() {
+        let text = #"func a() {\n    let note = "up \(ClientBootstrap(group: group))"\n}"#
+        #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: text).count == 1)
+    }
+
+    @Test func anOpenerNameInPlainTextOrACommentOpensNothing() {
+        let text = """
+            func a() {
+                // let c = ClientBootstrap(group: group)
+                /* NWConnection(host: host, port: port, using: .tcp) */
+                let message = "ClientBootstrap( is only text, and so is SSHClient.connect"
+            }
+            """
+        #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: text).isEmpty)
+    }
+
+    @Test func aRecordInsideACommentOrAStringDoesNotCover() {
+        let comment = "func a() {\n    /* NetworkTrap.record(\"ssh\") */\n    let c = ClientBootstrap(group: group)\n}"
+        #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: comment).count == 1)
+        let string =
+            "func a() {\n    let s = \"NetworkTrap.record(\\\"ssh\\\")\"\n    let c = ClientBootstrap(group: group)\n}"
+        #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: string).count == 1)
+    }
+
+    @Test func aBraceInABlockCommentOrAMultiLineStringDoesNotMoveTheBlock() {
+        let text = """
+            func a() {
+                NetworkTrap.record("ssh")
+                /* } */
+                let note = \"\"\"
+                    }
+                    \"\"\"
+                let c = ClientBootstrap(group: group)
+            }
+            """
+        #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: text).isEmpty)
+    }
+
+    @Test func anOpenerSplitAcrossLinesStillNeedsItsRecord() {
+        let bare = "func a() {\n    let c = ClientBootstrap\n        (group: group)\n}"
+        #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: bare).count == 1)
+        let recorded =
+            "func a() {\n    NetworkTrap.record(\"ssh\")\n    let c = ClientBootstrap\n        (group: group)\n}"
+        #expect(ConnectionGuard.openerViolations(path: "HermesSSH/Scratch.swift", text: recorded).isEmpty)
     }
 
     @Test func eachRecordedOpenerPasses() {
