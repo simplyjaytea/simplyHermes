@@ -2,11 +2,17 @@
 """Writes Sources/HermesKit/Acknowledgements/acknowledgements.json: every third-party package a built app contains,
 with its license text and NOTICE file, for Settings › About › Acknowledgements (board row 132).
 
-Sources of the package list:
-  - Package.resolved (exact versions: the Swift packages Linux and the app share);
-  - project.yml's app-only packages (MLX, swift-transformers), walked through their Package.swift files on GitHub at
-    the pinned or minimum version. The Linux toolchain cannot resolve mlx-swift's manifest (tools 6.3), so the app's
-    own Package.resolved from Xcode is the final word: pass it with --resolved to use its exact versions.
+Source of the package list: tools/acknowledgements/app-graph.resolved, SwiftPM's exact resolution of the app's own
+package set (this package plus project.yml's app-only MLX and swift-transformers packages). Make it with a Swift
+toolchain that can read mlx-swift's manifest (6.3 or later; 6.4.2 on Linux works, no Mac needed):
+
+  mkdir /tmp/appgraph && cd /tmp/appgraph   # a Package.swift that depends on this repo by path and on
+                                            # project.yml's packages at project.yml's requirements
+  cp <repo>/Package.resolved .              # start from the committed lock, so shared packages keep their versions
+  swift package resolve && cp Package.resolved <repo>/tools/acknowledgements/app-graph.resolved
+
+Walking manifests by hand over-lists: SwiftPM leaves out dependencies a package only declares behind traits or for
+other platforms. Packages not in the lock are still walked from project.yml (APP_ONLY_ROOTS) as a fallback.
 
 Build-time tools that never ship in the app are left out, each with a reason (BUILD_ONLY). Test-only packages too.
 
@@ -193,7 +199,7 @@ def notices_table(packages: dict[str, dict]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--resolved", type=Path, default=ROOT / "Package.resolved")
+    parser.add_argument("--resolved", type=Path, default=ROOT / "tools/acknowledgements/app-graph.resolved")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     data = {
