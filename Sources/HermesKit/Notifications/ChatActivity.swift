@@ -82,8 +82,10 @@ public struct TurnWatcher: Sendable {
         var replyAtStart: String?
     }
 
-    private var running: [String: Running] = [:]
-    private var approvals: [String: String] = [:]
+    // Keyed by server and chat: after a server switch, the same chat id on the new server is a different chat, and
+    // must neither end the old one's turn nor resolve its approval.
+    private var running: [NotificationChatKey: Running] = [:]
+    private var approvals: [NotificationChatKey: String] = [:]
 
     public init() {}
 
@@ -94,10 +96,10 @@ public struct TurnWatcher: Sendable {
     ) -> [NotificationEvent] {
         var events: [NotificationEvent] = []
         if activity.isRunning {
-            if running[chat.id] == nil {
-                running[chat.id] = Running(startedAt: now, replyAtStart: activity.latestReply?.id)
+            if running[chat.key] == nil {
+                running[chat.key] = Running(startedAt: now, replyAtStart: activity.latestReply?.id)
             }
-        } else if let turn = running.removeValue(forKey: chat.id) {
+        } else if let turn = running.removeValue(forKey: chat.key) {
             let reply = activity.latestReply.flatMap { $0.id == turn.replyAtStart ? nil : $0 }
             let outcome: NotificationEvent.Outcome =
                 stoppedByUser ? .stopped : (activity.lastTurnFailed ? .failed : .done)
@@ -107,10 +109,10 @@ public struct TurnWatcher: Sendable {
                     chat, turnID: turnID, startedAt: turn.startedAt, endedAt: now, outcome: outcome,
                     reply: reply?.text ?? ""))
         }
-        let previous = approvals[chat.id]
+        let previous = approvals[chat.key]
         if previous != activity.approval?.id {
-            if let previous { events.append(.approvalResolved(chatID: chat.id, requestID: previous)) }
-            approvals[chat.id] = activity.approval?.id
+            if let previous { events.append(.approvalResolved(chat.key, requestID: previous)) }
+            approvals[chat.key] = activity.approval?.id
             if let approval = activity.approval {
                 events.append(.approvalWaiting(chat, requestID: approval.id, command: approval.command))
             }
@@ -118,9 +120,9 @@ public struct TurnWatcher: Sendable {
         return events
     }
 
-    /// How long the running turn of `chatID` has run, or nil when none is.
-    public func runningFor(_ chatID: String, now: Date) -> TimeInterval? {
-        running[chatID].map { now.timeIntervalSince($0.startedAt) }
+    /// How long the running turn of `chat` has run, or nil when none is.
+    public func runningFor(_ chat: NotificationChatKey, now: Date) -> TimeInterval? {
+        running[chat].map { now.timeIntervalSince($0.startedAt) }
     }
 }
 

@@ -76,7 +76,9 @@ final class LocalNotifications: NSObject, UNUserNotificationCenterDelegate {
         content.title = request.title
         content.body = request.body
         content.threadIdentifier = request.threadID
-        content.userInfo = ["chat": request.chatID, "dedupe": request.dedupeKey]
+        var info: [String: String] = ["chat": request.chatID, "dedupe": request.dedupeKey]
+        info["server"] = request.connection
+        content.userInfo = info
         content.interruptionLevel = .active
         if request.playsSound { content.sound = .default }
         return UNNotificationRequest(identifier: request.id, content: content, trigger: nil)
@@ -94,9 +96,11 @@ final class LocalNotifications: NSObject, UNUserNotificationCenterDelegate {
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse
     ) async {
-        guard let chat = response.notification.request.content.userInfo["chat"] as? String else { return }
-        // The same link widgets and the Live Activity use: it opens exactly this chat, never another server's or a
-        // local one, and an unreachable server's chat opens in its own not-connected state.
-        await MainActor.run { _ = UIApplication.shared.open(HermesURL.chat(chat)) }
+        let info = response.notification.request.content.userInfo
+        guard let chat = info["chat"] as? String else { return }
+        // The chat link with its server: the app opens it only while that server is active, so a tap never opens the
+        // same chat id on another server, and never switches servers by itself.
+        let url = HermesURL.chat(chat, server: info["server"] as? String)
+        await MainActor.run { _ = UIApplication.shared.open(url) }
     }
 }

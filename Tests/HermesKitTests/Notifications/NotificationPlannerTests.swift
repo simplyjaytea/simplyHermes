@@ -16,7 +16,8 @@ struct NotificationPlannerTests {
 
     private func context(active: Bool, onScreen: String?, servers: Bool, at sec: Double) -> Context {
         NotificationContext(
-            appIsActive: active, chatOnScreen: onScreen, multipleServers: servers, now: start.addingTimeInterval(sec))
+            appIsActive: active, chatOnScreen: onScreen.map { NotificationChatKey(connection: nil, chatID: $0) },
+            multipleServers: servers, now: start.addingTimeInterval(sec))
     }
 
     private func context(at sec: Double) -> Context {
@@ -67,7 +68,7 @@ struct NotificationPlannerTests {
         let second = posts(planner.plan(next, context: context(at: 130), preferences: .init()))
         #expect(second.count == 1)
         #expect(second[0].id == first[0].id, "same id: the chat's newer reply replaces the older notification")
-        #expect(second[0].threadID == "s1")
+        #expect(second[0].threadID == chat.key.scope)
         #expect(second[0].dedupeKey != first[0].dedupeKey)
     }
 
@@ -101,7 +102,7 @@ struct NotificationPlannerTests {
         #expect(posted[0].kind == .approval)
         #expect(planner.plan(waiting, context: context(), preferences: .init()).isEmpty)
         let resolved = planner.plan(
-            .approvalResolved(chatID: "s1", requestID: "r1"), context: context(), preferences: .init())
+            .approvalResolved(chat.key, requestID: "r1"), context: context(), preferences: .init())
         #expect(resolved == [.remove([posted[0].id])])
     }
 
