@@ -15,6 +15,11 @@ concurrency:
     && format('-ignored-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
+# Read-only unless a job asks for more (the App job removes the one-run ci:app label). Pull requests from forks get a
+# read-only token and no secrets whatever this says, and this workflow uses no secrets.
+permissions:
+  contents: read
+
 jobs:
   changes:
     name: Changed files
