@@ -211,13 +211,18 @@
             Task { await manager.disconnect(id) }
         }
 
-        /// Creates an empty chat on the active server and returns it as a chat row. Nil when no server is saved. Throws
-        /// ``ServerNotConnectedError`` unless the server is connected: `client(for:)` waits on a connect or a reconnect
-        /// with no timeout, and a chat that opens minutes later pulls the user away from what they are doing.
+        /// Creates an empty chat on the active server and returns it as a chat row. Nil when no server is saved. A server
+        /// that is not connected is connected first, as for Siri and Spotlight (``ServerChatStarter``), and waited for up
+        /// to ``ConnectWait/patience``. If it does not connect in that time, or only the user can fix it, this throws
+        /// ``ServerNotConnectedError`` and nothing is sent: the composer keeps the text. The wait is bounded, because
+        /// `client(for:)` waits with no timeout, and a chat that opens minutes later pulls the user away from what they
+        /// are doing.
         public func startChat() async throws -> SessionListItem? {
             guard let connection = active, let manager else { return nil }
-            let phase = await manager.phase(of: connection.id)
-            guard case .connected = phase else {
+            let ready = await ConnectWait.connected(
+                connect: { await manager.connect(connection) }, phase: { await manager.phase(of: connection.id) })
+            guard ready else {
+                let phase = await manager.phase(of: connection.id)
                 throw ServerNotConnectedError(serverName: connection.name, isConnecting: phase.isBusy)
             }
             let client = try await manager.client(for: connection)

@@ -7,4 +7,24 @@ public enum OutboxResume {
     public static func shouldDrain(from previous: PillState?, to next: PillState) -> Bool {
         next == .connected && previous != .connected
     }
+
+    /// What a chat does when its pill changes.
+    public enum Reaction: Sendable, Equatable {
+        /// Nothing: the pill did not move back online, or the chat is retired.
+        case nothing
+        /// The chat is not attached: attach it, which connects it and sends its waiting messages.
+        case attach
+        /// The chat is attached: send its waiting messages.
+        case drain
+    }
+
+    /// The whole decision of a chat's pill watcher. A retired chat (the store dropped it because the active server
+    /// changed, board row 108) does nothing: attaching it would connect it to the new server with the old server's
+    /// session id. Pure, so every row has a test; the screen model only carries it out.
+    public static func reaction(
+        from previous: PillState?, to next: PillState, isRetired: Bool, isAttached: Bool
+    ) -> Reaction {
+        guard !isRetired, shouldDrain(from: previous, to: next) else { return .nothing }
+        return isAttached ? .drain : .attach
+    }
 }

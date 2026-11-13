@@ -16,6 +16,7 @@ final class AppIntegration {
             infoDictionary: Bundle.main.infoDictionary,
             containerURL: { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) }
         )
+        LocalNotifications.shared.install()
         monitor = LiveTurnMonitor(
             model: model, activities: activities, keepAlive: keepAlive, sharedContainer: sharedContainer)
 

@@ -26,6 +26,13 @@
             "License: \(model.license)."
         }
 
+        /// For a model this phone can never run (row 120): no Download, and why.
+        static func tooBigLine(_ row: OnDeviceModelRow) -> String {
+            guard case .tooBig = row.fit else { return "" }
+            return "Needs about \(size(row.model.estimatedMemoryBytes)) of memory. This iPhone has "
+                + "\(size(Int64(row.deviceMemoryBytes))), so it can't run this model."
+        }
+
         static func memoryCaution(_ row: OnDeviceModelRow) -> String {
             guard let available = row.availableMemoryBytes else { return "" }
             return "This device allows about \(size(available)) for apps right now. The model may not load."

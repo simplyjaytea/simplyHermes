@@ -6,8 +6,12 @@ import Testing
 struct OnDeviceModelsCatalogTests {
     private let models = OnDeviceModelCatalog.standard.models
 
-    @Test func catalogOffersThreeModelsWithUniqueIDs() {
-        #expect(models.count == 3)
+    @Test func catalogOffersFiveModelsWithUniqueIDs() {
+        #expect(models.count == 5)
+        #expect(
+            models.map(\.id) == [
+                "gemma-3-1b-4bit", "llama-3.2-3b-4bit", "qwen3-4b-instruct-4bit", "qwen3-1.7b-4bit", "phi-4-mini-4bit",
+            ])
         #expect(Set(models.map(\.id)).count == models.count)
         #expect(Set(models.map(\.repository)).count == models.count)
     }
@@ -98,5 +102,17 @@ struct OnDeviceModelsCatalogTests {
             #expect(!OnDeviceModelFile.zeros(path, 1).hasSafePath, "\(path)")
         }
         #expect(OnDeviceModelFile.zeros("sub/dir/file.json", 1).hasSafePath)
+    }
+
+    /// Row 120: the two added models are pinned and verified like the rest, not recommended, and offer no tools yet.
+    @Test func theAddedModelsArePinnedNotRecommendedAndHaveNoToolsYet() throws {
+        for id in ["qwen3-1.7b-4bit", "phi-4-mini-4bit"] {
+            let model = try #require(OnDeviceModelCatalog.standard.model(id: id))
+            #expect(!model.isRecommended, "\(id)")
+            #expect(model.weightBytes > 500_000_000, "\(id)")
+            #expect(model.files.contains { $0.path == "tokenizer.json" }, "\(id)")
+        }
+        #expect(models.filter(\.isRecommended).count == 1, "still one recommended model")
+        #expect(models.allSatisfy { !$0.supportsLocalTools }, "no model gets tools before its evaluation")
     }
 }

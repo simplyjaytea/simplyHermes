@@ -208,7 +208,9 @@ public final class OnDeviceModelSelection: LocalModelExecutor, LocalChatAnswerer
         let (route, executor) = resolve()
         do {
             let text = try await executor.respond(instructions: instructions, prompt: prompt)
-            return LocalAnswer(text: text, answeredBy: Self.identity(of: route))
+            // The no-model executor throws above. This guard keeps a reply from ever being attributed to no model.
+            guard let identity = Self.identity(of: route) else { throw OnDeviceModelError.noModelChosen }
+            return LocalAnswer(text: text, answeredBy: identity)
         } catch OnDeviceModelError.notEnoughMemory where route != .apple {
             await handleMemoryWarning()
             let text = try await apple.respond(instructions: instructions, prompt: prompt)
@@ -216,13 +218,13 @@ public final class OnDeviceModelSelection: LocalModelExecutor, LocalChatAnswerer
         }
     }
 
-    private static func identity(of route: Route) -> ModelIdentity {
+    /// The model that names a reply on `route`. Nil for the no-model route: nothing answers there, so no reply may be
+    /// attributed to any model, and Apple is not a default.
+    static func identity(of route: Route) -> ModelIdentity? {
         switch route {
         case .apple: .apple
         case .downloaded(let model): .downloaded(id: model.id, displayName: model.displayName)
-        // Not reached: the no-model route's executor throws before any answer is attributed (see `answer`), and
-        // `answeringModel` checks availability first. Apple here only satisfies the switch; it names no reply.
-        case .noModel: .apple
+        case .noModel: nil
         }
     }
 

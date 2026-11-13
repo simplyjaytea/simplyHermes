@@ -51,11 +51,16 @@ public struct OnDeviceModel: Sendable, Hashable, Identifiable {
     public let stopTokens: [String]
     /// True for the model Settings suggests first.
     public let isRecommended: Bool
+    /// True once an evaluation showed the model follows the local tool-call format (local agent abilities spec,
+    /// section 8). Off for every model until then.
+    public let supportsLocalTools: Bool
 
     public init(
         id: String, displayName: String, summary: String, repository: String, revision: String,
-        files: [OnDeviceModelFile], license: String, stopTokens: [String] = [], isRecommended: Bool = false
+        files: [OnDeviceModelFile], license: String, stopTokens: [String] = [], isRecommended: Bool = false,
+        supportsLocalTools: Bool = false
     ) {
+        self.supportsLocalTools = supportsLocalTools
         self.id = id
         self.displayName = displayName
         self.summary = summary
@@ -103,8 +108,9 @@ public struct OnDeviceModelCatalog: Sendable {
         models.first { $0.id == id }
     }
 
-    /// Three 4-bit models from `mlx-community`, small to large. Sizes and commits were read from the Hugging Face API
-    /// on 2026-10-18 (`/api/models/<repo>?blobs=true`), keeping the files MLX LM downloads: `*.safetensors`,
+    /// Five 4-bit models from `mlx-community`: the first three small to large, then two added on 2026-11-12. Sizes
+    /// and commits were read from the Hugging Face API on 2026-10-18 and 2026-11-12 (`/api/models/<repo>?blobs=true`),
+    /// keeping the files MLX LM downloads: `*.safetensors`,
     /// `*.json` and `*.jinja`.
     public static let standard = OnDeviceModelCatalog(models: [
         OnDeviceModel(
@@ -202,5 +208,79 @@ public struct OnDeviceModelCatalog: Sendable {
             license: "Apache 2.0",
             stopTokens: ["<|im_end|>"],
             isRecommended: true),
+        // Added 2026-11-12 (row 120, Shared/simplyhermes-local-models-spec-2026-11-12.md). Read from the Hugging Face API
+        // at this commit; large files from their LFS SHA-256, small files downloaded at the commit and hashed. Not run on
+        // a device yet.
+        OnDeviceModel(
+            id: "qwen3-1.7b-4bit",
+            displayName: "Qwen3 1.7B",
+            summary: "Small and quick, for phones with less memory. May show its thinking first.",
+            repository: "mlx-community/Qwen3-1.7B-4bit",
+            revision: "3b1b1768f8f8cf8351c712464f906e86c2b8269e",
+            files: [
+                OnDeviceModelFile(
+                    "added_tokens.json", 707,
+                    sha256: "c0284b582e14987fbd3d5a2cb2bd139084371ed9acbae488829a1c900833c680"),
+                OnDeviceModelFile(
+                    "config.json", 937,
+                    sha256: "507a6701220524eb8b283425bf0856a9ae4f21f4052e563896ddd668994b1dc7"),
+                OnDeviceModelFile(
+                    "model.safetensors", 968_080_210,
+                    sha256: "0e86d9677e519323849eac1bc272caae88567a481ff188c431f70be543d9995f"),
+                OnDeviceModelFile(
+                    "model.safetensors.index.json", 49_731,
+                    sha256: "1e3058d4ba4b04e4de35b74467725cbef90ff022198404218e48f21adc9cfa15"),
+                OnDeviceModelFile(
+                    "special_tokens_map.json", 613,
+                    sha256: "76862e765266b85aa9459767e33cbaf13970f327a0e88d1c65846c2ddd3a1ecd"),
+                OnDeviceModelFile(
+                    "tokenizer.json", 11_422_654,
+                    sha256: "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"),
+                OnDeviceModelFile(
+                    "tokenizer_config.json", 9706,
+                    sha256: "253153d0738ceb4c668d2eff957714dd2bea0b56de772a9fdccd96cbf517e6a0"),
+                OnDeviceModelFile(
+                    "vocab.json", 2_776_833,
+                    sha256: "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"),
+            ],
+            license: "Apache 2.0",
+            stopTokens: ["<|im_end|>"]),
+        // Added 2026-11-12 (row 120, Shared/simplyhermes-local-models-spec-2026-11-12.md). Read from the Hugging Face API
+        // at this commit; large files from their LFS SHA-256, small files downloaded at the commit and hashed. Not run on
+        // a device yet.
+        OnDeviceModel(
+            id: "phi-4-mini-4bit",
+            displayName: "Phi-4 mini",
+            summary: "Good at reasoning and following steps for its size.",
+            repository: "mlx-community/Phi-4-mini-instruct-4bit",
+            revision: "ac1c269cb4222a4e136a3d09edad301056c1f36a",
+            files: [
+                OnDeviceModelFile(
+                    "added_tokens.json", 249,
+                    sha256: "d4f2aceb0f20b71dd1f4bcc7e052e4412946bf281840b8f83d39f259571af486"),
+                OnDeviceModelFile(
+                    "config.json", 3298,
+                    sha256: "431eafdf55dc6d4a76dc3e9f22b0d06eac42d9ac6dc7cbd7ff8ca1e38f18cdb1"),
+                OnDeviceModelFile(
+                    "model.safetensors", 2_158_100_796,
+                    sha256: "9dcfcdc0a579494283f2d2317ad686123782ce461d1111690ede7c904ff3f87b"),
+                OnDeviceModelFile(
+                    "model.safetensors.index.json", 32_554,
+                    sha256: "958e2e0939857e9fb398e9e3d5344a84e345b00da2e4e7c396024d6a91bc1ab7"),
+                OnDeviceModelFile(
+                    "special_tokens_map.json", 587,
+                    sha256: "aff38493227d813e29fcf8406e8e90062f1f031aa47d589325e9c31d89ac7cc3"),
+                OnDeviceModelFile(
+                    "tokenizer.json", 15_524_095,
+                    sha256: "382cc235b56c725945e149cc25f191da667c836655efd0857b004320e90e91ea"),
+                OnDeviceModelFile(
+                    "tokenizer_config.json", 2962,
+                    sha256: "76c79ba1828e98a574123dd5de047587219ed8c1ab20702d340bc10a7a32b6bd"),
+                OnDeviceModelFile(
+                    "vocab.json", 3_910_310,
+                    sha256: "6cb65a857824fa6615bb1782d95d882617a8bbce1da0317118586b36f39e98bd"),
+            ],
+            license: "MIT",
+            stopTokens: ["<|end|>"]),
     ])
 }

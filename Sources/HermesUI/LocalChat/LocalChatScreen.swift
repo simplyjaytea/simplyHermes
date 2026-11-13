@@ -52,7 +52,7 @@
             Text("Reply to: \(Self.preview(of: questionText(question)))")
                 .font(HermesFont.caption)
                 .foregroundStyle(palette.secondaryText)
-                .lineLimit(1)
+                .accessibleLineLimit()
                 .accessibilityIdentifier("local.replyTo")
         }
 
@@ -112,18 +112,19 @@
             case .user:
                 HStack {
                     Spacer(minLength: 40)
+                    // Long-press opens the message menu; partial copy is its Select text sheet.
                     Text(message.text)
-                        .textSelection(.enabled)
                         .padding(12)
                         .background(palette.outgoingBubble, in: RoundedRectangle(cornerRadius: 16))
+                        .messageActions(text: message.text, onQuote: quote)
                         .accessibilityIdentifier("local.message.user")
                 }
             case .assistant(let identity, _):
                 VStack(alignment: .leading, spacing: 4) {
                     Text(message.text)
-                        .textSelection(.enabled)
                         .padding(12)
                         .background(palette.incomingBubble, in: RoundedRectangle(cornerRadius: 16))
+                        .messageActions(text: message.text, onQuote: quote)
                     Label(Self.answeredBy(identity), systemImage: "iphone")
                         .font(HermesFont.caption)
                         .foregroundStyle(palette.secondaryText)
@@ -131,6 +132,11 @@
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+
+        /// "Quote in reply": the quote goes in front of the draft. Nothing is sent.
+        private func quote(_ text: String) {
+            draft = MessageQuote.inserting(text, into: draft)
         }
 
         /// "On this iPhone · {model}". A reply saved before models were recorded names only the device.

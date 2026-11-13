@@ -189,6 +189,12 @@
                     .font(HermesFont.caption)
                     .foregroundStyle(HermesColor.secondaryText)
                 status
+                if case .tooBig = row.fit {
+                    Label(OnDeviceModelsText.tooBigLine(row), systemImage: "memorychip")
+                        .font(HermesFont.caption)
+                        .foregroundStyle(HermesColor.statusWarning)
+                        .accessibilityIdentifier("onDevice.tooBig")
+                }
                 if row.mayNotFitInMemory {
                     Label(OnDeviceModelsText.memoryCaution(row), systemImage: "memorychip")
                         .font(HermesFont.caption)

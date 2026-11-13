@@ -100,7 +100,7 @@ let invalidHostBody =
 
 @Suite struct HostFallbackTests {
     private let resolver = FixedResolver(answers: [
-        "box": ["100.64.150.77"], "box.tail1234.ts.net": ["100.64.150.77", "fd7a:115c:a1e0::1%utun4"],
+        "box": ["100.64.10.20"], "box.tail1234.ts.net": ["100.64.10.20", "fd7a:115c:a1e0::1%utun4"],
     ])
 
     @Test func swapsTheNameForEachAddressAndKeepsPortAndPath() async throws {
@@ -108,14 +108,14 @@ let invalidHostBody =
         let found = await HostFallback.candidates(for: endpoint, resolver: resolver)
         #expect(
             found.map(\.baseURL.absoluteString) == [
-                "http://100.64.150.77:9119/hermes", "http://[fd7a:115c:a1e0::1]:9119/hermes",
+                "http://100.64.10.20:9119/hermes", "http://[fd7a:115c:a1e0::1]:9119/hermes",
             ])
     }
 
     @Test func hasNoFallbackForHTTPSOrAnAddress() async throws {
         let https = try #require(HermesEndpoint(string: "https://box.tail1234.ts.net"))
         #expect(await HostFallback.candidates(for: https, resolver: resolver).isEmpty)
-        let address = try #require(HermesEndpoint(string: "http://100.64.150.77:9119"))
+        let address = try #require(HermesEndpoint(string: "http://100.64.10.20:9119"))
         #expect(await HostFallback.candidates(for: address, resolver: resolver).isEmpty)
         let unknown = try #require(HermesEndpoint(string: "http://nowhere:9119"))
         #expect(await HostFallback.candidates(for: unknown, resolver: resolver).isEmpty)
@@ -123,10 +123,10 @@ let invalidHostBody =
 
     @Test func noteNamesTheTypedNameAndTheAddress() throws {
         let typed = try #require(HermesEndpoint(string: "http://box:9119"))
-        let adapted = try #require(HermesEndpoint(string: "http://100.64.150.77:9119"))
+        let adapted = try #require(HermesEndpoint(string: "http://100.64.10.20:9119"))
         #expect(
             HostFallback.note(typed: typed, adapted: adapted)
-                == "Hermes doesn't answer to box, so the app connects to 100.64.150.77, the same server.")
+                == "Hermes doesn't answer to box, so the app connects to 100.64.10.20, the same server.")
     }
 
     @Test func systemResolverFindsLocalhost() async {
@@ -135,7 +135,7 @@ let invalidHostBody =
 }
 
 @Suite struct GatewayHostFallbackTests {
-    private let resolver = FixedResolver(answers: ["box": ["100.64.150.77"]])
+    private let resolver = FixedResolver(answers: ["box": ["100.64.10.20"]])
 
     private func connection(_ url: String) -> ServerConnection {
         ServerConnection(
@@ -159,12 +159,12 @@ let invalidHostBody =
         let report = try await tester.test(
             connection("http://box:9119"), secrets: ConnectionSecrets(password: "pw"), progress: { _ in },
             confirmHostKey: { _ in false })
-        #expect(report.adaptedEndpoint?.baseURL.absoluteString == "http://100.64.150.77:9119")
+        #expect(report.adaptedEndpoint?.baseURL.absoluteString == "http://100.64.10.20:9119")
         #expect(report.signedInAs != nil)
         #expect(
             http.requests.map { "\($0.url.host ?? "") \($0.url.path)" } == [
-                "box /api/health", "100.64.150.77 /api/health", "100.64.150.77 /api/status",
-                "100.64.150.77 /auth/password-login", "100.64.150.77 /api/auth/me", "100.64.150.77 /api/auth/ws-ticket",
+                "box /api/health", "100.64.10.20 /api/health", "100.64.10.20 /api/status",
+                "100.64.10.20 /auth/password-login", "100.64.10.20 /api/auth/me", "100.64.10.20 /api/auth/ws-ticket",
             ])
     }
 
@@ -208,12 +208,12 @@ let invalidHostBody =
         let tester = GatewayConnectionTester(
             makeTransport: { http }, makeAnonymousTransport: { http }, makeWebSocket: nil, resolver: resolver)
         let probe = try await tester.probe(HermesEndpoint(string: "http://box:9119")!)
-        #expect(probe.adaptedEndpoint?.baseURL.absoluteString == "http://100.64.150.77:9119")
+        #expect(probe.adaptedEndpoint?.baseURL.absoluteString == "http://100.64.10.20:9119")
     }
 }
 
 @Suite struct GatewayHostFallbackCredentialTests {
-    private let resolver = FixedResolver(answers: ["box": ["100.64.150.77", "100.64.150.78"]])
+    private let resolver = FixedResolver(answers: ["box": ["100.64.10.20", "100.64.150.78"]])
 
     /// Headers a user could have set on the endpoint. A probe must keep `Host`-style headers and drop credentials.
     private let endpointHeaders = [
@@ -236,7 +236,7 @@ let invalidHostBody =
     /// `box` refuses its name, the first address is not Hermes, and the second answers.
     private func route(_ recorder: ProbeRecorder) throws {
         recorder.answer(host: "box", status: 400, body: invalidHostBody)
-        recorder.answer(host: "100.64.150.77", status: 404, body: "{}")
+        recorder.answer(host: "100.64.10.20", status: 404, body: "{}")
         recorder.answer(host: "100.64.150.78", status: 200, body: try restFixture("health"))
         recorder.answer(host: "100.64.150.78", path: "/api/status", status: 200, body: try restFixture("status"))
         recorder.answer(host: "100.64.150.78", path: "/api/auth/me", status: 200, body: try restFixture("auth_me"))
@@ -275,7 +275,7 @@ let invalidHostBody =
         #expect(recorder.importedTransports.isEmpty)
 
         let candidates = probeRequests(recorder)
-        #expect(candidates.map { $0.request.url.host } == ["100.64.150.77", "100.64.150.78"])
+        #expect(candidates.map { $0.request.url.host } == ["100.64.10.20", "100.64.150.78"])
         for record in candidates {
             expectOnlyRoutingHeaders(record.request, "candidate \(record.request.url.host ?? "?")")
             #expect(record.request.headers["X-Forwarded-Host"] == "keep-me")
@@ -388,7 +388,7 @@ private struct FailedProbeTransport: HTTPTransport {
 
 @Suite struct GatewayProbeFailureTests {
     @Test func discoveryPreservesTheTransportFailure() async throws {
-        let endpoint = try #require(HermesEndpoint(string: "http://100.64.150.77:9119"))
+        let endpoint = try #require(HermesEndpoint(string: "http://100.64.10.20:9119"))
         let tester = GatewayConnectionTester(makeAnonymousTransport: { FailedProbeTransport() })
         do {
             _ = try await tester.probe(endpoint)

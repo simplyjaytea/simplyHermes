@@ -120,7 +120,10 @@
                 let client = BotClient(gateway: try await manager.client(for: connection))
                 let created = try await client.createAgent(draft, existingProfiles: activeProfileNames)
                 await reload()
-                if !created.lookSaved {
+                if !created.settingsSaved {
+                    errorMessage =
+                        "\(created.profile) was created, but its skills, tools or servers did not save. Edit it from its menu."
+                } else if !created.lookSaved {
                     errorMessage =
                         "\(created.profile) was created, but its title or avatar did not save. Edit it from its menu."
                 }
@@ -128,6 +131,21 @@
             } catch {
                 errorMessage = Self.message(for: error)
                 return nil
+            }
+        }
+
+        /// Writes a created agent's staged skills, toolsets and MCP servers again, without creating the profile twice.
+        /// False when it did not save, with `errorMessage` set.
+        func finishStagedSettings(_ draft: NewAgentDraft, profile: String) async -> Bool {
+            guard let connection = connections.active, let manager = connections.manager else { return false }
+            do {
+                let client = BotClient(gateway: try await manager.client(for: connection))
+                try await client.finishStagedSettings(draft, profile: profile)
+                await reload()
+                return true
+            } catch {
+                errorMessage = Self.message(for: error)
+                return false
             }
         }
 

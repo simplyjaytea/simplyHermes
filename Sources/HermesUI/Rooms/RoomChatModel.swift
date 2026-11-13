@@ -104,9 +104,8 @@
                     roomID: room.roomID, eventID: message.eventID, text: message.text, threadID: message.threadID)
                 let outcome = RoomSendOutcome.evaluate(result: result)
                 outgoing = RoomSendOutcome.retainedOutgoing(current: outgoing, outcome: outcome)
-                if outcome.shouldClearDraft {
-                    draft = ""
-                }
+                // The composer stays editable while the send runs: only the text that was sent is cleared.
+                draft = RoomSendOutcome.draftAfterSend(sent: message, current: draft, outcome: outcome)
                 if result.accepted {
                     lastSendAt = Date()
                 }

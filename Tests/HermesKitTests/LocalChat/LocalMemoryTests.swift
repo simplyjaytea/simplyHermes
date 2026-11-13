@@ -102,8 +102,9 @@ struct LocalMemoryStoreTests {
     }
 
     @Test func theMigrationAddsOnlyTheMemoryTable() async throws {
+        // Up to this migration only, so a later migration's tables (#145's placeholder_chats) don't count here.
         let url = try temporaryDatabaseURL()
-        _ = try HermesCache(url: url)
+        _ = try HermesCache.openSchema(url: url, upTo: "local-memory-v1")
         let before = try temporaryDatabaseURL()
         _ = try HermesCache.openSchema(url: before, upTo: "local-chat-v1")
         let added = Set(try tableNames(at: url)).subtracting(try tableNames(at: before))

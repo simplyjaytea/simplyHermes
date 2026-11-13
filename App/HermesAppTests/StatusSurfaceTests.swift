@@ -61,6 +61,40 @@ struct StatusSurfaceTests {
         #expect(OutageBanner.shows(model.status) == false)
     }
 
+    /// Row 108: a chat the store dropped on a server switch must not attach itself to the new server when its pill moves
+    /// into `.connected`. The test drives the pill by hand, because the phase seam does not fire the observation.
+    @Test func aRetiredChatDoesNotAttachWhenItsPillComesBack() throws {
+        let connections = ConnectionsModel.preview()
+        let server = try #require(ConnectionsModel.sampleConnections.first)
+        connections.setActive(server.id)
+        let phase = PhaseBox()
+        func makeChat() throws -> LiveChatModel {
+            LiveChatModel(
+                connections: connections, broker: ServerRequestBroker(), storedSessionID: "s1",
+                outbox: try HermesCache().outbox, phaseSource: { phase.value })
+        }
+        func comeBack(_ chat: LiveChatModel) async {
+            phase.value = .failed(.unreachable("the test has no network"))
+            chat.pillChanged()
+            phase.value = .connected(ServerSummary())
+            chat.pillChanged()
+            // The attach runs in a task the call starts.
+            for _ in 0..<20 { await Task.yield() }
+        }
+
+        // Control: a live chat attaches when it comes back, which moves its phase off `.loading` (the preview has no
+        // connection manager, so the attempt fails). That shows the check below can see an attach.
+        let live = try makeChat()
+        await comeBack(live)
+        #expect(live.phase != .loading)
+
+        let retired = try makeChat()
+        retired.retire()
+        await comeBack(retired)
+        #expect(retired.phase == .loading)
+        #expect(retired.isRetired)
+    }
+
     @Test func theDefaultChatModeIsOnlineAndSavingItSticks() {
         let saved = ChatModeDefault.current
         defer { ChatModeDefault.save(saved, to: .standard) }
