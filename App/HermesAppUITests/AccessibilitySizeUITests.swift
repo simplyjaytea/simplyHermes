@@ -39,9 +39,26 @@ final class AccessibilitySizeUITests: XCTestCase {
         XCTAssertFalse(send.label.isEmpty, "\(layout): the send button needs a label")
         try audit(app, screen: "\(layout)-chat")
 
-        // Chats list (compact pushes the chat; the half-fold shell keeps the list in the sidebar or a tab)
-        let back = app.navigationBars.buttons["Chats"]
-        if back.exists { back.tap() }
+        if layout == "halfFold" {
+            // Half-fold has no chat list, tab rail or Settings by design (plan Q4): transcript on top, composer and
+            // the six quick actions below. Check those instead.
+            for action in ["approve", "deny", "stop", "voice", "attach", "terminal"] {
+                let button = element(app, "quick.\(action)")
+                XCTAssertTrue(button.waitForExistence(timeout: 5), "halfFold: quick action \(action) should exist")
+                XCTAssertTrue(button.isHittable, "halfFold: quick action \(action) should be on screen")
+                XCTAssertFalse(button.label.isEmpty, "halfFold: quick action \(action) needs a label")
+            }
+            return
+        }
+
+        // Chats list. The chat is pushed; at this size its back control is the round BackButton with no title (the
+        // iOS run's screenshot shows it in the right-hand rail), so try that first, then a titled "Chats".
+        let backButton = app.buttons["BackButton"]
+        if backButton.waitForExistence(timeout: 5), backButton.isHittable {
+            backButton.tap()
+        } else if app.navigationBars.buttons["Chats"].exists {
+            app.navigationBars.buttons["Chats"].tap()
+        }
         let newChat = app.buttons["New chat"]
         XCTAssertTrue(newChat.waitForExistence(timeout: 10), "\(layout): the chats list should be reachable")
         assertUsable(newChat, "New chat", in: layout)

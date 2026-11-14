@@ -72,9 +72,15 @@
         }
 
         func updateUIView(_ view: ComposerUITextView, context: Context) {
-            context.coordinator.parent = self
+            let coordinator = context.coordinator
+            coordinator.parent = self
             view.onRecall = onRecall
             view.focusKey = focusKey
+            // Setting the text or the caret here makes UIKit call textViewDidChangeSelection at once, inside this view
+            // update, and writing the selection binding there is SwiftUI's "Modifying state during view update"
+            // (board row 98, seen in chat, local-chat and gallery runs). The coordinator ignores those callbacks while
+            // the update applies, then reports where UIKit left the caret once the update is over.
+            coordinator.isApplyingUpdate = true
             // Only a change from outside, such as a cleared draft or a picked completion, rewrites the view.
             if view.text != text {
                 view.text = text
@@ -82,7 +88,14 @@
             if NSMaxRange(selection) <= view.text.utf16.count, view.selectedRange != selection {
                 view.selectedRange = selection
             }
-            context.coordinator.highlightMentions(in: view)
+            coordinator.highlightMentions(in: view)
+            coordinator.isApplyingUpdate = false
+            let caret = view.selectedRange
+            if caret != selection {
+                Task { @MainActor in
+                    if coordinator.parent.selection != caret { coordinator.parent.selection = caret }
+                }
+            }
         }
 
         func sizeThatFits(_ proposal: ProposedViewSize, uiView: ComposerUITextView, context: Context) -> CGSize? {
@@ -96,18 +109,22 @@
         @MainActor
         final class Coordinator: NSObject, UITextViewDelegate {
             var parent: ComposerTextView
+            /// True while ``ComposerTextView/updateUIView(_:context:)`` changes the view; its callbacks are not user edits.
+            var isApplyingUpdate = false
 
             init(_ parent: ComposerTextView) {
                 self.parent = parent
             }
 
             func textViewDidChange(_ textView: UITextView) {
+                guard !isApplyingUpdate else { return }
                 parent.text = textView.text
                 parent.selection = textView.selectedRange
                 highlightMentions(in: textView)
             }
 
             func textViewDidChangeSelection(_ textView: UITextView) {
+                guard !isApplyingUpdate else { return }
                 parent.selection = textView.selectedRange
             }
 

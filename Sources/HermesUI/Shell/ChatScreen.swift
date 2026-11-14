@@ -201,6 +201,7 @@
     struct QuickActions: View {
         let model: ShellModel
         let sessionID: String
+        @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
         var body: some View {
             let hasApproval = model.pendingApproval(in: sessionID) != nil
@@ -234,9 +235,16 @@
             perform: @escaping () -> Void
         ) -> some View {
             Button(action: perform) {
-                Label(title, systemImage: systemImage)
-                    .labelStyle(.titleAndIcon)
+                // Three to a row, the words do not fit at the accessibility text sizes (they were cut to one letter in
+                // the iOS run's screenshots). There the buttons show their symbol only; the Label keeps the word as the
+                // VoiceOver name and Large Content Viewer text.
+                if dynamicTypeSize.isAccessibilitySize {
+                    Label(title, systemImage: systemImage).labelStyle(.iconOnly)
+                } else {
+                    Label(title, systemImage: systemImage).labelStyle(.titleAndIcon)
+                }
             }
+            .accessibilityShowsLargeContentViewer()
             .buttonStyle(HermesButtonStyle(kind))
             .disabled(!enabled)
             .accessibilityIdentifier("quick.\(title.lowercased())")

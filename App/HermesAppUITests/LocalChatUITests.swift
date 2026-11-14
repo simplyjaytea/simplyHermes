@@ -90,19 +90,26 @@ final class LocalChatUITests: XCTestCase {
         XCTAssertEqual(labels.firstMatch.label, "On this iPhone · \(fakeName)")
         XCTAssertEqual(element(app, "uiTest.networkRequests").label, "0", "A local chat must make no request")
 
-        // The relaunch keeps the same arguments, minus the reset: the saved chat must survive.
+        // The relaunch keeps the same arguments, minus the reset: the saved chat must survive. A fresh XCUIApplication
+        // with its arguments set again: in iOS run 43495829201 the relaunched process came up without them (no
+        // network-trap readout, Welcome instead of the shell), and the test blamed a missing chat.
         app.terminate()
-        app.launchArguments.removeAll { $0 == "-uiTestResetCache" }
-        app.launch()
+        let relaunched = XCUIApplication()
+        relaunched.launchArguments = app.launchArguments.filter { $0 != "-uiTestResetCache" }
+        relaunched.launch()
+        XCTAssertTrue(
+            element(relaunched, "uiTest.networkRequests").waitForExistence(timeout: 15),
+            "The relaunch should carry its test arguments (the network trap readout is missing)")
 
-        let row = app.descendants(matching: .any)
+        let row = relaunched.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH 'session.local-'")).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15), "The local chat should still be listed")
         row.tap()
         for text in messages {
-            XCTAssertTrue(app.staticTexts[text].waitForExistence(timeout: 10), "\(text) should survive a relaunch")
+            XCTAssertTrue(
+                relaunched.staticTexts[text].waitForExistence(timeout: 10), "\(text) should survive a relaunch")
         }
-        XCTAssertEqual(element(app, "uiTest.networkRequests").label, "0")
+        XCTAssertEqual(element(relaunched, "uiTest.networkRequests").label, "0")
     }
 
     /// Feature B: the last-chat quick action opens exactly that local chat after a relaunch, and the action for a
