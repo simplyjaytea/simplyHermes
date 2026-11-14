@@ -112,3 +112,68 @@ User: "Stop all the work. Update the playbook with what we need to do still … 
 - Decide Hermes server dedupe (Shared/hermes-submit-idempotency-proposal.md).
 - Decide the iOS 27.0 simulator pin.
 - Decide whether to continue at all, given the official app.
+
+## 10. "Merge everything" (user, 2026-11-13 ~03:00Z; repo public since ~02:30Z)
+User: "Merge everything." All 32 open PRs (#122–#153) were merged to main by Gilfoyle without the merge gate, CI, re-review or QA, the same as the 2026-11-03 wind-down. Merge commits only, no force-push, no admin override, no squash. Merged PR branches were deleted by the repo setting; archive/*, backup/* and integration/all-2026-11-12 are kept.
+
+### Merge commits (in order)
+#123 `b4d2f21` (#122 rode along as `3dc1456`), #144 `8e52447`, #130 `9a5eb67`, #132 `7857258`, #133 `2ad080e`, #149 `aadf8ab`, #124 `4ea590c`, #125 `5fd1b75`, #137 `8d39581`, #126 `3fb2522`, #140 `c6972ba`, #143 `c643aa9`, #142 `d0d2233`, #127 `e41e9b1`, #129 `4305ffc`, #128 `be2d38e`, #141 `58931b3`, #145 `9b62463`, #134 `00ed6d0`, #135 `5878921`, #136 `102a666`, #138 `9cf33d4`, #139 `7259875`, #146 `590d993`, #152 `33f7c29`, #153 `80de37e`, #131 `39d1c60`, #150 `4e72e98`, #151 `a92df7e`, #147 `9cd616c`, #148 `9ad0fda` (main head).
+
+Conflicts were resolved on the PR branch by merging main, with the integration resolutions: #145 (OutboxServices, with #133), #131 (HermesCache migrations, with #145, and the memory migration test bounded to its own migration), #150 (refresh after #131), #147 (OnDeviceModelSelection, with #139). No content was dropped.
+
+### Went to main with known problems (unfixed)
+- **#143, major:** a server switch during the new 20 s first-message wait sends the first message through the wrong server (`startChat` captures `active`; the hand-off uses the server active later).
+- **#140, major:** dropped chats are retired only on the next `chat(for:)`, so an old chat can still attach to the new server with its old session id.
+- **#134, major:** `finishStagedSettings` ignores `result.applied`, so a refused settings write counts as saved.
+- **#138, major (guard):** `ConnectionGuard` matches openers after stripping string contents, so an opener inside interpolation or after an escaped quote passes; Moss's bypasses (`URLSession.self` then `.init(`, `ClientBootstrap.self` then `.init(`) also pass. Rows 87/88 aren't closed. The local-chat network rule's source lint is weaker than intended.
+- **#136:** the major (demo-only state) was fixed by Poppy in 69c7503 but not re-reviewed. Moss's FAIL stands: notification ids and tap URLs use the session id only, so two servers with the same chat id collide.
+- **Lint, 4 swiftlint --strict errors on 9ad0fda:** `GatewayClient` 515 lines (#146), `AdaptiveShell` over 500 (#145 with #125/#126/#137), identifier `up` in `NewChatCoordinatorTests.swift:98` (#145), and `opening_brace` at `ConnectionGuard.swift:80` (#138; fixed only on the integration branch). CI's Linux job passed on 9ad0fda anyway (run 43358771436), but the App job runs `swiftlint --strict` (ci.yml:208), so **the App job will fail on these 4 errors** until they're fixed. Format lint is clean, and 1821 Linux tests pass locally.
+- **Minors open:** #123 m1 (connect retries hide a flaky first connect), #126 m1 (placeholder strip on non-placeholder fallback chats), #131 m (see review), #135 m1, #139 m1, #142 m1, #133 residuals (only the newest model hears changes; the registry never forgets).
+- **Unproven:** no App job has run on any of this, so every screen and UI test is unproven, including the StatusPillUITests repair, notifications, memory, skills, the two new local models (#152), Acknowledgements (#153), the 20 s wait and the retire wiring.
+- **Still off:** `chatTurnThroughTunnel` (until 2026-11-19, row quarantine-ssh-tunnel-chat-turn). #144's per-step deadlines are now on main.
+- **Accepted:** a crash after the server took a message resends it (withKnownIssue, no client id).
+
+## 11. Pause (user, 2026-11-14 ~11:40Z)
+User: "Let's pause all work and make sure everything is pushed to GitHub. Confirm with me when everything is pushed and merged please." All work stopped. Everything was pushed and merged, without waiting for the iOS job, the same as section 10.
+
+### State at stop
+- **PR #155 merged as `0c5d478`** (head `dad7122`). It holds:
+  - Repair round 2: the #138 guard scanner, the #133 leftovers, the #140 in-flight attach fix (`ChatAttach`) and the #143 minor.
+  - The iOS build fix (Poppy: `ServerChatDelete.commit` runs on its caller's isolation; Dinesh: two app-test compile errors).
+  - The UI-test round: Dinesh's `local/fix-ui-signin` (e9e2625) and Poppy's `local/fix-ui-tests-poppy` (5b69e98).
+- **Checks on `dad7122`** (PR run 43592515331): Changed files, Packages (Linux) and Testbed smoke passed. The App (iOS) job was still running at merge, so its result is unknown. Locally: strict lint clean, `tools/ci/prepush.sh` passes, 1880 Linux tests (1 known issue).
+- **Last iOS result** (run 43495829201 on `b58602e`): the app and both test targets built, and every unit test passed. 55 UI tests ran: 40 passed, 15 failed, 2 skipped. `dad7122` carries fixes for all 15, **unproven on iOS**.
+- No PR is open. The board (eng_tasks) is updated.
+
+### Went to main unchecked
+- **The 15 UI-test failures and their fixes, none run on iOS:**
+  - **"Sign in again" (6 tests: four StatusPill, GitReview, NewReplyDot).** A test-setup problem: the shared sign-in never ticked "Remember password", so the saved test server had no password (Dinesh). Fix: the sign-in ticks it and checks it is on. `WorkspaceUITests` and `NewGroupUITests` were skipped for the same reason; they now run, and may show new failures.
+  - **Largest text size (2 tests).** Test problems, plus two real accessibility bugs fixed (Poppy):
+    - the approval banner stacks its buttons at those sizes;
+    - the quick-action buttons go icon-only, keeping their names for VoiceOver.
+    - Still open, in Dinesh's area: the status pill covers the transcript at the largest size.
+  - **Quote and Remember this (2 tests).** Test problems. Nothing was sent, and the memory was saved. The tests now assert on what matters.
+  - **Sidebar search (1 test).** The CI simulator's narrow window hid the sidebar. Search chats now brings the sidebar to the front.
+  - **Local chat after relaunch (1 test, flaky).** A real bug: with no server saved, Welcome hid existing local chats. New `AppEntryRoute` opens the main screen when local chats exist. Row 98, "Modifying state during view update" from the composer's text view, is fixed.
+  - The other three of the 15 are retry repeats of these.
+- **Dinesh's note:** `ConnectionsModel.secrets(for:)` reads the keychain with `try?`. A keychain read failure therefore looks like "no password" and ends in "Sign in again", and in `silentPasswordLogin` a store error turns into a silent retry loop. Not fixed; board row.
+- **Product note:** a password server saved without "Remember password" shows "Sign in again" on every connect and launch. That's by design, but surprising right after a passing connection check. Product call: Janet.
+- **Product question (Poppy):** should Welcome offer "Chat on this iPhone", so a new user with no server can start a local chat?
+- Minors still open: #123, #126, #135, #139, #145 review gaps; an abandoned attach leaves a listener; the outbox hand-back does nothing for a value-type sender; notifications from before the update aren't recognised once.
+- Accepted: a crash after the server took a message resends it.
+
+### Restart to-do (in order)
+1. Read the iOS result of main's push run after `0c5d478` (or rerun it). Fix any build error or UI failure. Main is green only with all four jobs passing.
+2. Once main is green: record the run id and the unsigned IPA artifact name, and give the build and the 31-step checklist (Shared/simplyhermes-device-check-2026-11-12.md) to the user for the phone.
+3. Keychain read handling (Dinesh's note): surface a read failure instead of "Sign in again", and stop the silent retry loop.
+4. Status pill covering the transcript at the largest text size (Dinesh).
+5. Product calls (Janet): the Remember-password default or hint; Welcome's "Chat on this iPhone"; WP-9 (remove or label the silent fallback to the Apple model).
+6. Tunnel test: re-enable with #144's deadlines after 2026-11-19 to find the stalling step (SSH library or test sshd).
+7. The open minors listed above; rows 69 and 87/88 follow-ups; memory phase 3; per-model tool evaluation; user-added skills.
+8. Housekeeping: delete old worktrees and `local/*` branches (all on GitHub now); decide on old CI artifacts.
+
+### Only the user
+- On #132, delete the old revisions of the description and of Gilfoyle's review comment (they show the real server address and IP).
+- Repo settings: approval for outside collaborators, read-only workflow permissions, secret scanning with push protection, Dependabot alerts.
+- Give the OpenBot GitHub app "Actions: write"; set the update banner's install link; say which PR "delete that pr" meant.
+- Paid `xcode-27-xlarge` runner, if the free iOS queue is too slow.
