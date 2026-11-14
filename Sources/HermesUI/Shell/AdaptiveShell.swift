@@ -44,8 +44,11 @@
             self.model = model
             self.connections = connections
             self.sessionsList = sessionsList
-            let liveChats = connections.map(LiveChatStore.init)
-            model.liveChats = liveChats
+            // One store for the life of the model. This init runs again whenever the parent's body does (a scene
+            // phase change is enough), and a new store each time dropped every open chat without retiring it: the
+            // screen then made a second model for a session whose first one was still attached and still sending.
+            if model.liveChats == nil { model.liveChats = connections.map(LiveChatStore.init) }
+            let liveChats = model.liveChats
             // Kept across re-renders: a new one would lose the folder on screen and leave views holding the old one.
             if model.workspaceBrowser == nil { model.workspaceBrowser = connections.map(WorkspaceBrowserModel.init) }
             if let connections {
