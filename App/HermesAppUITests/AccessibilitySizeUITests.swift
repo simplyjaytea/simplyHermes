@@ -59,9 +59,11 @@ final class AccessibilitySizeUITests: XCTestCase {
         } else if app.navigationBars.buttons["Chats"].exists {
             app.navigationBars.buttons["Chats"].tap()
         }
-        let newChat = app.buttons["New chat"]
-        XCTAssertTrue(newChat.waitForExistence(timeout: 10), "\(layout): the chats list should be reachable")
-        assertUsable(newChat, "New chat", in: layout)
+        // The Duo layout keeps more than one "New chat" (the list's button and hidden copies), so a query by label
+        // alone matches several and fails (run 43593302488). Take the one that can be tapped, as for Settings below.
+        let newChat = hittable(app.buttons.matching(NSPredicate(format: "label == %@", "New chat")))
+        XCTAssertNotNil(newChat, "\(layout): New chat should be on screen and tappable")
+        XCTAssertFalse(newChat?.label.isEmpty ?? true, "\(layout): New chat needs a label")
         try audit(app, screen: "\(layout)-chats")
 
         // Settings

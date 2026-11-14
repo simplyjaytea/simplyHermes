@@ -215,6 +215,7 @@
                         .textContentType(.password)
                         .accessibilityIdentifier("connection.password")
                     Toggle("Remember password", isOn: $form.remembersPassword)
+                        .accessibilityIdentifier("connection.rememberPassword")
                 case .token:
                     SecureField("Session token", text: $form.token)
                         .font(HermesFont.code)
