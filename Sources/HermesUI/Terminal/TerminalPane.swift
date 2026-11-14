@@ -5,6 +5,7 @@
     /// One tab's pane. While it is on screen it holds the tab's socket open; when it goes away the socket closes and
     /// the server keeps the PTY, so the next pane reattaches to the same TUI session.
     struct TerminalPane: View {
+        @Environment(\.hermesPalette) private var palette
         let tab: TerminalTab
         let connector: TerminalConnector
         let profile: String?
@@ -33,16 +34,16 @@
             switch state {
             case .connecting?:
                 Label("Connecting", systemImage: "circle.dotted")
-                    .font(.footnote)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .font(HermesFont.footnote)
+                    .foregroundStyle(palette.secondaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
             case .ended?:
                 HStack {
                     Text("Session ended")
-                        .font(.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .font(HermesFont.footnote)
+                        .foregroundStyle(palette.secondaryText)
                     Spacer()
                     Button("Start again") { terminals.restart(tab.id) }
                         .buttonStyle(HermesButtonStyle(.tinted, fillsWidth: false))
@@ -52,8 +53,8 @@
             case .failed(let message)?:
                 HStack {
                     Text(message)
-                        .font(.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .font(HermesFont.footnote)
+                        .foregroundStyle(palette.secondaryText)
                         .lineLimit(2)
                     Spacer()
                     Button("Reconnect") { terminals.restart(tab.id) }
@@ -96,8 +97,10 @@
                 .font(HermesFont.code.weight(.semibold))
                 .padding(.horizontal, 10)
                 .frame(minHeight: HermesMetrics.minTapTarget)
-                .background(HermesColor.fill, in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius))
-                .foregroundStyle(HermesColor.primaryText)
+                .background(
+                    palette.fill, in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius, style: .continuous)
+                )
+                .foregroundStyle(palette.primaryText)
         }
 
         /// Opens the socket, feeds the output into the view, and forwards keys and size until the tab leaves the

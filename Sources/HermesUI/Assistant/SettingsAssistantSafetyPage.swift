@@ -25,13 +25,16 @@
                     Button("Stop sharing") { setSharing(false) }
                         .accessibilityIdentifier("assistant.safety.stopSharing")
                 }
+                .hermesListRows()
                 Section {
                     Button("Run security audit") { runAudit() }
                         .accessibilityIdentifier("assistant.safety.audit")
                 } footer: {
                     Text("Runs the audit on the server. This page shows only whether the server accepted it.")
                 }
+                .hermesListRows()
             }
+            .hermesThemedList()
             .navigationTitle("Safety")
             .settingsAssistantLoads(model)
         }

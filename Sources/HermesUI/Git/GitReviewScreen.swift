@@ -18,6 +18,7 @@
     /// The git review for one repository: a scope picker, the staged and unstaged files, and the commands that change
     /// them. Tapping a file opens its diff.
     struct GitReviewScreen: View {
+        @Environment(\.hermesPalette) private var palette
         @State private var model: GitReviewModel
         @State private var showingCommit = false
         @State private var showingWorktrees = false
@@ -39,18 +40,21 @@
                     }
                     .pickerStyle(.segmented)
                 }
+                .hermesListRows()
                 fileSection("Staged", files: model.staged)
                 fileSection("Unstaged", files: model.unstaged)
                 shipSection
                 if let errorText = model.errorText {
                     Section {
                         Text(errorText)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
+                            .font(HermesFont.footnote)
+                            .foregroundStyle(palette.errorText)
                             .accessibilityIdentifier("gitReview.error")
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .overlay {
                 if !model.loading && model.files.isEmpty && model.errorText == nil {
                     ContentUnavailableView(
@@ -103,6 +107,7 @@
                         }
                     }
                 }
+                .hermesListRows()
             }
         }
 
@@ -110,10 +115,10 @@
         private func swipeActions(for file: GitReviewFile) -> some View {
             if file.staged {
                 Button("Unstage") { Task { await model.unstage(file) } }
-                    .tint(.orange)
+                    .tint(palette.statusWarning)
             } else {
                 Button("Stage") { Task { await model.stage(file) } }
-                    .tint(.green)
+                    .tint(palette.statusConnected)
             }
             Button("Revert", role: .destructive) {
                 revertTarget = file
@@ -127,14 +132,16 @@
             if model.ship?.ghReady == false {
                 Section {
                     Text("Install and sign in to gh on the server to open pull requests.")
-                        .font(.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .font(HermesFont.footnote)
+                        .foregroundStyle(palette.secondaryText)
                 }
+                .hermesListRows()
             }
             if let link, let url = URL(string: link) {
                 Section {
                     Link("Open pull request", destination: url)
                 }
+                .hermesListRows()
             }
         }
 
@@ -153,6 +160,9 @@
                     Button("Worktrees", systemImage: "rectangle.stack") { showingWorktrees = true }
                 } label: {
                     Image(systemName: "ellipsis.circle")
+                        .frame(minWidth: HermesMetrics.minTapTarget, minHeight: HermesMetrics.minTapTarget)
+                        .contentShape(Rectangle())
+                        .accessibilityLabel("More")
                 }
             }
         }
@@ -160,22 +170,23 @@
 
     /// One changed file: its status letter, its path, and the line counts.
     private struct GitReviewFileRow: View {
+        @Environment(\.hermesPalette) private var palette
         let file: GitReviewFile
 
         var body: some View {
             HStack(spacing: 12) {
                 Text(file.status)
                     .font(HermesFont.code.weight(.semibold))
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .frame(width: 22)
                 Text(file.path)
-                    .font(.subheadline)
+                    .font(HermesFont.subheadline)
                     .lineLimit(2)
                     .truncationMode(.middle)
                 Spacer(minLength: 8)
                 Text("+\(file.added) \u{2212}\(file.removed)")
                     .font(HermesFont.code)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
             }
             .accessibilityElement(children: .combine)
         }

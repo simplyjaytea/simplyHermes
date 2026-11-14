@@ -61,6 +61,7 @@
     /// The list: the filter chips on top, one section per bot and one for System, and the states for loading, errors
     /// and empty lists.
     public struct AutomationsListView: View {
+        @Environment(\.hermesPalette) private var palette
         private let model: AutomationsModel
         private let onCreate: () -> Void
         @State private var pendingDelete: CronJob?
@@ -77,17 +78,19 @@
                     Section {
                         Label(loadError, systemImage: "wifi.slash")
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .accessibilityIdentifier("automations.error")
                     }
+                    .hermesListRows()
                 }
                 if let actionError = model.actionError {
                     Section {
                         Label(actionError, systemImage: "exclamationmark.triangle")
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.destructive)
+                            .foregroundStyle(palette.errorText)
                             .accessibilityIdentifier("automations.actionError")
                     }
+                    .hermesListRows()
                 }
                 if model.isLoading && !model.hasLoaded {
                     skeleton
@@ -96,9 +99,11 @@
                         Section(section.title) {
                             ForEach(section.jobs) { job in row(job) }
                         }
+                        .hermesListRows()
                     }
                 }
             }
+            .hermesThemedList()
             .safeAreaInset(edge: .top, spacing: 0) { filterBar }
             .refreshable { await model.refresh() }
             .overlay { emptyState }
@@ -138,14 +143,14 @@
                 Button(job.isEnabled ? "Pause" : "Resume", systemImage: job.isEnabled ? "pause" : "play") {
                     Task { await model.setEnabled(job, !job.isEnabled) }
                 }
-                .tint(HermesColor.statusWarning)
+                .tint(palette.statusWarning)
                 Button("Run now", systemImage: "play.fill") {
                     Task { await model.runNow(job) }
                 }
-                .tint(HermesColor.accent)
+                .tint(palette.accent)
             }
             .swipeActions(edge: .trailing) {
-                Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = job }
+                Button("Delete…", systemImage: "trash", role: .destructive) { pendingDelete = job }
             }
         }
 
@@ -164,6 +169,7 @@
                 .hermesShimmer()
                 .accessibilityHidden(true)
             }
+            .hermesListRows()
         }
 
         @ViewBuilder
@@ -205,6 +211,7 @@
     /// One automation in the list: its name, its schedule in words, and either its pause, its last failure or its next
     /// run.
     struct AutomationRow: View {
+        @Environment(\.hermesPalette) private var palette
         let job: CronJob
 
         var body: some View {
@@ -216,13 +223,13 @@
                     if !job.isEnabled {
                         Image(systemName: "pause.circle.fill")
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .accessibilityLabel("Paused")
                     }
                 }
                 Text(job.schedule?.summary ?? "No schedule")
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .lineLimit(1)
                 Text(statusLine)
                     .font(HermesFont.footnote)
@@ -250,7 +257,7 @@
         }
 
         private var statusColor: Color {
-            job.isEnabled && failed ? HermesColor.destructive : HermesColor.secondaryText
+            job.isEnabled && failed ? palette.destructive : palette.secondaryText
         }
     }
 

@@ -30,6 +30,7 @@
                     kanbanSection(kanban)
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Tools")
             .task { await kanban?.checkPresence() }
         }
@@ -57,6 +58,7 @@
             } footer: {
                 Text("Skills, toolsets and agent plugins on the server.")
             }
+            .hermesListRows()
         }
 
         private var memorySection: some View {
@@ -68,6 +70,7 @@
                 }
                 .accessibilityIdentifier("tools.memory")
             }
+            .hermesListRows()
         }
 
         private var terminalSection: some View {
@@ -78,6 +81,7 @@
                     Label("Terminal", systemImage: "terminal")
                 }
             }
+            .hermesListRows()
         }
 
         /// Logs and Usage (WP-54): the server's own logs and usage. They need a connected server.
@@ -96,6 +100,7 @@
                 }
                 .accessibilityIdentifier("tools.usage")
             }
+            .hermesListRows()
         }
 
         /// Kanban (WP-55): the server's boards. Shown only when the server runs the kanban plugin.
@@ -108,6 +113,7 @@
                 }
                 .accessibilityIdentifier("tools.kanban")
             }
+            .hermesListRows()
         }
     }
 

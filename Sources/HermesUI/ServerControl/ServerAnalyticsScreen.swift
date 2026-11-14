@@ -26,23 +26,28 @@
                     .pickerStyle(.segmented)
                     .accessibilityIdentifier("serverAnalytics.window")
                 }
+                .hermesListRows()
                 if let errorText = model.errorText {
                     Section {
                         ServerControlProblem(text: errorText)
                     }
+                    .hermesListRows()
                 }
                 if !model.totals.isEmpty {
                     Section("Totals") {
                         ServerStatsRowsView(rows: model.totals)
                     }
+                    .hermesListRows()
                     .accessibilityIdentifier("serverAnalytics.totals")
                 }
                 ForEach(model.groups) { group in
                     Section(group.title) {
                         ServerStatsRowsView(rows: group.rows)
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Usage")
             .refreshable { await model.load(window) }
             .task(id: window) { await model.load(window) }

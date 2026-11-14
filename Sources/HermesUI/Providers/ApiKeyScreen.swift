@@ -4,6 +4,7 @@
 
     /// Settings > Models > API keys: the keys set on the server, and set, check, reveal and delete (WP-53a).
     struct ApiKeyScreen: View {
+        @Environment(\.hermesPalette) private var palette
         @State private var model: ApiKeyModel
         @State private var showsDeleteConfirm = false
 
@@ -25,10 +26,12 @@
                 if let errorText = model.errorText {
                     Section {
                         Label(errorText, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(HermesColor.destructive)
+                            .foregroundStyle(palette.errorText)
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .navigationTitle("API keys")
             .task { await model.load() }
             .refreshable { await model.load() }
@@ -53,7 +56,7 @@
                             HStack {
                                 Text(key).font(HermesFont.codeSmall)
                                 Spacer(minLength: 8)
-                                Text("Set").foregroundStyle(HermesColor.secondaryText)
+                                Text("Set").foregroundStyle(palette.secondaryText)
                             }
                         }
                     }
@@ -62,6 +65,7 @@
                 } footer: {
                     Text("Tap a name to fill in the form. Its value stays hidden until you tap Show value.")
                 }
+                .hermesListRows()
             }
         }
 
@@ -81,6 +85,7 @@
             } footer: {
                 Text("Values go to your Hermes server. They are not kept on this phone.")
             }
+            .hermesListRows()
         }
 
         private var checkSection: some View {
@@ -90,7 +95,7 @@
                 }
                 .disabled(model.isWorking)
                 if let checkText = model.checkText {
-                    Text(checkText).foregroundStyle(HermesColor.secondaryText)
+                    Text(checkText).foregroundStyle(palette.secondaryText)
                 }
                 Button("Save") {
                     Task { await model.save() }
@@ -98,9 +103,10 @@
                 .disabled(model.isWorking)
                 .accessibilityIdentifier("keys.save")
                 if let statusText = model.statusText {
-                    Text(statusText).foregroundStyle(HermesColor.secondaryText)
+                    Text(statusText).foregroundStyle(palette.secondaryText)
                 }
             }
+            .hermesListRows()
         }
 
         private var showSection: some View {
@@ -120,6 +126,7 @@
             } footer: {
                 Text("The server limits how often a value can be shown.")
             }
+            .hermesListRows()
         }
 
         private var deleteSection: some View {
@@ -130,6 +137,7 @@
                 .disabled(model.isWorking)
                 .accessibilityIdentifier("keys.delete")
             }
+            .hermesListRows()
         }
     }
 

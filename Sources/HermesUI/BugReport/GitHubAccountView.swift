@@ -68,6 +68,7 @@
 
     /// Settings > GitHub account.
     public struct GitHubAccountView: View {
+        @Environment(\.hermesPalette) private var palette
         @State private var model: GitHubSignInModel
         @Environment(\.openURL) private var openURL
 
@@ -83,10 +84,12 @@
                     } footer: {
                         Text("Report a bug still works: Send opens the report on github.com.")
                     }
+                    .hermesListRows()
                 } else {
                     content
                 }
             }
+            .hermesThemedList()
             .navigationTitle("GitHub account")
             .navigationBarTitleDisplayMode(.inline)
             .hermesFeedback(.approved, trigger: model.phase == .signedIn)
@@ -114,12 +117,13 @@
                         """
                     )
                 }
+                .hermesListRows()
             case .waiting(let code):
                 Section {
                     VStack(spacing: 12) {
                         Text("Enter this code on GitHub")
                             .font(HermesFont.subheadline)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                         Text(code.userCode)
                             .font(.system(.largeTitle, design: .monospaced).bold())
                             .textSelection(.enabled)
@@ -133,30 +137,34 @@
                             ProgressView()
                             Text("Waiting for you to approve…")
                                 .font(HermesFont.footnote)
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .foregroundStyle(palette.secondaryText)
                         }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
                 }
+                .hermesListRows()
                 Section {
                     Button("Cancel", role: .cancel, action: model.cancel)
                 }
+                .hermesListRows()
             case .signedIn:
                 Section {
                     Label("Signed in to GitHub", systemImage: "checkmark.seal.fill")
-                        .foregroundStyle(HermesColor.statusConnected)
+                        .foregroundStyle(palette.statusConnected)
                     Button("Sign out", role: .destructive, action: model.signOut)
                         .accessibilityIdentifier("github.signOut")
                 } footer: {
                     Text("Report a bug files issues from the app.")
                 }
+                .hermesListRows()
             case .failed(let message):
                 Section {
                     Label(message, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(HermesColor.destructive)
+                        .foregroundStyle(palette.errorText)
                     Button("Try again", action: model.signIn)
                 }
+                .hermesListRows()
             }
         }
     }

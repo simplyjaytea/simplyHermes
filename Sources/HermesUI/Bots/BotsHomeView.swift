@@ -5,6 +5,7 @@
     /// The Bots screen: every bot of every saved gateway in one list (plan Q7), plus the active gateway's Group Chats.
     /// Tapping a bot opens its Bot Chat; tapping a group opens the room.
     struct BotsHomeView: View {
+        @Environment(\.hermesPalette) private var palette
         @Bindable var model: BotsModel
         let rooms: RoomsModel
         @State private var isCreatingPresented = false
@@ -22,9 +23,10 @@
                     Section {
                         Text(message)
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.destructive)
+                            .foregroundStyle(palette.errorText)
                         Button("Dismiss") { model.errorMessage = nil }
                     }
+                    .hermesListRows()
                 }
                 ForEach(model.sections) { section in
                     Section(section.title) {
@@ -32,6 +34,7 @@
                             row(entry)
                         }
                     }
+                    .hermesListRows()
                 }
                 if model.query.isEmpty {
                     RoomsSection(model: rooms, showsCreate: canCreateGroup) {
@@ -39,6 +42,7 @@
                     }
                 }
             }
+            .hermesThemedList()
             .navigationDestination(for: RoomRoute.self) { route in
                 RoomChatScreen(model: rooms, roomID: route.roomID)
             }
@@ -165,6 +169,7 @@
 
     /// The dot for a bot that is working or active now. Idle bots show nothing.
     private struct ActivityMark: View {
+        @Environment(\.hermesPalette) private var palette
         let activity: BotActivity
 
         var body: some View {
@@ -173,12 +178,12 @@
                 EmptyView()
             case .active:
                 Circle()
-                    .fill(HermesColor.statusConnected)
+                    .fill(palette.statusConnected)
                     .frame(width: 9, height: 9)
                     .accessibilityLabel("Active now")
             case .working:
                 Circle()
-                    .fill(HermesColor.statusWarning)
+                    .fill(palette.statusWarning)
                     .frame(width: 9, height: 9)
                     .accessibilityLabel("Working")
             }

@@ -109,12 +109,15 @@
             List {
                 if let activity = model.actions.activity {
                     Section { ToolsActivityRow(activity: activity) }
+                        .hermesListRows()
                 }
                 if let error = model.loadError {
                     Section { ToolsNoticeRow(notice: ToolsNotice.error(error)) }
+                        .hermesListRows()
                 }
                 if let notice = model.notice {
                     Section { ToolsNoticeRow(notice: notice) }
+                        .hermesListRows()
                 }
                 Section {
                     ForEach(visibleSkills) { skill in
@@ -128,7 +131,9 @@
                 } footer: {
                     Text("Skills the server loads into chats. Turn one off to keep it out.")
                 }
+                .hermesListRows()
             }
+            .hermesThemedList()
             .navigationTitle("Skills")
             .searchable(text: $query, prompt: "Search skills")
             .toolbar {
@@ -166,6 +171,7 @@
 
     /// One skill in the list: its name, what it does, and whether it is on.
     private struct SkillRow: View {
+        @Environment(\.hermesPalette) private var palette
         let skill: SkillInfo
 
         var body: some View {
@@ -176,12 +182,12 @@
                     Spacer(minLength: 8)
                     Text(skill.enabled ? "On" : "Off")
                         .font(HermesFont.footnote)
-                        .foregroundStyle(skill.enabled ? HermesColor.statusConnected : HermesColor.secondaryText)
+                        .foregroundStyle(skill.enabled ? palette.statusConnected : palette.secondaryText)
                 }
                 if let description = skill.description, !description.isEmpty {
                     Text(description)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .lineLimit(2)
                 }
             }
@@ -219,9 +225,11 @@
             List {
                 if let activity = model.actions.activity {
                     Section { ToolsActivityRow(activity: activity) }
+                        .hermesListRows()
                 }
                 if let notice = model.notice {
                     Section { ToolsNoticeRow(notice: notice) }
+                        .hermesListRows()
                 }
                 Section {
                     Toggle(
@@ -234,6 +242,7 @@
                 } footer: {
                     Text(skill.description ?? "No description.")
                 }
+                .hermesListRows()
                 Section {
                     LabeledContent("Category", value: skill.category ?? "None")
                     LabeledContent("From", value: sourceLabel(skill.provenance))
@@ -241,6 +250,7 @@
                         LabeledContent("Uses", value: "\(usage)")
                     }
                 }
+                .hermesListRows()
                 Section {
                     skillText
                 } header: {
@@ -250,6 +260,7 @@
                         Text("The server checks the frontmatter when you save.")
                     }
                 }
+                .hermesListRows()
                 if SkillProvenance(label: skill.provenance).isHubInstall {
                     Section {
                         Button("Remove skill", role: .destructive) {
@@ -258,8 +269,10 @@
                         .disabled(model.actions.activity != nil)
                         .accessibilityIdentifier("skill.remove")
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .navigationTitle(skill.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { editToolbar }

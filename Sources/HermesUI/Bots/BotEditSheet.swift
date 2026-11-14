@@ -22,21 +22,26 @@
                     Section("Name") {
                         TextField("Name", text: $edit.title)
                     }
+                    .hermesListRows()
                     Section("Role") {
                         TextField("What this bot is for", text: $edit.role, axis: .vertical)
                     }
+                    .hermesListRows()
                     Section("Avatar") {
                         AvatarPicker(
                             avatar: $edit.avatar, name: edit.title.isEmpty ? entry.profile : edit.title,
                             tint: entry.tint)
                     }
+                    .hermesListRows()
                     Section {
                         Toggle("Pinned", isOn: $edit.isPinned)
                         Toggle("Hidden", isOn: $edit.isHidden)
                     } footer: {
                         Text("Hidden bots move to the bottom of the list. They still answer to their handle.")
                     }
+                    .hermesListRows()
                 }
+                .hermesThemedList()
                 .navigationTitle(entry.title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

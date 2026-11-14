@@ -28,6 +28,7 @@
                     Section("System") {
                         ServerStatsRowsView(rows: model.stats)
                     }
+                    .hermesListRows()
                     .accessibilityIdentifier("serverLogs.stats")
                 }
                 Section("Filter") {
@@ -42,6 +43,7 @@
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("serverLogs.file")
                 }
+                .hermesListRows()
                 Section("Lines") {
                     if let errorText = model.errorText {
                         ServerControlProblem(text: errorText)
@@ -52,7 +54,9 @@
                             .textSelection(.enabled)
                     }
                 }
+                .hermesListRows()
             }
+            .hermesThemedList()
             .searchable(text: $search, prompt: "Search logs")
             .navigationTitle("Logs")
             .refreshable { await model.load(filter) }

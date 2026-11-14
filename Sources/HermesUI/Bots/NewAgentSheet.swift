@@ -4,6 +4,7 @@
 
     /// New Agent: one sheet, with Advanced collapsed (plan Q34). A name is the only required field.
     struct NewAgentSheet: View {
+        @Environment(\.hermesPalette) private var palette
         let model: BotsModel
         @Environment(\.dismiss) private var dismiss
         @State private var draft = NewAgentDraft()
@@ -22,9 +23,10 @@
                         Section {
                             Text(localError)
                                 .font(HermesFont.footnote)
-                                .foregroundStyle(HermesColor.destructive)
+                                .foregroundStyle(palette.errorText)
                                 .accessibilityIdentifier("newAgent.error")
                         }
+                        .hermesListRows()
                     }
 
                     if let profile = unsavedSettings {
@@ -35,6 +37,7 @@
                             .disabled(isCreating)
                             .accessibilityIdentifier("newAgent.retrySettings")
                         }
+                        .hermesListRows()
                     }
 
                     Section {
@@ -46,11 +49,13 @@
                     } footer: {
                         Text(problemMessage ?? handleMessage)
                     }
+                    .hermesListRows()
 
                     Section("Avatar") {
                         AvatarPicker(
                             avatar: $draft.avatar, name: displayName, tint: BotTint.name(for: draft.profileName))
                     }
+                    .hermesListRows()
 
                     DisclosureGroup("Advanced", isExpanded: $isAdvancedExpanded) {
                         Picker("Clone from", selection: $draft.cloneFrom) {
@@ -70,7 +75,9 @@
                         TextField("Personality (SOUL)", text: $draft.soul, axis: .vertical)
                             .lineLimit(3...8)
                     }
+                    .hermesListRows()
                 }
+                .hermesThemedList()
                 .navigationTitle("New Agent")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

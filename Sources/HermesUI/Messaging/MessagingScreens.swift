@@ -27,8 +27,10 @@
                 } footer: {
                     Text("Pull down to refresh.")
                 }
+                .hermesListRows()
                 MessagingStatusRows(model: model)
             }
+            .hermesThemedList()
             .navigationTitle("Channels")
             .refreshable { await model.refresh() }
             .task { await model.refresh() }
@@ -65,6 +67,7 @@
                 } footer: {
                     Text("Counts only. Pull down to refresh.")
                 }
+                .hermesListRows()
                 MessagingStatusRows(model: model)
                 approveSection
                 revokeSection
@@ -74,7 +77,9 @@
                 } footer: {
                     Text("Clears the requests that wait for approval.")
                 }
+                .hermesListRows()
             }
+            .hermesThemedList()
             .navigationTitle("Pairing requests")
             .refreshable { await model.refresh() }
             .task { await model.refresh() }
@@ -118,6 +123,7 @@
             } header: {
                 Text("Approve a code")
             }
+            .hermesListRows()
         }
 
         private var revokeSection: some View {
@@ -139,6 +145,7 @@
             } header: {
                 Text("Revoke a user")
             }
+            .hermesListRows()
         }
     }
 
@@ -168,6 +175,7 @@
                 } footer: {
                     Text("Status only. Pull down to refresh.")
                 }
+                .hermesListRows()
                 MessagingStatusRows(model: model)
                 Section {
                     Button("Enable webhooks") {
@@ -183,8 +191,10 @@
                 } header: {
                     Text("Add")
                 }
+                .hermesListRows()
                 changeByNameSection
             }
+            .hermesThemedList()
             .navigationTitle("Webhooks")
             .refreshable { await model.refresh() }
             .task { await model.refresh() }
@@ -235,23 +245,27 @@
             } footer: {
                 Text("Type the webhook's name. This screen does not list names.")
             }
+            .hermesListRows()
         }
     }
 
     /// The error or the notice of the last request, as list rows.
     private struct MessagingStatusRows: View {
+        @Environment(\.hermesPalette) private var palette
         let model: MessagingServerModel
 
         var body: some View {
             if let errorText = model.errorText {
                 Label(errorText, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(HermesColor.destructive)
+                    .foregroundStyle(palette.errorText)
                     .accessibilityIdentifier("messaging.error")
+                    .hermesListRows()
             }
             if let noticeText = model.noticeText {
                 Label(noticeText, systemImage: "checkmark.circle")
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .accessibilityIdentifier("messaging.notice")
+                    .hermesListRows()
             }
         }
     }
@@ -259,6 +273,7 @@
     /// The status rows of the last list: a title, and the status under it at the trailing edge. Shows a spinner while
     /// the first load runs.
     private struct MessagingStatusList: View {
+        @Environment(\.hermesPalette) private var palette
         let model: MessagingServerModel
 
         var body: some View {
@@ -268,7 +283,7 @@
                         Text(lines[index].title)
                         Spacer()
                         Text(lines[index].detail)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .multilineTextAlignment(.trailing)
                     }
                     .accessibilityElement(children: .combine)
@@ -278,7 +293,7 @@
             } else {
                 Text("Nothing loaded yet.")
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
             }
         }
     }

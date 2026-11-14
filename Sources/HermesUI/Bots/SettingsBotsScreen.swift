@@ -4,6 +4,7 @@
 
     /// Settings > Bots screen: lists bots for editing and hosts bot runtime settings (Keep bots live).
     public struct SettingsBotsScreen: View {
+        @Environment(\.hermesPalette) private var palette
         private let connections: ConnectionsModel
         @State private var model: BotsModel
         @State private var editingEntry: BotRosterEntry?
@@ -20,7 +21,8 @@
                         ProgressView("Loading bots…")
                     } else if model.entries.isEmpty {
                         Text("No bots found on the active server.")
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .font(HermesFont.subheadline)
+                            .foregroundStyle(palette.secondaryText)
                     } else {
                         ForEach(model.entries) { entry in
                             Button {
@@ -31,15 +33,15 @@
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(entry.title)
                                             .font(HermesFont.headline)
-                                            .foregroundStyle(HermesColor.primaryText)
+                                            .foregroundStyle(palette.primaryText)
                                         Text("@\(entry.handle)")
                                             .font(HermesFont.footnote)
-                                            .foregroundStyle(HermesColor.secondaryText)
+                                            .foregroundStyle(palette.secondaryText)
                                     }
                                     Spacer()
                                     Image(systemName: "chevron.right")
                                         .font(HermesFont.footnote)
-                                        .foregroundStyle(HermesColor.secondaryText)
+                                        .foregroundStyle(palette.secondaryText)
                                         .accessibilityHidden(true)
                                 }
                             }
@@ -47,9 +49,11 @@
                         }
                     }
                 }
+                .hermesListRows()
 
                 BotsSettingsSection()
             }
+            .hermesThemedList()
             .navigationTitle("Bots")
             .navigationBarTitleDisplayMode(.inline)
             .task {

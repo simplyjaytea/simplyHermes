@@ -27,7 +27,9 @@
                 } footer: {
                     Text("Run now starts one run of the curator on the server.")
                 }
+                .hermesListRows()
             }
+            .hermesThemedList()
             .navigationTitle("Curator")
             .settingsAssistantLoads(model)
             .confirmationDialog(

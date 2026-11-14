@@ -5,6 +5,7 @@
     /// Makes a group chat from the bots of the active gateway (WP-43 spec, section 1). The room id is made once per sheet,
     /// so a retry after a failure makes the same room.
     struct NewRoomSheet: View {
+        @Environment(\.hermesPalette) private var palette
         let model: RoomsModel
         /// The bots a group can take: one per profile on the active gateway.
         let candidates: [RoomMember]
@@ -27,6 +28,7 @@
                     } footer: {
                         Text("Leave the name blank to use the bots' names.")
                     }
+                    .hermesListRows()
                     Section {
                         ForEach(candidates.indices, id: \.self) { index in
                             Toggle(
@@ -38,14 +40,17 @@
                     } footer: {
                         Text(draft.problems().first?.message ?? "Ready to make the group.")
                     }
+                    .hermesListRows()
                     if let errorMessage {
                         Section {
                             Text(errorMessage)
                                 .font(HermesFont.footnote)
-                                .foregroundStyle(HermesColor.destructive)
+                                .foregroundStyle(palette.errorText)
                         }
+                        .hermesListRows()
                     }
                 }
+                .hermesThemedList()
                 .navigationTitle("New Group")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

@@ -4,6 +4,7 @@
 
     /// Settings > Models > Providers & keys: every provider with its status, and the custom endpoints (WP-53a).
     struct ProvidersKeysScreen: View {
+        @Environment(\.hermesPalette) private var palette
         @State private var model: ProviderListModel
         @State private var endpointForm: ProviderCustomEndpointModel?
         @State private var pendingDelete: ProviderCustomEndpoint?
@@ -27,6 +28,7 @@
                 } footer: {
                     Text("Set up means this server has a key or a sign-in for the provider.")
                 }
+                .hermesListRows()
                 Section {
                     ForEach(model.endpoints) { endpoint in
                         ProviderEndpointRow(endpoint: endpoint)
@@ -35,11 +37,11 @@
                                     Button("Use") {
                                         Task { await model.activate(endpoint) }
                                     }
-                                    .tint(HermesColor.accent)
+                                    .tint(palette.accent)
                                 }
                             }
                             .swipeActions(edge: .trailing) {
-                                Button("Delete", role: .destructive) {
+                                Button("Delete…", role: .destructive) {
                                     pendingDelete = endpoint
                                 }
                             }
@@ -58,13 +60,16 @@
                             + "Swipe a row to use or delete it."
                     )
                 }
+                .hermesListRows()
                 if let errorText = model.errorText {
                     Section {
                         Label(errorText, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(HermesColor.destructive)
+                            .foregroundStyle(palette.errorText)
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Providers & keys")
             .refreshable { await model.refresh() }
             .task { await model.refresh() }
@@ -96,6 +101,7 @@
 
     /// One provider: its name, slug, whether it is set up, and a check when it is the one in use.
     struct ProviderRow: View {
+        @Environment(\.hermesPalette) private var palette
         let provider: ModelProviderOptions
 
         var body: some View {
@@ -104,7 +110,7 @@
                     Text(provider.name).font(HermesFont.body.weight(.semibold))
                     Text(provider.slug)
                         .font(HermesFont.codeSmall)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                     Label(setUpText, systemImage: "circle.fill")
                         .font(HermesFont.caption)
                         .foregroundStyle(setUpColor)
@@ -112,7 +118,7 @@
                 Spacer(minLength: 8)
                 if provider.isCurrent == true {
                     Image(systemName: "checkmark")
-                        .foregroundStyle(HermesColor.accent)
+                        .foregroundStyle(palette.accent)
                         .accessibilityLabel(Text("In use"))
                 }
             }
@@ -124,12 +130,13 @@
         }
 
         private var setUpColor: Color {
-            provider.authenticated == true ? HermesColor.statusConnected : HermesColor.statusOffline
+            provider.authenticated == true ? palette.statusConnected : palette.statusOffline
         }
     }
 
     /// One custom endpoint: its name, address and model, with a mark when it is in use. The API key is never shown.
     struct ProviderEndpointRow: View {
+        @Environment(\.hermesPalette) private var palette
         let endpoint: ProviderCustomEndpoint
 
         var body: some View {
@@ -138,16 +145,16 @@
                     Text(endpoint.name).font(HermesFont.body.weight(.semibold))
                     Text(endpoint.baseUrl)
                         .font(HermesFont.codeSmall)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .lineLimit(1)
                     Text(detailText)
                         .font(HermesFont.caption)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
                 Spacer(minLength: 8)
                 if endpoint.isCurrent == true {
                     Image(systemName: "checkmark")
-                        .foregroundStyle(HermesColor.accent)
+                        .foregroundStyle(palette.accent)
                         .accessibilityLabel(Text("In use"))
                 }
             }

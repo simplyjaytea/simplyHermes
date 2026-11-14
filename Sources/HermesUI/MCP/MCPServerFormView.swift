@@ -7,6 +7,7 @@
     /// Variable values and tokens are typed into secure fields and sent once. The server keeps them and never returns
     /// them, so the form never shows them again.
     struct MCPServerFormView: View {
+        @Environment(\.hermesPalette) private var palette
         private let model: MCPServersModel
         private let onDone: () -> Void
         @State private var draft = MCPServerDraft()
@@ -34,6 +35,7 @@
                         Text(
                             "Each server needs a unique name. A program runs on the Hermes server, not on this iPhone.")
                     }
+                    .hermesListRows()
                     switch draft.transport {
                     case .command: commandSections
                     case .url: addressSections
@@ -41,10 +43,12 @@
                     if let errorText {
                         Section {
                             Label(errorText, systemImage: "exclamationmark.triangle.fill")
-                                .foregroundStyle(HermesColor.destructive)
+                                .foregroundStyle(palette.errorText)
                         }
+                        .hermesListRows()
                     }
                 }
+                .hermesThemedList()
                 .navigationTitle("Add MCP server")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbar }
@@ -66,6 +70,7 @@
             } header: {
                 Text("Program")
             }
+            .hermesListRows()
             Section {
                 ForEach($draft.env) { $pair in
                     VStack(alignment: .leading, spacing: 6) {
@@ -88,6 +93,7 @@
             } footer: {
                 Text("Values are hidden. The server keeps them and never shows them again.")
             }
+            .hermesListRows()
         }
 
         @ViewBuilder private var addressSections: some View {
@@ -114,6 +120,7 @@
             } footer: {
                 Text(authFooter)
             }
+            .hermesListRows()
         }
 
         private var authFooter: String {

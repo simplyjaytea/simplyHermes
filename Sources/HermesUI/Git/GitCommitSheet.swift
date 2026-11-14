@@ -7,6 +7,7 @@
     struct GitCommitSheet: View {
         let model: GitReviewModel
 
+        @Environment(\.hermesPalette) private var palette
         @Environment(\.dismiss) private var dismiss
         @State private var message = ""
         @State private var recent: [String] = []
@@ -23,19 +24,22 @@
                         TextField("Commit message", text: $message, axis: .vertical)
                             .lineLimit(3...8)
                     }
+                    .hermesListRows()
                     if !recent.isEmpty {
                         Section("Recent subjects") {
                             ForEach(recent, id: \.self) { subject in
                                 Button(subject) { message = subject }
                             }
                         }
+                        .hermesListRows()
                     }
                     if let errorText = model.errorText {
                         Section {
                             Text(errorText)
-                                .font(.footnote)
-                                .foregroundStyle(.red)
+                                .font(HermesFont.footnote)
+                                .foregroundStyle(palette.errorText)
                         }
+                        .hermesListRows()
                     }
                     Section {
                         Button("Commit") { Task { await commit(push: false) } }
@@ -45,7 +49,9 @@
                     } footer: {
                         Text("With nothing staged, the server stages every change before it commits.")
                     }
+                    .hermesListRows()
                 }
+                .hermesThemedList()
                 .navigationTitle("Commit")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {

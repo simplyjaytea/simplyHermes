@@ -4,6 +4,7 @@
 
     /// Settings > Models > Auxiliary models: one row per task, each with its own reasoning effort (WP-53a).
     struct ModelDefaultsAuxiliaryScreen: View {
+        @Environment(\.hermesPalette) private var palette
         @State private var model: ModelDefaultsAuxiliaryModel
 
         init(connections: ConnectionsModel) {
@@ -20,15 +21,16 @@
                     Section {
                         LabeledContent("Model") {
                             Text(main.model ?? "Not set")
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .foregroundStyle(palette.secondaryText)
                         }
                         LabeledContent("Provider") {
                             Text(main.provider ?? "Not set")
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .foregroundStyle(palette.secondaryText)
                         }
                     } header: {
                         Text("Main model")
                     }
+                    .hermesListRows()
                 }
                 Section {
                     ForEach(model.tasks) { task in
@@ -41,13 +43,16 @@
                 } footer: {
                     Text("A picked effort is sent at once. The list is read again after each change.")
                 }
+                .hermesListRows()
                 if let errorText = model.errorText {
                     Section {
                         Label(errorText, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(HermesColor.destructive)
+                            .foregroundStyle(palette.errorText)
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Auxiliary models")
             .refreshable { await model.load() }
             .task { await model.load() }
@@ -56,6 +61,7 @@
 
     /// One auxiliary task: its name, the model it runs, the effort the server stores, and a menu to set the effort.
     struct ModelDefaultsAuxiliaryRow: View {
+        @Environment(\.hermesPalette) private var palette
         let task: ModelDefaultsAuxiliaryTask
         let onPick: (String) -> Void
 
@@ -66,11 +72,11 @@
                         .font(HermesFont.body.weight(.semibold))
                     Text(routeText)
                         .font(HermesFont.codeSmall)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .lineLimit(1)
                     Text(effortText)
                         .font(HermesFont.caption)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
                 Spacer(minLength: 8)
                 Menu {

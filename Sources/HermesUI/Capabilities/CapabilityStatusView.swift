@@ -4,6 +4,7 @@
 
     /// Settings > Tools & MCP > Capabilities: whether Computer Use can act on the Hermes server. Read only (WP-53b).
     public struct CapabilityStatusView: View {
+        @Environment(\.hermesPalette) private var palette
         private let connections: ConnectionsModel
         @State private var model: CapabilityStatusModel
 
@@ -25,10 +26,12 @@
                 if let errorText = model.errorText {
                     Section {
                         Label(errorText, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(HermesColor.destructive)
+                            .foregroundStyle(palette.errorText)
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Capabilities")
             .overlay { emptyState }
             .refreshable { await model.refresh() }
@@ -62,6 +65,7 @@
             } footer: {
                 Text(footer(status))
             }
+            .hermesListRows()
         }
 
         private func yesNo(_ value: Bool?) -> String {

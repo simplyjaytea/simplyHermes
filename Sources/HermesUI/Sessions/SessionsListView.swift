@@ -101,12 +101,12 @@
                                     of: "<<<", with: "")
                             )
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .lineLimit(2)
                         }
                     }
                 }
-                .tint(HermesColor.primaryText)
+                .tint(palette.primaryText)
             }
         }
 
@@ -121,7 +121,7 @@
                             .accessibleLineLimit()
                         Text(item.serverName)
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .accessibleLineLimit()
                     }
                     if needsApproval(item.id) {
@@ -131,20 +131,20 @@
                     if item.isPinned {
                         Image(systemName: "pin.fill")
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .accessibilityLabel("Pinned")
                     }
                     if let time = item.time {
                         Text(time)
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                 }
                 .padding(.vertical, 2)
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("session.\(item.id)")
             }
-            .tint(HermesColor.primaryText)
+            .tint(palette.primaryText)
             .contextMenu {
                 Button(item.isPinned ? "Unpin" : "Pin", systemImage: item.isPinned ? "pin.slash" : "pin") {
                     Task { await model.togglePin(item.id) }
@@ -161,15 +161,15 @@
                 Button(item.isPinned ? "Unpin" : "Pin", systemImage: item.isPinned ? "pin.slash" : "pin") {
                     Task { await model.togglePin(item.id) }
                 }
-                .tint(HermesColor.accent)
+                .tint(palette.accent)
             }
             .swipeActions(edge: .trailing) {
                 Button("Delete", systemImage: "trash", role: .destructive) { Task { await model.delete(item.id) } }
                     .accessibilityIdentifier("session.delete")
                 Button("Archive", systemImage: "archivebox") { Task { await model.archive(item.id) } }
-                    .tint(HermesColor.statusWarning)
+                    .tint(palette.statusWarning)
                 Button("Export", systemImage: "square.and.arrow.up") { Task { await model.export(item) } }
-                    .tint(HermesColor.accent)
+                    .tint(palette.accent)
             }
         }
     }

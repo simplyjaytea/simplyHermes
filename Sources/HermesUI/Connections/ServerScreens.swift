@@ -6,6 +6,7 @@
 
     /// First launch with no saved server: pick a gateway URL, SSH, a QR code or Hermes Cloud (WP-22, WP-17).
     public struct WelcomeView: View {
+        @Environment(\.hermesPalette) private var palette
         @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 40
         @ScaledMetric(relativeTo: .largeTitle) private var iconBox: CGFloat = 88
         private let connections: ConnectionsModel
@@ -73,14 +74,14 @@
                                     : "")
                         )
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                     }
                     .frame(maxWidth: 420)
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity)
             }
-            .background(HermesColor.groupedBackground)
+            .background(palette.groupedBackground)
             .sheet(item: $form) { form in
                 ConnectionFormView(form: form, connections: connections) { _ in self.form = nil }
                     .interactiveDismissDisabled(form.isTesting)
@@ -103,16 +104,19 @@
             VStack(spacing: 14) {
                 Image(systemName: "bubble.left.and.text.bubble.right.fill")
                     .font(.system(size: iconSize, weight: .semibold))
-                    .foregroundStyle(HermesColor.onAccent)
+                    .foregroundStyle(palette.onAccent)
                     .frame(width: iconBox, height: iconBox)
-                    .background(HermesColor.accent.gradient, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .background(
+                        palette.accent.gradient,
+                        in: RoundedRectangle(cornerRadius: HermesMetrics.bannerRadius, style: .continuous)
+                    )
                     .padding(.top, 32)
                 Text("Welcome to simplyHermes")
                     .font(HermesFont.glanceTitle)
                     .multilineTextAlignment(.center)
                 Text("Connect to your Hermes server to start chatting.")
                     .font(HermesFont.body)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .multilineTextAlignment(.center)
             }
         }
@@ -120,6 +124,7 @@
 
     /// Settings > Servers: every saved connection, add, edit, delete and pick the active one.
     public struct ServerListView: View {
+        @Environment(\.hermesPalette) private var palette
         private let connections: ConnectionsModel
         @State private var form: ConnectionFormModel?
         @State private var showsScanner = false
@@ -143,15 +148,16 @@
                                 isPrimary: connection.id == connections.primary?.id,
                                 phase: connections.phase(of: connection.id))
                         }
-                        .tint(HermesColor.primaryText)
+                        .tint(palette.primaryText)
                         .swipeActions {
-                            Button("Delete", role: .destructive) { pendingDelete = connection }
+                            Button("Delete…", role: .destructive) { pendingDelete = connection }
                         }
                         .contextMenu { menu(for: connection) }
                     }
                 } footer: {
                     Text("Tap a server to edit it or run Test again. Touch and hold for more. Swipe left to delete.")
                 }
+                .hermesListRows()
                 if connections.connections.count > 1 {
                     Section {
                         Picker("Open on launch", selection: openOnLaunch) {
@@ -162,8 +168,10 @@
                     } footer: {
                         Text("The primary server has a star. Last used opens the last server that connected.")
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Servers")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -220,7 +228,7 @@
                     }
                 }
             }
-            Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = connection }
+            Button("Delete…", systemImage: "trash", role: .destructive) { pendingDelete = connection }
         }
 
         private var openOnLaunch: Binding<SavedConnections.OpenOnLaunch> {
@@ -265,6 +273,7 @@
 
     /// One saved server in a list.
     struct ServerRow: View {
+        @Environment(\.hermesPalette) private var palette
         let connection: ServerConnection
         let isActive: Bool
         var isPrimary = false
@@ -273,7 +282,7 @@
         var body: some View {
             HStack(spacing: 12) {
                 Image(systemName: connection.isSSH ? "terminal" : (connection.isCloud ? "cloud" : "globe"))
-                    .foregroundStyle(HermesColor.accent)
+                    .foregroundStyle(palette.accent)
                     .frame(width: 28)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
@@ -281,19 +290,19 @@
                         if isPrimary {
                             Image(systemName: "star.fill")
                                 .font(HermesFont.caption)
-                                .foregroundStyle(HermesColor.statusWarning)
+                                .foregroundStyle(palette.statusWarning)
                                 .accessibilityLabel(Text("Primary"))
                         }
                         if connection.requiresUnlock {
                             Image(systemName: "faceid")
                                 .font(HermesFont.caption)
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .foregroundStyle(palette.secondaryText)
                                 .accessibilityLabel(Text("Face ID"))
                         }
                     }
                     Text(connection.address)
                         .font(connection.isCloud ? HermesFont.caption : HermesFont.codeSmall)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .lineLimit(1)
                     if let status = ConnectionStatusText(phase: phase, isCloud: connection.isCloud) {
                         status
@@ -302,7 +311,7 @@
                 Spacer(minLength: 8)
                 if isActive {
                     Image(systemName: "checkmark")
-                        .foregroundStyle(HermesColor.accent)
+                        .foregroundStyle(palette.accent)
                         .accessibilityLabel(Text("In use"))
                 }
             }
@@ -313,6 +322,7 @@
 
     /// One line under a server row saying where its connection is. Nil while idle.
     struct ConnectionStatusText: View {
+        @Environment(\.hermesPalette) private var palette
         let title: String
         let color: Color
 
@@ -354,12 +364,13 @@
                 Circle().fill(color).frame(width: 7, height: 7)
             }
             .font(HermesFont.caption)
-            .foregroundStyle(color == HermesColor.statusConnected ? HermesColor.secondaryText : color)
+            .foregroundStyle(color == palette.statusConnected ? palette.secondaryText : color)
         }
     }
 
     /// The server menu in the chat list and sidebar: switch servers fast, or open Settings > Servers.
     public struct ServerSwitcher: View {
+        @Environment(\.hermesPalette) private var palette
         private let connections: ConnectionsModel
         private let onManage: () -> Void
 
@@ -386,7 +397,7 @@
             } label: {
                 HStack(spacing: 4) {
                     Circle()
-                        .fill(connections.active == nil ? HermesColor.statusOffline : HermesColor.statusConnected)
+                        .fill(connections.active == nil ? palette.statusOffline : palette.statusConnected)
                         .frame(width: 8, height: 8)
                     Text(connections.active?.name ?? "No server")
                         .font(HermesFont.subheadline.weight(.semibold))

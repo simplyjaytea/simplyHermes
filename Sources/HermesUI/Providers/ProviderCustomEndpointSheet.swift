@@ -4,6 +4,7 @@
 
     /// Add or update a custom endpoint: name, base URL, model, optional key and API mode. Validate before you save.
     struct ProviderCustomEndpointSheet: View {
+        @Environment(\.hermesPalette) private var palette
         @Bindable var form: ProviderCustomEndpointModel
         @Environment(\.dismiss) private var dismiss
 
@@ -32,6 +33,7 @@
                     } footer: {
                         Text("The key goes to your Hermes server and is not kept on this phone.")
                     }
+                    .hermesListRows()
                     Section {
                         Picker("API mode", selection: $form.apiMode) {
                             Text("Automatic").tag(Optional<String>.none)
@@ -46,6 +48,7 @@
                     } footer: {
                         Text("Use as default makes this endpoint the provider for new chats.")
                     }
+                    .hermesListRows()
                     Section {
                         Button("Validate") {
                             Task { await form.validate() }
@@ -58,13 +61,16 @@
                                 .textSelection(.enabled)
                         }
                     }
+                    .hermesListRows()
                     if let errorText = form.errorText {
                         Section {
                             Label(errorText, systemImage: "exclamationmark.triangle.fill")
-                                .foregroundStyle(HermesColor.destructive)
+                                .foregroundStyle(palette.errorText)
                         }
+                        .hermesListRows()
                     }
                 }
+                .hermesThemedList()
                 .navigationTitle("Custom endpoint")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

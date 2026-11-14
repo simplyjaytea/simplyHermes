@@ -5,6 +5,7 @@
     /// Bot export (WP-41), opened from the profile switcher: the "Applies to" choice, and export of the bot
     /// it points at.
     public struct BotSettingsSheet: View {
+        @Environment(\.hermesPalette) private var palette
         private let profiles: ProfilesModel
         @State private var model: BotExportModel
         @State private var shareFile: ShareFile?
@@ -32,14 +33,14 @@
                         if let problem = model.problem {
                             Text(problem)
                                 .font(HermesFont.footnote)
-                                .foregroundStyle(HermesColor.destructive)
+                                .foregroundStyle(palette.errorText)
                                 .accessibilityIdentifier("botSettings.problem")
                         }
                     }
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .background(HermesColor.groupedBackground)
+                .background(palette.groupedBackground)
                 .navigationTitle("Export bot")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -60,7 +61,7 @@
                     .accessibilityAddTraits(.isHeader)
                 Text("Export saves this bot as an archive you can keep or share.")
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                 Button {
                     Task {
                         if let url = await model.exportTarget() { shareFile = ShareFile(url: url) }

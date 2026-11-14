@@ -155,7 +155,7 @@
         private func toast(_ text: String, @ViewBuilder action: () -> some View) -> some View {
             HStack(spacing: 12) {
                 Text(text)
-                    .font(.subheadline.weight(.semibold))
+                    .font(HermesFont.subheadline.weight(.semibold))
                     .foregroundStyle(palette.primaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 action()

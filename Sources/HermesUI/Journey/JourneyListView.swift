@@ -6,6 +6,7 @@
     ///
     /// Each row reads as one line to VoiceOver: the name, what kind of node it is, the facts and the date.
     struct JourneyListView: View {
+        @Environment(\.hermesPalette) private var palette
         let model: MemoryJourneyModel
 
         var body: some View {
@@ -16,7 +17,7 @@
                     } label: {
                         JourneyRow(node: node)
                     }
-                    .tint(HermesColor.primaryText)
+                    .tint(palette.primaryText)
                     .accessibilityLabel(node.spokenSummary)
                     .accessibilityHint("Opens the details")
                     .accessibilityIdentifier("memory.row.\(node.id)")
@@ -34,6 +35,7 @@
 
     /// One row of the list: a mark in the node's colour, its name, its facts and when it was last touched.
     struct JourneyRow: View {
+        @Environment(\.hermesPalette) private var palette
         let node: JourneyNode
 
         var body: some View {
@@ -45,14 +47,14 @@
                         .lineLimit(2)
                     Text(node.detailParts.joined(separator: " \u{00B7} "))
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .lineLimit(2)
                 }
                 Spacer(minLength: 8)
                 if let date = node.date {
                     Text(date.formatted(date: .abbreviated, time: .omitted))
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
             }
             .padding(.vertical, 2)
@@ -63,12 +65,14 @@
     /// a circle for a skill, a ring for a skill the agent wrote itself, a white dot for a pinned one, and a fainter mark
     /// for an archived or stale one.
     struct JourneyGlyph: View {
+        @Environment(\.hermesPalette) private var palette
         let node: JourneyNode
 
         private static let side: CGFloat = 16
 
         private var shape: AnyShape {
-            node.kind == .memory ? AnyShape(RoundedRectangle(cornerRadius: Self.side * 0.3)) : AnyShape(Circle())
+            node.kind == .memory
+                ? AnyShape(RoundedRectangle(cornerRadius: Self.side * 0.3, style: .continuous)) : AnyShape(Circle())
         }
 
         var body: some View {
@@ -84,7 +88,7 @@
                 }
                 if node.pinned {
                     Circle()
-                        .fill(HermesColor.onAccent.opacity(0.9))
+                        .fill(palette.onAccent.opacity(0.9))
                         .frame(width: Self.side * 0.35, height: Self.side * 0.35)
                 }
             }

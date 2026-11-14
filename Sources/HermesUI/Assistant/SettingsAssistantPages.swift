@@ -20,6 +20,7 @@
                     SettingsAssistantPanelSection(panel: voices)
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Voice")
             .settingsAssistantLoads(model)
         }
@@ -45,7 +46,9 @@
                 } footer: {
                     Text("Asks the server to look for workspaces again.")
                 }
+                .hermesListRows()
             }
+            .hermesThemedList()
             .navigationTitle("Workspace")
             .settingsAssistantLoads(model)
         }
@@ -78,6 +81,7 @@
                     SettingsAssistantPanelSection(panel: font)
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Appearance")
             .settingsAssistantLoads(model)
         }

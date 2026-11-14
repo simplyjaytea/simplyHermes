@@ -4,25 +4,29 @@
 
     /// The error or confirmation line at the top of an assistant page.
     struct SettingsAssistantStatus: View {
+        @Environment(\.hermesPalette) private var palette
         let model: SettingsAssistantModel
 
         var body: some View {
             if let errorText = model.errorText {
                 Label(errorText, systemImage: "wifi.slash")
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .accessibilityIdentifier("assistant.error")
+                    .hermesListRows()
             } else if let noticeText = model.noticeText {
                 Label(noticeText, systemImage: "checkmark.circle")
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .accessibilityIdentifier("assistant.notice")
+                    .hermesListRows()
             }
         }
     }
 
     /// One panel of an assistant page as a section. Values that look like secrets stay masked until the user taps Show.
     struct SettingsAssistantPanelSection: View {
+        @Environment(\.hermesPalette) private var palette
         let panel: SettingsAssistantPanel
         @State private var revealed: Set<[String]> = []
 
@@ -31,12 +35,12 @@
                 if let errorText = panel.errorText {
                     Label(errorText, systemImage: "exclamationmark.circle")
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 } else if !panel.isLoaded {
                     ProgressView()
                 } else if panel.rows.isEmpty {
                     Text("The server sent no values.")
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 } else {
                     ForEach(panel.rows) { row in
                         LabeledContent {
@@ -54,6 +58,7 @@
                     Text(footer)
                 }
             }
+            .hermesListRows()
         }
 
         @ViewBuilder
@@ -61,7 +66,7 @@
             if row.isSecret && !revealed.contains(row.id) {
                 HStack(spacing: 12) {
                     Text("••••••••")
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                     Button("Show") { reveal(row.id) }
                         .accessibilityLabel(Text("Show \(row.label)"))
                 }

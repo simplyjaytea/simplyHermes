@@ -269,6 +269,7 @@
 
     /// The agent plugins: installed ones with their switch and actions, then the catalog with installs and updates.
     struct AgentPluginsScreen: View {
+        @Environment(\.hermesPalette) private var palette
         @State private var model: AgentPluginsModel
         @State private var showsGitInstall = false
         /// The change that waits for the user's yes, while its dialog is up.
@@ -285,9 +286,11 @@
             List {
                 if let error = model.loadError {
                     Section { ToolsNoticeRow(notice: ToolsNotice.error(error)) }
+                        .hermesListRows()
                 }
                 if let notice = model.notice {
                     Section { ToolsNoticeRow(notice: notice) }
+                        .hermesListRows()
                 }
                 Section {
                     ForEach(model.plugins) { plugin in
@@ -298,6 +301,7 @@
                 } footer: {
                     Text("Changes apply after the gateway restarts, unless the row says otherwise.")
                 }
+                .hermesListRows()
                 Section {
                     ForEach(model.catalog) { entry in
                         catalogRow(entry)
@@ -307,6 +311,7 @@
                 } footer: {
                     Text("Entries are pinned to a reviewed commit. Updates move the pin.")
                 }
+                .hermesListRows()
                 if !model.withdrawn.isEmpty {
                     Section("Withdrawn") {
                         ForEach(Array(model.withdrawn.enumerated()), id: \.offset) { _, item in
@@ -316,13 +321,15 @@
                                 if let reason = item.reason {
                                     Text(reason)
                                         .font(HermesFont.footnote)
-                                        .foregroundStyle(HermesColor.secondaryText)
+                                        .foregroundStyle(palette.secondaryText)
                                 }
                             }
                         }
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Agent plugins")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -358,7 +365,7 @@
                 Text((model.pendingUpdate?.lines ?? []).joined(separator: "\n"))
             }
             .modifier(PluginChangeDialog(model: model, change: $confirming))
-            .onAppear { Task { await model.load() } }
+            .task { await model.load() }
             .refreshable { await model.load() }
         }
 
@@ -385,27 +392,27 @@
                         if let version = plugin.version {
                             Text(version)
                                 .font(HermesFont.codeSmall)
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .foregroundStyle(palette.secondaryText)
                         }
                     }
                     if let description = plugin.description, !description.isEmpty {
                         Text(description)
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .lineLimit(2)
                     }
                     Text(sourceLabel(plugin.source))
                         .font(HermesFont.caption)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                     if plugin.authRequired == true {
                         Text("Needs sign-in: \(plugin.authCommand ?? "run its sign-in command on the server").")
                             .font(HermesFont.caption)
-                            .foregroundStyle(HermesColor.statusWarning)
+                            .foregroundStyle(palette.statusWarning)
                     }
                     if let removed = plugin.removedReason {
                         Text("Withdrawn: \(removed)")
                             .font(HermesFont.caption)
-                            .foregroundStyle(HermesColor.statusWarning)
+                            .foregroundStyle(palette.statusWarning)
                     }
                 }
             }
@@ -415,7 +422,7 @@
                     Button("Update") {
                         confirming = .update(name: plugin.name, pin: nil)
                     }
-                    .tint(HermesColor.accent)
+                    .tint(palette.accent)
                 }
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -442,12 +449,12 @@
                     if let description = entry.description, !description.isEmpty {
                         Text(description)
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .lineLimit(3)
                     }
                     Text([entry.version, entry.tier].compactMap { $0 }.joined(separator: " · "))
                         .font(HermesFont.caption)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
                 Spacer(minLength: 8)
                 catalogAction(entry)
@@ -515,6 +522,7 @@
                 } footer: {
                     Text("Add #folder to install one plugin from a repository with several.")
                 }
+                .hermesListRows()
                 Section {
                     TextField("Full commit id (optional)", text: $pin)
                         .font(HermesFont.code)
@@ -529,10 +537,13 @@
                             ? "Leave it empty to install the default branch."
                             : "Use all 40 characters of the commit id.")
                 }
+                .hermesListRows()
                 Section {
                     Toggle("Enable after install", isOn: $enable)
                 }
+                .hermesListRows()
             }
+            .hermesThemedList()
             .navigationTitle("Install plugin")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

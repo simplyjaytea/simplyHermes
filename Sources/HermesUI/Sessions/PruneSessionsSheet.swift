@@ -29,7 +29,9 @@
                                 + "Live sessions are never removed."
                         )
                     }
+                    .hermesListRows()
                 }
+                .hermesThemedList()
                 .navigationTitle("Prune old sessions")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

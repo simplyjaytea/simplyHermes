@@ -4,6 +4,7 @@
 
     /// Full configuration screen for a bot: identity, model, soul, skills, toolsets, MCP, and export (PR B).
     public struct BotSettingsScreen: View {
+        @Environment(\.hermesPalette) private var palette
         @State private var model: BotSettingsModel
         @Environment(\.dismiss) private var dismiss
 
@@ -32,7 +33,7 @@
                             if let error = model.errorMessage {
                                 Text(error)
                                     .font(HermesFont.footnote)
-                                    .foregroundStyle(HermesColor.destructive)
+                                    .foregroundStyle(palette.errorText)
                             }
                             Button("Try Again") {
                                 Task { await model.load() }
@@ -104,6 +105,7 @@
                 mcpSection(for: draft)
                 exportSection()
             }
+            .hermesThemedList()
             .disabled(model.isSaving)
         }
 
@@ -113,17 +115,19 @@
                 Section {
                     Text(error)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.destructive)
+                        .foregroundStyle(palette.errorText)
                         .accessibilityIdentifier("botSettings.error")
                 }
+                .hermesListRows()
             }
 
             if let status = model.statusMessage, model.errorMessage == nil {
                 Section {
                     Text(status)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.accent)
+                        .foregroundStyle(palette.accent)
                 }
+                .hermesListRows()
             }
         }
 
@@ -151,11 +155,12 @@
                     return false
                 }) {
                     Text(problem.userMessage)
-                        .foregroundStyle(HermesColor.destructive)
+                        .foregroundStyle(palette.errorText)
                 } else {
                     Text("Handle @\(model.entry.profile). Hidden bots move to the bottom of the roster.")
                 }
             }
+            .hermesListRows()
         }
 
         @ViewBuilder
@@ -206,11 +211,12 @@
             } footer: {
                 if draft.problems.contains(.modelIncomplete) {
                     Text(BotSettingsProblem.modelIncomplete.userMessage)
-                        .foregroundStyle(HermesColor.destructive)
+                        .foregroundStyle(palette.errorText)
                 } else {
                     Text("Configures the default provider and model used by this bot.")
                 }
             }
+            .hermesListRows()
         }
 
         @ViewBuilder
@@ -228,16 +234,17 @@
                         return false
                     }) {
                         Text(soulProblem.userMessage)
-                            .foregroundStyle(HermesColor.destructive)
+                            .foregroundStyle(palette.errorText)
                     } else {
                         Text("Personality and core instructions for this bot.")
                     }
                     Spacer()
                     Text("\(draft.soul.count) / \(BotSettingsDraft.maxSoulLength)")
                         .font(HermesFont.caption.monospacedDigit())
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
             }
+            .hermesListRows()
         }
 
         @ViewBuilder
@@ -250,7 +257,7 @@
                 let matching = draft.filteredSkills(matching: model.skillSearchText)
                 if matching.isEmpty {
                     Text("No matching skills")
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 } else {
                     ForEach(matching) { skill in
                         Toggle(skill.name, isOn: skillBinding(for: skill.name))
@@ -261,6 +268,7 @@
             } footer: {
                 Text("Skills extend what this bot can perform. Disabled skills are excluded from execution.")
             }
+            .hermesListRows()
         }
 
         @ViewBuilder
@@ -269,7 +277,7 @@
                 if !draft.toolsetsPinned {
                     AccessibleHStack {
                         Text("Inherited from settings")
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                         Spacer()
                         Button("Customize") {
                             model.draft?.customizeToolsets()
@@ -279,7 +287,7 @@
                 } else {
                     HStack {
                         Text("Customized for this bot")
-                            .foregroundStyle(HermesColor.accent)
+                            .foregroundStyle(palette.accent)
                     }
                     ForEach(draft.toolsets) { toolset in
                         Toggle(isOn: toolsetBinding(for: toolset.name)) {
@@ -289,7 +297,7 @@
                                 if let desc = toolset.description, !desc.isEmpty {
                                     Text(desc)
                                         .font(HermesFont.caption)
-                                        .foregroundStyle(HermesColor.secondaryText)
+                                        .foregroundStyle(palette.secondaryText)
                                 }
                             }
                         }
@@ -304,6 +312,7 @@
                         : "Toolsets are currently inherited from global settings. Tap Customize to choose specific toolsets."
                 )
             }
+            .hermesListRows()
         }
 
         @ViewBuilder
@@ -318,12 +327,13 @@
                                     Spacer()
                                     Text(transport)
                                         .font(HermesFont.caption)
-                                        .foregroundStyle(HermesColor.secondaryText)
+                                        .foregroundStyle(palette.secondaryText)
                                 }
                             }
                         }
                     }
                 }
+                .hermesListRows()
             }
         }
 
@@ -345,6 +355,7 @@
             } footer: {
                 Text("Export creates an archive of this bot's configuration and memory to save or share.")
             }
+            .hermesListRows()
         }
 
         private func binding<T>(for keyPath: WritableKeyPath<BotSettingsDraft, T>) -> Binding<T> {

@@ -27,6 +27,7 @@
                 }
                 .accessibilityIdentifier("settings.messaging.webhooks")
             }
+            .hermesListRows()
         }
     }
 #endif

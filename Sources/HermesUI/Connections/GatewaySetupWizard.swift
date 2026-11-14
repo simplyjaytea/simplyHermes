@@ -8,6 +8,7 @@
     /// the code or type the address, sign in when the server asks, check each link, then save. The fields and the test are
     /// the gateway form's, so the wizard and Enter an address behave the same.
     public struct GatewaySetupWizard: View {
+        @Environment(\.hermesPalette) private var palette
         /// The steps in order. Sign-in only appears when the server asks for a password.
         enum Step: Equatable {
             case computer
@@ -44,7 +45,7 @@
                     .frame(maxWidth: 560)
                     .frame(maxWidth: .infinity)
                 }
-                .background(HermesColor.groupedBackground)
+                .background(palette.groupedBackground)
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -85,7 +86,7 @@
         private var computerStep: some View {
             Group {
                 Text("Hermes runs on your computer and stays on while this iPhone is away. Tailscale connects the two.")
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                 HermesCard {
                     Text("Copy the setup prompt").font(HermesFont.headline)
                     Text(
@@ -93,7 +94,7 @@
                             + "prints a code to scan."
                     )
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     Button {
                         copyPrompt()
                     } label: {
@@ -113,7 +114,7 @@
                             + "turn on MagicDNS and HTTPS Certificates once."
                     )
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                 }
                 Button("Next") { step = .find }
                     .buttonStyle(HermesButtonStyle(.primary))
@@ -124,7 +125,7 @@
         private var findStep: some View {
             Group {
                 Text("Scan the code the setup prints. You can also type the address it shows.")
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                 scanner
                 TextField("https://computer.tailnet-name.ts.net", text: $typedAddress)
                     .textFieldStyle(.roundedBorder)
@@ -136,7 +137,7 @@
                     .accessibilityIdentifier("setup.address")
                 if let findProblem {
                     Label(findProblem, systemImage: "xmark.octagon.fill")
-                        .foregroundStyle(HermesColor.destructive)
+                        .foregroundStyle(palette.errorText)
                 }
                 if isReaching {
                     ProgressView("Reaching the server…")
@@ -156,7 +157,7 @@
             Group {
                 if form.signInMethod == .password {
                     Text("This server asks for a user name and password. The setup prompt printed them.")
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                     HermesCard {
                         TextField("User name", text: field(\.username))
                             .textFieldStyle(.roundedBorder)
@@ -179,7 +180,7 @@
                         "This server signs in another way. Use Enter an address on the first screen to sign in "
                             + "with a browser."
                     )
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                 }
                 Button("Change address") { step = .find }
                     .buttonStyle(HermesButtonStyle(.secondary))
@@ -191,7 +192,7 @@
             Group {
                 if let note = GatewaySetup.loopbackNote(for: hint?.host) {
                     Label(note, systemImage: "iphone")
-                        .foregroundStyle(HermesColor.statusWarning)
+                        .foregroundStyle(palette.statusWarning)
                         .accessibilityIdentifier("setup.loopbackNote")
                 }
                 HermesCard {
@@ -202,7 +203,7 @@
                 switch form.test {
                 case .passed:
                     Text("The server answered, the sign-in worked and the live connection opened.")
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                     Button("Continue") { step = .done }
                         .buttonStyle(HermesButtonStyle(.primary))
                         .accessibilityIdentifier("setup.continue")
@@ -227,7 +228,7 @@
         private var doneStep: some View {
             Group {
                 Text("The connection works. Save the server to use it on this iPhone.")
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                 HermesCard {
                     TextField("Name (optional)", text: field(\.name))
                         .textFieldStyle(.roundedBorder)
@@ -235,7 +236,7 @@
                 }
                 if let saveProblem {
                     Label(saveProblem, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(HermesColor.destructive)
+                        .foregroundStyle(palette.errorText)
                 }
                 Button("Save server") { save() }
                     .buttonStyle(HermesButtonStyle(.primary))
@@ -376,6 +377,7 @@
 
     /// One check on the check step: its status, and for a failure what went wrong and what to try.
     struct SetupCheckRow: View {
+        @Environment(\.hermesPalette) private var palette
         let check: GatewaySetup.Check
         let status: GatewaySetup.Status
 
@@ -391,11 +393,11 @@
                 if case .failed(let diagnosis) = status {
                     Text(diagnosis.message)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.destructive)
+                        .foregroundStyle(palette.errorText)
                     ForEach(diagnosis.fixes, id: \.self) { fix in
                         Text("• \(fix)")
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                 }
             }
@@ -409,16 +411,16 @@
             switch status {
             case .pending:
                 Image(systemName: "circle")
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
             case .running:
                 ProgressView()
                     .controlSize(.small)
             case .passed:
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(HermesColor.statusConnected)
+                    .foregroundStyle(palette.statusConnected)
             case .failed:
                 Image(systemName: "xmark.octagon.fill")
-                    .foregroundStyle(HermesColor.destructive)
+                    .foregroundStyle(palette.destructive)
             }
         }
     }

@@ -5,6 +5,7 @@
     /// A group chat's settings: its name, the bots in it, and disband (WP-43 spec, section 6). Members are read here,
     /// not edited, because the server has no add or remove call.
     struct RoomSettingsSheet: View {
+        @Environment(\.hermesPalette) private var palette
         let model: RoomChatModel
         @Environment(\.dismiss) private var dismiss
         @State private var name: String
@@ -30,8 +31,9 @@
                         Section {
                             Text(errorMessage)
                                 .font(HermesFont.footnote)
-                                .foregroundStyle(HermesColor.destructive)
+                                .foregroundStyle(palette.errorText)
                         }
+                        .hermesListRows()
                     }
                     Section("Name") {
                         TextField("Name", text: $name)
@@ -41,11 +43,13 @@
                         }
                         .disabled(!canSave)
                     }
+                    .hermesListRows()
                     Section("Bots") {
                         ForEach(model.room.members.indices, id: \.self) { index in
                             memberRow(model.room.members[index])
                         }
                     }
+                    .hermesListRows()
                     Section {
                         Button("Disband Group Chat", role: .destructive) {
                             isConfirmingDisband = true
@@ -54,7 +58,9 @@
                     } footer: {
                         Text("Running turns stop first. A disbanded Group Chat cannot be brought back.")
                     }
+                    .hermesListRows()
                 }
+                .hermesThemedList()
                 .navigationTitle("Group Settings")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -83,12 +89,12 @@
                     if let handle = member.handle {
                         Text("@\(handle)")
                             .font(HermesFont.caption)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                     if member.target?["kind"]?.stringValue == "peer" {
                         Text("Runs on another computer")
                             .font(HermesFont.caption)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                 }
             }

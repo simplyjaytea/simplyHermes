@@ -7,6 +7,7 @@
     /// Deleting asks first, and the question says what really happens: a skill is archived on the server and a memory
     /// is removed for good. A pinned skill cannot be deleted, so the sheet says why instead of offering the button.
     struct NodeSheet: View {
+        @Environment(\.hermesPalette) private var palette
         @Bindable var editor: NodeEditorModel
         @Environment(\.dismiss) private var dismiss
 
@@ -75,7 +76,7 @@
                 VStack(alignment: .leading, spacing: 16) {
                     Text(facts)
                         .font(HermesFont.subheadline)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                     Text(editor.content.isEmpty ? "This node has no text." : editor.content)
                         .font(HermesFont.code)
                         .textSelection(.enabled)
@@ -94,7 +95,7 @@
                     .scrollContentBackground(.hidden)
                     .padding(8)
                     .background(
-                        HermesColor.fill,
+                        palette.fill,
                         in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius, style: .continuous)
                     )
                     .disabled(editor.phase == .saving)
@@ -111,7 +112,7 @@
             if let text = editor.problem {
                 Label(text, systemImage: "exclamationmark.triangle.fill")
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.destructive)
+                    .foregroundStyle(palette.destructive)
                     .accessibilityIdentifier("node.problem")
             }
         }
@@ -126,7 +127,7 @@
                         .disabled(isWorking)
                         .accessibilityIdentifier("node.cancel")
                 } else {
-                    Button("Close") { dismiss() }
+                    Button("Done") { dismiss() }
                         .disabled(isWorking)
                         .accessibilityIdentifier("node.close")
                 }
@@ -162,7 +163,7 @@
                     if let blocker = editor.node.deleteBlocker {
                         Label(blocker, systemImage: "pin.fill")
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .accessibilityIdentifier("node.blocker")
                     }
                     deleteButton
@@ -177,7 +178,7 @@
                 editor.requestDelete()
             } label: {
                 if editor.phase == .deleting {
-                    ProgressView().tint(HermesColor.onAccent).accessibilityLabel("Deleting")
+                    ProgressView().tint(palette.onAccent).accessibilityLabel("Deleting")
                 } else {
                     Text("Delete")
                 }

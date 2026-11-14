@@ -168,6 +168,7 @@
             List {
                 if let error = model.loadError {
                     Section { ToolsNoticeRow(notice: ToolsNotice.error(error)) }
+                        .hermesListRows()
                 }
                 Section {
                     ForEach(model.toolsets) { toolset in
@@ -181,15 +182,18 @@
                 } footer: {
                     Text("A toolset is a group of tools the agent can use. Turn one on, then set up its provider.")
                 }
+                .hermesListRows()
             }
+            .hermesThemedList()
             .navigationTitle("Toolsets")
-            .onAppear { Task { await model.load() } }
+            .task { await model.load() }
             .refreshable { await model.load() }
         }
     }
 
     /// One toolset in the list: its name, whether it is on, and whether it needs setup.
     private struct ToolsetRow: View {
+        @Environment(\.hermesPalette) private var palette
         let toolset: ToolsetInfo
 
         var body: some View {
@@ -200,18 +204,18 @@
                     Spacer(minLength: 8)
                     Text(toolset.enabled ? "On" : "Off")
                         .font(HermesFont.footnote)
-                        .foregroundStyle(toolset.enabled ? HermesColor.statusConnected : HermesColor.secondaryText)
+                        .foregroundStyle(toolset.enabled ? palette.statusConnected : palette.secondaryText)
                 }
                 if let description = toolset.description, !description.isEmpty {
                     Text(description)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .lineLimit(2)
                 }
                 if toolset.configured == false {
                     Text("Needs setup")
                         .font(HermesFont.caption)
-                        .foregroundStyle(HermesColor.statusWarning)
+                        .foregroundStyle(palette.statusWarning)
                 }
             }
         }
@@ -219,6 +223,7 @@
 
     /// One toolset: its switch, the provider picker, the keys of the chosen provider, and its model catalog.
     struct ToolsetDetailScreen: View {
+        @Environment(\.hermesPalette) private var palette
         @State private var model: ToolsetDetailModel
         @State private var keyValues: [String: String] = [:]
         @State private var confirmsPostSetup = false
@@ -231,9 +236,11 @@
             List {
                 if let activity = model.actions.activity {
                     Section { ToolsActivityRow(activity: activity) }
+                        .hermesListRows()
                 }
                 if let notice = model.notice {
                     Section { ToolsNoticeRow(notice: notice) }
+                        .hermesListRows()
                 }
                 Section {
                     Toggle(
@@ -244,6 +251,7 @@
                     )
                     .accessibilityIdentifier("toolset.enabled")
                 }
+                .hermesListRows()
                 if let config = model.config, config.hasCategory == true {
                     providerSection(config)
                 }
@@ -254,6 +262,7 @@
                     modelSection(catalog: catalog, options: options)
                 }
             }
+            .hermesThemedList()
             .navigationTitle(model.title)
             .navigationBarTitleDisplayMode(.inline)
             .task { await model.load() }
@@ -297,6 +306,7 @@
             } footer: {
                 Text("Pick the provider this toolset uses.")
             }
+            .hermesListRows()
         }
 
         private func providerRow(_ row: ToolsetProviderRow) -> some View {
@@ -310,18 +320,18 @@
                         if let tag = row.tag {
                             Text(tag)
                                 .font(HermesFont.footnote)
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .foregroundStyle(palette.secondaryText)
                         }
                     }
                     Spacer(minLength: 8)
                     if let badge = row.badge {
                         Text(badge)
                             .font(HermesFont.caption)
-                            .foregroundStyle(HermesColor.accent)
+                            .foregroundStyle(palette.accent)
                     }
                     if row.isActive == true {
                         Image(systemName: "checkmark")
-                            .foregroundStyle(HermesColor.accent)
+                            .foregroundStyle(palette.accent)
                     }
                 }
             }
@@ -360,6 +370,7 @@
             } footer: {
                 Text("Keys stay on the server. A saved key is never shown again.")
             }
+            .hermesListRows()
         }
 
         private func modelSection(catalog: SkillToolsetModelCatalog, options: [ToolsetModelOption]) -> some View {
@@ -375,13 +386,13 @@
                                 if let strengths = option.strengths {
                                     Text(strengths)
                                         .font(HermesFont.footnote)
-                                        .foregroundStyle(HermesColor.secondaryText)
+                                        .foregroundStyle(palette.secondaryText)
                                 }
                             }
                             Spacer(minLength: 8)
                             if option.id == catalog.current {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(HermesColor.accent)
+                                    .foregroundStyle(palette.accent)
                             }
                         }
                     }
@@ -391,6 +402,7 @@
             } header: {
                 Text("Model")
             }
+            .hermesListRows()
         }
 
         private func keyBinding(_ key: String) -> Binding<String> {

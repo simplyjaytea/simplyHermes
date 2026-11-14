@@ -4,6 +4,7 @@
 
     /// The repository's checkouts. Linked worktrees can be added and removed. The main checkout stays.
     struct GitWorktreesScreen: View {
+        @Environment(\.hermesPalette) private var palette
         let model: GitReviewModel
 
         @Environment(\.dismiss) private var dismiss
@@ -16,39 +17,42 @@
                 ForEach(model.worktrees) { worktree in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(worktree.branch ?? "Detached HEAD")
-                            .font(.subheadline.weight(.semibold))
+                            .font(HermesFont.subheadline.weight(.semibold))
                         Text(worktree.path)
                             .font(HermesFont.code)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .lineLimit(2)
                             .truncationMode(.middle)
                         if worktree.isMain {
                             Text("Main checkout")
-                                .font(.caption)
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .font(HermesFont.caption)
+                                .foregroundStyle(palette.secondaryText)
                         } else if worktree.locked {
                             Text("Locked")
-                                .font(.caption)
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .font(HermesFont.caption)
+                                .foregroundStyle(palette.secondaryText)
                         }
                     }
                     .swipeActions(edge: .trailing) {
                         if !worktree.isMain {
-                            Button("Remove", role: .destructive) {
+                            Button("Remove…", role: .destructive) {
                                 removing = worktree
                                 confirmingRemoval = true
                             }
                         }
                     }
                 }
+                .hermesListRows()
                 if let errorText = model.errorText {
                     Section {
                         Text(errorText)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
+                            .font(HermesFont.footnote)
+                            .foregroundStyle(palette.errorText)
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Worktrees")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -79,6 +83,7 @@
 
     /// The form for a new linked worktree. Blank fields fall back to the server's defaults.
     private struct GitWorktreeAddSheet: View {
+        @Environment(\.hermesPalette) private var palette
         let model: GitReviewModel
 
         @Environment(\.dismiss) private var dismiss
@@ -96,18 +101,22 @@
                     } footer: {
                         Text("Without a branch, the server creates hermes/ followed by the folder name.")
                     }
+                    .hermesListRows()
                     if let errorText = model.errorText {
                         Section {
                             Text(errorText)
-                                .font(.footnote)
-                                .foregroundStyle(.red)
+                                .font(HermesFont.footnote)
+                                .foregroundStyle(palette.errorText)
                         }
+                        .hermesListRows()
                     }
                     Section {
                         Button("Add worktree") { Task { await add() } }
                             .disabled(model.working)
                     }
+                    .hermesListRows()
                 }
+                .hermesThemedList()
                 .navigationTitle("Add worktree")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
