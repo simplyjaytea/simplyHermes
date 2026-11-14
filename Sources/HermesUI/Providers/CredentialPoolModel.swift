@@ -57,7 +57,10 @@
                 errorText = "Enter a provider and a key."
                 return
             }
-            guard let rest = await ProviderServer.rest(connections) else { return }
+            guard let rest = await ProviderServer.rest(connections) else {
+                errorText = "Could not reach the server."
+                return
+            }
             isWorking = true
             defer { isWorking = false }
             let draft = CredentialPoolDraft(provider: slug, apiKey: key, label: label.providerNonEmpty)
@@ -76,7 +79,10 @@
         /// Reads the pool, then asks for confirmation with the provider, label and index the server lists now.
         /// Nothing is removed here. If the entry is no longer listed, no confirmation opens.
         func askToRemove(_ entry: CredentialPoolEntry, provider slug: String) async {
-            guard let rest = await ProviderServer.rest(connections) else { return }
+            guard let rest = await ProviderServer.rest(connections) else {
+                errorText = "Could not reach the server."
+                return
+            }
             statusText = nil
             do {
                 let listing = try await rest.credentialPool()
@@ -105,7 +111,10 @@
         /// its index differs from the one the user saw. Status-only: the pool is read again afterwards.
         func confirmRemoval(_ pending: CredentialPoolRemoval) async {
             pendingRemoval = nil
-            guard let rest = await ProviderServer.rest(connections) else { return }
+            guard let rest = await ProviderServer.rest(connections) else {
+                errorText = "Could not reach the server."
+                return
+            }
             isWorking = true
             defer { isWorking = false }
             var failure: String?

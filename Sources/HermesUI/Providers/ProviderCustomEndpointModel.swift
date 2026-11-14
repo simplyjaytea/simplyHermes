@@ -35,7 +35,11 @@
 
         /// Probes the endpoint's model list with the form's values. Nothing is saved.
         func validate() async {
-            guard let draft = currentDraft(), let rest = await ProviderServer.rest(connections) else { return }
+            guard let draft = currentDraft() else { return }
+            guard let rest = await ProviderServer.rest(connections) else {
+                errorText = "Could not reach the server."
+                return
+            }
             isWorking = true
             defer { isWorking = false }
             do {
@@ -50,7 +54,11 @@
         /// Saves the endpoint. With "Use as default" on, it also becomes the provider for new chats. Status-only: the
         /// list is read again by the screen when the sheet closes.
         func save() async {
-            guard let draft = currentDraft(), let rest = await ProviderServer.rest(connections) else { return }
+            guard let draft = currentDraft() else { return }
+            guard let rest = await ProviderServer.rest(connections) else {
+                errorText = "Could not reach the server."
+                return
+            }
             isWorking = true
             defer { isWorking = false }
             do {

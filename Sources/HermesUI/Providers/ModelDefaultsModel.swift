@@ -70,7 +70,10 @@
                 errorText = "Choose a provider and a model."
                 return
             }
-            guard let rest = await ProviderServer.rest(connections) else { return }
+            guard let rest = await ProviderServer.rest(connections) else {
+                errorText = "Could not reach the server."
+                return
+            }
             isWorking = true
             defer { isWorking = false }
             let assignment = ModelDefaultsAssignment(

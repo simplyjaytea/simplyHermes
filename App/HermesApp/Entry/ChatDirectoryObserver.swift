@@ -15,6 +15,7 @@ import Observation
 @MainActor
 final class ChatDirectoryObserver {
     private static let lastChatKey = "lastChat"
+    private static let lastChatServerKey = "lastChatServer"
 
     private let model: ShellModel
     private let quickEntry: QuickEntryCoordinator
@@ -26,8 +27,16 @@ final class ChatDirectoryObserver {
     private var writtenLocal: RecentChatsSnapshot?
     private var hasListedChats = false
 
-    /// The chat the user used last, kept with its title so it can be named before the chat list loads.
-    private(set) var lastChat: RecentChat?
+    private var recordedChat: RecentChat?
+    /// The saved server `recordedChat` belongs to. Nil for a chat saved before this was kept: it counts for any server.
+    private var recordedServer: String?
+
+    /// The chat the user used last, kept with its title so it can be named before the chat list loads. Nil while
+    /// another server is active, because the chat id means nothing there.
+    var lastChat: RecentChat? {
+        if let recordedServer, let active = model.activeServerID?(), recordedServer != active { return nil }
+        return recordedChat
+    }
 
     init(
         model: ShellModel, quickEntry: QuickEntryCoordinator, sharedDirectory: URL?, localDirectory: URL,
@@ -39,9 +48,10 @@ final class ChatDirectoryObserver {
         localStore = RecentChatsSnapshot.store(directory: localDirectory)
         self.spotlight = spotlight
         self.defaults = defaults
-        lastChat = defaults.data(forKey: Self.lastChatKey).flatMap {
+        recordedChat = defaults.data(forKey: Self.lastChatKey).flatMap {
             try? JSONDecoder().decode(RecentChat.self, from: $0)
         }
+        recordedServer = defaults.string(forKey: Self.lastChatServerKey)
         quickEntry.lastChat = lastChat
     }
 
@@ -60,6 +70,7 @@ final class ChatDirectoryObserver {
     private func refresh() {
         let listed = model.sessions.filter { model.serverSessionIDs.contains($0.id) }
         noteSelection()
+        if quickEntry.lastChat != lastChat { quickEntry.lastChat = lastChat }
         if !listed.isEmpty { hasListedChats = true }
         guard hasListedChats else { return }
         let chats = listed.map { RecentChat(id: $0.id, title: $0.title, subtitle: $0.subtitle) }
@@ -97,10 +108,14 @@ final class ChatDirectoryObserver {
     private func noteSelection() {
         guard let id = model.selectedSessionID, model.serverSessionIDs.contains(id), let session = model.session(id: id)
         else { return }
+        // The chat's own server must be the active one: right after a switch the selection is still the old server's.
+        guard let owner = model.chatServer(of: id), owner == model.activeServerID?() else { return }
         let chat = RecentChat(id: id, title: session.title, subtitle: session.subtitle)
-        guard chat != lastChat else { return }
-        lastChat = chat
+        guard chat != recordedChat || owner != recordedServer else { return }
+        recordedChat = chat
+        recordedServer = owner
         quickEntry.lastChat = chat
+        defaults.set(owner, forKey: Self.lastChatServerKey)
         if let data = try? JSONEncoder().encode(chat) {
             defaults.set(data, forKey: Self.lastChatKey)
         }

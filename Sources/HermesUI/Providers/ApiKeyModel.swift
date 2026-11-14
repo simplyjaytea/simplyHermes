@@ -52,7 +52,10 @@
                 errorText = "Enter a name and a value."
                 return
             }
-            guard let rest = await ProviderServer.rest(connections) else { return }
+            guard let rest = await ProviderServer.rest(connections) else {
+                errorText = "Could not reach the server."
+                return
+            }
             isWorking = true
             defer { isWorking = false }
             do {
@@ -71,7 +74,10 @@
                 errorText = "Enter a name and a value."
                 return
             }
-            guard let rest = await ProviderServer.rest(connections) else { return }
+            guard let rest = await ProviderServer.rest(connections) else {
+                errorText = "Could not reach the server."
+                return
+            }
             isWorking = true
             defer { isWorking = false }
             var failure: String?
@@ -96,7 +102,10 @@
                 errorText = "Enter the name to delete."
                 return
             }
-            guard let rest = await ProviderServer.rest(connections) else { return }
+            guard let rest = await ProviderServer.rest(connections) else {
+                errorText = "Could not reach the server."
+                return
+            }
             isWorking = true
             defer { isWorking = false }
             var failure: String?
@@ -121,7 +130,10 @@
                 errorText = "Enter the name to show."
                 return
             }
-            guard let rest = await ProviderServer.rest(connections) else { return }
+            guard let rest = await ProviderServer.rest(connections) else {
+                errorText = "Could not reach the server."
+                return
+            }
             isWorking = true
             defer { isWorking = false }
             do {
