@@ -212,9 +212,12 @@ public final class ChatDeleteQueue {
 ///
 /// It throws only when the server delete fails: then nothing is tombstoned or purged, and the chat comes back.
 public enum ServerChatDelete {
+    /// Runs on the caller's isolation (`#isolation`): the app calls it from the main actor with closures formed there,
+    /// so they are never sent to another isolation domain (the iOS build refused that as a data-race risk).
     public static func commit(
         chatID: String, connection: String, tombstones: OutboxTombstones,
-        deleteOnServer: () async throws -> Void, purge: () async throws -> Int
+        deleteOnServer: () async throws -> Void, purge: () async throws -> Int,
+        isolation: isolated (any Actor)? = #isolation
     ) async throws -> ChatDeleteCommit {
         try await deleteOnServer()
         let entry = OutboxTombstones.Entry(connection: connection, chatID: chatID)

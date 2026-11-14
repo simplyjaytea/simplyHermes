@@ -181,18 +181,39 @@ struct RootView: View {
     let launch: LaunchOptions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Whether any local chat is saved; nil until read. Welcome never hides them (``AppEntryRoute``).
+    @State private var hasLocalChats: Bool?
+
+    private var route: AppEntryRoute {
+        AppEntryRoute.decide(
+            hasServers: !connections.isEmpty, skipsOnboarding: launch.onboarding == .skip,
+            hasLocalChats: hasLocalChats)
+    }
+
     var body: some View {
         Group {
-            if connections.isEmpty && launch.onboarding != .skip {
+            switch route {
+            case .loading:
+                Color.clear
+            case .welcome:
                 WelcomeView(connections: connections)
                     .transition(.opacity)
-            } else {
+            case .shell:
                 AdaptiveShell(
                     model: model, connections: connections, sessionsList: sessionsList,
                     showsDebugLayoutMenu: launch.showsDebugLayoutSwitcher)
             }
         }
-        .animation(HermesMotion.animation(HermesMotion.gentle, reduceMotion: reduceMotion), value: connections.isEmpty)
+        .animation(HermesMotion.animation(HermesMotion.gentle, reduceMotion: reduceMotion), value: route)
+        // Read again whenever the last server goes or one comes back: removing the last server must not strand the
+        // local chats behind Welcome.
+        .task(id: connections.isEmpty) {
+            guard connections.isEmpty, let store = LocalChatServices.shared?.store else {
+                hasLocalChats = hasLocalChats ?? false
+                return
+            }
+            hasLocalChats = ((try? await store.chats(limit: 1)) ?? []).isEmpty == false
+        }
         .environment(\.hermesPosture, launch.posture ?? .flat)
         .overlay(alignment: .topLeading) { UITestSeams.readout() }
         .overlay(alignment: .topLeading) { UITestGatewayToggle.overlay() }

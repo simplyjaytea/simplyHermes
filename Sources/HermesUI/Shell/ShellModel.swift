@@ -213,13 +213,14 @@
             startedChats = StartedChats()
         }
 
-        /// Creates the server chat for a New chat's first message. Nil when no server is saved: New chats then stay
+        /// Creates the server chat for a New chat's first message, on the server given (the one the message was written
+        /// for, as ``activeServerID`` read it when the user sent). Nil when no server is saved: New chats then stay
         /// placeholders.
-        @ObservationIgnored public var startServerChat: (@MainActor () async throws -> SessionListItem?)?
-        /// Hands a New chat's first message and its files to the chat's live model, which sends them on attach.
+        @ObservationIgnored public var startServerChat: (@MainActor (String?) async throws -> SessionListItem?)?
         /// The active server now, as the id the first message is bound to. The shell sets it. A New chat's first message
         /// goes only to the server that was active when the user sent it (``NewChatStarter``).
         @ObservationIgnored public var activeServerID: (@MainActor () -> String?)?
+        /// Hands a New chat's first message and its files to the chat's live model, which sends them on attach.
         @ObservationIgnored public var handOffFirstMessage: (@MainActor (String, String, [ComposerAttachment]) -> Void)?
         /// Queues a New chat's first message and delivers it when its server is connected (board row 104). Nil keeps the
         /// older path: the chat is made at the first send, or the send is refused.
@@ -355,7 +356,7 @@
             let task: Task<Void, Never> = Task {
                 defer { self.startingChats[id] = nil }
                 do {
-                    guard let item = try await startServerChat() else {
+                    guard let item = try await startServerChat(boundServer) else {
                         self.newChatError = Self.newChatMessage(for: nil)
                         return
                     }

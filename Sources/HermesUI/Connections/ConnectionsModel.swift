@@ -219,7 +219,10 @@
         /// way nothing is sent and the composer keeps the text. The wait is bounded, because `client(for:)` waits with no
         /// timeout, and a chat that opens minutes later pulls the user away from what they are doing.
         public func startChat(on server: UUID? = nil) async throws -> SessionListItem? {
-            guard let connection = server.flatMap(self.connection(id:)) ?? active, let manager else { return nil }
+            // A server that was named but is gone (deleted meanwhile) is not replaced by the active one.
+            let connection: ServerConnection?
+            if let server { connection = self.connection(id: server) } else { connection = active }
+            guard let connection, let manager else { return nil }
             let session = try await NewChatStarter.start(
                 bound: connection.id.uuidString, serverName: connection.name,
                 active: { await MainActor.run { self.active?.id.uuidString } },
@@ -268,6 +271,8 @@
         public func delete(_ id: UUID) {
             if let manager { Task { await manager.remove(id) } }
             phases[id] = nil
+            // The server's chats are gone with it, so the process need not keep a drainer for each of them.
+            OutboxServices.drainers.forgetAll(connection: id.uuidString)
             try? services.credentials.removeAll(connection: id)
             saved.remove(id: id)
             persist()

@@ -104,7 +104,8 @@
 
         /// Sends the chat's waiting messages if Hermes can take them, then refreshes the rows the screen shows.
         func drainOutbox() async {
-            guard controller != nil, let drainer else { return }
+            // A retired chat, or one whose server is no longer the active one, drains nothing (board row 140).
+            guard controller != nil, !isRetired, !isOnAnotherServer, let drainer else { return }
             // WP-8: while the chat cannot reach its server, its waiting messages stay where they are. Nothing is submitted
             // over a socket the status says is down, and the drain runs again when the chat recovers.
             guard status.pill != .unreachable else {

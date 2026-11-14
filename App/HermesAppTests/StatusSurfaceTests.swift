@@ -63,7 +63,7 @@ struct StatusSurfaceTests {
 
     /// Row 108: a chat the store dropped on a server switch must not attach itself to the new server when its pill moves
     /// into `.connected`. The test drives the pill by hand, because the phase seam does not fire the observation.
-    @Test func aRetiredChatDoesNotAttachWhenItsPillComesBack() throws {
+    @Test func aRetiredChatDoesNotAttachWhenItsPillComesBack() async throws {
         let connections = ConnectionsModel.preview()
         let server = try #require(ConnectionsModel.sampleConnections.first)
         connections.setActive(server.id)

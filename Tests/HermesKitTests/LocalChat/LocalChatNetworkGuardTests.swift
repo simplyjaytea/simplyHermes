@@ -49,11 +49,11 @@ enum LocalChatNetworkGuard {
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .deletingLastPathComponent()
 
-    /// Each forbidden name on a code line of `text`, as `path:line: name`. Comments are not code.
+    /// Each forbidden name on a code line of `text`, as `path:line: name`. Comments are not code. A string is: a name
+    /// inside one still counts, and a `//` inside one (a URL) is text, not a comment, so it hides nothing after it.
     static func violations(path: String, text: String) -> [String] {
-        text.components(separatedBy: "\n").enumerated().flatMap { index, line -> [String] in
-            let code = line.components(separatedBy: "//").first ?? ""
-            return forbidden.filter { code.contains($0) }.map { "\(path):\(index + 1): \($0)" }
+        SwiftSourceScanner.codeLines(text, keepStrings: true).enumerated().flatMap { index, code -> [String] in
+            forbidden.filter { code.contains($0) }.map { "\(path):\(index + 1): \($0)" }
         }
     }
 
@@ -132,6 +132,40 @@ struct LocalChatNetworkGuardTests {
         #expect(
             LocalChatNetworkGuard.missing(list, under: LocalChatNetworkGuard.repoRoot)
                 == ["Sources/HermesKit/LocalChat/Renamed.swift"])
+    }
+
+    // A `//` inside a string is text. The guard used to cut each line at the first `//`, so a URL string hid whatever
+    // followed it on the same line.
+    @Test func aConnectionAfterAUrlStringOnTheSameLineIsCaught() {
+        let text = #"let url = URL(string: "https://example.com")!; let leak = URLSession.shared"#
+        #expect(LocalChatNetworkGuard.violations(path: "X.swift", text: text) == ["X.swift:1: URLSession"])
+    }
+
+    @Test func aNameInsideAStringIsStillCaught() {
+        let text = #"let reflected = NSClassFromString("URLSession")"#
+        #expect(LocalChatNetworkGuard.violations(path: "X.swift", text: text) == ["X.swift:1: URLSession"])
+    }
+
+    @Test func aNameInsideAnInterpolationIsCaught() {
+        let text = #"let note = "opened \(URLSession.shared)""#
+        #expect(!LocalChatNetworkGuard.violations(path: "X.swift", text: text).isEmpty)
+    }
+
+    @Test func aNameInsideARawOrMultiLineStringIsCaught() {
+        let raw = ##"let a = #"say "hi" then URLSession"#"##
+        #expect(!LocalChatNetworkGuard.violations(path: "X.swift", text: raw).isEmpty)
+        let multi = "let b = \"\"\"\nsome text // not a comment\nURLSession.shared\n\"\"\""
+        #expect(LocalChatNetworkGuard.violations(path: "X.swift", text: multi).contains("X.swift:3: URLSession"))
+    }
+
+    @Test func aNameInABlockCommentIsNotCode() {
+        let text = "/* URLSession.shared\n   WebSocket */\nlet x = 1\n"
+        #expect(LocalChatNetworkGuard.violations(path: "X.swift", text: text).isEmpty)
+    }
+
+    @Test func aBlockCommentOpenedInsideAStringDoesNotHideTheCode() {
+        let text = "let a = \"/*\"\nlet leak = URLSession.shared\nlet b = \"*/\""
+        #expect(LocalChatNetworkGuard.violations(path: "X.swift", text: text).contains("X.swift:2: URLSession"))
     }
 
     @Test func aNameInACommentIsNotCode() {

@@ -25,6 +25,8 @@
         @State private var rooms: RoomsModel?
         @State private var terminals = TerminalModel()
         @State private var columnVisibility: NavigationSplitViewVisibility = .all
+        /// The column a collapsed split view shows: the chat, or the sidebar when Search chats asks for it.
+        @State private var compactColumn: NavigationSplitViewColumn = .detail
         @State private var botSettingsEntryForChat: BotRosterEntry?
         /// Search on the chat list shown when no server is active (#116 follow-up).
         @State private var localChatSearch = ""
@@ -62,7 +64,9 @@
                     model.newChatQueue = queue
                 }
                 model.activeServerID = { connections.active?.id.uuidString }
-                model.startServerChat = { try await connections.startChat() }
+                model.startServerChat = { bound in
+                    try await connections.startChat(on: bound.flatMap(UUID.init(uuidString:)))
+                }
                 model.placeholderStripSource = {
                     guard let server = connections.active else { return .noServer }
                     return PlaceholderStrip.derive(
@@ -347,7 +351,7 @@
         // MARK: Inner screen: sidebar, chat and preview rail (plan Q3, Q6)
 
         private func splitView(showsRail: Bool) -> some View {
-            NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: .constant(.detail)) {
+            NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $compactColumn) {
                 List(selection: sidebarSelection) {
                     if let tip = [InlineTipKind.unfold, .shake].first { InlineTipStore.isPending($0) } {
                         Section { InlineTipCard(kind: tip) }
@@ -655,8 +659,10 @@
             } else {
                 isLocalChatSearchPresented = true
             }
-            // Only one layout is on screen; the other's flag is harmless. The unfolded layout shows its sidebar first.
+            // Only one layout is on screen; the other's flag is harmless. The unfolded layout shows its sidebar first,
+            // also when its split view is collapsed to one column (the search field lives in the sidebar).
             columnVisibility = .all
+            compactColumn = .sidebar
             isSidebarSearchPresented = true
         }
 

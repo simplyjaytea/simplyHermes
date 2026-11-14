@@ -14,7 +14,10 @@ struct LocalNotificationsTests {
         var removedDelivered: [[String]] = []
         var removedPending: [[String]] = []
 
-        func add(_ request: UNNotificationRequest) async throws { added.append(request) }
+        /// Records the system request the real center would get.
+        func add(_ request: NotificationRequest) async throws {
+            added.append(LocalNotifications.systemRequest(request))
+        }
         func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {
             removedDelivered.append(identifiers)
         }
