@@ -76,6 +76,21 @@ public struct LiveTurnState: Codable, Hashable, Sendable {
         return lines.last { !$0.isEmpty } ?? ""
     }
 
+    /// Whether `pending`, the command that waits now, is the command a Live Activity or widget button showed.
+    ///
+    /// Those surfaces are snapshots. By the time Approve is tapped, the command they show can be answered and another
+    /// can wait in the same chat. Approve must run only what the user saw, so it names the command it showed (cut to
+    /// ``commandLimit``, as the surface cut it) and anything else is refused. `shown` nil never matches.
+    public static func showed(_ shown: String?, pending: String) -> Bool {
+        guard let shown else { return false }
+        return shown == cut(pending, to: commandLimit)
+    }
+
+    /// A command as a Live Activity or widget shows it: cut to ``commandLimit``.
+    public static func shownCommand(_ command: String) -> String {
+        cut(command, to: commandLimit)
+    }
+
     static func cut(_ text: String, to limit: Int) -> String {
         guard text.count > limit else { return text }
         return String(text.prefix(limit - 1)) + "…"

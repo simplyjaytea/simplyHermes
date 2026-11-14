@@ -220,7 +220,8 @@ public actor ChatSessionController: OutboxSubmitter {
             return .failed(refusal.message.isEmpty ? "Hermes refused this message." : refusal.message)
         } catch {
             // The connection was down or slow, so nothing was refused. The message waits and goes out with the next try.
-            publish()
+            // Nothing changed here, so nothing is published: an idle snapshot is what asks for the next drain, and
+            // publishing one made a loop of submit, fail, drain with no pause for as long as the socket was down.
             return .deferred
         }
     }

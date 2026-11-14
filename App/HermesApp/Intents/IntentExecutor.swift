@@ -120,7 +120,10 @@ final class IntentExecutor {
         case .several(let count):
             return .severalToApprove(count: count)
         case .approve(let approval):
-            LiveTurnActionCenter.shared.perform(.approve, sessionID: approval.sessionID)
+            // Siri reads this command back, so it is the one to run: name it, cut as the surfaces cut it.
+            LiveTurnActionCenter.shared.perform(
+                .approve, sessionID: approval.sessionID,
+                showing: LiveTurnState.shownCommand(approval.command))
             return .approved(command: approval.command)
         }
     }

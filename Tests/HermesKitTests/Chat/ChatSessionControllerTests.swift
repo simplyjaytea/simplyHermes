@@ -523,6 +523,22 @@ private func lines(_ state: TranscriptState) -> [String] {
         #expect(transport.submitted.isEmpty)
     }
 
+    /// A snapshot with no turn running asks the chat to drain again. A deferred message changes nothing, so it must
+    /// not publish one: with the socket down that was a submit, fail, drain loop with no pause.
+    @Test func aDeferredDeliverPublishesNothingSoItCannotAskForAnotherDrain() async throws {
+        let transport = try FakeChatTransport()
+        let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")
+        try await controller.attach()
+        var snapshots = await controller.states().makeAsyncIterator()
+        _ = await snapshots.next()
+        transport.failSubmitError = URLError(.notConnectedToInternet)
+        #expect(await controller.deliver(record("waiting")) == .deferred)
+        let published = Task { await snapshots.next() != nil }
+        try await Task.sleep(for: .milliseconds(200))
+        published.cancel()
+        #expect(await published.value == false)
+    }
+
     @Test func deliverWhileATurnRunsDefersUntilItEnds() async throws {
         let transport = try FakeChatTransport()
         let controller = ChatSessionController(transport: transport, storedSessionID: "20261015_000000_aaaaaa")

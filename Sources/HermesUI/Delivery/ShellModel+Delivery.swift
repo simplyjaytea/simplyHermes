@@ -34,10 +34,16 @@
             }
         }
 
-        /// Approves or denies the first approval a chat waits on.
-        public func answerApproval(in id: String, approved: Bool) {
-            guard let alert = allPendingApprovals.first(where: { $0.sessionID == id }) else { return }
-            answer(alert, approved: approved)
+        /// Approves or denies the approval of a chat whose command is `shown`: what the Live Activity, widget or Siri
+        /// showed the user. Those are snapshots, so the first approval waiting at tap time can be a different command
+        /// from the one on the button. When nothing waiting matches, nothing is answered. A nil `shown` matches
+        /// nothing: an approval is never answered blind.
+        public func answerApproval(in id: String, approved: Bool, showing shown: String?) {
+            let match = allPendingApprovals.first {
+                $0.sessionID == id && LiveTurnState.showed(shown, pending: $0.command)
+            }
+            guard let match else { return }
+            answer(match, approved: approved)
         }
 
         /// Shows a chat the server just made, as the chat list would, and opens it. Returns the chat's id.

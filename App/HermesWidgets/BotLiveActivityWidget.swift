@@ -10,7 +10,7 @@ struct BotLiveActivityWidget: Widget {
         ActivityConfiguration(for: BotActivityAttributes.self) { context in
             LiveTurnCard(state: context.state, isStale: context.isStale) {
                 LiveTurnButtonRow(state: context.state) { action in
-                    intentButton(action, sessionID: context.attributes.sessionID) {
+                    intentButton(action, sessionID: context.attributes.sessionID, command: context.state.pendingCommand) {
                         Text(action.title)
                     }
                 }
@@ -35,7 +35,7 @@ struct BotLiveActivityWidget: Widget {
                         LiveTurnDetail(state: context.state, isStale: context.isStale)
                         HStack(spacing: 6) {
                             ForEach(LiveTurnAction.available(for: context.state), id: \.self) { action in
-                                intentButton(action, sessionID: context.attributes.sessionID) {
+                                intentButton(action, sessionID: context.attributes.sessionID, command: context.state.pendingCommand) {
                                     LiveTurnCompactButtonLabel(action)
                                 }
                                 .buttonStyle(.plain)
@@ -61,11 +61,12 @@ struct BotLiveActivityWidget: Widget {
 private func intentButton<Content: View>(
     _ action: LiveTurnAction,
     sessionID: String,
+    command: String?,
     @ViewBuilder label: () -> Content
 ) -> some View {
     switch action {
     case .stop: Button(intent: StopTurnIntent(sessionID: sessionID), label: label)
-    case .deny: Button(intent: DenyTurnIntent(sessionID: sessionID), label: label)
-    case .approve: Button(intent: ApproveTurnIntent(sessionID: sessionID), label: label)
+    case .deny: Button(intent: DenyTurnIntent(sessionID: sessionID, command: command), label: label)
+    case .approve: Button(intent: ApproveTurnIntent(sessionID: sessionID, command: command), label: label)
     }
 }
