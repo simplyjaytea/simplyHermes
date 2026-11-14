@@ -345,9 +345,7 @@
                     .listRowBackground(palette.card)
                     .modifier(LocalChatDeleteActions(id: session.id, model: model))
                 }
-                .scrollContentBackground(.hidden)
-                .background(palette.groupedBackground)
-                .toolbarBackground(palette.groupedBackground, for: .navigationBar)
+                .hermesThemedList()
                 .searchable(text: $localChatSearch, isPresented: $isLocalChatSearchPresented, prompt: "Search chats")
             }
         }
@@ -379,6 +377,7 @@
                         }
                     }
                 }
+                .hermesThemedList()
                 .searchable(
                     text: $sidebarChatSearch, isPresented: $isSidebarSearchPresented, placement: .sidebar,
                     prompt: "Search chats"

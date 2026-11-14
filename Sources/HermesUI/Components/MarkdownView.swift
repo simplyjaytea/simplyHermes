@@ -99,7 +99,7 @@
             }
             .background(
                 palette.codeBackground,
-                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius, style: .continuous)
             )
         }
 

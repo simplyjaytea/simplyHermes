@@ -4,6 +4,7 @@
 
     /// A row in the chat list.
     struct SessionRow: View {
+        @Environment(\.hermesPalette) private var palette
         let session: ChatSessionSummary
         /// The server the row names. The shell decides it, so a New chat follows a server switch.
         let serverName: String
@@ -30,7 +31,7 @@
                 } else {
                     Text("\(serverName) · \(session.subtitle)")
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .accessibleLineLimit()
                 }
             }
@@ -189,6 +190,7 @@
 
     /// The command, the output and the two actions for one tool call (WP-36).
     private struct ToolOutputCard: View {
+        @Environment(\.hermesPalette) private var palette
         let output: ToolOutput
         let onAddToChat: () -> Void
 
@@ -204,11 +206,12 @@
                 }
                 Text(shownText)
                     .font(HermesFont.code)
-                    .foregroundStyle(output.text.isEmpty ? HermesColor.secondaryText : HermesColor.primaryText)
+                    .foregroundStyle(output.text.isEmpty ? palette.secondaryText : palette.primaryText)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
-                    .background(HermesColor.fill, in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius))
+                    .background(
+                        palette.fill, in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius, style: .continuous))
                 HStack(spacing: 8) {
                     Button("Copy") { UIPasteboard.general.string = output.text }
                         .buttonStyle(HermesButtonStyle(.tinted))
@@ -241,22 +244,30 @@
             let approval = sessionID.flatMap { model.pendingApproval(in: $0) }
             let isStreaming = sessionID.map { model.isStreaming($0) } ?? false
             VStack(spacing: 16) {
-                if InlineTipStore.isPending(.tent) { InlineTipCard(kind: .tent) }
-                Text(session?.title ?? "No chat")
-                    .font(HermesFont.glanceTitle)
-                    .foregroundStyle(palette.primaryText)
-                    .lineLimit(1)
-                Text(isStreaming ? "Hermes is replying" : (approval == nil ? "Idle" : "Waiting for you"))
-                    .font(HermesFont.headline)
-                    .foregroundStyle(palette.secondaryText)
-                if let approval {
-                    Text(approval.text)
-                        .font(HermesFont.code)
-                        .foregroundStyle(palette.primaryText)
-                        .padding(12)
-                        .frame(maxWidth: .infinity)
-                        .background(palette.fill, in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius))
+                // The text scrolls so a long command cannot push the buttons off a short screen.
+                ScrollView {
+                    VStack(spacing: 16) {
+                        if InlineTipStore.isPending(.tent) { InlineTipCard(kind: .tent) }
+                        Text(session?.title ?? "No chat")
+                            .font(HermesFont.glanceTitle)
+                            .foregroundStyle(palette.primaryText)
+                            .lineLimit(2)
+                        Text(isStreaming ? "Hermes is replying" : (approval == nil ? "Idle" : "Waiting for you"))
+                            .font(HermesFont.headline)
+                            .foregroundStyle(palette.secondaryText)
+                        if let approval {
+                            Text(approval.text)
+                                .font(HermesFont.code)
+                                .foregroundStyle(palette.primaryText)
+                                .padding(12)
+                                .frame(maxWidth: .infinity)
+                                .background(
+                                    palette.fill,
+                                    in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius, style: .continuous))
+                        }
+                    }
                 }
+                .scrollBounceBehavior(.basedOnSize)
                 HStack(spacing: 12) {
                     Button("Stop") { if let sessionID { model.stop(in: sessionID) } }
                         .buttonStyle(HermesButtonStyle(.destructive))
@@ -293,7 +304,10 @@
                     ForEach(model.openSessionIDs, id: \.self) { id in
                         if let session = model.session(id: id) {
                             capsule(for: session, isSelected: id == model.selectedSessionID)
-                                .transition(.scale(scale: 0.8).combined(with: .opacity))
+                                .transition(
+                                    reduceMotion
+                                        ? AnyTransition.opacity
+                                        : AnyTransition.scale(scale: 0.8).combined(with: .opacity))
                         }
                     }
                 }
@@ -338,7 +352,7 @@
                     model.close(session.id)
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.caption.weight(.bold))
+                        .font(HermesFont.caption.weight(.bold))
                         .foregroundStyle(palette.secondaryText)
                         .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                         .contentShape(Rectangle())

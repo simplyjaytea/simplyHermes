@@ -5,32 +5,41 @@
     /// The agent's todo list above the composer (plan Q20): a glass pill with the count and the current task, which
     /// opens into the full list. The caller hides it when the chat is idle.
     struct TaskProgressPill: View {
+        @Environment(\.hermesPalette) private var palette
         let progress: TaskProgress
         @State private var isOpen = false
+        @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+        @Environment(\.hermesReduceMotion) private var reduceMotionOverride
+
+        private var reduceMotion: Bool {
+            HermesMotion.resolveReduceMotion(system: systemReduceMotion, override: reduceMotionOverride)
+        }
 
         var body: some View {
             VStack(alignment: .leading, spacing: 6) {
                 Button {
-                    withAnimation(.snappy) { isOpen.toggle() }
+                    withAnimation(HermesMotion.animation(HermesMotion.snappy, reduceMotion: reduceMotion)) {
+                        isOpen.toggle()
+                    }
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "checklist")
-                            .foregroundStyle(HermesColor.accent)
+                            .foregroundStyle(palette.accent)
                         Text(progress.summary)
                             .font(HermesFont.caption.monospacedDigit())
                         if let current = progress.current {
                             Text(current.text)
                                 .font(HermesFont.caption)
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .foregroundStyle(palette.secondaryText)
                                 .lineLimit(1)
                         }
                         Spacer(minLength: 0)
                         Image(systemName: "chevron.up")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .font(HermesFont.caption2.weight(.semibold))
+                            .foregroundStyle(palette.secondaryText)
                             .rotationEffect(.degrees(isOpen ? 180 : 0))
                     }
-                    .frame(minHeight: 32)
+                    .frame(minHeight: HermesMetrics.minTapTarget)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -43,19 +52,19 @@
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
                             Image(systemName: symbol(item.status))
                                 .foregroundStyle(
-                                    item.status == .done ? HermesColor.statusConnected : HermesColor.secondaryText)
+                                    item.status == .done ? palette.statusConnected : palette.secondaryText)
                             Text(item.text)
                                 .font(HermesFont.footnote)
                                 .strikethrough(item.status == .cancelled)
                                 .foregroundStyle(
-                                    item.status == .pending ? HermesColor.secondaryText : HermesColor.primaryText)
+                                    item.status == .pending ? palette.secondaryText : palette.primaryText)
                         }
                     }
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 4)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: HermesMetrics.cardRadius, style: .continuous))
             .padding(.horizontal, 10)
         }
 
@@ -73,6 +82,7 @@
     /// The model pill is a popup menu (plan Q22). The other pills only show what the server reported. The workspace
     /// pill opens the folder picker (plan Q31).
     struct ComposerPills: View {
+        @Environment(\.hermesPalette) private var palette
         let chat: LiveChatModel
         /// Opens the folder picker. Without it the workspace pill only shows the folder.
         var onWorkspace: (() -> Void)?
@@ -103,7 +113,7 @@
                 .lineLimit(1)
                 .padding(.horizontal, 10)
                 .frame(minHeight: 28)
-                .background(HermesColor.fill, in: Capsule())
+                .background(palette.fill, in: Capsule())
         }
 
         @ViewBuilder

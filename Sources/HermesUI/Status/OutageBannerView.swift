@@ -27,7 +27,7 @@
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: HermesMetrics.bannerRadius, style: .continuous))
             .padding(.horizontal, 12)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("chat.outageBanner")

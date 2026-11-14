@@ -60,6 +60,7 @@
 
     /// The completion rows above the field, in glass (plan Q24). Tapping a row puts it into the message.
     struct CompletionPopover: View {
+        @Environment(\.hermesPalette) private var palette
         let items: [CompletionItem]
         let onPick: (CompletionItem) -> Void
 
@@ -72,13 +73,13 @@
                         HStack(spacing: 10) {
                             Text(item.label)
                                 .font(HermesFont.body.monospaced())
-                                .foregroundStyle(HermesColor.primaryText)
+                                .foregroundStyle(palette.primaryText)
                                 .lineLimit(1)
                             Spacer(minLength: 8)
                             if !item.meta.isEmpty {
                                 Text(item.meta)
                                     .font(HermesFont.caption)
-                                    .foregroundStyle(HermesColor.secondaryText)
+                                    .foregroundStyle(palette.secondaryText)
                                     .lineLimit(1)
                             }
                         }
@@ -91,7 +92,7 @@
                 }
             }
             .padding(.vertical, 4)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: HermesMetrics.cardRadius, style: .continuous))
             .accessibilityIdentifier("composer.completions")
         }
     }

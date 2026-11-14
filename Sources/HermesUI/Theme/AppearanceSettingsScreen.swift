@@ -121,7 +121,7 @@
 
                     if isSelected {
                         Image(systemName: "checkmark")
-                            .font(.body.weight(.bold))
+                            .font(HermesFont.body.weight(.bold))
                             .foregroundStyle(HermesPalette.palette(for: activePreset).accent)
                             .accessibilityHidden(true)
                     }
@@ -159,7 +159,7 @@
                     .background(palette.fill, in: Capsule())
 
                 Image(systemName: "arrow.up")
-                    .font(.body.weight(.bold))
+                    .font(HermesFont.body.weight(.bold))
                     .foregroundStyle(palette.onAccent)
                     .frame(width: 32, height: 32)
                     .background(palette.accent, in: Circle())

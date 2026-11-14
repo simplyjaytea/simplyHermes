@@ -5,6 +5,7 @@
     /// The agent's questions as an inline form in a grey bubble (plan Q25). Choice questions show buttons, others a
     /// text field. Send is enabled once every question has an answer.
     struct ClarifyCard: View {
+        @Environment(\.hermesPalette) private var palette
         let item: LiveChatModel.PendingClarify
         let onSend: ([String: String]) -> Void
         @State private var picks: [String: Set<String>] = [:]
@@ -35,7 +36,7 @@
             .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
             .padding(.vertical, 12)
             .background(
-                HermesColor.incomingBubble,
+                palette.incomingBubble,
                 in: RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
             )
             .bubbleRow(.leading)
@@ -54,7 +55,7 @@
                             ? (question.multiSelect ? "checkmark.square.fill" : "largecircle.fill.circle")
                             : (question.multiSelect ? "square" : "circle")
                     )
-                    .foregroundStyle(selected ? HermesColor.accent : HermesColor.secondaryText)
+                    .foregroundStyle(selected ? palette.accent : palette.secondaryText)
                     Text(choice).font(HermesFont.body).multilineTextAlignment(.leading)
                     Spacer(minLength: 0)
                 }

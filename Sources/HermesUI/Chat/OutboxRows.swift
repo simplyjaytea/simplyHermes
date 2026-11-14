@@ -7,12 +7,13 @@
     /// A status line under the transcript. It states what happened in plain words. It is never a reply and never a
     /// bubble (WP-4).
     struct StatusNote: View {
+        @Environment(\.hermesPalette) private var palette
         let text: String
 
         var body: some View {
             Text(text)
                 .font(HermesFont.footnote)
-                .foregroundStyle(HermesColor.secondaryText)
+                .foregroundStyle(palette.secondaryText)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 6)
@@ -21,6 +22,7 @@
     }
 
     struct OutboxRow: View {
+        @Environment(\.hermesPalette) private var palette
         let record: OutboundRecord
         let onRetry: () -> Void
         let onEdit: () -> Void
@@ -34,7 +36,7 @@
                 } else {
                     Text("Waiting to send")
                         .font(HermesFont.caption)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .accessibilityIdentifier("outbox.state.\(record.id.uuidString)")
                 }
             }
@@ -48,13 +50,13 @@
                 Button(action: onRetry) {
                     Text("Not sent · Tap to retry")
                         .font(HermesFont.caption.weight(.semibold))
-                        .foregroundStyle(HermesColor.destructive)
+                        .foregroundStyle(palette.destructive)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("outbox.retry.\(record.id.uuidString)")
                 Text(reason)
                     .font(HermesFont.caption2)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .multilineTextAlignment(.trailing)
                 HStack(spacing: 8) {
                     Button("Retry", action: onRetry)

@@ -16,6 +16,7 @@
 
     /// Connection state and the running turn, in a Liquid Glass capsule.
     public struct StatusStrip: View {
+        @Environment(\.hermesPalette) private var palette
         public enum Connection: Sendable {
             case connected
             case reconnecting
@@ -50,18 +51,18 @@
                     .font(HermesFont.footnote.weight(.semibold))
                 Text(connectionLabel)
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                 Spacer(minLength: 8)
                 if let runningTurn {
                     Text(runningTurn)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .lineLimit(1)
                 }
                 if let onStop {
                     Button("Stop", action: onStop)
                         .font(HermesFont.footnote.weight(.semibold))
-                        .foregroundStyle(HermesColor.accent)
+                        .foregroundStyle(palette.accent)
                         .frame(minWidth: HermesMetrics.minTapTarget, minHeight: HermesMetrics.minTapTarget)
                         .buttonStyle(.plain)
                 }
@@ -74,9 +75,9 @@
 
         private var dotColor: Color {
             switch connection {
-            case .connected: HermesColor.statusConnected
-            case .reconnecting, .needsAttention: HermesColor.statusWarning
-            case .offline: HermesColor.statusOffline
+            case .connected: palette.statusConnected
+            case .reconnecting, .needsAttention: palette.statusWarning
+            case .offline: palette.statusOffline
             }
         }
 

@@ -175,11 +175,19 @@
         let entry: ToolEntry
         @State private var isExpanded = false
         @Environment(\.hermesPalette) private var palette
+        @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+        @Environment(\.hermesReduceMotion) private var reduceMotionOverride
+
+        private var reduceMotion: Bool {
+            HermesMotion.resolveReduceMotion(system: systemReduceMotion, override: reduceMotionOverride)
+        }
 
         var body: some View {
             VStack(alignment: .leading, spacing: 6) {
                 Button {
-                    withAnimation(HermesMotion.snappy) { isExpanded.toggle() }
+                    withAnimation(HermesMotion.animation(HermesMotion.snappy, reduceMotion: reduceMotion)) {
+                        isExpanded.toggle()
+                    }
                 } label: {
                     HStack(spacing: 8) {
                         icon

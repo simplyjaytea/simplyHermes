@@ -7,6 +7,7 @@
     /// The sheet decides nothing about where the message goes. ``QuickEntryPolicy`` does, so changing what Quick Entry
     /// does is one edit there.
     public struct QuickEntrySheet: View {
+        @Environment(\.hermesPalette) private var palette
         @Bindable private var coordinator: QuickEntryCoordinator
         private let hasServer: Bool
         private let onSend: (String, OutboundTarget) -> Void
@@ -45,7 +46,7 @@
                         .lineLimit(3...8)
                         .padding(14)
                         .background(
-                            HermesColor.fill,
+                            palette.fill,
                             in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius, style: .continuous)
                         )
                         .accessibilityIdentifier("quickEntry.field")
@@ -60,7 +61,7 @@
                 .padding(16)
             }
             .scrollDismissesKeyboard(.interactively)
-            .background(HermesColor.background)
+            .background(palette.background)
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
             .hermesFeedback(.send, trigger: sendCount)
@@ -75,7 +76,7 @@
             VStack(alignment: .leading, spacing: 8) {
                 Text(hasServer ? destination.label : "Add a server in simplyHermes first.")
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .accessibilityIdentifier("quickEntry.destination")
                 if hasServer, coordinator.lastChat != nil {
                     Toggle("Start a new chat instead", isOn: $coordinator.startsNewChat)

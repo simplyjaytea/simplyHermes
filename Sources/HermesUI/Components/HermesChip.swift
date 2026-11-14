@@ -3,6 +3,7 @@
 
     /// A capsule chip for quick actions, filters and the model picker.
     public struct HermesChip: View {
+        @Environment(\.hermesPalette) private var palette
         private let title: String
         private let systemImage: String?
         private let isSelected: Bool
@@ -36,8 +37,8 @@
                 .font(HermesFont.subheadline.weight(.medium))
                 .padding(.horizontal, 14)
                 .frame(minHeight: 36)
-                .foregroundStyle(isSelected ? HermesColor.onAccent : HermesColor.primaryText)
-                .background(isSelected ? HermesColor.accent : HermesColor.fill, in: Capsule())
+                .foregroundStyle(isSelected ? palette.onAccent : palette.primaryText)
+                .background(isSelected ? palette.accent : palette.fill, in: Capsule())
                 .padding(.vertical, 4)
                 .contentShape(Rectangle())
             }

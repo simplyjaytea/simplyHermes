@@ -5,6 +5,7 @@
     /// The model pill as a popup menu (plan Q22): starred models, one submenu per provider, and the reasoning level.
     /// A pick switches this chat only. The device remembers it, and the server's profile default stays as it is.
     struct ModelPicker: View {
+        @Environment(\.hermesPalette) private var palette
         let chat: LiveChatModel
 
         /// A switch the server holds until the user agrees.
@@ -58,7 +59,7 @@
                     .lineLimit(1)
                     .padding(.horizontal, 10)
                     .frame(minHeight: 28)
-                    .background(HermesColor.fill, in: Capsule())
+                    .background(palette.fill, in: Capsule())
             }
             .accessibilityIdentifier("composer.model")
             .alert(

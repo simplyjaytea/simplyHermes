@@ -51,6 +51,9 @@
         var fieldAccessibilityIdentifier: String = "composer.field"
         var onRecall: ((ComposerRecallDirection) -> Bool)?
         var focusKey: String?
+        /// Colors from the active preset. The defaults match the System preset.
+        var textColor: UIColor = .label
+        var mentionColor: UIColor = UIColor(HermesColor.accent)
 
         func makeCoordinator() -> Coordinator {
             Coordinator(self)
@@ -62,7 +65,7 @@
             view.backgroundColor = .clear
             view.font = UIFont.preferredFont(forTextStyle: .body)
             view.adjustsFontForContentSizeCategory = true
-            view.textColor = .label
+            view.textColor = textColor
             view.textContainerInset = UIEdgeInsets(
                 top: Self.verticalInset, left: 0, bottom: Self.verticalInset, right: 0)
             view.textContainer.lineFragmentPadding = 0
@@ -134,10 +137,10 @@
                 let storage = textView.textStorage
                 storage.beginEditing()
                 storage.addAttribute(
-                    .foregroundColor, value: UIColor.label, range: NSRange(location: 0, length: storage.length))
+                    .foregroundColor, value: parent.textColor, range: NSRange(location: 0, length: storage.length))
                 for range in ComposerTokens.mentionRanges(in: textView.text) {
                     storage.addAttribute(
-                        .foregroundColor, value: UIColor(HermesColor.accent),
+                        .foregroundColor, value: parent.mentionColor,
                         range: NSRange(location: range.lowerBound, length: range.count))
                 }
                 storage.endEditing()
