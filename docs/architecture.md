@@ -105,8 +105,10 @@ Settings > On-device models, also opened from "Get a better model" in offline ch
   `<id>.partial`, pause and resume with URLSession resume data, a free-space check first), the storage under
   Application Support/simplyHermes/OnDeviceModels (excluded from backup), and `OnDeviceModelSelection`. The selection
   is itself a `LocalModelExecutor`: it answers with the Apple model unless the user picked a downloaded model, and
-  falls back to Apple after a memory warning, when the files are gone, or when the device cannot run the model. The
-  model runtime is a protocol (`OnDeviceModelRuntime`), so HermesKit never imports MLX and the logic is tested on Linux
+  never switches model by itself. When the chosen downloaded model cannot answer (not enough memory, files gone, the
+  device cannot run it, no longer offered), nothing answers: the call throws and `availability` says why. After a
+  memory warning the model unloads and loads again on the next question. The model
+  runtime is a protocol (`OnDeviceModelRuntime`), so HermesKit never imports MLX and the logic is tested on Linux
   with mocks.
 - `App/HermesApp/OnDeviceModels`: the MLX side. `MLXLanguageModel` (mlx-swift-lm, product `MLXFoundationModels`, iOS 27)
   runs the model folder, a small tokenizer bridge uses swift-transformers, and `OnDeviceModelServices` wires it up and

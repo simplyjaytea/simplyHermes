@@ -238,6 +238,7 @@
             case .unavailable(.notReady): "The on-device model is not ready yet. Try again in a moment."
             case .unavailable(.unsupported): "This iPhone cannot answer here."
             case .unavailable(.noModelChosen): "No on-device model is in use. Pick one in Settings to get a reply here."
+            case .unavailable(.chosenModelCannotAnswer): "The model you chose cannot answer now. See Settings."
             case .modelFailed: "No reply: the on-device model did not answer."
             case .notSaved: "This message could not be saved on this iPhone."
             }

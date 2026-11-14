@@ -24,6 +24,9 @@ public enum RESTError: Error, Sendable, Equatable {
     case transport(String)
     /// The response body did not match the expected type.
     case decoding(String)
+    /// The app could not read the saved sign-in from the Keychain, so it could not try to sign in again. This is not a
+    /// wrong password. `status` is the `OSStatus`.
+    case credentialsUnavailable(status: Int32)
 }
 
 /// Readable text for every case. `localizedDescription` returns it, so a screen that shows the error never prints the
@@ -37,6 +40,8 @@ extension RESTError: LocalizedError {
         case .unexpectedContent: "The address answered with a web page, not Hermes. Check the address and path."
         case .transport: "Couldn't reach the server. Check the address and that Hermes is running."
         case .decoding: "The server sent an answer the app couldn't read."
+        case .credentialsUnavailable:
+            "Couldn't read the saved sign-in from this iPhone. Unlock the phone and try again."
         }
     }
 
@@ -166,7 +171,11 @@ public actor RESTClient {
             case 401:
                 guard !retriedAuth, reauthenticator != nil else { throw RESTError.unauthorized }
                 retriedAuth = true
-                do { try await reauthenticate() } catch { throw RESTError.unauthorized }
+                do {
+                    try await reauthenticate()
+                } catch {
+                    throw Self.reauthenticationFailure(error)
+                }
             case 429:
                 let hint = response.headers["retry-after"].flatMap(Double.init)
                 guard rateLimitRetries < config.maxRateLimitRetries else {
@@ -182,6 +191,18 @@ public actor RESTClient {
     }
 
     // MARK: - Helpers
+
+    /// Only a refused sign-in is `unauthorized`. A Keychain failure or a network error says what it is, so the screen
+    /// does not tell the user to sign in again when the password was never wrong.
+    private static func reauthenticationFailure(_ error: any Error) -> any Error {
+        switch error {
+        case is CancellationError: error
+        case let error as RESTError: error
+        case CredentialStoreError.keychain(let status): RESTError.credentialsUnavailable(status: status)
+        case is GatewaySignInRequired: RESTError.unauthorized
+        default: RESTError.transport("\(error)")
+        }
+    }
 
     private func scopedQuery(_ query: [URLQueryItem], _ scoped: Bool) -> [URLQueryItem] {
         guard scoped, let profile, !query.contains(where: { $0.name == "profile" }) else { return query }

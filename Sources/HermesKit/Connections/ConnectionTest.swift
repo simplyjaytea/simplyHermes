@@ -122,6 +122,8 @@ public enum ConnectionTestFailure: Error, Sendable, Equatable {
     case webSocket(String)
     /// The server's Hermes is older than this app supports. `found` says what was too old.
     case serverTooOld(found: String)
+    /// The Keychain on this iPhone would not give up the saved sign-in. The password is not known to be wrong.
+    case credentialsUnavailable
 
     /// One or two sentences for the form.
     public var message: String {
@@ -156,6 +158,8 @@ public enum ConnectionTestFailure: Error, Sendable, Equatable {
         case .webSocket(let detail):
             "The server answered, but the live connection (WebSocket) failed. A proxy in front of Hermes may block "
                 + "WebSockets. (\(detail))"
+        case .credentialsUnavailable:
+            "Couldn't read the saved sign-in from the Keychain on this iPhone. Unlock the phone and connect again."
         case .serverTooOld(let found):
             "This Hermes is too old for simplyHermes (\(found)). Update Hermes on the server with `hermes update`."
         }
@@ -426,6 +430,7 @@ public struct GatewayConnectionTester: ConnectionTesting {
     static func webSocketFailure(_ state: GatewayConnectionState) -> ConnectionTestFailure? {
         switch state {
         case .waitingToReconnect: .webSocket("the connection closed during the handshake")
+        case .failed(.credentialsUnavailable): .credentialsUnavailable
         case .failed: .wrongCredentials
         case .stopped: .webSocket("stopped")
         case .idle, .connecting, .connected: nil

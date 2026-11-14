@@ -22,6 +22,7 @@
             case .unexpectedContent: return "The server sent a web page, not an answer. Check the server address."
             case .transport: return "Could not reach the server."
             case .decoding: return "The server sent an answer this version cannot read."
+            case .credentialsUnavailable: return "Could not read the saved sign-in from this iPhone."
             }
         }
     }

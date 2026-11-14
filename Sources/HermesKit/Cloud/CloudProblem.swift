@@ -204,7 +204,7 @@ extension CloudProblem {
             self = .agentTooOld(agent: agent, found: found)
         case .rateLimited:
             self = .connectionFailed("Too many attempts. Try again in a minute.")
-        case .hostKeyRejected, .hostKeyChanged, .ssh, .invalidForm:
+        case .hostKeyRejected, .hostKeyChanged, .ssh, .invalidForm, .credentialsUnavailable:
             self = .connectionFailed(failure.message)
         }
     }

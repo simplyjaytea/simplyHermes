@@ -104,9 +104,10 @@ struct OnDeviceModelsModelTests {
         fixture.model.refresh()
 
         #expect(fixture.model.isSuspendedByMemoryWarning)
-        #expect(fixture.model.appleModelIsInUse)
-        #expect(!fixture.model.rows[0].isSelected)
-        #expect(fixture.model.rows[0].actions == [.use, .delete])
+        // The chosen model stays the choice: it loads again with the next question, and Apple does not take over.
+        #expect(!fixture.model.appleModelIsInUse)
+        #expect(fixture.model.rows[0].isSelected)
+        #expect(fixture.model.rows[0].actions == [.delete])
     }
 
     @Test func offlineChatOpensTheListAsASheet() {

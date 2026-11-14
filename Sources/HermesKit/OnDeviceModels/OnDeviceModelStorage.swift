@@ -390,12 +390,19 @@ public struct OnDeviceModelStorage: Sendable {
             .flatMap { try? JSONDecoder().decode(OnDeviceModelChoice.self, from: $0) }
     }
 
+    /// True when a choice file exists but cannot be read or decoded. A fresh install has no file, so this is false there.
+    public func hasUnreadableChoice() -> Bool {
+        let url = root.appendingPathComponent(Self.selectionName)
+        guard FileManager.default.fileExists(atPath: url.path) else { return false }
+        return loadChoice() == nil
+    }
+
     public func saveChoice(_ choice: OnDeviceModelChoice) {
         do {
             try prepareRoot()
             try JSONEncoder().encode(choice).write(to: root.appendingPathComponent(Self.selectionName))
         } catch {
-            // The choice is a convenience: the next launch starts on the Apple model.
+            // The choice is a convenience: the next launch reads the last choice that was saved.
         }
     }
 

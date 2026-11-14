@@ -124,45 +124,77 @@ struct OnDeviceModelsSelectionTests {
         #expect(setup.apple.prompts.isEmpty)
     }
 
-    @Test func aModelThatIsNotOnThePhoneFallsBackToApple() async throws {
+    @Test func aModelThatIsNotOnThePhoneCannotAnswerAndAppleDoesNot() async throws {
         let setup = try Setup(installed: [])
         await setup.selection.select(.downloaded("alpha"))
         #expect(setup.selection.choice == .downloaded("alpha"))
-        #expect(setup.selection.route == .apple)
-        #expect(try await answer(setup.selection, "hi") == "apple: hi")
+        let reason = LocalModelFailure.loadError("The model's files are not on this iPhone.")
+        #expect(setup.selection.availability == .unavailable(.chosenModelCannotAnswer(reason)))
+        #expect(setup.selection.cannotAnswerReason == reason)
+        await #expect(throws: OnDeviceModelError.filesMissing) {
+            _ = try await answer(setup.selection, "hi")
+        }
+        #expect(setup.apple.prompts.isEmpty)
     }
 
-    @Test func aModelOutsideTheCatalogFallsBackToApple() async throws {
+    @Test func aModelOutsideTheCatalogCannotAnswerAndAppleDoesNot() async throws {
         let setup = try Setup()
         await setup.selection.select(.downloaded("retired"))
-        #expect(setup.selection.route == .apple)
-        #expect(try await answer(setup.selection, "hi") == "apple: hi")
+        #expect(setup.selection.route == .noModel)
+        guard case .unavailable(.chosenModelCannotAnswer(.loadError)) = setup.selection.availability else {
+            Issue.record("expected unavailable, got \(setup.selection.availability)")
+            return
+        }
+        await #expect(throws: OnDeviceModelError.modelNotOffered) {
+            _ = try await answer(setup.selection, "hi")
+        }
+        #expect(setup.apple.prompts.isEmpty)
     }
 
-    @Test func withoutARuntimeTheAppleModelAlwaysAnswers() async throws {
+    @Test func withoutARuntimeADownloadedChoiceCannotAnswerAndAppleDoesNot() async throws {
         let setup = try Setup(hasRuntime: false)
         await setup.selection.select(.downloaded("alpha"))
         #expect(!setup.selection.canRunDownloadedModels)
-        #expect(setup.selection.route == .apple)
+        #expect(setup.selection.availability == .unavailable(.chosenModelCannotAnswer(.runtimeUnavailable)))
+        await #expect(throws: OnDeviceModelError.runtimeUnavailable) {
+            _ = try await answer(setup.selection, "hi")
+        }
+        #expect(setup.apple.prompts.isEmpty)
+    }
+
+    @Test func withoutARuntimeTheAppleChoiceStillAnswers() async throws {
+        let setup = try Setup(hasRuntime: false)
+        #expect(setup.selection.choice == .apple)
         #expect(try await answer(setup.selection, "hi") == "apple: hi")
     }
 
-    @Test func aRuntimeThatCannotRunTheModelFallsBackToApple() async throws {
+    @Test func aRuntimeThatCannotRunTheModelMeansNothingAnswers() async throws {
         let setup = try Setup(installed: [alpha, beta], runnable: ["beta"])
         #expect(setup.selection.canRunDownloadedModels)
         await setup.selection.select(.downloaded("alpha"))
-        #expect(setup.selection.route == .apple)
+        #expect(setup.selection.availability == .unavailable(.chosenModelCannotAnswer(.runtimeUnavailable)))
+        await #expect(throws: OnDeviceModelError.runtimeUnavailable) {
+            _ = try await answer(setup.selection, "hi")
+        }
+        #expect(setup.apple.prompts.isEmpty)
         await setup.selection.select(.downloaded("beta"))
         #expect(setup.selection.route == .downloaded(beta))
     }
 
-    @Test func deletedFilesMakeTheRouteFallBack() async throws {
+    @Test func deletedFilesLeaveNothingToAnswer() async throws {
         let setup = try Setup()
         await setup.selection.select(.downloaded("alpha"))
         #expect(setup.selection.route == .downloaded(alpha))
         try setup.env.storage.remove(alpha)
-        #expect(setup.selection.route == .apple)
-        #expect(try await answer(setup.selection, "hi") == "apple: hi")
+        #expect(setup.selection.route == .downloaded(alpha))
+        guard case .unavailable(.chosenModelCannotAnswer) = setup.selection.availability else {
+            Issue.record("expected unavailable, got \(setup.selection.availability)")
+            return
+        }
+        await #expect(throws: OnDeviceModelError.filesMissing) {
+            _ = try await answer(setup.selection, "hi")
+        }
+        #expect(setup.apple.prompts.isEmpty)
     }
 
     // MARK: Availability and the Settings switch
@@ -191,7 +223,7 @@ struct OnDeviceModelsSelectionTests {
 
     // MARK: Memory
 
-    @Test func aMemoryWarningUnloadsAndLetsTheAppleModelAnswer() async throws {
+    @Test func aMemoryWarningUnloadsAndTheChosenModelLoadsAgainOnTheNextQuestion() async throws {
         let setup = try Setup()
         await setup.selection.select(.downloaded("alpha"))
         #expect(try await answer(setup.selection, "one") == "alpha: one")
@@ -202,15 +234,33 @@ struct OnDeviceModelsSelectionTests {
         #expect(setup.runtime.unloadCount == unloadsBefore + 1)
         #expect(setup.selection.isSuspendedByMemoryWarning)
         #expect(setup.selection.choice == .downloaded("alpha"))  // the user's pick is kept
-        #expect(setup.selection.route == .apple)
-        #expect(try await answer(setup.selection, "two") == "apple: two")
+        #expect(setup.selection.route == .downloaded(alpha))
+        #expect(try await answer(setup.selection, "two") == "alpha: two")
+        #expect(!setup.selection.isSuspendedByMemoryWarning)
+        #expect(setup.apple.prompts.isEmpty)
     }
 
-    @Test func pickingTheModelAgainAfterAWarningLoadsItAgain() async throws {
+    @Test func aMemoryWarningThenAShortLoadThrowsAndAppleNeverAnswers() async throws {
+        let setup = try Setup()
+        await setup.selection.select(.downloaded("alpha"))
+        _ = try await answer(setup.selection, "one")
+        await setup.selection.handleMemoryWarning()
+        setup.models["alpha"]?.failure = OnDeviceModelError.notEnoughMemory(needed: 10, available: 5)
+
+        await #expect(throws: OnDeviceModelError.notEnoughMemory(needed: 10, available: 5)) {
+            _ = try await answer(setup.selection, "two")
+        }
+
+        #expect(
+            setup.selection.cannotAnswerReason == .notEnoughMemory(needed: alpha.estimatedMemoryBytes, available: 5))
+        #expect(setup.apple.prompts.isEmpty)
+    }
+
+    @Test func pickingTheModelAgainAfterAWarningClearsTheMemoryReport() async throws {
         let setup = try Setup()
         await setup.selection.select(.downloaded("alpha"))
         await setup.selection.handleMemoryWarning()
-        #expect(setup.selection.route == .apple)
+        #expect(setup.selection.isSuspendedByMemoryWarning)
 
         await setup.selection.select(.downloaded("alpha"))
 
@@ -234,19 +284,40 @@ struct OnDeviceModelsSelectionTests {
         #expect(try await answer(setup.selection, "hi") == "apple: hi")
     }
 
-    @Test func notEnoughMemoryWhileLoadingFallsBackForThatCall() async throws {
+    @Test func notEnoughMemoryWhileLoadingThrowsAndAppleIsNeverCalled() async throws {
         let setup = try Setup()
         await setup.selection.select(.downloaded("alpha"))
         setup.models["alpha"]?.failure = OnDeviceModelError.notEnoughMemory(needed: 10, available: 5)
         let unloadsBefore = setup.runtime.unloadCount
 
-        #expect(try await answer(setup.selection, "hi") == "apple: hi")
+        await #expect(throws: OnDeviceModelError.notEnoughMemory(needed: 10, available: 5)) {
+            _ = try await answer(setup.selection, "hi")
+        }
+        await #expect(throws: OnDeviceModelError.notEnoughMemory(needed: 10, available: 5)) {
+            _ = try await setup.selection.answer(instructions: "Be brief.", prompt: "again")
+        }
 
-        #expect(setup.models["alpha"]?.prompts == ["hi"])  // the downloaded model was tried first
-        #expect(setup.selection.isSuspendedByMemoryWarning)
-        #expect(setup.runtime.unloadCount == unloadsBefore + 1)
-        #expect(try await answer(setup.selection, "next") == "apple: next")  // and stays out of the way
-        #expect(setup.models["alpha"]?.prompts == ["hi"])
+        #expect(setup.models["alpha"]?.prompts == ["hi", "again"])  // the chosen model is asked every time
+        #expect(setup.runtime.unloadCount == unloadsBefore + 2)
+        #expect(setup.apple.prompts.isEmpty)
+        // Once memory is back, the same model answers.
+        setup.models["alpha"]?.failure = nil
+        #expect(try await answer(setup.selection, "later") == "alpha: later")
+    }
+
+    @Test func theAppleChoiceStillAnswersWithTheAppleModel() async throws {
+        let setup = try Setup()
+        await setup.selection.select(.apple)
+        let reply = try await setup.selection.answer(instructions: "Be brief.", prompt: "hi")
+        #expect(reply.text == "apple: hi")
+        #expect(reply.answeredBy == .apple)
+    }
+
+    @Test func anUnreadableChoiceFileLeavesNoModelChosen() async throws {
+        let setup = try Setup()
+        await setup.selection.select(.downloaded("alpha"))
+        try Data("not json".utf8).write(to: setup.env.storage.root.appendingPathComponent("selection.json"))
+        #expect(setup.relaunched().choice == .noModel)
     }
 
     @Test func otherErrorsFromTheDownloadedModelReachTheCaller() async throws {

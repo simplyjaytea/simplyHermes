@@ -134,7 +134,7 @@ final class FakeNow: @unchecked Sendable {
     }
 
     func makeSession(
-        _ http: RoutedHTTP, signIn: GatewaySignIn, remember: Bool = false, store: InMemoryCredentialStore,
+        _ http: RoutedHTTP, signIn: GatewaySignIn, remember: Bool = false, store: any CredentialStore,
         clock: FakeNow
     ) -> GatewayAuthSession {
         GatewayAuthSession(
@@ -245,6 +245,19 @@ final class FakeNow: @unchecked Sendable {
         #expect(http.requests(to: "/auth/password-login").count == 1)
     }
 
+    @Test func unreadablePasswordIsAKeychainErrorNotAWrongPassword() async throws {
+        let http = RoutedHTTP()
+        let store = FailingCredentialStore(failing: .gatewayPassword)
+        http.on("/api/auth/me", 401)
+        let session = makeSession(
+            http, signIn: .password(username: "tester"), remember: true, store: store, clock: FakeNow(1_000))
+        try await session.prepare()
+        await #expect(throws: RESTError.credentialsUnavailable(status: -25308)) {
+            _ = try await session.client.currentUser()
+        }
+        #expect(http.requests(to: "/auth/password-login").isEmpty)
+    }
+
     @Test func passwordSignInStoresThePasswordOnlyWhenAsked() async throws {
         let http = RoutedHTTP()
         http.on("/auth/password-login", 200, #"{"ok":true}"#)
@@ -254,5 +267,26 @@ final class FakeNow: @unchecked Sendable {
         #expect(try store.string(for: .gatewayPassword, connection: id) == "pw")
         try await session.signInWithPassword(username: "tester", password: "pw", remember: false)
         #expect(try store.string(for: .gatewayPassword, connection: id) == nil)
+    }
+}
+
+/// A store whose Keychain refuses to read one kind of secret.
+final class FailingCredentialStore: CredentialStore, @unchecked Sendable {
+    private let base = InMemoryCredentialStore()
+    private let failing: CredentialKind
+
+    init(failing: CredentialKind) { self.failing = failing }
+
+    func set(_ data: Data, for kind: CredentialKind, connection: UUID) throws {
+        try base.set(data, for: kind, connection: connection)
+    }
+
+    func data(for kind: CredentialKind, connection: UUID) throws -> Data? {
+        if kind == failing { throw CredentialStoreError.keychain(status: -25308) }
+        return try base.data(for: kind, connection: connection)
+    }
+
+    func remove(_ kind: CredentialKind, connection: UUID) throws {
+        try base.remove(kind, connection: connection)
     }
 }

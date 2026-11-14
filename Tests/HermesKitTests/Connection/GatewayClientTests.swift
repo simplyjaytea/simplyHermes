@@ -329,6 +329,15 @@ private func connected(_ rig: Rig, socket: FakeSocket) async throws {
         #expect(rig.transport.connectURLs.isEmpty)
     }
 
+    @Test func keychainFailureFromProviderStopsTheClientInsteadOfRetrying() async throws {
+        let rig = await Rig(provider: { _, _ in throw CredentialStoreError.keychain(status: -25308) })
+        await rig.client.start()
+        try await waitUntil("failed") { rig.log.states.contains(.failed(.credentialsUnavailable)) }
+        #expect(rig.transport.connectURLs.isEmpty)
+        #expect(rig.credentialRequests.all.count == 1)
+        #expect(!rig.log.states.contains { if case .waitingToReconnect = $0 { true } else { false } })
+    }
+
     @Test func tokenCredentialUsesTokenQuery() async throws {
         let rig = await Rig(provider: { _, _ in .token("abc") })
         let socket = FakeSocket()

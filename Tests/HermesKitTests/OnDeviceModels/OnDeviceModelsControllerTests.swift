@@ -100,16 +100,16 @@ struct OnDeviceModelsControllerTests {
         #expect(setup.controller.rows(states: ["alpha": .downloaded])[0].actions == [.use, .delete])
     }
 
-    @Test func afterAMemoryWarningTheModelOffersUseAgain() async throws {
+    @Test func afterAMemoryWarningTheModelStaysSelectedAndAppleDoesNotTakeOver() async throws {
         let setup = Setup()
         try setup.env.installFinished(alpha)
         try await setup.controller.perform(.use, on: alpha)
         await setup.selection.handleMemoryWarning()
 
         let row = setup.controller.rows(states: ["alpha": .downloaded])[0]
-        #expect(!row.isSelected)
-        #expect(row.actions == [.use, .delete])
-        #expect(setup.controller.appleModelIsInUse)
+        #expect(row.isSelected)
+        #expect(row.actions == [.delete])
+        #expect(!setup.controller.appleModelIsInUse)
     }
 
     @Test func pauseResumeAndCancelReachTheManager() async throws {

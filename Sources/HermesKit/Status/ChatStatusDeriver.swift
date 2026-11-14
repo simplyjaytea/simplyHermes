@@ -51,7 +51,7 @@ public enum ChatStatusDeriver {
             needsAttention(.serverUpdate)
         case .hostKeyRejected, .hostKeyChanged:
             needsAttention(.hostKey)
-        case .notHermes, .invalidForm:
+        case .notHermes, .invalidForm, .credentialsUnavailable:
             needsAttention(.settings)
         }
     }

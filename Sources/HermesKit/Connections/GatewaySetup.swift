@@ -286,7 +286,7 @@ public enum GatewaySetup {
                     "A proxy in front of Hermes may block WebSockets.",
                 ]
             )
-        case .invalidForm, .ssh, .hostKeyRejected, .hostKeyChanged:
+        case .invalidForm, .ssh, .hostKeyRejected, .hostKeyChanged, .credentialsUnavailable:
             return (failure.message, [])
         }
     }
@@ -339,7 +339,7 @@ public enum GatewaySetup {
             case .openingWebSocket?: return Check.live
             default: return Check.reach
             }
-        case .invalidForm, .ssh, .hostKeyRejected, .hostKeyChanged:
+        case .invalidForm, .ssh, .hostKeyRejected, .hostKeyChanged, .credentialsUnavailable:
             return nil
         }
     }

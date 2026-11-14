@@ -25,6 +25,7 @@ public enum ServerControlError: Error, Sendable, Equatable {
             case .unexpectedContent: return "The server sent a web page instead of an answer. Check the address."
             case .transport: return "The server did not answer."
             case .decoding: return "The server's answer was not what the app expects."
+            case .credentialsUnavailable: return "Couldn't read the saved sign-in from this iPhone. Try again."
             }
         }
         return "Something went wrong. Try again."
