@@ -63,6 +63,8 @@ final class StatusPillUITests: XCTestCase {
         field.tap()
         field.typeText(draft)
         let repliesBefore = replyRowCount(app)
+        // What the composer and the chat held right after typing, for the message of a failed draft check below.
+        let typed = "field=\(field.value as? String ?? "nil") \(element(app, "uiTest.chatStatus").label)"
 
         let banner = element(app, "chat.outageBanner")
         if !banner.waitForExistence(timeout: 10) {
@@ -87,7 +89,8 @@ final class StatusPillUITests: XCTestCase {
         XCTAssertTrue(local.waitForExistence(timeout: 10), "A new Local chat should open")
         let carried = element(app, "composer.field")
         XCTAssertTrue(carried.waitForExistence(timeout: 10))
-        XCTAssertEqual(carried.value as? String, draft, "The new Local chat should carry the draft")
+        XCTAssertEqual(
+            carried.value as? String, draft, "The new Local chat should carry the draft. After typing: \(typed)")
         XCTAssertEqual(element(app, "uiTest.localReplies").label, "0", "Nothing answers until the user sends")
     }
 
@@ -187,6 +190,9 @@ final class StatusPillUITests: XCTestCase {
             "banner=\(element(app, "chat.outageBanner").exists)",
             "switch=\(element(app, "uiTest.gatewayToggle").label)",
             "waiting=\(app.staticTexts["Waiting to send"].exists)",
+            "fields=\(app.descendants(matching: .any).matching(identifier: "composer.field").count)",
+            "field=\(element(app, "composer.field").value as? String ?? "nil")",
+            "alerts=\(app.alerts.allElementsBoundByIndex.map(\.label))",
             "summary=\(element(app, "uiTest.chatStatus").label)",
         ].joined(separator: " ")
         // continueAfterFailure is false (setUp), so the test stops here.

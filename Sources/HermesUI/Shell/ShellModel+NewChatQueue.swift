@@ -11,8 +11,12 @@
             let typed = drafts[id, default: ""]
             guard !typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
             newChatError = nil
+            queuedFirstMessages[id] = typed
             let task: Task<Void, Never> = Task {
-                defer { self.startingChats[id] = nil }
+                defer {
+                    self.startingChats[id] = nil
+                    self.queuedFirstMessages[id] = nil
+                }
                 do {
                     try await queue.send(typed, forRow: id)
                     if self.drafts[id] == typed { self.drafts[id] = nil }
@@ -29,6 +33,10 @@
             adopt(
                 SessionListItem(id: sessionID, title: "New chat", time: "Now", isPinned: false, serverName: serverName),
                 replacing: row)
+            // The chat can be made before the save of its first message returns. The draft then moves to the new chat
+            // while it still holds that message, and the check after the save looks at the old row. The queue has the
+            // message, so the composer lets go of it here. Text typed since then is not the same text, and it stays.
+            if let saved = queuedFirstMessages[row], drafts[sessionID] == saved { drafts[sessionID] = nil }
         }
 
         /// The chat of a placeholder row was made on a server that is not the active one. The row goes: under another

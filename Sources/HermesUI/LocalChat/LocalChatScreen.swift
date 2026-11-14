@@ -6,13 +6,22 @@
     /// this screen reaches a server.
     public struct LocalChatScreen: View {
         @Bindable var model: LocalChatModel
-        @State private var draft = ""
+        /// The shell's draft for this chat, so text carried over from an online chat shows in the composer. A screen
+        /// made without one keeps its own.
+        private let sharedDraft: Binding<String>?
+        @State private var ownDraft = ""
+        private var draftBinding: Binding<String> { sharedDraft ?? $ownDraft }
+        private var draft: String {
+            get { draftBinding.wrappedValue }
+            nonmutating set { draftBinding.wrappedValue = newValue }
+        }
         /// The last "Remember this", for its Undo bar.
         @State private var remembered: LocalMemoryChange?
         @Environment(\.hermesPalette) private var palette
 
-        public init(model: LocalChatModel) {
+        public init(model: LocalChatModel, draft: Binding<String>? = nil) {
             self.model = model
+            self.sharedDraft = draft
         }
 
         public var body: some View {
@@ -33,7 +42,7 @@
                     rememberedBar(remembered, undo: { undoRemembered(remembered) }, dismiss: { self.remembered = nil })
                 }
                 // `/` lists the prompt-only skills (local agent abilities, phase 2). They are text; nothing is fetched.
-                Composer(text: $draft, completer: Self.skillCompleter) { submit() }
+                Composer(text: draftBinding, completer: Self.skillCompleter) { submit() }
                     .background(palette.background)
             }
             .background(palette.background)

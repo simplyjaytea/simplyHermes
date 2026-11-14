@@ -35,7 +35,7 @@
                 ChatStatusBar(strip: chat.strip, pill: chat.status.pill, serverName: chat.serverName)
                 #if DEBUG
                     // Hidden: a UI test reads it when an outage assertion fails (WP-8).
-                    Text("\(chat.debugStatusSummary) waitingRows=\(chat.outboxRows.count)")
+                    Text(debugSendSummary)
                         .font(.system(size: 1))
                         .frame(width: 1, height: 1)
                         .opacity(0.01)
@@ -287,6 +287,9 @@
         private var scrollToBottomButton: some View {
             if !isFollowing, !chat.state.items.isEmpty {
                 Button {
+                    // A tap while the user's own scroll is still coasting: without this, the scroll's end would work out
+                    // the follow again from a position that is not at the end yet, and undo the tap.
+                    isUserScrolling = false
                     isFollowing = true
                     withAnimation(.snappy) { position.scrollTo(edge: .bottom) }
                 } label: {
@@ -439,6 +442,17 @@
                 }
             }
         }
+
+        #if DEBUG
+            /// The status, and what a send from this screen would use: the chat it is for, the chat the shell has
+            /// selected, the draft, the waiting rows and the last send error. Read by a UI test when a send goes missing.
+            private var debugSendSummary: String {
+                let draft = model.drafts[sessionID, default: ""]
+                let send = "screen=\(sessionID) selected=\(model.selectedSessionID ?? "none") draft=\(draft.count)"
+                let outbox = "waitingRows=\(chat.outboxRows.count) sendError=\(chat.outboxError ?? "none")"
+                return "\(chat.debugStatusSummary) \(send) \(outbox)"
+            }
+        #endif
 
         /// Changes whenever the bottom of the transcript moves: a new row, new text, or an approval card.
         private var followKey: Int {
