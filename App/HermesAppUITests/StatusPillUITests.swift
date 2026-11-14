@@ -206,30 +206,8 @@ final class StatusPillUITests: XCTestCase {
         ]
         app.launch()
 
-        let addGateway = element(app, "welcome.addGateway")
-        XCTAssertTrue(addGateway.waitForExistence(timeout: 10))
-        addGateway.tap()
-
-        let field = element(app, "connection.url")
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
-        field.tap()
-        field.typeText(url)
-
-        let username = element(app, "connection.username")
-        XCTAssertTrue(username.waitForExistence(timeout: 10), "Password sign-in should be picked from the probe")
-        username.tap()
-        username.typeText("tester")
-        let password = element(app, "connection.password")
-        password.tap()
-        password.typeText("testbed-password")
-
-        let test = element(app, "connection.test")
-        if !test.isHittable { app.swipeUp() }
-        test.tap()
-        XCTAssertTrue(element(app, "connection.testPassed").waitForExistence(timeout: 30), "The testbed should pass")
-
-        element(app, "connection.save").tap()
-        XCTAssertTrue(element(app, "welcome.addGateway").waitForNonExistence(timeout: 10))
+        // The shared sign-in steps, including Remember password: the saved server must be able to sign in again.
+        testbedSignIn(app, url: url)
         XCTAssertTrue(app.buttons.matching(identifier: "shell.newChat").firstMatch.waitForExistence(timeout: 10))
         return app
     }

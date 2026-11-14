@@ -23,6 +23,10 @@ extension XCTestCase {
         password.tap()
         password.typeText("testbed-password")
 
+        // The app keeps a gateway password only when "Remember password" is on. Without it the saved server has no
+        // password, and connecting it ends in "Sign in again" (run 43495829201). The wizard's own check passes either way.
+        testbedRememberPassword(app)
+
         let test = testbedElement(app, "connection.test")
         if !test.isHittable { app.swipeUp() }
         test.tap()
@@ -30,6 +34,22 @@ extension XCTestCase {
 
         testbedElement(app, "connection.save").tap()
         XCTAssertTrue(testbedElement(app, "welcome.addGateway").waitForNonExistence(timeout: 10))
+    }
+
+    /// Turns on "Remember password" in the connection form, so the saved server can sign in again by itself.
+    @MainActor
+    func testbedRememberPassword(_ app: XCUIApplication) {
+        let named = NSPredicate(format: "label == 'Remember password'")
+        var remember = app.switches.matching(named).firstMatch
+        // A toggle that does not report as a switch is still found by its label.
+        if !remember.waitForExistence(timeout: 3) {
+            remember = app.descendants(matching: .any).matching(named).firstMatch
+        }
+        if !remember.waitForExistence(timeout: 2) || !remember.isHittable { app.swipeUp() }
+        XCTAssertTrue(remember.waitForExistence(timeout: 5), "The form should offer Remember password")
+        if (remember.value as? String) != "1" { remember.tap() }
+        XCTAssertEqual(
+            remember.value as? String, "1", "Remember password should be on, or the saved server can't sign in")
     }
 
     /// Waits until the saved server's row in Settings › Servers reads Connected, starting the connection up to three
