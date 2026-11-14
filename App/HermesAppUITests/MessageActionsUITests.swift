@@ -25,7 +25,7 @@ final class MessageActionsUITests: XCTestCase {
     func testQuoteInReplyFillsTheDraftWithoutSending() {
         let app = launch()
         let answer = visibleAnswer(app)
-        let messageCount = messages(app).count
+        XCTAssertEqual(newMessages(app).count, 0, "The sample chat starts with its own messages only")
         openMenu(on: answer)
         XCTAssertTrue(app.buttons["Quote in reply"].waitForExistence(timeout: 5))
         app.buttons["Quote in reply"].tap()
@@ -34,7 +34,12 @@ final class MessageActionsUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         let draft = field.value as? String ?? ""
         XCTAssertTrue(draft.hasPrefix("> Answer"), "The draft should start with the quote, got: \(draft)")
-        XCTAssertEqual(messages(app).count, messageCount, "Quoting must not send anything")
+        // Nothing was sent. Counting visible rows can't tell: the transcript is lazy, and once the keyboard shrinks it
+        // fewer rows are loaded (19 went to 8 in iOS run 43495829201). A sent message would get a new id, never a
+        // sample one, and sending clears the composer. So: no new message row, and the quote still waits in the field.
+        sleep(2)
+        XCTAssertEqual(newMessages(app).count, 0, "Quoting must not send anything")
+        XCTAssertEqual(field.value as? String, draft, "The quote stays in the composer: nothing sent it")
     }
 
     @MainActor
@@ -110,10 +115,11 @@ final class MessageActionsUITests: XCTestCase {
         let saved = app.descendants(matching: .any)["memory.remembered"]
         XCTAssertTrue(saved.waitForExistence(timeout: 5), "Saved to memory, with Undo")
 
-        let settings = app.buttons.matching(NSPredicate(format: "label == %@", "Settings")).allElementsBoundByIndex
-            .first(where: \.isHittable)
-        XCTAssertNotNil(settings, "a tappable Settings button")
-        settings?.tap()
+        // Back to the list first (the chat is pushed over the tabs), then the visible copy of the Settings tab, polled
+        // while the tab bar settles (TestbedUITestSupport).
+        let back = app.buttons["BackButton"]
+        if back.waitForExistence(timeout: 5), back.isHittable { back.tap() }
+        testbedHittableButton(app, "Settings").tap()
         let memoryLink = app.descendants(matching: .any)["settings.localMemory"]
         for _ in 0..<4 where !memoryLink.exists { app.swipeUp() }
         XCTAssertTrue(memoryLink.waitForExistence(timeout: 5), "Settings › On-device lists Memory")
@@ -144,9 +150,14 @@ final class MessageActionsUITests: XCTestCase {
         return app.descendants(matching: .any)["message.backup-a24"]
     }
 
+    /// Message rows that are not the sample chat's own: anything sent during the test.
     @MainActor
-    private func messages(_ app: XCUIApplication) -> XCUIElementQuery {
-        app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'message.backup-'"))
+    private func newMessages(_ app: XCUIApplication) -> XCUIElementQuery {
+        app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'message.' AND NOT (identifier BEGINSWITH 'message.backup-') "
+                    + "AND NOT (identifier BEGINSWITH 'message.action.') AND NOT (identifier BEGINSWITH 'message.selectText')"
+            ))
     }
 
     @MainActor
