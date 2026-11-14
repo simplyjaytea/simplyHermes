@@ -334,7 +334,18 @@ final class StatusPillUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
         field.typeText(text)
-        element(app, "composer.send").tap()
+        let send = element(app, "composer.send")
+        // A send button under the keyboard cannot be tapped: the tap lands on a key (run 43641154917 typed "P" and a
+        // suggestion into the draft and sent nothing). Say so, with the frames, and do not tap blind.
+        let keyboard = app.keyboards.firstMatch
+        if keyboard.exists, keyboard.frame.intersects(send.frame) {
+            add(XCTAttachment(screenshot: app.screenshot()))
+            XCTFail(
+                "The composer's send button is under the keyboard. send=\(send.frame) field=\(field.frame) "
+                    + "keyboard=\(keyboard.frame) banner=\(element(app, "chat.outageBanner").frame) "
+                    + "transcript=\(element(app, "transcript").frame) window=\(app.windows.firstMatch.frame)")
+        }
+        send.tap()
     }
 
     /// The transcript's message rows. Each message row carries a `message.` identifier.

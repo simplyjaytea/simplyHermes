@@ -37,8 +37,15 @@ final class NewReplyDotUITests: XCTestCase {
         XCTAssertTrue(toLatest.exists, "Swiping down should scroll the transcript up and show Scroll to latest")
 
         let dot = testbedElement(app, "chat.newReplyDot")
-        XCTAssertTrue(dot.waitForExistence(timeout: 20), "New text while scrolled up lights the dot")
-        testbedElement(app, "chat.scrollToBottom").tap()
-        XCTAssertTrue(dot.waitForNonExistence(timeout: 10), "Back at the latest, the dot goes")
+        // What the screen held, for the message of a failed check.
+        func seen() -> String {
+            let keyboard = app.keyboards.firstMatch
+            return "toLatest=\(toLatest.exists ? toLatest.label : "absent") frame=\(toLatest.frame) "
+                + "dot=\(dot.exists) keyboard=\(keyboard.exists ? "\(keyboard.frame)" : "none") "
+                + "transcript=\(transcript.frame) field=\(field.value as? String ?? "nil")"
+        }
+        XCTAssertTrue(dot.waitForExistence(timeout: 20), "New text while scrolled up lights the dot. \(seen())")
+        toLatest.tap()
+        XCTAssertTrue(dot.waitForNonExistence(timeout: 10), "Back at the latest, the dot goes. \(seen())")
     }
 }
