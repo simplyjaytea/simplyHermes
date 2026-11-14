@@ -26,9 +26,15 @@ final class NewReplyDotUITests: XCTestCase {
         testbedElement(app, "composer.send").tap()
         let transcript = testbedElement(app, "transcript")
         XCTAssertTrue(transcript.waitForExistence(timeout: 10))
-        // Scroll up while the reply is still streaming in.
-        transcript.swipeDown()
-        transcript.swipeDown()
+        // Scroll up while the reply is still streaming in. The first swipes can land before the transcript is tall
+        // enough to scroll, and the chat then keeps following. The scroll-to-latest button shows only once the chat
+        // has stopped following, so swipe until it is there.
+        let toLatest = testbedElement(app, "chat.scrollToBottom")
+        for _ in 0..<8 where !toLatest.exists {
+            transcript.swipeDown()
+            _ = toLatest.waitForExistence(timeout: 1)
+        }
+        XCTAssertTrue(toLatest.exists, "Swiping down should scroll the transcript up and show Scroll to latest")
 
         let dot = testbedElement(app, "chat.newReplyDot")
         XCTAssertTrue(dot.waitForExistence(timeout: 20), "New text while scrolled up lights the dot")

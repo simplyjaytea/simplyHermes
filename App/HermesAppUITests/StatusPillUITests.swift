@@ -81,8 +81,9 @@ final class StatusPillUITests: XCTestCase {
         XCTAssertEqual(continueLocal.label, "Continue in a new Local chat")
         continueLocal.tap()
 
-        let local = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'session.local-'")).firstMatch
+        // The compact layout pushes the new chat over the server's chat list, which has no Local rows, so no
+        // `session.local-` row is on screen. The Local chat's own transcript shows that it opened.
+        let local = element(app, "local.transcript")
         XCTAssertTrue(local.waitForExistence(timeout: 10), "A new Local chat should open")
         let carried = element(app, "composer.field")
         XCTAssertTrue(carried.waitForExistence(timeout: 10))
