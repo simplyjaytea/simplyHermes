@@ -36,7 +36,13 @@
                 await profiles.refresh()
                 chosen = await manager.profile(of: connection.id)
             }
-            return try await NewServerChat.start(using: client, profile: chosen)
+            let started = try await NewServerChat.start(using: client, profile: chosen)
+            // The wait and the create can take 20 s and more. If the user changed servers meanwhile, this chat belongs
+            // to a server that is no longer the active one: showing it would list it under the other server, and its
+            // first message would be aimed there with this server's session id. The caller keeps the message as a
+            // draft instead (the same check as ``NewChatStarter``).
+            guard connections.active?.id == connection.id else { throw .notReachable }
+            return started
         }
 
         /// Waits for the connection, up to ``ConnectWait/patience``. A server only the user can fix ends the wait.

@@ -10,7 +10,7 @@ struct BotLiveActivityWidget: Widget {
         ActivityConfiguration(for: BotActivityAttributes.self) { context in
             LiveTurnCard(state: context.state, isStale: context.isStale) {
                 LiveTurnButtonRow(state: context.state) { action in
-                    intentButton(action, sessionID: context.attributes.sessionID, command: context.state.pendingCommand) {
+                    intentButton(action, sessionID: context.attributes.sessionID, command: shown(context.state)) {
                         Text(action.title)
                     }
                 }
@@ -35,7 +35,10 @@ struct BotLiveActivityWidget: Widget {
                         LiveTurnDetail(state: context.state, isStale: context.isStale)
                         HStack(spacing: 6) {
                             ForEach(LiveTurnAction.available(for: context.state), id: \.self) { action in
-                                intentButton(action, sessionID: context.attributes.sessionID, command: context.state.pendingCommand) {
+                                intentButton(
+                                    action, sessionID: context.attributes.sessionID,
+                                    command: shown(context.state)
+                                ) {
                                     LiveTurnCompactButtonLabel(action)
                                 }
                                 .buttonStyle(.plain)
@@ -55,6 +58,9 @@ struct BotLiveActivityWidget: Widget {
         }
     }
 }
+
+/// The command a surface shows now. Deny and Approve name it, so the app answers only that command.
+private func shown(_ state: LiveTurnState) -> String? { state.pendingCommand }
 
 /// A button that runs the matching intent for `action`.
 @ViewBuilder

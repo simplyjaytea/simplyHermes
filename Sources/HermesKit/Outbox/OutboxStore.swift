@@ -50,12 +50,28 @@ public protocol OutboxStore: Sendable {
     /// removed messages were waiting (pending or failed), so the app can say how many were discarded.
     @discardableResult
     func removeChat(_ chatID: String, connection: String) async throws -> Int
+
+    /// The chats of one server that hold a message not yet acknowledged (pending, sending or failed), oldest first.
+    ///
+    /// The server lists a chat only once it holds a message. So a chat whose first message still waits is in nobody's
+    /// list after a relaunch or a server switch, and its message would wait with no row to show it. The shell reads
+    /// this to put those chats back.
+    func unsentChatIDs(connection: String) async throws -> [String]
 }
 
 extension OutboxStore {
     /// A store that cannot rebind refuses, so no message is ever moved without being kept. The database store overrides it.
     public func rebind(chat oldID: String, to newID: String, connection: String) async throws -> Int {
         throw OutboxRebindUnsupported()
+    }
+
+    /// A store that cannot list them says none. The database store overrides it.
+    public func unsentChatIDs(connection: String) async throws -> [String] { [] }
+
+    /// ``unsentChatIDs(connection:)`` without the placeholders: the chats that exist on the server. A placeholder's
+    /// row is the New chat queue's to restore.
+    public func unsentServerChatIDs(connection: String) async throws -> [String] {
+        try await unsentChatIDs(connection: connection).filter { !PlaceholderChat.isPlaceholderID($0) }
     }
 
     /// How many of one server's chat messages are waiting: pending or failed. A message already sending is not counted,

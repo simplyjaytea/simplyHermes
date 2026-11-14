@@ -71,6 +71,26 @@ struct OutboxStoreTests {
         #expect(try await reopened.outbox.records(inChat: "c1") == [saved])
     }
 
+    /// A chat whose first message still waits is not in the server's list, so the shell asks the outbox for it.
+    @Test func unsentChatsAreListedPerServerOldestFirstWithoutSentOnes() async throws {
+        let outbox = try HermesCache().outbox
+        let sent = record("done", chat: "sent-chat")
+        try await outbox.insert(record("first", chat: "b"))
+        try await outbox.insert(record("second", chat: "a"))
+        try await outbox.insert(record("again", chat: "b"))
+        try await outbox.insert(record("other server", chat: "c", connection: "y"))
+        try await outbox.insert(record("not made yet", chat: "new-11111111-1111-1111-1111-111111111111"))
+        try await outbox.insert(sent)
+        try await outbox.updateState(.sending, forID: sent.id)
+        try await outbox.updateState(.sent(acknowledgedAt: start), forID: sent.id)
+
+        #expect(
+            try await outbox.unsentChatIDs(connection: "x") == ["b", "a", "new-11111111-1111-1111-1111-111111111111"])
+        #expect(try await outbox.unsentServerChatIDs(connection: "x") == ["b", "a"])
+        #expect(try await outbox.unsentChatIDs(connection: "y") == ["c"])
+        #expect(try await outbox.unsentChatIDs(connection: "z").isEmpty)
+    }
+
     @Test func aStateChangeSurvivesReopeningTheDatabase() async throws {
         let url = temporaryURL()
         let saved = record("hello")

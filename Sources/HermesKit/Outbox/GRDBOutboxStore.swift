@@ -76,6 +76,19 @@ public struct GRDBOutboxStore: OutboxStore {
         }
     }
 
+    public func unsentChatIDs(connection: String) async throws -> [String] {
+        try await database.read { handle in
+            try String.fetchAll(
+                handle,
+                sql: """
+                    SELECT chat_id FROM outbound_messages
+                    WHERE connection_id = ? AND state IN ('pending', 'sending', 'failed')
+                    GROUP BY chat_id ORDER BY MIN(rowid)
+                    """,
+                arguments: [connection])
+        }
+    }
+
     @discardableResult
     public func rebind(chat oldID: String, to newID: String, connection: String) async throws -> Int {
         try await database.write { handle in

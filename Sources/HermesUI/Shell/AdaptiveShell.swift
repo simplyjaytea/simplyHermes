@@ -57,12 +57,12 @@
                     let queue = NewChatQueue(
                         connections: connections, placeholders: placeholders, outbox: OutboxServices.store)
                     queue.onCreated = { [weak model] row, session, name, connectionID in
-                        model?.adoptQueuedChat(row: row, sessionID: session, serverName: name)
-                        // Attach now, so the waiting message goes out even when the chat is not on screen. Only on the
-                        // server the chat was made on: another active server must never get this session id.
-                        if connections.active?.id.uuidString == connectionID {
-                            Task { await liveChats?.chat(for: session)?.attach() }
-                        }
+                        // Only on the server the chat was made on: another active server must never list this
+                        // session id or get its message. There the row goes, and the chat comes back with its
+                        // waiting message when its own server is active (`showUnsentChats`).
+                        model?.queuedChatCreated(
+                            row: row, sessionID: session, serverName: name, on: connectionID,
+                            active: connections.active?.id.uuidString)
                     }
                     model.newChatQueue = queue
                 }
@@ -159,6 +159,7 @@
         /// Lists the active profile's chats in the shell (WP-40), again when the server or the profile changes.
         private func attachSessions() async {
             await model.loadLocalChats()
+            await model.showUnsentChats(of: connections)
             guard let sessionsList else { return }
             sessionsList.observeItems { model.syncSessions($0) }
             await sessionsList.attach(profile: profiles?.selection.chosen)
