@@ -10,10 +10,12 @@ import HermesKit
 final class LiveTurnActionCenter {
     static let shared = LiveTurnActionCenter()
 
-    var handler: (@MainActor (LiveTurnAction, String) -> Void)?
+    /// The third value is the command the button's surface showed, for Deny and Approve. See
+    /// ``LiveTurnState/showed(_:pending:)``.
+    var handler: (@MainActor (LiveTurnAction, String, String?) -> Void)?
 
-    func perform(_ action: LiveTurnAction, sessionID: String) {
-        handler?(action, sessionID)
+    func perform(_ action: LiveTurnAction, sessionID: String, showing command: String? = nil) {
+        handler?(action, sessionID, command)
     }
 }
 
@@ -45,14 +47,19 @@ struct DenyTurnIntent: LiveActivityIntent {
     @Parameter(title: "Chat")
     var sessionID: String
 
+    /// The command the button's surface showed. The app answers only that command.
+    @Parameter(title: "Command")
+    var command: String?
+
     init() {}
 
-    init(sessionID: String) {
+    init(sessionID: String, command: String?) {
         self.sessionID = sessionID
+        self.command = command
     }
 
     func perform() async throws -> some IntentResult {
-        await LiveTurnActionCenter.shared.perform(.deny, sessionID: sessionID)
+        await LiveTurnActionCenter.shared.perform(.deny, sessionID: sessionID, showing: command)
         return .result()
     }
 }
@@ -67,14 +74,19 @@ struct ApproveTurnIntent: LiveActivityIntent {
     @Parameter(title: "Chat")
     var sessionID: String
 
+    /// The command the button's surface showed. The app answers only that command.
+    @Parameter(title: "Command")
+    var command: String?
+
     init() {}
 
-    init(sessionID: String) {
+    init(sessionID: String, command: String?) {
         self.sessionID = sessionID
+        self.command = command
     }
 
     func perform() async throws -> some IntentResult {
-        await LiveTurnActionCenter.shared.perform(.approve, sessionID: sessionID)
+        await LiveTurnActionCenter.shared.perform(.approve, sessionID: sessionID, showing: command)
         return .result()
     }
 }

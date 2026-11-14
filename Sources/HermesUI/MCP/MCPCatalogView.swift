@@ -4,6 +4,7 @@
 
     /// The approved MCP catalog. A tap on an entry opens its install sheet (WP-53b).
     struct MCPCatalogView: View {
+        @Environment(\.hermesPalette) private var palette
         private let model: MCPCatalogModel
         @State private var selected: MCPCatalogEntry?
 
@@ -20,25 +21,29 @@
                         } label: {
                             MCPCatalogRow(entry: entry)
                         }
-                        .tint(HermesColor.primaryText)
+                        .tint(palette.primaryText)
                         .accessibilityIdentifier("mcp.catalog.\(entry.name)")
                     }
                 } footer: {
                     Text("Installing adds the server to the config.")
                 }
+                .hermesListRows()
                 if let notice = model.notice {
                     Section {
                         Label(notice, systemImage: "arrow.down.circle")
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
+                    .hermesListRows()
                 }
                 if let errorText = model.errorText {
                     Section {
                         Label(errorText, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(HermesColor.destructive)
+                            .foregroundStyle(palette.errorText)
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Catalog")
             .overlay {
                 if model.entries.isEmpty && model.errorText == nil && !model.isLoading {
@@ -59,6 +64,7 @@
 
     /// One catalog entry: its name, what it does, and whether it is installed.
     private struct MCPCatalogRow: View {
+        @Environment(\.hermesPalette) private var palette
         let entry: MCPCatalogEntry
 
         var body: some View {
@@ -67,11 +73,11 @@
                 if let description = entry.description, !description.isEmpty {
                     Text(description)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
                 Text(state)
                     .font(HermesFont.caption)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
@@ -87,6 +93,7 @@
     ///
     /// Variables go into secure fields and are sent once. Blank optional variables are left out.
     private struct MCPInstallSheet: View {
+        @Environment(\.hermesPalette) private var palette
         let model: MCPCatalogModel
         let entry: MCPCatalogEntry
         @Environment(\.dismiss) private var dismiss
@@ -113,24 +120,28 @@
                             )
                         }
                     }
+                    .hermesListRows()
                     if !variables.isEmpty {
                         variableSection
                     }
                     if let note = entry.postInstall, !note.isEmpty {
                         Section {
                             Text(note)
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .foregroundStyle(palette.secondaryText)
                         } header: {
                             Text("After the install")
                         }
+                        .hermesListRows()
                     }
                     if let errorText {
                         Section {
                             Label(errorText, systemImage: "exclamationmark.triangle.fill")
-                                .foregroundStyle(HermesColor.destructive)
+                                .foregroundStyle(palette.errorText)
                         }
+                        .hermesListRows()
                     }
                 }
+                .hermesThemedList()
                 .navigationTitle(entry.name)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbar }
@@ -172,6 +183,7 @@
             } footer: {
                 Text("Values are hidden and sent once. The server keeps them and never shows them again.")
             }
+            .hermesListRows()
         }
 
         private var variables: [MCPCatalogEnvVar] {

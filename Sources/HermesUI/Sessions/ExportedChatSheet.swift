@@ -3,6 +3,7 @@
 
     /// Offers an exported chat to the system share sheet (WP-40). The file holds the JSON the server sent.
     struct ExportedChatSheet: View {
+        @Environment(\.hermesPalette) private var palette
         let chat: ExportedChat
         @Environment(\.dismiss) private var dismiss
 
@@ -11,7 +12,7 @@
                 VStack(spacing: 16) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.largeTitle)
-                        .foregroundStyle(HermesColor.accent)
+                        .foregroundStyle(palette.accent)
                         .accessibilityHidden(true)
                     Text(chat.url.lastPathComponent)
                         .font(HermesFont.body)

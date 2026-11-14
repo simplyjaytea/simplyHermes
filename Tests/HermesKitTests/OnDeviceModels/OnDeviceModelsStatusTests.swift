@@ -97,7 +97,7 @@ struct OnDeviceModelsStatusTests {
         let (cannotRun, _) = try selection(runtime: NoRunRuntime())
         await cannotRun.select(.downloaded("alpha"))
         #expect(cannotRun.status == .failed(gemma, reason: .runtimeUnavailable))
-        #expect(cannotRun.substitution == .runtimeUnavailable)
+        #expect(cannotRun.cannotAnswerReason == .runtimeUnavailable)
         // Preparing it does not load anything and does not turn into the Apple model.
         #expect(await cannotRun.prepare() == .failed(gemma, reason: .runtimeUnavailable))
     }

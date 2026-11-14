@@ -45,6 +45,7 @@
 
     /// Tools > Kanban (WP-55): a board switcher, then one column per page (Q40). Tap a card for its details.
     struct KanbanBoardScreen: View {
+        @Environment(\.hermesPalette) private var palette
         @Bindable var model: KanbanModel
 
         @State private var openedTask: KanbanOpenedTask?
@@ -98,7 +99,7 @@
             if let errorText = model.errorText, model.board != nil {
                 Label(errorText, systemImage: "exclamationmark.triangle.fill")
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.destructive)
+                    .foregroundStyle(palette.errorText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
@@ -107,7 +108,7 @@
             if let notice = model.notice {
                 Label(notice, systemImage: "info.circle")
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)

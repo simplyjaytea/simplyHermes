@@ -5,6 +5,7 @@
 
     /// Creates a task on the selected board: title, description, assignee and priority (WP-55).
     struct KanbanNewTaskForm: View {
+        @Environment(\.hermesPalette) private var palette
         let model: KanbanModel
 
         @Environment(\.dismiss) private var dismiss
@@ -27,6 +28,7 @@
                             .accessibilityIdentifier("kanban.newTask.title")
                         TextField("Description", text: $details, axis: .vertical)
                     }
+                    .hermesListRows()
                     Section {
                         Picker("Assignee", selection: $assignee) {
                             Text("Unassigned").tag("")
@@ -39,13 +41,16 @@
                     } footer: {
                         Text("A higher priority runs first. It is a whole number.")
                     }
+                    .hermesListRows()
                     if let problem {
                         Section {
                             Label(problem, systemImage: "exclamationmark.triangle.fill")
-                                .foregroundStyle(HermesColor.destructive)
+                                .foregroundStyle(palette.errorText)
                         }
+                        .hermesListRows()
                     }
                 }
+                .hermesThemedList()
                 .navigationTitle("New task")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -85,6 +90,7 @@
 
     /// Creates a board, or renames the selected one (WP-55). The slug is fixed once the board exists.
     struct KanbanBoardForm: View {
+        @Environment(\.hermesPalette) private var palette
         enum Mode: Identifiable {
             case create
             case rename(KanbanBoardInfo)
@@ -144,13 +150,16 @@
                                 ? "The slug names the board on the server. It can't be changed later."
                                 : "The slug stays the same. An empty description clears it.")
                     }
+                    .hermesListRows()
                     if let problem {
                         Section {
                             Label(problem, systemImage: "exclamationmark.triangle.fill")
-                                .foregroundStyle(HermesColor.destructive)
+                                .foregroundStyle(palette.errorText)
                         }
+                        .hermesListRows()
                     }
                 }
+                .hermesThemedList()
                 .navigationTitle(isCreating ? "New board" : "Rename board")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

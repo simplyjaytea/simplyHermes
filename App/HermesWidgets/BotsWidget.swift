@@ -79,10 +79,10 @@ struct BotsWidgetEntryView: View {
     private func home(_ size: BotsWidgetSize) -> some View {
         BotsWidgetView(content: entry.content, size: size, now: entry.date) { approval in
             HStack(spacing: 6) {
-                Button(intent: DenyTurnIntent(sessionID: approval.sessionID)) {
+                Button(intent: DenyTurnIntent(sessionID: approval.sessionID, command: approval.command)) {
                     LiveTurnCompactButtonLabel(.deny)
                 }
-                Button(intent: ApproveTurnIntent(sessionID: approval.sessionID)) {
+                Button(intent: ApproveTurnIntent(sessionID: approval.sessionID, command: approval.command)) {
                     LiveTurnCompactButtonLabel(.approve)
                 }
             }

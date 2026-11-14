@@ -5,6 +5,7 @@
 
     /// Scans a connection QR code with the camera, or takes the code's text pasted in (simulator, no camera).
     public struct QRScanSheet: View {
+        @Environment(\.hermesPalette) private var palette
         private let onCode: (ConnectionQRCode) -> Void
         @Environment(\.dismiss) private var dismiss
         @State private var pasted = ""
@@ -32,11 +33,11 @@
                         .autocorrectionDisabled()
                         .onSubmit { handle(pasted) }
                     if let problem {
-                        Text(problem).font(HermesFont.footnote).foregroundStyle(HermesColor.destructive)
+                        Text(problem).font(HermesFont.footnote).foregroundStyle(palette.errorText)
                     }
                     Text("Codes hold a gateway URL or an ssh://user@host address, never a password or key.")
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                     Spacer(minLength: 0)
                 }
                 .padding(20)

@@ -170,6 +170,10 @@ public actor GatewayClient {
                 } catch is GatewaySignInRequired {
                     failAndStop(.signInRequired)
                     return
+                } catch is CredentialStoreError {
+                    // A Keychain failure does not pass by waiting, so the loop does not retry it.
+                    failAndStop(.credentialsUnavailable)
+                    return
                 }
                 let url = webSocketURL(for: credential)
                 let socket = try await openSocket(url: url)

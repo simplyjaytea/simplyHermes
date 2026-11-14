@@ -6,6 +6,7 @@
     /// asks first, by name, with Update, Skip and Stop. Each server gets a line in the result list (WP-54).
     /// ConnectionsModel keeps the run, so reopening this screen shows a run that is still going.
     public struct FleetUpdateScreen: View {
+        @Environment(\.hermesPalette) private var palette
         @State private var model: FleetUpdateModel
 
         public init(connections: ConnectionsModel) {
@@ -28,15 +29,18 @@
                 } footer: {
                     Text("Each saved server is checked. You confirm each update before it runs. One server at a time.")
                 }
+                .hermesListRows()
                 if let errorText = model.errorText {
                     Section {
                         ServerControlProblem(text: errorText)
                     }
+                    .hermesListRows()
                 }
                 if model.singleUpdateRunning {
                     Section {
                         ServerControlBusyLine(text: "A Hermes update runs. Update all servers waits for it.")
                     }
+                    .hermesListRows()
                 }
                 progressSection
                 if model.entries.isEmpty {
@@ -45,6 +49,7 @@
                     resultsSection
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Update all servers")
             .confirmationDialog(
                 model.question.map { "Update Hermes on \($0.server.name)?" } ?? "",
@@ -66,6 +71,7 @@
                 Section {
                     ServerControlBusyLine(text: progressText(position: position, total: total, name: name))
                 }
+                .hermesListRows()
                 .accessibilityIdentifier("fleetUpdate.progress")
             }
         }
@@ -74,13 +80,14 @@
             Section("Servers") {
                 if model.servers.isEmpty {
                     Text("Add a server in Settings > Servers.")
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 } else {
                     ForEach(model.servers) { server in
                         Text(server.name)
                     }
                 }
             }
+            .hermesListRows()
         }
 
         private var resultsSection: some View {
@@ -89,6 +96,7 @@
                     resultRow(entry)
                 }
             }
+            .hermesListRows()
             .accessibilityIdentifier("fleetUpdate.results")
         }
 
@@ -99,7 +107,7 @@
                     .font(HermesFont.body)
                 Text(FleetUpdateModel.summary(entry.state))
                     .font(HermesFont.footnote)
-                    .foregroundStyle(problem ? HermesColor.destructive : HermesColor.secondaryText)
+                    .foregroundStyle(problem ? palette.destructive : palette.secondaryText)
             }
             .accessibilityElement(children: .combine)
         }

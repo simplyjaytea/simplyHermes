@@ -5,17 +5,26 @@
     /// Delegated helpers as one expandable block in the chat (plan Q29). Each row shows the goal, what the helper is
     /// doing and how long it has run, with Steer and Stop while it works.
     struct SubagentBlock: View {
+        @Environment(\.hermesPalette) private var palette
         @Bindable var chat: LiveChatModel
         @State private var isExpanded = true
         @State private var steering: SubagentRow?
         @State private var steerText = ""
+        @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+        @Environment(\.hermesReduceMotion) private var reduceMotionOverride
+
+        private var reduceMotion: Bool {
+            HermesMotion.resolveReduceMotion(system: systemReduceMotion, override: reduceMotionOverride)
+        }
 
         var body: some View {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let rows = chat.subagentRows(now: context.date)
                 VStack(alignment: .leading, spacing: 8) {
                     Button {
-                        withAnimation(HermesMotion.snappy) { isExpanded.toggle() }
+                        withAnimation(HermesMotion.animation(HermesMotion.snappy, reduceMotion: reduceMotion)) {
+                            isExpanded.toggle()
+                        }
                     } label: {
                         HStack {
                             Label(title(rows), systemImage: "person.2")
@@ -38,7 +47,7 @@
                 .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
                 .padding(.vertical, 10)
                 .background(
-                    HermesColor.incomingBubble,
+                    palette.incomingBubble,
                     in: RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
                 )
                 .bubbleRow(.leading)
@@ -77,13 +86,13 @@
                     if let elapsed = row.elapsed {
                         Text(SubagentPanel.clock(elapsed))
                             .font(HermesFont.caption.monospacedDigit())
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                 }
                 if let detail = row.summary ?? row.activity {
                     Text(detail)
                         .font(HermesFont.caption)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .lineLimit(3)
                 }
                 if row.canSteer || row.canStop {

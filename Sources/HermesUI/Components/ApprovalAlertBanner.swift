@@ -4,6 +4,7 @@
     /// The glass banner over the shell for an approval in a chat the user is not looking at (Q49).
     /// Approve answers it where it is; Open goes to the chat.
     struct ApprovalAlertBanner: View {
+        @Environment(\.hermesPalette) private var palette
         let alert: ApprovalAlert
         let onApprove: () -> Void
         let onOpen: () -> Void
@@ -20,7 +21,7 @@
                         .accessibleLineLimit()
                     Text(alert.command)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .accessibleLineLimit()
                 }
                 if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 4) }
@@ -34,7 +35,7 @@
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: HermesMetrics.bannerRadius, style: .continuous))
             .padding(.horizontal, 12)
             .padding(.top, 4)
             .accessibilityElement(children: .contain)
@@ -44,9 +45,10 @@
 
     /// Marks a chat that waits on an approval, on a sidebar row or a tab. Orange, so it differs from the blue streaming dot.
     struct ApprovalDot: View {
+        @Environment(\.hermesPalette) private var palette
         var body: some View {
             Circle()
-                .fill(HermesColor.statusWarning)
+                .fill(palette.statusWarning)
                 .frame(width: 8, height: 8)
                 .accessibilityLabel("Needs approval")
         }

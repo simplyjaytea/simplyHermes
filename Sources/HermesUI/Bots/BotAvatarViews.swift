@@ -51,6 +51,7 @@
 
     /// The avatar choices: the automatic monogram first, then `BotAvatarChoices` emoji and symbols.
     struct AvatarPicker: View {
+        @Environment(\.hermesPalette) private var palette
         @Binding var avatar: BotAvatar?
         let name: String
         let tint: String
@@ -75,7 +76,7 @@
                 BotAvatarView(name: name, avatar: value, tint: tint, size: 40)
                     .overlay {
                         if avatar == value {
-                            Circle().strokeBorder(HermesColor.accent, lineWidth: 3)
+                            Circle().strokeBorder(palette.accent, lineWidth: 3)
                         }
                     }
             }

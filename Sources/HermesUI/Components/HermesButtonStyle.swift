@@ -29,7 +29,7 @@
 
         public func makeBody(configuration: Configuration) -> some View {
             configuration.label
-                .font(.body.weight(.semibold))
+                .font(HermesFont.body.weight(.semibold))
                 .padding(.horizontal, 14)
                 .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: HermesMetrics.minTapTarget)
                 .foregroundStyle(foreground)

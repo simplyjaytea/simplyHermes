@@ -5,6 +5,7 @@
     /// Settings > Models > Credentials pool: the pooled keys, removal with confirmation, and a form to add a key
     /// (WP-53a).
     struct CredentialPoolScreen: View {
+        @Environment(\.hermesPalette) private var palette
         @State private var model: CredentialPoolModel
 
         init(connections: ConnectionsModel) {
@@ -22,7 +23,7 @@
                         ForEach(group.entries) { entry in
                             CredentialPoolRow(entry: entry)
                                 .swipeActions(edge: .trailing) {
-                                    Button("Remove", role: .destructive) {
+                                    Button("Remove…", role: .destructive) {
                                         Task { await model.askToRemove(entry, provider: group.provider) }
                                     }
                                 }
@@ -30,11 +31,13 @@
                     } header: {
                         Text(group.provider)
                     }
+                    .hermesListRows()
                 }
                 if model.groups.isEmpty && !model.isLoading {
                     Section {
-                        Text("No pooled keys yet.").foregroundStyle(HermesColor.secondaryText)
+                        Text("No pooled keys yet.").font(HermesFont.subheadline).foregroundStyle(palette.secondaryText)
                     }
+                    .hermesListRows()
                 }
                 Section {
                     TextField("Provider, such as openrouter", text: $model.provider)
@@ -53,20 +56,23 @@
                     .disabled(model.isWorking)
                     .accessibilityIdentifier("pool.add")
                     if let statusText = model.statusText {
-                        Text(statusText).foregroundStyle(HermesColor.secondaryText)
+                        Text(statusText).foregroundStyle(palette.secondaryText)
                     }
                 } header: {
                     Text("Add a key")
                 } footer: {
                     Text("The key goes to your Hermes server and is not kept on this phone.")
                 }
+                .hermesListRows()
                 if let errorText = model.errorText {
                     Section {
                         Label(errorText, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(HermesColor.destructive)
+                            .foregroundStyle(palette.errorText)
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Credentials pool")
             .task { await model.load() }
             .refreshable { await model.load() }
@@ -103,6 +109,7 @@
 
     /// One pooled key: its label, where it came from, and how often it has served requests. The token is never shown.
     struct CredentialPoolRow: View {
+        @Environment(\.hermesPalette) private var palette
         let entry: CredentialPoolEntry
 
         var body: some View {
@@ -111,7 +118,7 @@
                     .font(HermesFont.body.weight(.semibold))
                 Text(detailText)
                     .font(HermesFont.caption)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
             }
             .accessibilityElement(children: .combine)
         }

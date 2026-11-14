@@ -12,6 +12,8 @@ public enum LocalModelUnavailable: Sendable, Equatable {
     case switchedOff
     /// The model in use was deleted. No model answers on the device until the user picks one.
     case noModelChosen
+    /// The model the user chose cannot answer, and nothing answers in its place. The reason is for the user.
+    case chosenModelCannotAnswer(LocalModelFailure)
 }
 
 /// Whether an on-device model can answer.

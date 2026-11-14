@@ -6,6 +6,7 @@
     ///
     /// UNTESTED LIVE: the portal calls behind it are a guess (see ``NousPortalClient``).
     public struct CloudConnectView: View {
+        @Environment(\.hermesPalette) private var palette
         @State private var model: CloudConnectModel
         private let onDone: (ServerConnection?) -> Void
         @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
@@ -31,7 +32,7 @@
             NavigationStack {
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(HermesColor.groupedBackground)
+                    .background(palette.groupedBackground)
                     .navigationTitle("Hermes Cloud")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
@@ -69,6 +70,7 @@
 
     /// The round-cornered icon at the top of a step, like the Welcome screen's.
     private struct CloudBadge: View {
+        @Environment(\.hermesPalette) private var palette
         let systemImage: String
         @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 40
         @ScaledMetric(relativeTo: .largeTitle) private var iconBox: CGFloat = 88
@@ -76,15 +78,19 @@
         var body: some View {
             Image(systemName: systemImage)
                 .font(.system(size: iconSize, weight: .semibold))
-                .foregroundStyle(HermesColor.onAccent)
+                .foregroundStyle(palette.onAccent)
                 .frame(width: iconBox, height: iconBox)
-                .background(HermesColor.accent.gradient, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .background(
+                    palette.accent.gradient,
+                    in: RoundedRectangle(cornerRadius: HermesMetrics.bannerRadius, style: .continuous)
+                )
                 .accessibilityHidden(true)
         }
     }
 
     /// Not signed in yet: one button.
     private struct CloudSignInStep: View {
+        @Environment(\.hermesPalette) private var palette
         let model: CloudConnectModel
 
         var body: some View {
@@ -98,7 +104,7 @@
                             .multilineTextAlignment(.center)
                         Text("Sign in with your Nous account, then pick an agent. There is no address to type.")
                             .font(HermesFont.body)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .multilineTextAlignment(.center)
                     }
                     Button {
@@ -110,7 +116,7 @@
                     .accessibilityIdentifier("cloud.signIn")
                     Text("The sign-in stays in the Keychain on this iPhone only.")
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: 420)
@@ -122,6 +128,7 @@
 
     /// Something runs: a spinner and what it does.
     private struct CloudWorkingStep: View {
+        @Environment(\.hermesPalette) private var palette
         let text: String
 
         var body: some View {
@@ -129,7 +136,7 @@
                 ProgressView()
                 Text(text)
                     .font(HermesFont.body)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .multilineTextAlignment(.center)
             }
             .padding(24)
@@ -140,6 +147,7 @@
 
     /// Several organizations: pick one.
     private struct CloudOrganizationStep: View {
+        @Environment(\.hermesPalette) private var palette
         let model: CloudConnectModel
 
         var body: some View {
@@ -151,18 +159,18 @@
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: "building.2")
-                                    .foregroundStyle(HermesColor.accent)
+                                    .foregroundStyle(palette.accent)
                                     .frame(width: 28)
                                     .accessibilityHidden(true)
                                 Text(organization.name).font(HermesFont.body.weight(.semibold))
                                 Spacer(minLength: 8)
                                 Image(systemName: "chevron.right")
                                     .font(HermesFont.footnote)
-                                    .foregroundStyle(HermesColor.secondaryText)
+                                    .foregroundStyle(palette.secondaryText)
                                     .accessibilityHidden(true)
                             }
                         }
-                        .tint(HermesColor.primaryText)
+                        .tint(palette.primaryText)
                         .accessibilityIdentifier("cloud.organization.\(organization.id)")
                     }
                 } header: {
@@ -170,12 +178,15 @@
                 } footer: {
                     Text("Your login belongs to more than one organization. Pick the one whose agents you want.")
                 }
+                .hermesListRows()
             }
+            .hermesThemedList()
         }
     }
 
     /// The agents of the organization: pick one, then Connect.
     private struct CloudAgentStep: View {
+        @Environment(\.hermesPalette) private var palette
         let model: CloudConnectModel
 
         var body: some View {
@@ -189,7 +200,7 @@
                                 agent: agent, isChosen: agent.id == model.selection.agentID,
                                 isSaved: model.isSaved(agent))
                         }
-                        .tint(HermesColor.primaryText)
+                        .tint(palette.primaryText)
                         .accessibilityIdentifier("cloud.agent.\(agent.id)")
                     }
                 } header: {
@@ -197,13 +208,16 @@
                 } footer: {
                     Text("Pick the agent to connect to. Hermes Cloud keeps it up to date.")
                 }
+                .hermesListRows()
                 if model.selection.canChangeOrganization {
                     Section {
                         Button("Change organization") { model.changeOrganization() }
                             .accessibilityIdentifier("cloud.changeOrganization")
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .safeAreaInset(edge: .bottom) { connectBar }
         }
 
@@ -212,7 +226,7 @@
                 if let agent = model.selection.agent, model.isSaved(agent) {
                     Text("\(agent.name) is already in your servers. Connect signs it in again.")
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .multilineTextAlignment(.center)
                 }
                 Button {
@@ -234,6 +248,7 @@
 
     /// One agent in the list: a mark for the pick, its name, and what the portal says it does.
     private struct CloudAgentRow: View {
+        @Environment(\.hermesPalette) private var palette
         let agent: CloudAgent
         let isChosen: Bool
         let isSaved: Bool
@@ -241,7 +256,7 @@
         var body: some View {
             HStack(spacing: 12) {
                 Image(systemName: isChosen ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isChosen ? HermesColor.accent : HermesColor.secondaryText)
+                    .foregroundStyle(isChosen ? palette.accent : palette.secondaryText)
                     .frame(width: 28)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
@@ -249,7 +264,7 @@
                     if let caption {
                         Text(caption)
                             .font(HermesFont.caption)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                 }
                 Spacer(minLength: 8)
@@ -266,6 +281,7 @@
 
     /// Something stopped the flow: what happened, and the button that moves on.
     private struct CloudProblemStep: View {
+        @Environment(\.hermesPalette) private var palette
         let problem: CloudProblem
         let model: CloudConnectModel
         @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 40
@@ -275,14 +291,14 @@
                 VStack(spacing: 16) {
                     Image(systemName: problem.systemImage)
                         .font(.system(size: iconSize, weight: .semibold))
-                        .foregroundStyle(HermesColor.statusWarning)
+                        .foregroundStyle(palette.statusWarning)
                         .accessibilityHidden(true)
                     Text(problem.title)
                         .font(HermesFont.headline)
                         .multilineTextAlignment(.center)
                     Text(problem.message)
                         .font(HermesFont.body)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .multilineTextAlignment(.center)
                     VStack(spacing: 12) {
                         Button(problem.actionTitle) { model.perform(problem.action) }

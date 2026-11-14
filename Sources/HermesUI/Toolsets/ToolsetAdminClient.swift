@@ -35,6 +35,7 @@
                 case .unexpectedContent: return "The server sent a web page instead of data. Check its address."
                 case .transport: return "Can't reach the server."
                 case .decoding: return "The server sent a reply this app doesn't understand."
+                case .credentialsUnavailable: return "Could not read the saved sign-in from this iPhone."
                 }
             }
             if error is ConnectionUnavailable { return "Can't reach the server right now." }

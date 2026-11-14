@@ -8,6 +8,7 @@
     /// Add and Remove are checked by their HTTP status only. Test shows the answer the server gives. Each change
     /// reads the list again. The switches and sign-ins are not on this screen.
     public struct MCPServersView: View {
+        @Environment(\.hermesPalette) private var palette
         private let connections: ConnectionsModel
         @State private var model: MCPServersModel
         @State private var catalog: MCPCatalogModel
@@ -31,20 +32,23 @@
                 if let notice = model.notice {
                     Section {
                         Label(notice, systemImage: "checkmark.circle")
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
+                    .hermesListRows()
                 }
                 if let errorText = model.errorText {
                     Section {
                         Label(errorText, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(HermesColor.destructive)
+                            .foregroundStyle(palette.errorText)
                     }
+                    .hermesListRows()
                 }
                 if let readErrorText = model.readErrorText {
                     Section {
                         Label(readErrorText, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(HermesColor.destructive)
+                            .foregroundStyle(palette.errorText)
                     }
+                    .hermesListRows()
                 }
                 serversSection
                 Section {
@@ -55,8 +59,10 @@
                     }
                     .accessibilityIdentifier("mcp.add")
                 }
+                .hermesListRows()
                 catalogSection
             }
+            .hermesThemedList()
             .navigationTitle("MCP servers")
             .refreshable { await model.refresh() }
             .task(id: connections.active?.id) { await model.refresh() }
@@ -91,17 +97,20 @@
                     "Test checks the server and shows its answer here. "
                         + "Remove deletes the server from the config.")
             }
+            .hermesListRows()
         }
 
         @ViewBuilder private var emptyRow: some View {
             if connections.active == nil {
                 Text("Add a server under Servers first.")
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .font(HermesFont.subheadline)
+                    .foregroundStyle(palette.secondaryText)
             } else if model.isLoading {
                 ProgressView()
             } else if model.readErrorText == nil {
                 Text("No servers in config yet.")
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .font(HermesFont.subheadline)
+                    .foregroundStyle(palette.secondaryText)
             }
         }
 
@@ -116,6 +125,7 @@
             } footer: {
                 Text("The approved catalog lists servers you can install. Some need a value, such as an access token.")
             }
+            .hermesListRows()
         }
 
         private var removeBinding: Binding<Bool> {
@@ -126,6 +136,7 @@
     /// One server in config: its name, whether it is on, its transport, its program and where it is defined. A menu
     /// runs Test or Remove. Only the five fields the fixture shows are read here.
     private struct MCPServerRow: View {
+        @Environment(\.hermesPalette) private var palette
         let server: MCPServerInfo
         let onTest: () -> Void
         let onRemove: () -> Void
@@ -136,17 +147,17 @@
                     Text(server.name).font(HermesFont.body.weight(.semibold))
                     Text(summary)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                     if let command = server.command, !command.isEmpty {
                         Text(command)
                             .font(HermesFont.codeSmall)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .lineLimit(1)
                     }
                     if let source = server.source, !source.isEmpty {
                         Text("From \(source)")
                             .font(HermesFont.caption)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                 }
                 Spacer(minLength: 8)
@@ -170,6 +181,9 @@
                     .accessibilityIdentifier("mcp.remove.\(server.name)")
             } label: {
                 Image(systemName: "ellipsis.circle")
+                    .frame(minWidth: HermesMetrics.minTapTarget, minHeight: HermesMetrics.minTapTarget)
+                    .contentShape(Rectangle())
+                    .accessibilityLabel("More")
             }
             .accessibilityIdentifier("mcp.menu.\(server.name)")
         }

@@ -45,6 +45,7 @@
                 }
                 .accessibilityIdentifier("settings.assistant.appearance")
             }
+            .hermesListRows()
         }
 
         private func model(_ reads: [SettingsAssistantRead]) -> SettingsAssistantModel {

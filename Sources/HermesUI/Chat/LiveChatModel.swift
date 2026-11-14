@@ -151,7 +151,9 @@
         @ObservationIgnored private var wasRunning = false
         @ObservationIgnored private var tasks: [Task<Void, Never>] = []
         /// A New chat's first message, held until the chat attaches. ``attach()`` sends it.
-        @ObservationIgnored private var firstMessage: (text: String, attachments: [ComposerAttachment])?
+        @ObservationIgnored var firstMessage: (text: String, attachments: [ComposerAttachment])?
+        /// Files of a first message that could not be sent. The chat screen moves them back into the composer.
+        public internal(set) var returnedFiles: [ComposerAttachment] = []
         @ObservationIgnored private var isMovingWorkspace = false
         @ObservationIgnored let outbox: any OutboxStore
         /// Where this chat's drainer lives. The app passes one registry for the whole process; each test model gets
@@ -268,6 +270,7 @@
                 await finishAttach()
             } catch {
                 phase = .failed(Self.describe(error))
+                giveBackFirstMessage()
             }
         }
 
@@ -280,7 +283,7 @@
                 ChatAttach.Step(
                     "controller",
                     run: { try await self.attachController(built) },
-                    rollback: { await built.controller?.detach() }),
+                    rollback: { await self.unwireController(built) }),
                 ChatAttach.Step(
                     "outbox", run: { await self.wireOutbox(built) },
                     rollback: { await self.unwireOutbox(built) }),
@@ -329,10 +332,11 @@
         /// of these awaits, so the drain itself checks that the chat is still on its own, active server.
         private func finishAttach() async {
             await refreshOutbox()
-            // A New chat's first message waits here until it is saved. If the save fails it stays for the next try.
-            if let first = firstMessage, await send(first.text, attachments: first.attachments) {
-                firstMessage = nil
+            // A New chat's first message waits here until it is saved. If the save fails it goes back to the composer.
+            if let first = firstMessage, await !send(first.text, attachments: first.attachments) {
+                giveBackFirstMessage()
             }
+            firstMessage = nil
             await drainOutbox()
         }
 
@@ -350,6 +354,7 @@
             // An attach that is waiting stops at its next check and rolls back what it did.
             attaching?.cancel()
             attaching = nil
+            giveBackFirstMessage()
             detach()
             // A retired model no longer needs to hear about the chat's outbox.
             let observer = outboxObserver

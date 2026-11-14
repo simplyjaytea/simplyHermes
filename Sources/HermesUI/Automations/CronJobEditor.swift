@@ -15,6 +15,7 @@
     /// cron under Advanced with the next runs in the profile's time zone. A job whose schedule is not a 5-field cron
     /// keeps that schedule. `onSave` makes the change. When it throws, the editor says why and stays open.
     public struct CronJobEditor: View {
+        @Environment(\.hermesPalette) private var palette
         private let job: CronJob?
         private let bots: [String]
         private let onSave: @MainActor (CronJobSave) async throws -> Void
@@ -74,6 +75,7 @@
                     } footer: {
                         if trimmed(name).isEmpty { Text("Give the automation a name.") }
                     }
+                    .hermesListRows()
                     Section {
                         TextField("What should Hermes do?", text: $prompt, axis: .vertical)
                             .lineLimit(3...8)
@@ -83,6 +85,7 @@
                     } footer: {
                         if trimmed(prompt).isEmpty { Text("Write what Hermes should do when it runs.") }
                     }
+                    .hermesListRows()
                     botSection
                     scheduleSection
                     Section {
@@ -91,14 +94,17 @@
                     } footer: {
                         Text(enabled ? "Runs on its schedule." : "Paused. It runs only when you run it now.")
                     }
+                    .hermesListRows()
                     if let saveError {
                         Section {
                             Label(saveError, systemImage: "exclamationmark.triangle")
-                                .foregroundStyle(HermesColor.destructive)
+                                .foregroundStyle(palette.errorText)
                                 .accessibilityIdentifier("automation.error")
                         }
+                        .hermesListRows()
                     }
                 }
+                .hermesThemedList()
                 .disabled(isSaving)
                 .navigationTitle(job == nil ? "New automation" : "Edit automation")
                 .navigationBarTitleDisplayMode(.inline)
@@ -137,6 +143,7 @@
                         ? "A bot's automations run in its profile. System runs in the default profile."
                         : "An automation stays with its bot.")
             }
+            .hermesListRows()
         }
 
         // MARK: Schedule
@@ -177,6 +184,7 @@
             } footer: {
                 Text(scheduleFooter)
             }
+            .hermesListRows()
         }
 
         @ViewBuilder
@@ -189,7 +197,7 @@
             if let scheduleError {
                 Text(scheduleError)
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.destructive)
+                    .foregroundStyle(palette.errorText)
             }
             if !nextRuns.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
@@ -198,7 +206,7 @@
                     ForEach(nextRuns, id: \.self) { run in
                         Text(run.formatted(date: .abbreviated, time: .shortened))
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                 }
             }

@@ -22,6 +22,7 @@
                     } footer: {
                         Text("simplyHermes is open source under the MIT license.")
                     }
+                    .hermesListRows()
                     Section {
                         ForEach(list.sortedPackages) { entry in
                             NavigationLink {
@@ -36,11 +37,13 @@
                     } footer: {
                         Text("simplyHermes is built with these packages. Each keeps its own license.")
                     }
+                    .hermesListRows()
                 } else if failed {
                     Text("The acknowledgements could not be read.")
                         .foregroundStyle(palette.secondaryText)
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Acknowledgements")
             .task {
                 do {

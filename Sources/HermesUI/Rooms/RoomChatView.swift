@@ -4,6 +4,7 @@
 
     /// One group chat: its transcript, the room's line and approvals, the composer, and Stop (WP-43; plan Q35).
     struct RoomChatView: View {
+        @Environment(\.hermesPalette) private var palette
         @Bindable var model: RoomChatModel
         @Environment(\.dismiss) private var dismiss
         @State private var isSettingsPresented = false
@@ -92,7 +93,7 @@
                 } else if let line = RoomStatus.line(for: model.status) {
                     Text(line)
                         .font(HermesFont.caption)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
                 if let retry = pendingRetry {
                     Button("Run This Turn Again…") {
@@ -104,12 +105,12 @@
                 if let error = model.actionError {
                     Text(error)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.destructive)
+                        .foregroundStyle(palette.errorText)
                 }
                 if let error = model.errorMessage {
                     Text(error)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.destructive)
+                        .foregroundStyle(palette.errorText)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -159,7 +160,7 @@
                 if RoomMentions.isSlashCommand(model.draft.trimmingCharacters(in: .whitespacesAndNewlines)) {
                     Text(RoomError.slashCommand.message)
                         .font(HermesFont.caption)
-                        .foregroundStyle(HermesColor.destructive)
+                        .foregroundStyle(palette.errorText)
                 }
                 Composer(
                     text: $model.draft, placeholder: "Message the group",
@@ -190,11 +191,11 @@
         private func readOnlyNote(_ note: String) -> some View {
             Text(note)
                 .font(HermesFont.footnote)
-                .foregroundStyle(HermesColor.secondaryText)
+                .foregroundStyle(palette.secondaryText)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(HermesColor.groupedBackground)
+                .background(palette.groupedBackground)
         }
     }
 #endif

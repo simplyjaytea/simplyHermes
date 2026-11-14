@@ -5,6 +5,7 @@
     /// The microphone at the end of the composer. A tap dictates. The menu starts a voice conversation and turns
     /// read-aloud on or off.
     struct VoiceMicButton: View {
+        @Environment(\.hermesPalette) private var palette
         let voice: VoiceInputModel
         @AppStorage(VoicePreferences.readAloudKey) private var readAloud = false
 
@@ -13,8 +14,8 @@
                 voice.startDictation()
             } label: {
                 Image(systemName: "mic.fill")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(HermesColor.primaryText)
+                    .font(HermesFont.body.weight(.semibold))
+                    .foregroundStyle(palette.primaryText)
                     .frame(width: 32, height: 32)
                     .padding(6)
                     .contentShape(Rectangle())
@@ -31,6 +32,7 @@
 
     /// What replaces the field while voice is on: a cancel button, the waveform with its status, and a finish button.
     struct VoiceWaveBar: View {
+        @Environment(\.hermesPalette) private var palette
         let voice: VoiceInputModel
 
         var body: some View {
@@ -39,8 +41,8 @@
                     voice.cancel()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .font(HermesFont.body.weight(.semibold))
+                        .foregroundStyle(palette.secondaryText)
                         .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                 }
                 .buttonStyle(.plain)
@@ -49,8 +51,8 @@
                 VStack(alignment: .leading, spacing: 2) {
                     WaveformBars(levels: voice.levels)
                     Text(voice.problem ?? voice.statusText)
-                        .font(.caption)
-                        .foregroundStyle(voice.problem == nil ? HermesColor.secondaryText : HermesColor.destructive)
+                        .font(HermesFont.caption)
+                        .foregroundStyle(voice.problem == nil ? palette.secondaryText : palette.destructive)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity)
@@ -62,10 +64,10 @@
                     voice.finish()
                 } label: {
                     Image(systemName: voice.mode == .conversation ? "stop.fill" : "checkmark")
-                        .font(.body.weight(.bold))
-                        .foregroundStyle(HermesColor.onAccent)
+                        .font(HermesFont.body.weight(.bold))
+                        .foregroundStyle(palette.onAccent)
                         .frame(width: 32, height: 32)
-                        .background(HermesColor.accent, in: Circle())
+                        .background(palette.accent, in: Circle())
                         .padding(6)
                         .contentShape(Rectangle())
                 }
@@ -79,12 +81,13 @@
     /// A voice problem under the composer while voice is off, so a failed dictation is not silent. The next start
     /// clears it.
     struct VoiceProblemLine: View {
+        @Environment(\.hermesPalette) private var palette
         let problem: String
 
         var body: some View {
             Text(problem)
-                .font(.caption)
-                .foregroundStyle(HermesColor.destructive)
+                .font(HermesFont.caption)
+                .foregroundStyle(palette.destructive)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 14)
                 .padding(.bottom, 6)
@@ -93,6 +96,7 @@
 
     /// Bars of recent loudness. Decorative: the status line carries the meaning for VoiceOver.
     struct WaveformBars: View {
+        @Environment(\.hermesPalette) private var palette
         let levels: [Double]
         private let slots = 48
 
@@ -109,7 +113,7 @@
                         y: (size.height - height) / 2,
                         width: width,
                         height: height)
-                    context.fill(Path(roundedRect: rect, cornerRadius: width / 2), with: .color(HermesColor.accent))
+                    context.fill(Path(roundedRect: rect, cornerRadius: width / 2), with: .color(palette.accent))
                 }
             }
             .frame(height: 28)

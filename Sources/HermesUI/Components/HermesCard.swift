@@ -42,7 +42,7 @@
                 Spacer(minLength: 8)
                 Button(action: onClose) {
                     Image(systemName: "xmark")
-                        .font(.body.weight(.semibold))
+                        .font(HermesFont.body.weight(.semibold))
                         .foregroundStyle(palette.secondaryText)
                         .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                         .background(palette.fill, in: Circle())

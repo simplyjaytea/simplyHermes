@@ -3,6 +3,7 @@
 
     /// A short message over the content, such as a save confirmation or the reason a call failed. A tap dismisses it.
     struct JourneyNoticeBanner: View {
+        @Environment(\.hermesPalette) private var palette
         let notice: JourneyNotice
         let onDismiss: () -> Void
 
@@ -10,15 +11,16 @@
             Button(action: onDismiss) {
                 HStack(spacing: 8) {
                     Image(systemName: notice.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                        .foregroundStyle(notice.isError ? HermesColor.statusWarning : HermesColor.statusConnected)
+                        .foregroundStyle(notice.isError ? palette.statusWarning : palette.statusConnected)
                     Text(notice.text)
                         .font(HermesFont.subheadline)
-                        .foregroundStyle(HermesColor.primaryText)
+                        .foregroundStyle(palette.primaryText)
                         .multilineTextAlignment(.leading)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .glassEffect(
+                    .regular, in: RoundedRectangle(cornerRadius: HermesMetrics.bannerRadius, style: .continuous))
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 12)

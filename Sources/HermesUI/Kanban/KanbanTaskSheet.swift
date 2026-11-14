@@ -33,6 +33,7 @@
 
     /// The task sheet (WP-55): status, assignee, priority, description, comments and history, plus the actions on it.
     struct KanbanTaskSheet: View {
+        @Environment(\.hermesPalette) private var palette
         /// The card the board showed. Its title shows until the server's copy of the task loads.
         let card: KanbanCard
         let model: KanbanTaskModel
@@ -60,31 +61,35 @@
                     if let errorText = model.errorText {
                         Section {
                             Label(errorText, systemImage: "exclamationmark.triangle.fill")
-                                .foregroundStyle(HermesColor.destructive)
+                                .foregroundStyle(palette.errorText)
                                 .accessibilityIdentifier("kanban.task.error")
                         }
+                        .hermesListRows()
                     }
                     if let notice = model.notice {
                         Section {
                             Label(notice, systemImage: "info.circle")
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .foregroundStyle(palette.secondaryText)
                         }
+                        .hermesListRows()
                     }
                     summarySection
                     if let description = task?.body, !description.isEmpty {
                         Section("Description") {
                             Text(description)
                         }
+                        .hermesListRows()
                     }
                     commentsSection
                     historySection
                     actionsSection
                 }
+                .hermesThemedList()
                 .navigationTitle("Task")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Close") { dismiss() }
+                        Button("Done") { dismiss() }
                     }
                 }
                 .task { await model.load() }
@@ -120,6 +125,7 @@
                         .font(HermesFont.headline)
                 }
             }
+            .hermesListRows()
         }
 
         private var commentsSection: some View {
@@ -132,6 +138,7 @@
                         .accessibilityIdentifier("kanban.task.send")
                 }
             }
+            .hermesListRows()
         }
 
         @ViewBuilder
@@ -145,11 +152,12 @@
                             if let time = event.createdAt {
                                 Text(Self.eventTime(time))
                                     .font(HermesFont.footnote)
-                                    .foregroundStyle(HermesColor.secondaryText)
+                                    .foregroundStyle(palette.secondaryText)
                             }
                         }
                     }
                 }
+                .hermesListRows()
             }
         }
 
@@ -180,6 +188,7 @@
                 }
                 Button("Delete task…", systemImage: "trash", role: .destructive) { pendingAction = .delete }
             }
+            .hermesListRows()
             .disabled(model.isWorking)
         }
 

@@ -4,6 +4,7 @@
     /// Three bouncing dots in a Hermes bubble, shown while a turn starts and no text has arrived yet.
     /// With Reduce Motion on, the dots only fade.
     public struct TypingIndicator: View {
+        @Environment(\.hermesPalette) private var palette
         @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
         @Environment(\.hermesReduceMotion) private var reduceMotionOverride
 
@@ -17,7 +18,7 @@
             }
             .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
             .padding(.vertical, 14)
-            .background(HermesColor.incomingBubble, in: Capsule())
+            .background(palette.incomingBubble, in: Capsule())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("Hermes is working"))
             .bubbleRow(.leading)
@@ -29,12 +30,13 @@
     }
 
     private struct TypingDot: View {
+        @Environment(\.hermesPalette) private var palette
         let index: Int
         let reduceMotion: Bool
 
         var body: some View {
             Circle()
-                .fill(HermesColor.secondaryText)
+                .fill(palette.secondaryText)
                 .frame(width: 8, height: 8)
                 .phaseAnimator([false, true]) { content, lifted in
                     content
@@ -49,6 +51,7 @@
     /// Hermes reply text while it streams in, with a pulsing caret at the end.
     /// Incremental markdown and per-token effects come with the transcript (plan WP-30).
     public struct StreamingText: View {
+        @Environment(\.hermesPalette) private var palette
         private let text: String
         private let isStreaming: Bool
         private let rendersMarkdown: Bool
@@ -68,7 +71,7 @@
                         Text(text).font(HermesFont.bubble)
                     }
                 }
-                .foregroundStyle(HermesColor.primaryText)
+                .foregroundStyle(palette.primaryText)
                 .textSelection(.enabled)
                 if isStreaming {
                     StreamingCaret()
@@ -77,7 +80,7 @@
             .padding(.horizontal, HermesMetrics.bubbleHorizontalPadding)
             .padding(.vertical, HermesMetrics.bubbleVerticalPadding)
             .background(
-                HermesColor.incomingBubble,
+                palette.incomingBubble,
                 in: RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
             )
             .bubbleRow(.leading)
@@ -86,6 +89,7 @@
 
     /// A small accent capsule that pulses while text streams. Fades only with Reduce Motion on.
     public struct StreamingCaret: View {
+        @Environment(\.hermesPalette) private var palette
         @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
         @Environment(\.hermesReduceMotion) private var reduceMotionOverride
 
@@ -93,7 +97,7 @@
 
         public var body: some View {
             Capsule()
-                .fill(HermesColor.accent)
+                .fill(palette.accent)
                 .frame(width: 8, height: 14)
                 .phaseAnimator([false, true]) { content, pulsing in
                     content

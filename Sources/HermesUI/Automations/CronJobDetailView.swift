@@ -5,6 +5,7 @@
     /// One automation: its status, schedule, prompt, last run and past runs, and the actions Run now, Pause or Resume,
     /// Edit and Delete (WP-50). It shows the job as the list has it. Nothing changes on the server until the user acts.
     public struct CronJobDetailView: View {
+        @Environment(\.hermesPalette) private var palette
         private let model: AutomationsModel
         private let jobID: String
 
@@ -66,13 +67,13 @@
                     if let notice {
                         Label(notice, systemImage: "exclamationmark.triangle")
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.destructive)
+                            .foregroundStyle(palette.destructive)
                             .accessibilityIdentifier("automation.notice")
                     }
                     if let actionError = model.actionError {
                         Label(actionError, systemImage: "exclamationmark.triangle")
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.destructive)
+                            .foregroundStyle(palette.errorText)
                             .accessibilityIdentifier("automation.actionError")
                     }
                     statusCard(job)
@@ -85,7 +86,7 @@
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .background(HermesColor.groupedBackground)
+            .background(palette.groupedBackground)
         }
 
         private func statusCard(_ job: CronJob) -> some View {
@@ -96,12 +97,12 @@
                     Spacer(minLength: 8)
                     Text(job.botName.map { "Bot: \($0)" } ?? "System")
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
                 if !job.isEnabled, let reason = job.pausedReason {
                     Text(reason)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
                 if job.isEnabled, let next = job.nextRun {
                     Text("Next run " + next.formatted(date: .abbreviated, time: .shortened))
@@ -118,12 +119,12 @@
                 if let expression = job.schedule?.expr {
                     Text(expression)
                         .font(HermesFont.code)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
                 if let deliver = job.deliver {
                     Text("Results: \(deliver)")
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
             }
         }
@@ -146,22 +147,22 @@
                 } else {
                     Text("Has not run yet")
                         .font(HermesFont.body)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
                 if let status = job.lastStatus {
                     Text("Status: \(status)")
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
                 if let error = job.lastError {
                     Text(error)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.destructive)
+                        .foregroundStyle(palette.errorText)
                 }
                 if let delivery = job.lastDeliveryError {
                     Text("Delivery failed: \(delivery)")
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.destructive)
+                        .foregroundStyle(palette.destructive)
                 }
             }
         }
@@ -172,11 +173,11 @@
                 if runsFailed {
                     Text("Could not load the past runs. Pull down to try again.")
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 } else if runs.isEmpty {
                     Text("No runs yet.")
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 } else {
                     ForEach(runs.indices, id: \.self) { index in
                         runRow(runs[index])
@@ -192,12 +193,12 @@
                 if let started = run.started {
                     Text(started.formatted(date: .abbreviated, time: .shortened))
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
                 if let preview = run.preview {
                     Text(preview)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .lineLimit(3)
                 }
             }
@@ -221,7 +222,7 @@
                 Button("Edit") { Task { await openEditor(job) } }
                     .buttonStyle(HermesButtonStyle(.tinted))
                     .accessibilityIdentifier("automation.edit")
-                Button("Delete", role: .destructive) { confirmsDelete = true }
+                Button("Delete…", role: .destructive) { confirmsDelete = true }
                     .buttonStyle(HermesButtonStyle(.destructive))
                     .accessibilityIdentifier("automation.delete")
             }
@@ -230,7 +231,7 @@
         private func sectionLabel(_ title: String) -> some View {
             Text(title)
                 .font(HermesFont.footnote.weight(.semibold))
-                .foregroundStyle(HermesColor.secondaryText)
+                .foregroundStyle(palette.secondaryText)
         }
 
         /// Reads the job's own record first, so the editor knows the profile that owns it.

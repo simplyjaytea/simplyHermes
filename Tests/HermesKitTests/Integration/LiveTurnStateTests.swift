@@ -84,3 +84,21 @@ private func state(
     #expect(LiveTurnAction.available(for: state(.waitingForApproval, command: "make")) == [.stop, .deny, .approve])
     #expect(LiveTurnAction.available(for: state(.done)).isEmpty)
 }
+
+// MARK: - Approve runs only the command that was shown
+
+@Test func approveMatchesOnlyTheCommandTheSurfaceShowed() {
+    #expect(LiveTurnState.showed("rm -rf build", pending: "rm -rf build"))
+    // The surface showed A. A was answered and B waits now: a tap on the stale button must not run B.
+    #expect(!LiveTurnState.showed("rm -rf build", pending: "git push --force"))
+    // A button that names no command answers nothing.
+    #expect(!LiveTurnState.showed(nil, pending: "rm -rf build"))
+}
+
+@Test func aLongCommandMatchesInTheFormTheSurfaceCutItTo() {
+    let long = String(repeating: "x", count: 5000)
+    let shown = state(.waitingForApproval, command: long).pendingCommand
+    #expect(LiveTurnState.showed(shown, pending: long))
+    #expect(LiveTurnState.showed(LiveTurnState.shownCommand(long), pending: long))
+    #expect(!LiveTurnState.showed(shown, pending: "y" + long))
+}

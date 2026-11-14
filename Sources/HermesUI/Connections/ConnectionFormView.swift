@@ -4,6 +4,7 @@
 
     /// Add or edit one connection: one Settings-style form for a gateway URL or an SSH host (WP-22).
     public struct ConnectionFormView: View {
+        @Environment(\.hermesPalette) private var palette
         @Bindable private var form: ConnectionFormModel
         private let connections: ConnectionsModel
         private let onDone: (ServerConnection?) -> Void
@@ -37,10 +38,12 @@
                     if let saveError {
                         Section {
                             Label(saveError, systemImage: "exclamationmark.triangle.fill")
-                                .foregroundStyle(HermesColor.destructive)
+                                .foregroundStyle(palette.errorText)
                         }
+                        .hermesListRows()
                     }
                 }
+                .hermesThemedList()
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbar }
@@ -98,6 +101,7 @@
                     Text("Ask for Face ID before connecting to this server.")
                 }
             }
+            .hermesListRows()
         }
 
         private var testSection: some View {
@@ -113,6 +117,7 @@
             } footer: {
                 if let missing = form.missing { Text(missing) }
             }
+            .hermesListRows()
         }
 
         /// Clears the sheet binding by answering "don't trust", so a swiped-away sheet never hangs the test.
@@ -188,6 +193,7 @@
                     AddressFooter(address: form.address, adaptedNote: form.adaptedAddressNote)
                 }
             }
+            .hermesListRows()
             .task(id: form.urlText) {
                 try? await Task.sleep(for: .milliseconds(600))
                 guard !Task.isCancelled else { return }
@@ -215,6 +221,7 @@
                         .textContentType(.password)
                         .accessibilityIdentifier("connection.password")
                     Toggle("Remember password", isOn: $form.remembersPassword)
+                        .accessibilityIdentifier("connection.rememberPassword")
                 case .token:
                     SecureField("Session token", text: $form.token)
                         .font(HermesFont.code)
@@ -229,11 +236,13 @@
             } footer: {
                 SignInFooter(method: form.signInMethod, remembersPassword: form.remembersPassword)
             }
+            .hermesListRows()
         }
     }
 
     /// Under the address: the HTTP warning (plan Q14) or why the address is unusable.
     struct AddressFooter: View {
+        @Environment(\.hermesPalette) private var palette
         let address: Result<ConnectionAddress.Parsed, ConnectionAddress.Problem>?
         var adaptedNote: String?
 
@@ -249,7 +258,7 @@
                             "Plain HTTP: anyone on this network can read your chats. Use HTTPS, Tailscale or SSH if you can.",
                             systemImage: "exclamationmark.triangle.fill"
                         )
-                        .foregroundStyle(HermesColor.statusWarning)
+                        .foregroundStyle(palette.statusWarning)
                         .accessibilityIdentifier("connection.httpWarning")
                     case .unencryptedTailscale?:
                         Label(
@@ -262,7 +271,7 @@
                     }
                 case .failure(let problem)?:
                     Label(Self.message(for: problem), systemImage: "xmark.octagon.fill")
-                        .foregroundStyle(HermesColor.destructive)
+                        .foregroundStyle(palette.errorText)
                 }
                 if let adaptedNote {
                     Label(adaptedNote, systemImage: "arrow.triangle.branch")
@@ -270,7 +279,7 @@
                 }
                 if let note = loopbackNote {
                     Label(note, systemImage: "iphone")
-                        .foregroundStyle(HermesColor.statusWarning)
+                        .foregroundStyle(palette.statusWarning)
                         .accessibilityIdentifier("connection.loopbackNote")
                 }
             }
@@ -295,6 +304,7 @@
 
     /// What the server said about sign-in before the user signed in.
     struct ProbeBadge: View {
+        @Environment(\.hermesPalette) private var palette
         let probe: ConnectionFormModel.ProbeState
 
         var body: some View {
@@ -305,10 +315,10 @@
                 ProgressView().controlSize(.mini)
             case .found(let found):
                 Text(found.authRequired ? "Required" : "Not needed")
-                    .foregroundStyle(found.authRequired ? HermesColor.secondaryText : HermesColor.statusConnected)
+                    .foregroundStyle(found.authRequired ? palette.secondaryText : palette.statusConnected)
             case .failed(let failure):
                 Text(failure.message)
-                    .foregroundStyle(HermesColor.destructive)
+                    .foregroundStyle(palette.errorText)
                     .textSelection(.enabled)
             }
         }
@@ -316,6 +326,7 @@
 
     /// Browser sign-in: the provider when the server has several, the button, and the result.
     struct BrowserSignInRows: View {
+        @Environment(\.hermesPalette) private var palette
         @Bindable var form: ConnectionFormModel
         let connections: ConnectionsModel
 
@@ -344,11 +355,11 @@
                 EmptyView()
             case .signedIn(let user):
                 Label(user.map { "Signed in as \($0)" } ?? "Signed in", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(HermesColor.statusConnected)
+                    .foregroundStyle(palette.statusConnected)
                     .accessibilityIdentifier("connection.browserSignedIn")
             case .failed(let message):
                 Label(message, systemImage: "xmark.octagon.fill")
-                    .foregroundStyle(HermesColor.destructive)
+                    .foregroundStyle(palette.errorText)
             }
         }
     }

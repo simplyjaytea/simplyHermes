@@ -5,6 +5,7 @@
 
     /// Settings > Report a bug, also opened from the command palette and by shaking the phone.
     public struct BugReportView: View {
+        @Environment(\.hermesPalette) private var palette
         @Bindable private var model: BugReportModel
         private let screenshot: UIImage?
         @Environment(\.openURL) private var openURL
@@ -74,6 +75,7 @@
                         )
                     }
                 }
+                .hermesListRows()
                 Section("Optional") {
                     TextField("Steps to make it happen again", text: $model.draft.steps, axis: .vertical)
                         .lineLimit(2...6)
@@ -82,6 +84,7 @@
                         .lineLimit(1...4)
                         .focused($focused, equals: .expected)
                 }
+                .hermesListRows()
                 if let screenshot {
                     screenshotSection(screenshot)
                 }
@@ -103,13 +106,16 @@
                         """
                     )
                 }
+                .hermesListRows()
                 if case .failed(let message) = model.phase {
                     Section {
                         Label(message, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(HermesColor.destructive)
+                            .foregroundStyle(palette.errorText)
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     if model.phase == .sending {
@@ -133,7 +139,7 @@
                         .resizable()
                         .scaledToFit()
                         .frame(maxHeight: 180)
-                        .clipShape(RoundedRectangle(cornerRadius: HermesMetrics.innerRadius))
+                        .clipShape(RoundedRectangle(cornerRadius: HermesMetrics.innerRadius, style: .continuous))
                         .accessibilityLabel("Screenshot of the screen you shook")
                     ShareLink(
                         item: Image(uiImage: screenshot),
@@ -153,6 +159,7 @@
                     """
                 )
             }
+            .hermesListRows()
         }
 
         private func done(title: String, systemImage: String, message: String, link: URL?) -> some View {

@@ -172,6 +172,8 @@ public struct ConnectionLifecycle: Sendable, Equatable {
             return move(to: .reconnecting(attempt: attempt), [])
         case .waitingToReconnect(let attempt, _):
             return move(to: .reconnecting(attempt: attempt + 1), [])
+        case .failed(.credentialsUnavailable):
+            return stop(then: .failed(.credentialsUnavailable))
         case .failed:
             return stop(then: .signInRequired)
         case .idle, .connecting, .stopped:

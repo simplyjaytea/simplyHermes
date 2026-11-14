@@ -50,6 +50,7 @@
 
     /// One row for a running or finished background change.
     struct ToolsActivityRow: View {
+        @Environment(\.hermesPalette) private var palette
         let activity: ToolsActivity
 
         var body: some View {
@@ -61,7 +62,7 @@
                     if let latest = activity.latest, !latest.isEmpty {
                         Text(latest)
                             .font(HermesFont.codeSmall)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .lineLimit(2)
                     }
                 }
@@ -109,12 +110,13 @@
 
     /// One feedback line inside a list.
     struct ToolsNoticeRow: View {
+        @Environment(\.hermesPalette) private var palette
         let notice: ToolsNotice
 
         var body: some View {
             Text(notice.text)
                 .font(HermesFont.footnote)
-                .foregroundStyle(notice.isError ? HermesColor.destructive : HermesColor.secondaryText)
+                .foregroundStyle(notice.isError ? palette.destructive : palette.secondaryText)
                 .accessibilityIdentifier(notice.isError ? "tools.error" : "tools.notice")
         }
     }

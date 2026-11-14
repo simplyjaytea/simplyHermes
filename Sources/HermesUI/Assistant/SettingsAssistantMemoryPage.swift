@@ -26,7 +26,9 @@
                 } footer: {
                     Text("Resets all memory on the server.")
                 }
+                .hermesListRows()
             }
+            .hermesThemedList()
             .navigationTitle("Memory & context")
             .settingsAssistantLoads(model)
             .confirmationDialog(

@@ -27,6 +27,7 @@
 
     /// Placeholder bubbles that stand in for a chat while it loads, instead of a centered spinner (plan Q46).
     public struct TranscriptSkeleton: View {
+        @Environment(\.hermesPalette) private var palette
         public init() {}
 
         public var body: some View {
@@ -50,7 +51,7 @@
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(0..<lines, id: \.self) { index in
                         Capsule()
-                            .fill(HermesColor.separator)
+                            .fill(palette.separator)
                             .frame(height: 10)
                             .scaleEffect(x: index == lines - 1 && lines > 1 ? 0.6 : 1, anchor: .leading)
                     }
@@ -59,7 +60,7 @@
                 .padding(.vertical, HermesMetrics.bubbleVerticalPadding)
                 .containerRelativeFrame(.horizontal) { total, _ in total * width }
                 .background(
-                    HermesColor.incomingBubble.opacity(0.6),
+                    palette.incomingBubble.opacity(0.6),
                     in: RoundedRectangle(cornerRadius: HermesMetrics.bubbleRadius, style: .continuous)
                 )
                 if leading { Spacer(minLength: 0) }

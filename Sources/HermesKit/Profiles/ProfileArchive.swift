@@ -37,6 +37,7 @@ public enum ProfileTransferError: Error, Sendable, Equatable {
         case .unauthorized: return "Sign in again to continue."
         case .rateLimited: return "The server is busy. Try again in a moment."
         case .transport: return "The server is not reachable."
+        case .credentialsUnavailable: return "The saved sign-in could not be read from this iPhone."
         case .unexpectedContent, .decoding: return "The server sent an answer the app does not understand."
         }
     }

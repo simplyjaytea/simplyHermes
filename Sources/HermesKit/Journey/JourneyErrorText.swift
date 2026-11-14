@@ -44,6 +44,8 @@ public enum JourneyErrorText {
             return "There was no answer from the server. Check the connection."
         case .decoding:
             return "The server sent data the app could not read."
+        case .credentialsUnavailable:
+            return "The app could not read your saved sign-in from this iPhone. Unlock the phone and try again."
         }
     }
 

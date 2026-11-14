@@ -26,7 +26,7 @@
         /// True when the model in use was deleted, so no on-device model answers until the user picks one.
         public private(set) var noModelInUse = false
         public private(set) var appleAvailability: LocalModelAvailability = .available
-        /// True after a memory warning moved the answers back to the Apple model.
+        /// True after a memory warning unloaded the chosen model. It loads again with the next question.
         public private(set) var isSuspendedByMemoryWarning = false
         /// False where nothing can run a downloaded model (the Simulator).
         public private(set) var canRunDownloadedModels = true

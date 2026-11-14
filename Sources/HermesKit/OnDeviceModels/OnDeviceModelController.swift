@@ -22,8 +22,8 @@ public struct OnDeviceModelController: Sendable {
         self.availableMemory = availableMemory
     }
 
-    /// One row per catalog model, in catalog order. A model counts as selected only while it is the one that
-    /// answers: after a memory warning the Apple model answers, and the row offers Use again.
+    /// One row per catalog model, in catalog order. A model counts as selected while it is the user's choice, also
+    /// after a memory warning: it loads again on the next question, and the Apple model does not answer in its place.
     /// `repairing` holds the ids of models whose files an earlier download failed to verify, and which are fetched again.
     public func rows(states: [String: OnDeviceModelState], repairing: Set<String> = []) -> [OnDeviceModelRow] {
         let route = selection.route

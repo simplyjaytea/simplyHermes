@@ -45,6 +45,7 @@
 
     /// One attached file. The button in its corner removes it before it is sent.
     private struct AttachmentTile: View {
+        @Environment(\.hermesPalette) private var palette
         let file: ComposerAttachment
         let onRemove: () -> Void
 
@@ -55,11 +56,11 @@
                         .resizable()
                         .scaledToFill()
                         .frame(width: 56, height: 56)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: HermesMetrics.innerRadius, style: .continuous))
                 } else {
                     HStack(spacing: 6) {
                         Image(systemName: file.kind == .pdf ? "doc.richtext" : "doc")
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .accessibilityHidden(true)
                         Text(file.name)
                             .font(HermesFont.caption)
@@ -68,19 +69,23 @@
                     .padding(.horizontal, 10)
                     .frame(minHeight: 56)
                     .frame(maxWidth: 180)
-                    .background(HermesColor.fill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(
+                        palette.fill, in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius, style: .continuous))
                 }
             }
             .overlay(alignment: .topTrailing) {
                 Button(action: onRemove) {
                     Image(systemName: "xmark.circle.fill")
                         .symbolRenderingMode(.palette)
+                        // Deliberate: a white glyph on a dark disc stays readable over any photo, in every preset.
                         .foregroundStyle(Color.white, Color.black.opacity(0.6))
-                        .frame(width: HermesMetrics.minTapTarget / 2, height: HermesMetrics.minTapTarget / 2)
+                        .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("Remove \(file.name)"))
-                .offset(x: 8, y: -8)
+                // The tap area is 44 pt now, so the offset moves the glyph back to the corner it had at 22 pt.
+                .offset(x: 19, y: -19)
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("composer.attachment.\(file.name)")

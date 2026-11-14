@@ -27,6 +27,7 @@
                 }
                 .accessibilityIdentifier("settings.updateAll")
             }
+            .hermesListRows()
         }
     }
 #endif

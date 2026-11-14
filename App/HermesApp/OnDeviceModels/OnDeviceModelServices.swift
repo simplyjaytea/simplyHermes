@@ -7,7 +7,7 @@ import os
 /// Builds the on-device model pieces (plan WP-65c) once and keeps them for the life of the app: the download manager,
 /// the choice of model, the MLX runtime and the model behind Settings > On-device models.
 ///
-/// It also answers iOS. A memory warning unloads the MLX model and lets the Apple model answer. Coming back to the
+/// It also answers iOS. A memory warning unloads the MLX model; it loads again with the next question. Coming back to the
 /// foreground continues the downloads that a lost connection stopped.
 @MainActor
 final class OnDeviceModelServices {

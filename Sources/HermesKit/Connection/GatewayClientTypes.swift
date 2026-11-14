@@ -36,6 +36,8 @@ public enum GatewayFailure: Sendable, Equatable {
     case authenticationRejected
     /// The credential provider reported that the user must sign in again.
     case signInRequired
+    /// The saved sign-in could not be read from the Keychain. Retrying does not help, so the client stops.
+    case credentialsUnavailable
 }
 
 /// Where the connection is in its life.

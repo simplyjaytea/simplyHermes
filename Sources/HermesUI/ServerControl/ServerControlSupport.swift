@@ -30,6 +30,7 @@
 
     /// A red line with an icon, for a failed load or action.
     struct ServerControlProblem: View {
+        @Environment(\.hermesPalette) private var palette
         let text: String
 
         var body: some View {
@@ -38,20 +39,21 @@
             } icon: {
                 Image(systemName: "exclamationmark.triangle.fill")
             }
-            .foregroundStyle(HermesColor.destructive)
+            .foregroundStyle(palette.destructive)
             .accessibilityIdentifier("serverControl.problem")
         }
     }
 
     /// Spinner with a line of text, for a step that is running.
     struct ServerControlBusyLine: View {
+        @Environment(\.hermesPalette) private var palette
         let text: String
 
         var body: some View {
             HStack(spacing: 12) {
                 ProgressView()
                 Text(text)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
             }
             .accessibilityElement(children: .combine)
         }

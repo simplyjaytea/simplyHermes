@@ -28,6 +28,7 @@
     /// The timeline at the bottom of the graph. Drag the slider back to see the graph as it was: nodes that did not
     /// exist yet drop out. With no real dates in the graph the slider steps through the nodes, oldest first.
     struct JourneyScrubber: View {
+        @Environment(\.hermesPalette) private var palette
         let model: MemoryJourneyModel
 
         var body: some View {
@@ -40,7 +41,7 @@
                         Text("\(board.visibleCount) of \(board.filteredCount)")
                     }
                     .font(HermesFont.caption)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     Slider(value: Binding(get: { model.board.scrub }, set: { model.setScrub($0) }), in: 0...1)
                         .accessibilityLabel("Timeline")
                         .accessibilityValue(

@@ -134,9 +134,11 @@
             List {
                 if let activity = model.actions.activity {
                     Section { ToolsActivityRow(activity: activity) }
+                        .hermesListRows()
                 }
                 if let notice = model.notice {
                     Section { ToolsNoticeRow(notice: notice) }
+                        .hermesListRows()
                 }
                 if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     officialSection
@@ -144,6 +146,7 @@
                     resultsSection
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Skill hub")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "Search skill hubs")
@@ -195,6 +198,7 @@
             } footer: {
                 Text("Search to look in every hub source.")
             }
+            .hermesListRows()
         }
 
         private var resultsSection: some View {
@@ -212,6 +216,7 @@
                     Text("No answer in time from \(model.timedOut.joined(separator: ", ")).")
                 }
             }
+            .hermesListRows()
         }
 
         private func hubRow(_ skill: HubSkill) -> some View {
@@ -226,6 +231,7 @@
 
     /// One hub skill in a list: its name, its source, and whether the profile has it.
     private struct HubSkillRow: View {
+        @Environment(\.hermesPalette) private var palette
         let skill: HubSkill
         let isInstalled: Bool
 
@@ -238,19 +244,19 @@
                     if isInstalled {
                         Text("Installed")
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.statusConnected)
+                            .foregroundStyle(palette.statusConnected)
                     }
                 }
                 if let description = skill.description, !description.isEmpty {
                     Text(description)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                         .lineLimit(2)
                 }
                 if let source = skill.source {
                     Text(source)
                         .font(HermesFont.caption)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
             }
         }
@@ -258,6 +264,7 @@
 
     /// One hub skill: what it says, its files, the scan, and Install. Install asks first and names the source and trust level.
     struct SkillHubDetailScreen: View {
+        @Environment(\.hermesPalette) private var palette
         let model: SkillHubModel
         let skill: HubSkill
         @State private var confirmsInstall = false
@@ -271,9 +278,11 @@
             List {
                 if let activity = model.actions.activity {
                     Section { ToolsActivityRow(activity: activity) }
+                        .hermesListRows()
                 }
                 if let notice = model.notice {
                     Section { ToolsNoticeRow(notice: notice) }
+                        .hermesListRows()
                 }
                 Section {
                     LabeledContent("Source", value: skill.source ?? "Unknown")
@@ -284,6 +293,7 @@
                 } footer: {
                     Text(skill.description ?? "")
                 }
+                .hermesListRows()
                 if let scan = model.scan {
                     scanSection(scan)
                 }
@@ -295,15 +305,18 @@
                                 .font(HermesFont.code)
                         }
                     }
+                    .hermesListRows()
                     if let markdown = preview.skillMd {
                         Section("SKILL.md") {
                             Text(markdown)
                                 .font(HermesFont.code)
                                 .textSelection(.enabled)
                         }
+                        .hermesListRows()
                     }
                 }
             }
+            .hermesThemedList()
             .navigationTitle(skill.name)
             .navigationBarTitleDisplayMode(.inline)
             .task { await model.inspect(skill.id) }
@@ -342,7 +355,7 @@
                 if let reason = scan.policyReason, !reason.isEmpty {
                     Text(reason)
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
                 ForEach(Array((scan.findings ?? []).enumerated()), id: \.offset) { _, finding in
                     VStack(alignment: .leading, spacing: 2) {
@@ -350,19 +363,20 @@
                             .font(HermesFont.subheadline)
                         Text([finding.severity, finding.file].compactMap { $0 }.joined(separator: " · "))
                             .font(HermesFont.codeSmall)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                 }
             } header: {
                 Text("Scan")
             }
+            .hermesListRows()
         }
 
         private var installSection: some View {
             Section {
                 if model.isInstalled(skill) {
                     Label("Installed", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(HermesColor.statusConnected)
+                        .foregroundStyle(palette.statusConnected)
                 } else {
                     Button {
                         confirmsInstall = true
@@ -378,6 +392,7 @@
                     Text(reason)
                 }
             }
+            .hermesListRows()
         }
 
         private func policyLabel(_ policy: String?) -> String {

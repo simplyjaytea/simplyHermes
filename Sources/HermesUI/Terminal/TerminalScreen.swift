@@ -4,6 +4,7 @@
 
     /// The Terminal tool: a rail of tabs, each a Hermes TUI session on the server, and the selected tab's pane.
     struct TerminalScreen: View {
+        @Environment(\.hermesPalette) private var palette
         let connections: ConnectionsModel?
         let terminals: TerminalModel
         let addToChat: (String) -> Void
@@ -54,11 +55,11 @@
                 terminals.select(tab.id)
             } label: {
                 Text(tab.title)
-                    .font(.subheadline.weight(.medium))
+                    .font(HermesFont.subheadline.weight(.medium))
                     .padding(.horizontal, 12)
                     .frame(minHeight: HermesMetrics.minTapTarget)
-                    .background(isSelected ? HermesColor.accent : HermesColor.fill, in: Capsule())
-                    .foregroundStyle(isSelected ? HermesColor.onAccent : HermesColor.primaryText)
+                    .background(isSelected ? palette.accent : palette.fill, in: Capsule())
+                    .foregroundStyle(isSelected ? palette.onAccent : palette.primaryText)
             }
             .contextMenu {
                 Button("Close Tab", systemImage: "xmark", role: .destructive) { terminals.close(tab.id) }

@@ -108,12 +108,12 @@ private struct Pong: Decodable, Sendable, Equatable { var ok: Bool }
         await #expect(throws: RESTError.unauthorized) { let _: Pong = try await client.get("/api/health") }
     }
 
-    @Test func failingHookMeansUnauthorized() async throws {
+    @Test func unknownHookFailureIsATransportErrorNotUnauthorized() async throws {
         struct Nope: Error {}
         let http = FakeHTTP()
         http.enqueue(401)
         let client = makeClient(http, reauth: { throw Nope() })
-        await #expect(throws: RESTError.unauthorized) { let _: Pong = try await client.get("/api/health") }
+        await #expect(throws: RESTError.transport("Nope()")) { let _: Pong = try await client.get("/api/health") }
     }
 
     @Test func httpErrorCarriesDetail() async throws {
@@ -180,6 +180,44 @@ private struct Pong: Decodable, Sendable, Equatable { var ok: Bool }
         await #expect(throws: GatewaySignInRequired.self) { _ = try await provider(.reauthenticate) }
         let noLogin = await client.gatewayCredentialProvider(login: nil)
         await #expect(throws: GatewaySignInRequired.self) { _ = try await noLogin(.reauthenticate) }
+    }
+
+    @Test func keychainFailureDuringReauthenticationIsNotUnauthorized() async throws {
+        let http = FakeHTTP()
+        http.enqueue(401, "{}")
+        let client = makeClient(http, reauth: { throw CredentialStoreError.keychain(status: -25308) })
+        await #expect(throws: RESTError.credentialsUnavailable(status: -25308)) {
+            let _: Pong = try await client.get("/api/health")
+        }
+    }
+
+    @Test func networkFailureDuringReauthenticationStaysATransportError() async throws {
+        let http = FakeHTTP()
+        http.enqueue(401, "{}")
+        let client = makeClient(http, reauth: { throw RESTError.transport("offline") })
+        await #expect(throws: RESTError.transport("offline")) {
+            let _: Pong = try await client.get("/api/health")
+        }
+        http.enqueue(401, "{}")
+        let other = makeClient(http, reauth: { throw URLError(.notConnectedToInternet) })
+        do {
+            let _: Pong = try await other.get("/api/health")
+            Issue.record("expected an error")
+        } catch let error as RESTError {
+            guard case .transport = error else {
+                Issue.record("expected transport, got \(error)")
+                return
+            }
+        }
+    }
+
+    @Test func aRefusedSignInDuringReauthenticationIsStillUnauthorized() async throws {
+        let http = FakeHTTP()
+        http.enqueue(401, "{}")
+        let client = makeClient(http, reauth: { throw GatewaySignInRequired() })
+        await #expect(throws: RESTError.unauthorized) {
+            let _: Pong = try await client.get("/api/health")
+        }
     }
 }
 

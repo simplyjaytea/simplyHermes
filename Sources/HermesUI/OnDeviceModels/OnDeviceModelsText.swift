@@ -111,6 +111,7 @@
             case .unavailable(.noModelChosen): return "No on-device model is in use."
             case .unavailable(.notReady): return "The model is still getting ready. Try again in a few minutes."
             case .unavailable(.switchedOff): return "On-device features are switched off above."
+            case .unavailable(.chosenModelCannotAnswer): return "The model you chose cannot answer right now."
             }
         }
 
@@ -159,8 +160,8 @@
             var lines: [String] = []
             if suspended {
                 lines.append(
-                    "The device ran low on memory, so the Apple model is answering for now. "
-                        + "Choose Use this model to switch back.")
+                    "The device ran low on memory, so your model was unloaded. "
+                        + "It loads again with your next question. No other model answers in its place.")
             } else if !canRun {
                 lines.append("This device cannot run downloaded models. You can still download and delete them.")
             }

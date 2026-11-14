@@ -215,13 +215,24 @@ final class QuickActionCoordinator {
     }
 
     /// A placeholder chat (`new-…`) isn't remembered until it becomes a real chat.
-    private func noteSelection() {
+    private func noteSelection(retry: Bool = true) {
         guard let id = model.selectedSessionID, let session = model.session(id: id) else { return }
         let chat: QuickActionChat
         if id.hasPrefix("local-") {
             chat = .local(id)
-        } else if model.serverSessionIDs.contains(id), let connection = connections.active?.id.uuidString {
-            chat = .server(id, connectionID: connection)
+        } else if model.serverSessionIDs.contains(id), let active = connections.active?.id.uuidString {
+            // The chat's own server, not the active one: right after a switch the selected chat can still be the old
+            // server's. A chat whose model is not open yet has no server to read, so look again shortly.
+            guard let owner = model.chatServer(of: id), owner == active else {
+                if retry, model.chatServer(of: id) == nil {
+                    Task { @MainActor [weak self] in
+                        try? await Task.sleep(for: .seconds(1))
+                        self?.noteSelection(retry: false)
+                    }
+                }
+                return
+            }
+            chat = .server(id, connectionID: owner)
         } else {
             return
         }

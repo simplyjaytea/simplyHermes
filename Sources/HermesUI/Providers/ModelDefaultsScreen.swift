@@ -4,6 +4,7 @@
 
     /// Settings > Models > Model defaults: the main model, its provider and reasoning effort (WP-53a).
     struct ModelDefaultsScreen: View {
+        @Environment(\.hermesPalette) private var palette
         @State private var model: ModelDefaultsModel
 
         init(connections: ConnectionsModel) {
@@ -19,21 +20,22 @@
                 Section {
                     LabeledContent("Model") {
                         Text(model.current?.model ?? "Not set")
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                     LabeledContent("Provider") {
                         Text(model.current?.provider ?? "Not set")
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                     if let context = model.current?.effectiveContextLength {
                         LabeledContent("Context") {
                             Text("\(context) tokens")
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .foregroundStyle(palette.secondaryText)
                         }
                     }
                 } header: {
                     Text("Now")
                 }
+                .hermesListRows()
                 Section {
                     Picker("Provider", selection: $model.providerSlug) {
                         ForEach(model.providers) { provider in
@@ -67,6 +69,7 @@
                 } footer: {
                     Text("Running chats keep their model. New chats use the new one.")
                 }
+                .hermesListRows()
                 Section {
                     Button("Save") {
                         Task { await model.save() }
@@ -74,16 +77,19 @@
                     .disabled(model.isWorking)
                     .accessibilityIdentifier("models.save")
                     if let savedText = model.savedText {
-                        Text(savedText).foregroundStyle(HermesColor.secondaryText)
+                        Text(savedText).foregroundStyle(palette.secondaryText)
                     }
                 }
+                .hermesListRows()
                 if let errorText = model.errorText {
                     Section {
                         Label(errorText, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(HermesColor.destructive)
+                            .foregroundStyle(palette.errorText)
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Model defaults")
             .task { await model.load() }
         }

@@ -7,6 +7,7 @@
     ///
     /// It knows nothing about the page it sits on, so the settings pages that come later reuse it as they are.
     public struct AppliesToSelector: View {
+        @Environment(\.hermesPalette) private var palette
         private let choice: AppliesTo
         private let profiles: [HermesProfile]
         private let active: String?
@@ -40,18 +41,18 @@
                     HStack(spacing: 6) {
                         Text("Applies to")
                             .font(HermesFont.caption)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                         Text(chipTitle)
                             .font(HermesFont.subheadline.weight(.semibold))
-                            .foregroundStyle(HermesColor.primaryText)
+                            .foregroundStyle(palette.primaryText)
                             .lineLimit(1)
                         Image(systemName: "chevron.down")
                             .font(HermesFont.caption)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                     .padding(.horizontal, 14)
                     .frame(minHeight: HermesMetrics.minTapTarget)
-                    .background(HermesColor.fill, in: Capsule())
+                    .background(palette.fill, in: Capsule())
                     .contentShape(Capsule())
                 }
                 .accessibilityLabel("Applies to: \(chipTitle)")

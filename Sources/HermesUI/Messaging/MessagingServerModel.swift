@@ -123,6 +123,7 @@
             case .unexpectedContent: "The server sent a web page instead of an answer."
             case .transport: "Could not reach the server."
             case .decoding: "The server sent an answer in a form the app does not read."
+            case .credentialsUnavailable: "Could not read the saved sign-in from this iPhone."
             }
         }
 

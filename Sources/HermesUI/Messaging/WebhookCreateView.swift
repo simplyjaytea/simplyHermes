@@ -38,6 +38,7 @@
                 } header: {
                     Text("Webhook")
                 }
+                .hermesListRows()
                 Section {
                     TextField("Prompt for the agent", text: $prompt, axis: .vertical)
                         .lineLimit(3...8)
@@ -50,6 +51,7 @@
                 } header: {
                     Text("What it runs")
                 }
+                .hermesListRows()
                 Section {
                     TextField("Deliver to", text: $deliver)
                         .textInputAutocapitalization(.never)
@@ -61,6 +63,7 @@
                 } header: {
                     Text("Delivery")
                 }
+                .hermesListRows()
                 Section {
                     SecureField("Secret", text: $secret)
                         .textInputAutocapitalization(.never)
@@ -69,7 +72,9 @@
                 } footer: {
                     Text("The secret is sent to your Hermes server. It is not saved on this phone.")
                 }
+                .hermesListRows()
             }
+            .hermesThemedList()
             .navigationTitle("New webhook")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

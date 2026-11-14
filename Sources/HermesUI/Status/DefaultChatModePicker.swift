@@ -4,6 +4,7 @@
 
     /// Settings › Connection: the mode a new chat starts in. It changes no chat that already exists.
     struct DefaultChatModePicker: View {
+        @Environment(\.hermesPalette) private var palette
         @State private var mode = ChatModeDefault.current
 
         var body: some View {
@@ -16,7 +17,7 @@
                 .accessibilityIdentifier("settings.defaultMode")
                 Text("Only new chats. A chat keeps its mode.")
                     .font(HermesFont.footnote)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
             }
         }
     }

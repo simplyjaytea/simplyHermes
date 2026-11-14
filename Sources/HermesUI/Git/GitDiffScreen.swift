@@ -22,6 +22,7 @@
     /// The diff of one file in the review's scope. Wide screens, such as a Duo's inner display in landscape, show the old
     /// and new sides next to each other.
     struct GitDiffScreen: View {
+        @Environment(\.hermesPalette) private var palette
         let model: GitReviewModel
         let file: GitReviewFile
 
@@ -86,7 +87,7 @@
         private func hunkHeader(_ header: String) -> some View {
             Text(header)
                 .font(HermesFont.code)
-                .foregroundStyle(HermesColor.secondaryText)
+                .foregroundStyle(palette.secondaryText)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
         }
@@ -101,7 +102,7 @@
             }
             .font(HermesFont.code)
             .padding(.horizontal, 8)
-            .background(Self.background(for: line.kind))
+            .background(background(for: line.kind))
         }
 
         /// One side of a side-by-side row. `old` picks which line number the cell shows.
@@ -116,12 +117,12 @@
             .font(HermesFont.code)
             .frame(width: column, alignment: .leading)
             .padding(.horizontal, 8)
-            .background(Self.background(for: line?.kind))
+            .background(background(for: line?.kind))
         }
 
         private func gutter(_ number: Int?) -> some View {
             Text(number.map(String.init) ?? "")
-                .foregroundStyle(HermesColor.secondaryText)
+                .foregroundStyle(palette.secondaryText)
                 .frame(width: 40, alignment: .trailing)
         }
 
@@ -133,12 +134,12 @@
             }
         }
 
-        private static func background(for kind: GitDiffLine.Kind?) -> Color {
+        private func background(for kind: GitDiffLine.Kind?) -> Color {
             switch kind {
-            case .added?: Color.green.opacity(0.18)
-            case .removed?: Color.red.opacity(0.16)
+            case .added?: palette.statusConnected.opacity(0.18)
+            case .removed?: palette.destructive.opacity(0.16)
             case .context?: Color.clear
-            case nil: Color.secondary.opacity(0.06)
+            case nil: palette.secondaryText.opacity(0.06)
             }
         }
     }

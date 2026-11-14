@@ -17,6 +17,7 @@
         @State private var currentMatch: String?
         @State private var voice: VoiceInputModel?
         @State private var announcedReplyID: String?
+        @State private var settledValueID: String?
         /// The new-reply dot on the scroll-to-latest button (row 74).
         @State private var replyDot = NewReplyDot()
         @FocusState private var findFocused: Bool
@@ -111,11 +112,23 @@
             .onChange(of: chat.prefill, initial: true) { _, text in
                 guard let text else { return }
                 model.drafts[sessionID] = text
+                if !chat.returnedFiles.isEmpty {
+                    model.attachments[sessionID, default: []] += chat.returnedFiles
+                    chat.returnedFiles = []
+                }
                 chat.clearPrefill()
             }
-            .sheet(item: Binding(get: { chat.valueRequests.first }, set: { _ in })) { item in
+            .sheet(item: Binding(get: { chat.valueRequests.first }, set: { dismissedValueSheet($0) })) { item in
                 SecureValueSheet(
-                    item: item, onSend: { chat.answerValue(item, $0) }, onCancel: { chat.dismissValue(item) })
+                    item: item,
+                    onSend: {
+                        settledValueID = item.id
+                        chat.answerValue(item, $0)
+                    },
+                    onCancel: {
+                        settledValueID = item.id
+                        chat.dismissValue(item)
+                    })
             }
             .sheet(isPresented: $showsArtifacts) {
                 if let browser = model.workspaceBrowser {
@@ -437,6 +450,13 @@
         private static func lastRowShowsError(_ state: TranscriptState) -> Bool {
             if case .assistant(let entry)? = state.items.last?.content { return entry.error?.isEmpty == false }
             return false
+        }
+
+        /// A swipe-down closes the sheet, so cancel the request it showed unless a button already settled it.
+        private func dismissedValueSheet(_ item: LiveChatModel.PendingValue?) {
+            guard item == nil, let first = chat.valueRequests.first, settledValueID != first.id else { return }
+            settledValueID = first.id
+            chat.dismissValue(first)
         }
 
         /// Says what a cut would archive, from the server's counts when it sent them (WP-34).

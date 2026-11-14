@@ -6,6 +6,7 @@
     /// Takes a layout code that someone shared and applies it to the graph (WP-52). The code is checked as it is typed
     /// or pasted, and Apply stays off until it is a good one.
     struct LayoutCodeSheet: View {
+        @Environment(\.hermesPalette) private var palette
         let model: MemoryJourneyModel
         @Environment(\.dismiss) private var dismiss
         @State private var text = ""
@@ -31,7 +32,9 @@
                     } footer: {
                         footer
                     }
+                    .hermesListRows()
                 }
+                .hermesThemedList()
                 .navigationTitle("Apply layout code")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -58,11 +61,11 @@
                 Text("Paste a layout code from another device. It sets the filter, the timeline and the zoom.")
             } else if let problem {
                 Label(problem.message, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(HermesColor.destructive)
+                    .foregroundStyle(palette.errorText)
                     .accessibilityIdentifier("layoutCode.problem")
             } else {
                 Label("This code works.", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(HermesColor.statusConnected)
+                    .foregroundStyle(palette.statusConnected)
                     .accessibilityIdentifier("layoutCode.valid")
             }
         }

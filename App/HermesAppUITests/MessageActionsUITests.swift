@@ -124,8 +124,10 @@ final class MessageActionsUITests: XCTestCase {
         for _ in 0..<4 where !memoryLink.exists { app.swipeUp() }
         XCTAssertTrue(memoryLink.waitForExistence(timeout: 5), "Settings › On-device lists Memory")
         memoryLink.tap()
-        XCTAssertTrue(
-            app.staticTexts["I grow tomatoes on the balcony"].waitForExistence(timeout: 5), "The memory is listed")
+        // A memory row is a button (a tap edits it), so its text is the button's label, not a static text.
+        let listed = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@", "I grow tomatoes on the balcony")).firstMatch
+        XCTAssertTrue(listed.waitForExistence(timeout: 10), "The memory is listed")
     }
 
     // MARK: Helpers

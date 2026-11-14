@@ -168,11 +168,11 @@
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("simplyHermes \(feed.version) is available.")
-                            .font(.subheadline.weight(.semibold))
+                            .font(HermesFont.subheadline.weight(.semibold))
                             .foregroundStyle(palette.primaryText)
                         if !feed.headline.isEmpty {
                             Text(feed.headline)
-                                .font(.footnote)
+                                .font(HermesFont.footnote)
                                 .foregroundStyle(palette.primaryText)
                                 .lineLimit(3)
                         }
@@ -188,7 +188,7 @@
                 }
                 if let opened = model.openedURL {
                     Text(opened.absoluteString)
-                        .font(.caption)
+                        .font(HermesFont.caption)
                         .foregroundStyle(palette.secondaryText)
                         .accessibilityIdentifier("appUpdate.opened")
                 }
@@ -196,7 +196,7 @@
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: HermesMetrics.bannerRadius, style: .continuous))
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .accessibilityElement(children: .contain)
@@ -249,7 +249,7 @@
                 }
                 if let lastError = model.lastError {
                     Text("Couldn't check: \(lastError)")
-                        .font(.footnote)
+                        .font(HermesFont.footnote)
                         .foregroundStyle(palette.secondaryText)
                         .accessibilityIdentifier("settings.appUpdateError")
                 }

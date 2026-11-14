@@ -5,6 +5,7 @@
     /// One transcript row (WP-43 spec, section 7; plan Q35): a grey bubble for a person or a bot, or a centred line for
     /// room activity.
     struct RoomRowView: View {
+        @Environment(\.hermesPalette) private var palette
         let row: RoomRow
         let chat: RoomChatModel
 
@@ -16,11 +17,11 @@
                 VStack(alignment: .leading, spacing: 4) {
                     Text("You")
                         .font(HermesFont.caption)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                     Text(text)
                         .font(HermesFont.bubble)
                         .padding(12)
-                        .background(HermesColor.incomingBubble, in: Self.bubbleShape)
+                        .background(palette.incomingBubble, in: Self.bubbleShape)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             case .member(_, let memberID, let text, _, let createdAt):
@@ -31,21 +32,21 @@
                         HStack(spacing: 6) {
                             Text(chat.label(forMember: memberID))
                                 .font(HermesFont.caption.weight(.semibold))
-                                .foregroundStyle(HermesColor.accent)
+                                .foregroundStyle(palette.accent)
                             Text(Date(timeIntervalSince1970: createdAt), style: .relative)
                                 .font(HermesFont.caption2)
-                                .foregroundStyle(HermesColor.secondaryText)
+                                .foregroundStyle(palette.secondaryText)
                         }
                         MarkdownView(text: text)
                             .padding(12)
-                            .background(HermesColor.incomingBubble, in: Self.bubbleShape)
+                            .background(palette.incomingBubble, in: Self.bubbleShape)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             case .activity(_, let text):
                 Text(text)
                     .font(HermesFont.caption)
-                    .foregroundStyle(HermesColor.secondaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
             }
@@ -54,6 +55,7 @@
 
     /// A bot's monogram on its tint. The default profile, Hermes, is violet (WP-43 spec, section 7).
     struct RoomAvatarView: View {
+        @Environment(\.hermesPalette) private var palette
         let name: String
         let profile: String?
         var size: CGFloat = 24
@@ -64,7 +66,7 @@
                     .fill(Self.fill(forProfile: profile))
                 Text(Self.monogram(for: name))
                     .font(.system(size: size * 0.5, weight: .bold, design: .rounded))
-                    .foregroundStyle(HermesColor.onAccent)
+                    .foregroundStyle(palette.onAccent)
             }
             .frame(width: size, height: size)
             .accessibilityHidden(true)

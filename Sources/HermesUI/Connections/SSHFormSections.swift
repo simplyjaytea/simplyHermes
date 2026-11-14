@@ -6,6 +6,7 @@
     /// The SSH part of the form, as decided on the design canvas: server, key (generate or import, with the
     /// `authorized_keys` line to copy or share) and advanced options.
     struct SSHFormSections: View {
+        @Environment(\.hermesPalette) private var palette
         @Bindable var form: ConnectionFormModel
         @State private var copied = false
 
@@ -30,6 +31,7 @@
                         .accessibilityIdentifier("connection.port")
                 }
             }
+            .hermesListRows()
 
             Section {
                 Picker("Key", selection: $form.keySource) {
@@ -49,6 +51,7 @@
                         : "Paste an OpenSSH private key (Ed25519 or RSA). It is stored in the Keychain on this iPhone only."
                 )
             }
+            .hermesListRows()
 
             Section("Advanced") {
                 TextField("Path to hermes (optional)", text: $form.hermesPath)
@@ -59,6 +62,7 @@
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
             }
+            .hermesListRows()
         }
 
         @ViewBuilder
@@ -102,7 +106,7 @@
                     if form.importText.isEmpty {
                         Text("-----BEGIN OPENSSH PRIVATE KEY-----")
                             .font(HermesFont.codeSmall)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .padding(.top, 8)
                             .padding(.leading, 5)
                             .allowsHitTesting(false)
@@ -120,6 +124,7 @@
 
     /// The Test result row: progress, success with server details, or the failure in plain words.
     struct ConnectionTestStatus: View {
+        @Environment(\.hermesPalette) private var palette
         let form: ConnectionFormModel
         let connections: ConnectionsModel
 
@@ -131,7 +136,7 @@
                 case .running(let step):
                     HStack(spacing: 10) {
                         ProgressView()
-                        Text(step.title).foregroundStyle(HermesColor.secondaryText)
+                        Text(step.title).foregroundStyle(palette.secondaryText)
                     }
                 case .passed(let report):
                     passed(report)
@@ -141,7 +146,7 @@
                     }
                 case .failed(let failure):
                     Label(failure.message, systemImage: "xmark.octagon.fill")
-                        .foregroundStyle(HermesColor.destructive)
+                        .foregroundStyle(palette.errorText)
                         .accessibilityIdentifier("connection.testFailed")
                 }
             }
@@ -162,7 +167,7 @@
         private func passed(_ report: ConnectionTestReport) -> some View {
             VStack(alignment: .leading, spacing: 4) {
                 Label("Connection works", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(HermesColor.statusConnected)
+                    .foregroundStyle(palette.statusConnected)
                     .font(HermesFont.body.weight(.semibold))
                     .accessibilityIdentifier("connection.testPassed")
                 let details = [
@@ -174,7 +179,7 @@
                 if !details.isEmpty {
                     Text(details.joined(separator: " · "))
                         .font(HermesFont.footnote)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
             }
         }
@@ -182,6 +187,7 @@
 
     /// The server's key changed: both fingerprints, and the Face ID-gated override (design canvas row 4).
     struct HostKeyChangedCard: View {
+        @Environment(\.hermesPalette) private var palette
         let expected: String
         let actual: String
         let onTrust: () -> Void
@@ -190,7 +196,7 @@
             VStack(alignment: .leading, spacing: 8) {
                 Label("The server's key changed", systemImage: "exclamationmark.shield.fill")
                     .font(HermesFont.headline)
-                    .foregroundStyle(HermesColor.destructive)
+                    .foregroundStyle(palette.destructive)
                 Text(
                     "This can mean someone is intercepting the connection. Don't continue unless you reinstalled the server."
                 )
@@ -206,7 +212,7 @@
 
         private func fingerprint(_ label: String, _ value: String) -> some View {
             VStack(alignment: .leading, spacing: 2) {
-                Text(label).font(HermesFont.caption).foregroundStyle(HermesColor.secondaryText)
+                Text(label).font(HermesFont.caption).foregroundStyle(palette.secondaryText)
                 Text(value).font(HermesFont.codeSmall).textSelection(.enabled)
             }
         }
@@ -214,6 +220,7 @@
 
     /// First connect: show the server key's SHA256 fingerprint and ask (design canvas row 4).
     public struct HostKeyTrustSheet: View {
+        @Environment(\.hermesPalette) private var palette
         let fingerprint: HostKeyFingerprint
         let onAnswer: (Bool) -> Void
 
@@ -231,7 +238,7 @@
                 )
                 .font(HermesFont.subheadline)
                 HermesCard {
-                    Text(keyType).font(HermesFont.caption).foregroundStyle(HermesColor.secondaryText)
+                    Text(keyType).font(HermesFont.caption).foregroundStyle(palette.secondaryText)
                     Text(fingerprint.fingerprint)
                         .font(HermesFont.code)
                         .textSelection(.enabled)
@@ -257,6 +264,7 @@
 
     /// Shown once before iOS asks for Local Network access, so the system prompt is no surprise (plan 2.4).
     public struct LocalNetworkExplainer: View {
+        @Environment(\.hermesPalette) private var palette
         let onContinue: () -> Void
         @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 44
 
@@ -268,7 +276,7 @@
             VStack(spacing: 18) {
                 Image(systemName: "wifi.router")
                     .font(.system(size: iconSize, weight: .semibold))
-                    .foregroundStyle(HermesColor.accent)
+                    .foregroundStyle(palette.accent)
                     .padding(.top, 24)
                 Text("Allow local network")
                     .font(HermesFont.glanceTitle)
@@ -277,7 +285,7 @@
                         + "devices on it. Tap Allow, or the app can't reach the server."
                 )
                 .multilineTextAlignment(.center)
-                .foregroundStyle(HermesColor.secondaryText)
+                .foregroundStyle(palette.secondaryText)
                 Spacer(minLength: 0)
                 Button("Continue", action: onContinue)
                     .buttonStyle(HermesButtonStyle(.primary))

@@ -51,6 +51,7 @@
 
     /// A dismissible card for one inline tip. It stays for the rest of the visit even though it is marked seen.
     public struct InlineTipCard: View {
+        @Environment(\.hermesPalette) private var palette
         let kind: InlineTipKind
         @State private var isShowing: Bool
 
@@ -64,22 +65,22 @@
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: kind.symbol)
                         .font(.title3)
-                        .foregroundStyle(HermesColor.accent)
+                        .foregroundStyle(palette.accent)
                         .frame(width: 28)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(kind.title).font(HermesFont.headline)
                         Text(kind.message)
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                     }
                     Spacer(minLength: 0)
                     Button {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .font(HermesFont.caption.weight(.bold))
+                            .foregroundStyle(palette.secondaryText)
                             .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                             .contentShape(Rectangle())
                     }
@@ -88,7 +89,7 @@
                 }
                 .padding(12)
                 .background(
-                    HermesColor.card, in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius, style: .continuous)
+                    palette.card, in: RoundedRectangle(cornerRadius: HermesMetrics.innerRadius, style: .continuous)
                 )
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("tip.\(kind.rawValue)")

@@ -31,9 +31,15 @@ public struct StandardConnectionDriver: ConnectionDriver {
         guard case .ssh(let settings) = connection.kind else {
             throw ConnectionTestFailure.ssh("Not an SSH connection.")
         }
-        let secrets = ConnectionSecrets(
-            sshKey: try? credentials.sshKey(connection: connection.id),
-            sshPassword: try? credentials.string(for: .sshPassword, connection: connection.id))
+        // A Keychain failure is not "no credential": it fails the connection and names the Keychain.
+        let secrets: ConnectionSecrets
+        do {
+            secrets = ConnectionSecrets(
+                sshKey: try credentials.sshKey(connection: connection.id),
+                sshPassword: try credentials.string(for: .sshPassword, connection: connection.id))
+        } catch {
+            throw ConnectionTestFailure.ssh("Couldn't read the saved SSH sign-in from the Keychain on this iPhone.")
+        }
         let configuration = try SSHConnectionTester.configuration(
             settings, secrets: secrets, confirmHostKey: { _ in false })
         let tunnel = SSHTunnel(configuration: configuration)

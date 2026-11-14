@@ -21,16 +21,16 @@ final class AppIntegration {
             model: model, activities: activities, keepAlive: keepAlive, sharedContainer: sharedContainer)
 
         let monitor = monitor
-        LiveTurnActionCenter.shared.handler = { [weak model] action, sessionID in
+        LiveTurnActionCenter.shared.handler = { [weak model] action, sessionID, command in
             guard let model else { return }
             switch action {
             case .stop:
                 monitor.markStopped(sessionID)
                 model.stopTurn(in: sessionID)
             case .deny:
-                model.answerApproval(in: sessionID, approved: false)
+                model.answerApproval(in: sessionID, approved: false, showing: command)
             case .approve:
-                model.answerApproval(in: sessionID, approved: true)
+                model.answerApproval(in: sessionID, approved: true, showing: command)
             }
         }
 

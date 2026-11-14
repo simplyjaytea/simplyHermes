@@ -28,6 +28,7 @@
                                 .foregroundStyle(palette.secondaryText)
                         }
                     }
+                    .frame(minWidth: HermesMetrics.minTapTarget, minHeight: HermesMetrics.minTapTarget)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

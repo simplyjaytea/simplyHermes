@@ -12,6 +12,14 @@
             var states: AsyncStream<ChatSnapshot>?
             var approvals: AsyncStream<[PendingServerRequest]>?
             var drainer: OutboxDrainer?
+
+            /// Ends the approvals stream of an attach that did not commit, so the broker drops its observer.
+            func cancelApprovals() {
+                guard let stream = approvals else { return }
+                approvals = nil
+                // A cancelled consumer terminates the stream, which removes the broker's observer.
+                Task { for await _ in stream {} }.cancel()
+            }
         }
 
         /// Gives the chat's drainer this attach's controller, and recovers messages that were mid-send at launch.
@@ -42,12 +50,30 @@
             }
         }
 
+        /// Undoes the controller step: detaches the controller and ends the approvals stream, so the shared broker does
+        /// not keep one observer per failed attach.
+        func unwireController(_ built: PendingAttach) async {
+            built.cancelApprovals()
+            await built.controller?.detach()
+        }
+
         /// An abandoned attach puts back the submitter it replaced, unless another attach has replaced it since.
         func unwireOutbox(_ built: PendingAttach) async {
             if let controller = built.controller, let drainer = built.drainer, let previous = previousSubmitter {
                 await drainer.replace(controller, with: previous)
             }
             previousSubmitter = nil
+            // A retired chat never attaches again, so its observer goes too (``retire()`` only knows a committed drainer).
+            if isRetired, let drainer = built.drainer { await drainer.stopObserving(owner: outboxObserver) }
+        }
+
+        /// Hands a first message that is only held in memory back to the composer, so a failed attach or a retired chat
+        /// never loses it. Text the outbox saved is not held here, so nothing is sent twice.
+        func giveBackFirstMessage() {
+            guard let first = firstMessage else { return }
+            firstMessage = nil
+            returnedFiles += first.attachments
+            prefill = first.text
         }
 
         /// The chat keeps the profile it first attached under. A later profile change, such as opening another bot, does

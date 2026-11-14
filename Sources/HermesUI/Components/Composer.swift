@@ -100,7 +100,7 @@
                         }
                     }
                     .overlay(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        RoundedRectangle(cornerRadius: HermesMetrics.bannerRadius, style: .continuous)
                             .strokeBorder(palette.separator)
                     )
                 }
@@ -132,9 +132,11 @@
                         .font(HermesFont.caption.weight(.semibold))
                         .padding(.horizontal, 12)
                         .frame(minHeight: 32)
+                        .glassEffect(.regular, in: Capsule())
+                        .frame(minWidth: HermesMetrics.minTapTarget, minHeight: HermesMetrics.minTapTarget)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .glassEffect(.regular, in: Capsule())
                 .disabled(!text.isEmpty)
                 .opacity(text.isEmpty ? 1 : 0.4)
                 .accessibilityIdentifier("composer.undo")
@@ -169,7 +171,8 @@
                 ComposerTextView(
                     text: $text, selection: $selection,
                     fieldAccessibilityIdentifier: fieldAccessibilityIdentifier ?? "composer.field",
-                    onRecall: recall, focusKey: focusKey
+                    onRecall: recall, focusKey: focusKey,
+                    textColor: UIColor(palette.primaryText), mentionColor: UIColor(palette.accent)
                 )
                 if text.isEmpty {
                     Text(placeholder)
@@ -207,7 +210,7 @@
                     .disabled(!UIPasteboard.general.hasImages)
             } label: {
                 Image(systemName: "plus")
-                    .font(.body.weight(.semibold))
+                    .font(HermesFont.body.weight(.semibold))
                     .cappedSymbolSize()
                     .foregroundStyle(palette.primaryText)
                     .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
@@ -297,7 +300,7 @@
                 onSend()
             } label: {
                 Image(systemName: "arrow.up")
-                    .font(.body.weight(.bold))
+                    .font(HermesFont.body.weight(.bold))
                     .cappedSymbolSize()
                     // The idle button uses text-safe colors: white on system gray is below 4.5:1.
                     .foregroundStyle(canSend ? palette.onAccent : palette.secondaryText)

@@ -37,17 +37,43 @@ extension XCTestCase {
     }
 
     /// Turns on "Remember password" in the connection form, so the saved server can sign in again by itself.
+    ///
+    /// A tap on the middle of a form toggle lands on its title, which does not flip the switch (run 43593302488: ten
+    /// tests read "0" after the tap). So this taps the switch itself: the inner switch when the toggle reports one,
+    /// else the trailing end of the row, and waits for the value after each try.
     @MainActor
     func testbedRememberPassword(_ app: XCUIApplication) {
-        let named = NSPredicate(format: "label == 'Remember password'")
-        var remember = app.switches.matching(named).firstMatch
-        // A toggle that does not report as a switch is still found by its label.
+        var remember = testbedElement(app, "connection.rememberPassword")
         if !remember.waitForExistence(timeout: 3) {
-            remember = app.descendants(matching: .any).matching(named).firstMatch
+            // A build without the identifier: find the toggle by its title.
+            remember =
+                app.descendants(matching: .any)
+                .matching(NSPredicate(format: "label == 'Remember password'")).firstMatch
         }
         if !remember.waitForExistence(timeout: 2) || !remember.isHittable { app.swipeUp() }
         XCTAssertTrue(remember.waitForExistence(timeout: 5), "The form should offer Remember password")
-        if (remember.value as? String) != "1" { remember.tap() }
+        let isOn = NSPredicate(format: "value == '1'")
+        func settled() -> Bool {
+            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: isOn, object: remember)], timeout: 2)
+                == .completed
+        }
+        if (remember.value as? String) != "1" {
+            let inner = remember.switches.firstMatch
+            if inner.exists {
+                inner.tap()
+            } else {
+                remember.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+            }
+            if !settled() {
+                // Still off, so the first tap did nothing. Try the other way once.
+                if inner.exists {
+                    remember.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+                } else {
+                    remember.tap()
+                }
+                _ = settled()
+            }
+        }
         XCTAssertEqual(
             remember.value as? String, "1", "Remember password should be on, or the saved server can't sign in")
     }

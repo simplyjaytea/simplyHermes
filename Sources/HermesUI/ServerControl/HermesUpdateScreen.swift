@@ -23,6 +23,7 @@
                         ServerControlBusyLine(
                             text: "Update all servers is running. Hermes can be updated when it finishes.")
                     }
+                    .hermesListRows()
                 }
                 if let check = model.check {
                     installedSection(check)
@@ -32,10 +33,12 @@
                         Section {
                             ServerControlProblem(text: message)
                         }
+                        .hermesListRows()
                     }
                 }
                 phaseSection
             }
+            .hermesThemedList()
             .navigationTitle("Hermes update")
             .refreshable { await model.loadCheck(force: true) }
             .task { await model.loadCheck(force: false) }
@@ -65,6 +68,7 @@
                     Text(statusText(check))
                 }
             }
+            .hermesListRows()
             .accessibilityIdentifier("hermesUpdate.installed")
         }
 
@@ -81,6 +85,7 @@
                 } footer: {
                     Text(check.message ?? "The server restarts during the update.")
                 }
+                .hermesListRows()
             } else {
                 Section {
                     Text(check.updateCommand ?? "Update Hermes on the server.")
@@ -91,6 +96,7 @@
                 } footer: {
                     Text(check.message ?? "This install cannot be updated from the app.")
                 }
+                .hermesListRows()
             }
         }
 
@@ -103,11 +109,13 @@
                 Section {
                     ServerControlBusyLine(text: "Checking for updates…")
                 }
+                .hermesListRows()
             case .updating:
                 Section {
                     ServerControlBusyLine(text: "Updating Hermes. The server may restart; this can take a few minutes.")
                         .accessibilityIdentifier("hermesUpdate.progress")
                 }
+                .hermesListRows()
             case .finished:
                 Section("Result") {
                     if let versionText = model.versionText {
@@ -115,15 +123,18 @@
                     }
                     ServerStatsRowsView(rows: model.receiptRows)
                 }
+                .hermesListRows()
                 .accessibilityIdentifier("hermesUpdate.result")
             case .timedOut:
                 Section {
                     ServerControlProblem(text: "The update did not finish within 15 minutes. Check the server.")
                 }
+                .hermesListRows()
             case .failed(let text):
                 Section {
                     ServerControlProblem(text: text)
                 }
+                .hermesListRows()
             }
         }
 

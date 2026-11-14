@@ -5,6 +5,7 @@
 
     /// One column of the board as one page (Q40). Cards keep the server's order.
     struct KanbanColumnPage: View {
+        @Environment(\.hermesPalette) private var palette
         let column: KanbanColumn
         let onOpen: (KanbanCard) -> Void
 
@@ -16,14 +17,14 @@
                             .font(HermesFont.headline)
                         Text("\(column.cards.count)")
                             .font(HermesFont.subheadline)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .accessibilityLabel(Text("\(column.cards.count) tasks"))
                     }
                     .padding(.horizontal, 4)
                     if column.cards.isEmpty {
                         Text("No tasks in this column.")
                             .font(HermesFont.footnote)
-                            .foregroundStyle(HermesColor.secondaryText)
+                            .foregroundStyle(palette.secondaryText)
                             .frame(maxWidth: .infinity)
                             .padding(.top, 40)
                     }
@@ -39,7 +40,7 @@
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .background(HermesColor.groupedBackground)
+            .background(palette.groupedBackground)
             .accessibilityIdentifier("kanban.column.\(column.name)")
         }
     }

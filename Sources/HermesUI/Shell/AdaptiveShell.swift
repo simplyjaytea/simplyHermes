@@ -44,8 +44,11 @@
             self.model = model
             self.connections = connections
             self.sessionsList = sessionsList
-            let liveChats = connections.map(LiveChatStore.init)
-            model.liveChats = liveChats
+            // One store for the life of the model. This init runs again whenever the parent's body does (a scene
+            // phase change is enough), and a new store each time dropped every open chat without retiring it: the
+            // screen then made a second model for a session whose first one was still attached and still sending.
+            if model.liveChats == nil { model.liveChats = connections.map(LiveChatStore.init) }
+            let liveChats = model.liveChats
             // Kept across re-renders: a new one would lose the folder on screen and leave views holding the old one.
             if model.workspaceBrowser == nil { model.workspaceBrowser = connections.map(WorkspaceBrowserModel.init) }
             if let connections {
@@ -54,12 +57,12 @@
                     let queue = NewChatQueue(
                         connections: connections, placeholders: placeholders, outbox: OutboxServices.store)
                     queue.onCreated = { [weak model] row, session, name, connectionID in
-                        model?.adoptQueuedChat(row: row, sessionID: session, serverName: name)
-                        // Attach now, so the waiting message goes out even when the chat is not on screen. Only on the
-                        // server the chat was made on: another active server must never get this session id.
-                        if connections.active?.id.uuidString == connectionID {
-                            Task { await liveChats?.chat(for: session)?.attach() }
-                        }
+                        // Only on the server the chat was made on: another active server must never list this
+                        // session id or get its message. There the row goes, and the chat comes back with its
+                        // waiting message when its own server is active (`showUnsentChats`).
+                        model?.queuedChatCreated(
+                            row: row, sessionID: session, serverName: name, on: connectionID,
+                            active: connections.active?.id.uuidString)
                     }
                     model.newChatQueue = queue
                 }
@@ -156,6 +159,7 @@
         /// Lists the active profile's chats in the shell (WP-40), again when the server or the profile changes.
         private func attachSessions() async {
             await model.loadLocalChats()
+            await model.showUnsentChats(of: connections)
             guard let sessionsList else { return }
             sessionsList.observeItems { model.syncSessions($0) }
             await sessionsList.attach(profile: profiles?.selection.chosen)
@@ -341,9 +345,7 @@
                     .listRowBackground(palette.card)
                     .modifier(LocalChatDeleteActions(id: session.id, model: model))
                 }
-                .scrollContentBackground(.hidden)
-                .background(palette.groupedBackground)
-                .toolbarBackground(palette.groupedBackground, for: .navigationBar)
+                .hermesThemedList()
                 .searchable(text: $localChatSearch, isPresented: $isLocalChatSearchPresented, prompt: "Search chats")
             }
         }
@@ -375,6 +377,7 @@
                         }
                     }
                 }
+                .hermesThemedList()
                 .searchable(
                     text: $sidebarChatSearch, isPresented: $isSidebarSearchPresented, placement: .sidebar,
                     prompt: "Search chats"

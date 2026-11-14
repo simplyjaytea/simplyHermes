@@ -11,6 +11,7 @@
     /// the same list as the bots. A gateway without the room methods shows nothing; a gateway that supports them
     /// always shows the section, so New Group is not hidden when there are no rooms or too few ready bots.
     struct RoomsSection: View {
+        @Environment(\.hermesPalette) private var palette
         @Bindable var model: RoomsModel
         /// Whether the New Group action can run. False shows why instead of hiding the section.
         var showsCreate = false
@@ -28,7 +29,7 @@
                         VStack(alignment: .leading, spacing: 6) {
                             Text(message)
                                 .font(HermesFont.footnote)
-                                .foregroundStyle(HermesColor.destructive)
+                                .foregroundStyle(palette.errorText)
                             Button("Dismiss") { model.errorMessage = nil }
                                 .font(HermesFont.footnote)
                         }
@@ -50,11 +51,12 @@
                             if model.errorMessage == nil {
                                 Text(explanation)
                                     .font(HermesFont.footnote)
-                                    .foregroundStyle(HermesColor.secondaryText)
+                                    .foregroundStyle(palette.secondaryText)
                             }
                         }
                     }
                 }
+                .hermesListRows()
             }
         }
     }
@@ -75,31 +77,32 @@
 
     /// One group chat's row: its name, how many bots it has, and a badge when it waits on the user.
     struct RoomRowLabel: View {
+        @Environment(\.hermesPalette) private var palette
         let room: Room
         let needsAttention: Bool
 
         var body: some View {
             HStack(spacing: 12) {
                 Image(systemName: "person.3.fill")
-                    .foregroundStyle(HermesColor.accent)
+                    .foregroundStyle(palette.accent)
                     .frame(width: 32, height: 32)
-                    .background(HermesColor.accent.opacity(0.12), in: Circle())
+                    .background(palette.accent.opacity(0.12), in: Circle())
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(room.name)
                         .font(HermesFont.headline)
                     Text("\(room.members.count) bots")
                         .font(HermesFont.caption)
-                        .foregroundStyle(HermesColor.secondaryText)
+                        .foregroundStyle(palette.secondaryText)
                 }
                 Spacer(minLength: 8)
                 if needsAttention {
                     Text("Needs you")
                         .font(HermesFont.caption2.weight(.semibold))
-                        .foregroundStyle(HermesColor.statusWarning)
+                        .foregroundStyle(palette.statusWarning)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(HermesColor.statusWarning.opacity(0.15), in: Capsule())
+                        .background(palette.statusWarning.opacity(0.15), in: Capsule())
                 }
             }
         }

@@ -126,11 +126,21 @@ final class HermesAppUITests: XCTestCase {
         menu.tap()
         let item = app.buttons[layout]
         guard item.waitForExistence(timeout: 5) else { return "the \(layout) item did not appear" }
-        // The item can exist before the menu lays it out. Wait until it can be tapped.
-        let hittable = NSPredicate(format: "isHittable == true")
-        let ready = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hittable, object: item)], timeout: 10)
-        guard ready == .completed else { return "the \(layout) item was not tappable" }
-        item.tap()
+        // The item can exist before the menu lays it out, and asking whether it is hittable then fails the test
+        // ("Activation point invalid", run 43593302488). Wait until its frame stops moving, then tap its middle.
+        var last = CGRect.null
+        var steady = false
+        for _ in 0..<25 {
+            let frame = item.frame
+            if !frame.isEmpty, frame == last {
+                steady = true
+                break
+            }
+            last = frame
+            Thread.sleep(forTimeInterval: 0.2)
+        }
+        guard steady else { return "the \(layout) item was not laid out" }
+        item.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         return nil
     }
 

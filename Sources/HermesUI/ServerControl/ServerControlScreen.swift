@@ -22,6 +22,7 @@
                     Section {
                         ServerControlProblem(text: errorText)
                     }
+                    .hermesListRows()
                 }
                 if let status = model.status {
                     statusSection(status)
@@ -32,14 +33,17 @@
                         ServerControlBusyLine(text: action.waitsForServer ? "Reconnecting…" : "Sending…")
                             .accessibilityIdentifier("serverControl.busy")
                     }
+                    .hermesListRows()
                 }
                 resultSection
                 if !model.idleRows.isEmpty {
                     Section("Idle check") {
                         ServerStatsRowsView(rows: model.idleRows)
                     }
+                    .hermesListRows()
                 }
             }
+            .hermesThemedList()
             .navigationTitle("Gateway")
             .refreshable { await model.load() }
             .task { await model.load() }
@@ -87,6 +91,7 @@
                     Text(status.server.overall ?? "—")
                 }
             }
+            .hermesListRows()
             .accessibilityIdentifier("serverControl.status")
         }
 
@@ -103,6 +108,7 @@
             } footer: {
                 Text("Every action asks first. Stop and restart wait up to 60 seconds for the server to answer.")
             }
+            .hermesListRows()
         }
 
         @ViewBuilder
@@ -113,10 +119,12 @@
                     Text(text)
                         .accessibilityIdentifier("serverControl.result")
                 }
+                .hermesListRows()
             case .failed(let text):
                 Section {
                     ServerControlProblem(text: text)
                 }
+                .hermesListRows()
             case .idle, .working:
                 EmptyView()
             }
