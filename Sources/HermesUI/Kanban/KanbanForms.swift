@@ -51,6 +51,7 @@
                     }
                 }
                 .hermesThemedList()
+                .hermesKeyboardDismissOnScroll()
                 .navigationTitle("New task")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -160,6 +161,7 @@
                     }
                 }
                 .hermesThemedList()
+                .hermesKeyboardDismissOnScroll()
                 .navigationTitle(isCreating ? "New board" : "Rename board")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

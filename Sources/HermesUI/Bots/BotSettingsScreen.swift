@@ -43,6 +43,7 @@
                         .padding(20)
                     }
                 }
+                .hermesKeyboardDismissOnScroll()
                 .navigationTitle(model.entry.title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

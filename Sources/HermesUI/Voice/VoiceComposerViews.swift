@@ -20,7 +20,7 @@
                     .padding(6)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.hermesPress)
             .accessibilityLabel(Text("Dictate"))
             .accessibilityIdentifier("composer.voice")
             .contextMenu {
@@ -45,7 +45,7 @@
                         .foregroundStyle(palette.secondaryText)
                         .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.hermesPress)
                 .accessibilityLabel(Text("Cancel"))
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -71,7 +71,7 @@
                         .padding(6)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.hermesPress)
                 .accessibilityLabel(Text(voice.mode == .conversation ? "End voice conversation" : "Insert dictation"))
             }
             .padding(.vertical, 2)

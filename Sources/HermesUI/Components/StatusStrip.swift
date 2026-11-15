@@ -2,18 +2,6 @@
     import HermesKit
     import SwiftUI
 
-    extension StatusStrip.Connection {
-        /// The strip's dot for a chat's connection. The chat's status is the source, so the dot can't disagree with the pill.
-        init(_ connection: StripConnection) {
-            switch connection {
-            case .online: self = .connected
-            case .reconnecting: self = .reconnecting
-            case .offline: self = .offline
-            case .needsAttention: self = .needsAttention
-            }
-        }
-    }
-
     /// Connection state and the running turn, in a Liquid Glass capsule.
     public struct StatusStrip: View {
         @Environment(\.hermesPalette) private var palette
@@ -64,7 +52,7 @@
                         .font(HermesFont.footnote.weight(.semibold))
                         .foregroundStyle(palette.accent)
                         .frame(minWidth: HermesMetrics.minTapTarget, minHeight: HermesMetrics.minTapTarget)
-                        .buttonStyle(.plain)
+                        .buttonStyle(.hermesPress)
                 }
             }
             .padding(.horizontal, 14)

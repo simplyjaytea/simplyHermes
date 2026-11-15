@@ -83,6 +83,10 @@ public enum HostFallback {
     public static func note(typed: HermesEndpoint, adapted: HermesEndpoint) -> String {
         let name = typed.baseURL.host() ?? "this name"
         let address = adapted.baseURL.host() ?? "its IP address"
+        if name == address {
+            // Same host: the scheme or port differs (``AddressAlternatives``), such as Hermes' default port 9119.
+            return "Hermes answers at \(adapted.baseURL.absoluteString), so the app uses that address."
+        }
         return "Hermes doesn't answer to \(name), so the app connects to \(address), the same server."
     }
 

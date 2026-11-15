@@ -62,7 +62,7 @@
                 .frame(minHeight: HermesMetrics.minTapTarget - 8)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.hermesPress)
             .accessibilityAddTraits(selected ? .isSelected : [])
         }
 

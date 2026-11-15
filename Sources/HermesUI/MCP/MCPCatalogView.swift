@@ -142,6 +142,7 @@
                     }
                 }
                 .hermesThemedList()
+                .hermesKeyboardDismissOnScroll()
                 .navigationTitle(entry.name)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbar }

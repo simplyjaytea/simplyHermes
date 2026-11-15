@@ -47,7 +47,7 @@
                         .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                         .background(palette.fill, in: Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.hermesPress)
                 .accessibilityLabel(Text("Close"))
             }
         }

@@ -106,6 +106,7 @@
                 }
                 .hermesThemedList()
                 .disabled(isSaving)
+                .hermesKeyboardDismissOnScroll()
                 .navigationTitle(job == nil ? "New automation" : "Edit automation")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

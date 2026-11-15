@@ -37,17 +37,21 @@ final class ConnectionSetupUITests: XCTestCase {
         password.tap()
         password.typeText("testbed-password")
 
-        let test = element(app, "connection.test")
-        if !test.isHittable { app.swipeUp() }
-        test.tap()
-        let passed = element(app, "connection.testPassed")
-        if !passed.waitForExistence(timeout: 30) {
-            add(XCTAttachment(screenshot: app.screenshot()))
-            XCTFail("Test did not pass: \(element(app, "connection.testFailed").label)")
+        // One press: the app tests the connection and saves it when the test passes.
+        let connect = element(app, "connection.connect")
+        // The form is lazy and the keyboard covers its lower half, so the button may not be loaded yet. Drag the
+        // part of the form above the keyboard until the button is there.
+        for _ in 0..<4 where !(connect.exists && connect.isHittable) {
+            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+            from.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)))
         }
-
-        element(app, "connection.save").tap()
-        // Saving the first server replaces the welcome screen with the app. The chat list then shows
+        if !connect.exists { add(XCTAttachment(screenshot: app.screenshot())) }
+        connect.tap()
+        if !element(app, "welcome.addGateway").waitForNonExistence(timeout: 40) {
+            add(XCTAttachment(screenshot: app.screenshot()))
+            XCTFail("Connect did not pass: \(element(app, "connection.testFailed").label)")
+        }
+        // Connecting the first server replaces the welcome screen with the app. The chat list then shows
         // the server's own sessions, so the sample chat titles are not asserted here.
         XCTAssertTrue(element(app, "welcome.addGateway").waitForNonExistence(timeout: 10))
         XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 10))

@@ -46,6 +46,8 @@
                     transcript
                     placeholderOutbox
                     notConnectedNote
+                    runningCapsule
+                    placeholderInfoRow
                     Composer(text: model.draftBinding(for: sessionID)) { model.send(in: sessionID) }
                         .disabled(!model.canStartChat(sessionID))
                         .background(palette.background)
@@ -59,6 +61,8 @@
                     VStack(spacing: 8) {
                         placeholderOutbox
                         notConnectedNote
+                        runningCapsule
+                        placeholderInfoRow
                         Composer(text: model.draftBinding(for: sessionID)) { model.send(in: sessionID) }
                             .disabled(!model.canStartChat(sessionID))
                         QuickActions(model: model, sessionID: sessionID)
@@ -130,19 +134,23 @@
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .safeAreaInset(edge: .top) {
-                if let session = model.session(id: sessionID) {
-                    // A New chat shows the real server and its state. Only the demo chats keep their sample strip.
-                    let placeholder = model.isSampleChat(sessionID) ? nil : model.placeholderStrip()
-                    StatusStrip(
-                        connection: placeholder.map { StatusStrip.Connection($0.connection) } ?? .connected,
-                        serverName: placeholder?.serverName ?? session.serverName,
-                        runningTurn: model.isStreaming(sessionID) ? "Hermes is replying" : nil,
-                        onStop: model.isStreaming(sessionID) ? { model.stop(in: sessionID) } : nil
-                    )
-                    .padding(.horizontal, 12)
-                    .padding(.top, 4)
-                }
+        }
+
+        /// "Hermes is replying" and Stop, above the composer rows, while a reply streams.
+        private var runningCapsule: some View {
+            RunningStopSlot(isRunning: model.isStreaming(sessionID)) { model.stop(in: sessionID) }
+        }
+
+        /// The bottom info row. A New chat shows the real server and its state (board row 107); only the demo chats keep
+        /// their sample "connected" chip.
+        @ViewBuilder
+        private var placeholderInfoRow: some View {
+            if let session = model.session(id: sessionID) {
+                let strip = model.isSampleChat(sessionID) ? nil : model.placeholderStrip()
+                PlaceholderInfoRow(
+                    connection: strip?.connection ?? .online,
+                    serverName: strip?.serverName ?? session.serverName,
+                    hasNoServer: strip == PlaceholderStrip.noServer)
             }
         }
 

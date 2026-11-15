@@ -42,7 +42,7 @@
                 .padding(.vertical, 4)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.hermesPress)
             .accessibilityAddTraits(isSelected ? .isSelected : [])
             .hermesFeedback(.selection, trigger: tapCount)
         }

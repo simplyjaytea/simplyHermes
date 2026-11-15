@@ -2,45 +2,34 @@
     import HermesKit
     import SwiftUI
 
-    /// The strip above the composer (plan Q27): a context ring with the percent used, a connection dot, and the
-    /// token breakdown in a popover.
-    struct ChatStatusBar: View {
+    /// The context ring with the percent used. It opens the token breakdown in a popover. It is the second item of the
+    /// chat's bottom info row (plan Q27).
+    struct ContextButton: View {
         let strip: ChatStatusStrip
-        /// The chat's pill. It replaces the bare connection dot, so the strip and the pill can't disagree.
-        let pill: PillState
-        let serverName: String
         @State private var showsDetails = false
         @Environment(\.hermesPalette) private var palette
 
         var body: some View {
-            // The pill sits beside the button, not inside it: a button merges its contents into one accessibility element,
-            // so inside it the pill's own label and identifier would never be seen (WP-8).
-            HStack(spacing: 8) {
-                Button {
-                    showsDetails = true
-                } label: {
-                    HStack(spacing: 8) {
-                        ContextRing(percent: strip.contextPercent, level: strip.contextLevel)
-                            .frame(width: 18, height: 18)
-                        if let context = strip.reading(.context) {
-                            Text(context.value)
-                                .font(HermesFont.caption.monospacedDigit())
-                                .foregroundStyle(palette.secondaryText)
-                        }
+            Button {
+                showsDetails = true
+            } label: {
+                HStack(spacing: 8) {
+                    ContextRing(percent: strip.contextPercent, level: strip.contextLevel)
+                        .frame(width: 18, height: 18)
+                    if let context = strip.reading(.context) {
+                        Text(context.value)
+                            .font(HermesFont.caption.monospacedDigit())
+                            .foregroundStyle(palette.secondaryText)
                     }
-                    .frame(minWidth: HermesMetrics.minTapTarget, minHeight: HermesMetrics.minTapTarget)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("chat.status")
-                .accessibilityLabel(Text(accessibilityText))
-                .accessibilityHint(Text("Shows token details"))
-                .popover(isPresented: $showsDetails) { details.presentationCompactAdaptation(.popover) }
-                StatusPill(pill: pill, serverName: serverName)
-                Spacer(minLength: 0)
+                .frame(minWidth: HermesMetrics.minTapTarget, minHeight: HermesMetrics.minTapTarget)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 14)
-            .frame(minHeight: 28)
+            .buttonStyle(.hermesPress)
+            .accessibilityIdentifier("chat.status")
+            .accessibilityLabel(Text(accessibilityText))
+            .accessibilityHint(Text("Shows token details"))
+            .popover(isPresented: $showsDetails) { details.presentationCompactAdaptation(.popover) }
         }
 
         private var accessibilityText: String {

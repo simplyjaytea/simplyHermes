@@ -43,7 +43,8 @@ extension RESTClient {
         var query = [
             URLQueryItem(name: "limit", value: String(limit)), URLQueryItem(name: "offset", value: String(offset)),
         ]
-        if archived { query.append(URLQueryItem(name: "archived", value: "true")) }
+        // Hermes takes `exclude`, `only` or `include` here and answers 400 to `true`.
+        if archived { query.append(URLQueryItem(name: "archived", value: "only")) }
         return try await get("/api/sessions", query: query)
     }
 

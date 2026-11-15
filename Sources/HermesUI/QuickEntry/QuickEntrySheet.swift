@@ -61,6 +61,7 @@
                 .padding(16)
             }
             .scrollDismissesKeyboard(.interactively)
+            .hermesKeyboardDismissOnScroll()
             .background(palette.background)
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)

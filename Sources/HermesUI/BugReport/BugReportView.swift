@@ -40,6 +40,7 @@
                     form
                 }
             }
+            .hermesKeyboardDismissOnScroll()
             .navigationTitle("Report a bug")
             .navigationBarTitleDisplayMode(.inline)
             .sensoryFeedback(trigger: model.phase) { _, phase in

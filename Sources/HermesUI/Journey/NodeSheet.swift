@@ -14,6 +14,7 @@
         var body: some View {
             NavigationStack {
                 content
+                    .hermesKeyboardDismissOnScroll()
                     .navigationTitle(title)
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar { toolbar }

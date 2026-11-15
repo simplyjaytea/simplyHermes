@@ -28,6 +28,7 @@ import Testing
             _ = try await client.messages(id: first.id, page: PageRequest(limit: 5))
             _ = try await client.timeline(sessionID: first.id)
         }
+        _ = try await client.sessions(limit: 5, archived: true)
         _ = try await client.searchSessions("hello")
         _ = try await client.sessionStats()
         #expect(try await client.profiles().contains { $0.name == "default" })

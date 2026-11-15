@@ -84,7 +84,7 @@
                             .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.hermesPress)
                     .accessibilityLabel(Text("Dismiss tip"))
                 }
                 .padding(12)

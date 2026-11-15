@@ -68,9 +68,6 @@
                 if !completions.items.isEmpty {
                     CompletionPopover(items: completions.items, onPick: pick)
                 }
-                if let history, history.wrappedValue.cleared != nil {
-                    undoButton
-                }
                 HStack(alignment: .bottom, spacing: 8) {
                     if let attachments {
                         attachMenu(attachments)
@@ -89,6 +86,9 @@
                                     .padding(.leading, 14)
                             } else {
                                 field
+                                if showsUndo {
+                                    undoButton
+                                }
                                 if let voice {
                                     VoiceMicButton(voice: voice)
                                 }
@@ -106,7 +106,8 @@
                 }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.top, 6)
+            .padding(.bottom, 8)
             .hermesFeedback(.send, trigger: sendCount)
             .alert(
                 "Could not attach the file",
@@ -117,33 +118,39 @@
                 Text(problem ?? "")
             }
             .onChange(of: text) { _, newText in
-                history?.wrappedValue.noteEdit(newText)
+                // Writes only when the walk through history ended, so a keystroke does not touch the shell's histories.
+                if let history {
+                    var updated = history.wrappedValue
+                    updated.noteEdit(newText)
+                    if updated != history.wrappedValue { history.wrappedValue = updated }
+                }
                 refreshCompletions()
             }
             .onChange(of: selection) { _, _ in refreshCompletions() }
         }
 
-        /// A small glass button above the field. It puts back the text that the last send or clear removed.
-        /// It waits while the field holds text, so Undo never writes over what the user is typing.
+        /// Whether the Undo button shows: the last send or clear took text out, and the field is empty. It hides while
+        /// the field holds text, so Undo never writes over what the user is typing and the field stays uncluttered.
+        private var showsUndo: Bool {
+            text.isEmpty && history?.wrappedValue.cleared != nil
+        }
+
+        /// A compact icon button inside the field, before the mic and send buttons. It puts back the text that the last
+        /// send or clear removed.
         private var undoButton: some View {
-            HStack {
-                Button(action: undo) {
-                    Label("Undo", systemImage: "arrow.uturn.backward")
-                        .font(HermesFont.caption.weight(.semibold))
-                        .padding(.horizontal, 12)
-                        .frame(minHeight: 32)
-                        .glassEffect(.regular, in: Capsule())
-                        .frame(minWidth: HermesMetrics.minTapTarget, minHeight: HermesMetrics.minTapTarget)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(!text.isEmpty)
-                .opacity(text.isEmpty ? 1 : 0.4)
-                .accessibilityIdentifier("composer.undo")
-                .accessibilityHint(Text("Puts back the text that was just sent or cleared"))
-                Spacer(minLength: 0)
+            Button(action: undo) {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(HermesFont.body.weight(.semibold))
+                    .foregroundStyle(palette.secondaryText)
+                    .cappedSymbolSize()
+                    .frame(width: 32, height: 32)
+                    .padding(6)
+                    .contentShape(Rectangle())
             }
-            .padding(.horizontal, 4)
+            .buttonStyle(.hermesPress)
+            .accessibilityLabel(Text("Undo"))
+            .accessibilityIdentifier("composer.undo")
+            .accessibilityHint(Text("Puts back the text that was just sent or cleared"))
         }
 
         /// Puts the removed text back into the field, once. Only an empty field takes it.
@@ -216,7 +223,7 @@
                     .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                     .background(palette.fill, in: Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.hermesPress)
             .accessibilityLabel(Text("Attach"))
             .accessibilityIdentifier("composer.attach")
             .photosPicker(
@@ -309,7 +316,7 @@
                     .padding(6)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.hermesPress)
             .disabled(!canSend)
             .accessibilityLabel(Text("Send"))
             .accessibilityIdentifier(sendAccessibilityIdentifier ?? "composer.send")

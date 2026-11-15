@@ -131,13 +131,19 @@ public enum ConnectionTestFailure: Error, Sendable, Equatable {
         case .unreachable(let detail):
             "Couldn't reach the server. Check the address and that Hermes is running. (\(detail))"
         case .notHermes:
-            "Something answered, but it isn't a Hermes dashboard. Check the address and path."
+            "Something answered, but it isn't a Hermes dashboard. Check the address, the port (Hermes uses 9119) and "
+                + "any path."
         case .signInRequired(let providers):
-            providers.contains("basic")
-                ? "This server needs a sign-in. Choose Password and enter the dashboard login."
-                : "This server needs a sign-in. Choose Browser and sign in."
+            if providers.isEmpty {
+                "This server needs a sign-in the form doesn't have yet. Open More options under Sign in, then sign in "
+                    + "with the browser or paste a session token."
+            } else if providers.contains("basic") {
+                "This server needs a sign-in. Enter the dashboard user name and password under Sign in."
+            } else {
+                "This server needs a sign-in. Use the Continue with button under Sign in."
+            }
         case .wrongCredentials:
-            "The server refused the sign-in. Check the user name and password or token."
+            "The server refused the sign-in. Check the user name and password, or the token, and try again."
         case .rateLimited(let retryAfter):
             retryAfter.map { "Too many sign-in attempts. Try again in \(Int($0)) seconds." }
                 ?? "Too many sign-in attempts. Try again in a minute."
@@ -183,6 +189,20 @@ public struct ServerProbe: Sendable, Equatable {
     public var signIn: SignInOptions?
     /// Set when Hermes refused the typed name and answered on this IP address instead (``HostFallback``).
     public var adaptedEndpoint: HermesEndpoint?
+
+    /// The sign-in options, or ones rebuilt from the provider names when the server sent no full options. Names the
+    /// app does not know become browser providers, so no provider is dropped.
+    public var signInOptions: SignInOptions {
+        signIn
+            ?? SignInOptions(
+                authRequired: authRequired,
+                providers: authProviders.map { AuthProviderInfo(name: $0, supportsPassword: $0 == "basic") },
+                flows: [])
+    }
+
+    /// True when the server said how it signs in. False when it needs a login but its sign-in answers were
+    /// unreadable, so the form keeps every method reachable.
+    public var signInKnown: Bool { signIn != nil || !authProviders.isEmpty }
 
     /// Creates a value.
     public init(authRequired: Bool, authProviders: [String], signIn: SignInOptions? = nil) {

@@ -251,6 +251,7 @@ extension TranscriptState {
         liveSessionID = result.sessionID
         storedSessionID = result.storedSessionID ?? result.sessionKey ?? storedSessionID
         info = result.info
+        attachedMessageCount = result.messageCount
         if let title = result.info.title, !title.isEmpty { self.title = title }
         if let usage = result.info.usage { self.usage = usage }
         if result.messagesOmitted != true { items = Self.items(from: result.messages) }

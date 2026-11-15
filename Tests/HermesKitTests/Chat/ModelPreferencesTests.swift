@@ -38,10 +38,35 @@ import Testing
         #expect(!preferences.isFavorite(small))
     }
 
-    @Test func choiceNamesTheProviderOnlyWhenItChanges() {
-        #expect(large.configValue(currentProvider: "anthropic") == "large")
-        #expect(large.configValue(currentProvider: "openrouter") == "anthropic:large")
-        #expect(large.configValue(currentProvider: nil) == "anthropic:large")
+    @Test func choiceAlwaysNamesTheProviderAndStaysInTheSession() {
+        #expect(large.configValue == "large --provider anthropic --session")
+        #expect(small.configValue == "small --provider openrouter --session")
+        #expect(
+            ModelChoice(provider: "openrouter", model: "anthropic/claude-x").configValue
+                == "anthropic/claude-x --provider openrouter --session")
+    }
+
+    @Test func theServersOwnEndpointIsSwitchedWithoutAProviderWhileTheChatRunsOnIt() throws {
+        // The shape upstream 18e659d answers for a bare `model:` block: `--provider custom` is refused there.
+        let own = try options(
+            """
+            {"model":"a","provider":"custom","providers":[
+            {"slug":"custom","name":"Custom endpoint","models":["a","b"],"is_current":true,"source":"model-config"},
+            {"slug":"anthropic","name":"Anthropic","models":["large"],"is_current":false,"source":"hermes"}]}
+            """)
+        #expect(own.configValue(for: ModelChoice(provider: "custom", model: "b")) == "b --session")
+        #expect(own.configValue(for: large) == "large --provider anthropic --session")
+        // The same endpoint while the chat runs on another provider: the provider must be named.
+        let away = try options(
+            """
+            {"model":"large","provider":"anthropic","providers":[
+            {"slug":"custom","name":"Custom endpoint","models":["a","b"],"is_current":false,"source":"model-config"}]}
+            """)
+        #expect(away.configValue(for: ModelChoice(provider: "custom", model: "b")) == "b --provider custom --session")
+        var preferences = ModelPreferences()
+        preferences.sticky = ModelChoice(provider: "custom", model: "b")
+        let current = try info(#"{"model":"a","provider":"custom","reasoning_effort":""}"#)
+        #expect(preferences.restoreParams(for: current, sessionID: "s1", options: own).map(\.value) == ["b --session"])
     }
 
     @Test func restoreSendsNothingWhenTheChatMatches() throws {
@@ -61,7 +86,7 @@ import Testing
         let server = try options(serverJSON)
         let params = preferences.restoreParams(for: current, sessionID: "s1", options: server)
         #expect(params.map(\.key) == ["model", "reasoning"])
-        #expect(params[0].value == "anthropic:large")
+        #expect(params[0].value == "large --provider anthropic --session")
         #expect(params[1].value == "high")
         #expect(params[1].scope == "session")
         #expect(params.allSatisfy { $0.sessionID == "s1" })

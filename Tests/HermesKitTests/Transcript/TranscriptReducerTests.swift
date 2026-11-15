@@ -23,6 +23,24 @@ final class TranscriptReducerTests: XCTestCase {
         return .attached(try JSONValue.object(object).decode(SessionAttachResult.self))
     }
 
+    /// The remembered model goes only to a new chat. A chat whose messages the server left out of the attach answer
+    /// has no items yet, and must still not count as new.
+    func testOnlyAChatTheServerCountsEmptyIsNew() throws {
+        var state = TranscriptState()
+        XCTAssertFalse(state.isNewChat, "Nothing is known before the first attach")
+        state.apply(try attach([:]))
+        XCTAssertTrue(state.isNewChat)
+
+        var omitted = TranscriptState()
+        omitted.apply(try attach(["message_count": 12, "messages_omitted": true]))
+        XCTAssertTrue(omitted.items.isEmpty)
+        XCTAssertFalse(omitted.isNewChat, "The history has not arrived, but the server counted 12 messages")
+
+        state.apply(try event("message.start"))
+        state.apply(try event("message.delta", ["text": "Hi"]))
+        XCTAssertFalse(state.isNewChat, "A chat with a reply in it is no longer new")
+    }
+
     func testCronInflightKeepsDisplayKind() throws {
         var state = TranscriptState()
         state.apply(

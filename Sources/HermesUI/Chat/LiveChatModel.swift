@@ -423,10 +423,10 @@
         /// `.needsConfirmation`. Call again with `confirmed` once the user agrees.
         public func chooseModel(_ choice: ModelChoice, confirmed: Bool = false) async throws -> ModelSwitchOutcome {
             guard let client, let live = state.liveSessionID else { throw GatewayClientError.notConnected }
-            let value = choice.configValue(currentProvider: modelOptions?.provider)
+            let value = modelOptions?.configValue(for: choice) ?? choice.configValue
             let params = ConfigSetParams(key: "model", value: value, sessionID: live, confirmExpensiveModel: confirmed)
             let outcome = try await client.configSet(params).outcome
-            if case .applied = outcome {
+            if outcome.isApplied {
                 updatePreferences { $0.sticky = choice }
                 await loadModelOptions()
             }
@@ -455,14 +455,15 @@
             preferences = updated
         }
 
-        /// Brings a chat that just opened to the remembered model and reasoning level. The picker's list loads first.
+        /// Brings a new chat to the remembered model and reasoning level. The picker's list loads first. A chat that
+        /// already has messages keeps the model it runs on: opening a chat never switches its model.
         /// Only a model that this server lists is sent, and a list that does not load leaves the chat as it is. A
         /// switch the server holds for confirmation is not forced.
         private func restoreModelPreferences(for info: SessionInfo) {
             guard let client, let live = state.liveSessionID else { return }
             Task { [weak self] in
                 await self?.loadModelOptions()
-                guard let self, let options = self.modelOptions else { return }
+                guard let self, self.state.isNewChat, let options = self.modelOptions else { return }
                 self.preferences = ModelPreferencesStore.load()
                 let changes = self.preferences.restoreParams(for: info, sessionID: live, options: options)
                 guard !changes.isEmpty else { return }

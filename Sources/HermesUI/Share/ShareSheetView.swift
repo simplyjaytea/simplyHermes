@@ -27,6 +27,7 @@
                         destinationSection
                     }
                 }
+                .hermesKeyboardDismissOnScroll()
                 .navigationTitle("Send to Hermes")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -118,7 +119,7 @@
                         }
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.hermesPress)
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
                     .accessibilityIdentifier("share.destination.\(destination.id)")
                 }

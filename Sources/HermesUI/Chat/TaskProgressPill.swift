@@ -42,7 +42,7 @@
                     .frame(minHeight: HermesMetrics.minTapTarget)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.hermesPress)
                 .accessibilityIdentifier("chat.tasks")
                 .accessibilityLabel(Text("Tasks, \(progress.summary) done"))
                 .accessibilityHint(Text(isOpen ? "Collapses the list" : "Shows the list"))
@@ -78,9 +78,10 @@
         }
     }
 
-    /// The settings of the chat, as pills above the composer's field (plan Q19): model, reasoning and workspace.
-    /// The model pill is a popup menu (plan Q22). The other pills only show what the server reported. The workspace
-    /// pill opens the folder picker (plan Q31).
+    /// The one info row above the composer: the status chip, the context ring, then the model, reasoning and workspace
+    /// pills (plan Q19). The model pill is a popup menu (plan Q22). The other pills only show what the server reported.
+    /// The workspace pill opens the folder picker (plan Q31). The Hide keyboard button is pinned at the trailing end,
+    /// outside the scrolling pills, and shows only while the keyboard is up.
     struct ComposerPills: View {
         @Environment(\.hermesPalette) private var palette
         let chat: LiveChatModel
@@ -88,22 +89,27 @@
         var onWorkspace: (() -> Void)?
 
         var body: some View {
-            if chat.state.info != nil {
-                let pills = entries
-                let folder = folderName
+            let pills = entries
+            let folder = folderName
+            HStack(spacing: 0) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        ModelPicker(chat: chat)
-                        ForEach(pills, id: \.label) { pill in
-                            pillLabel(pill.label, symbol: pill.symbol)
-                        }
-                        if let folder {
-                            workspacePill(folder)
+                        StatusPill(pill: chat.status.pill, serverName: chat.serverName)
+                        ContextButton(strip: chat.strip)
+                        if chat.state.info != nil {
+                            ModelPicker(chat: chat)
+                            ForEach(pills, id: \.label) { pill in
+                                pillLabel(pill.label, symbol: pill.symbol)
+                            }
+                            if let folder {
+                                workspacePill(folder)
+                            }
                         }
                     }
                     .padding(.horizontal, 12)
                 }
                 .accessibilityIdentifier("composer.pills")
+                HideKeyboardButton()
             }
         }
 
@@ -121,8 +127,10 @@
             if let onWorkspace {
                 Button(action: onWorkspace) {
                     pillLabel(name, symbol: "folder")
+                        .frame(minHeight: HermesMetrics.minTapTarget)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.hermesPress)
                 .accessibilityIdentifier("chat.workspace")
                 .accessibilityHint(Text("Chooses the folder this chat runs in"))
             } else {

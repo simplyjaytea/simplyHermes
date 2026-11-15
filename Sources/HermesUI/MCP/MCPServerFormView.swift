@@ -49,6 +49,7 @@
                     }
                 }
                 .hermesThemedList()
+                .hermesKeyboardDismissOnScroll()
                 .navigationTitle("Add MCP server")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbar }

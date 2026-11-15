@@ -32,7 +32,9 @@
                         .accessibilityIdentifier("room.stop")
                     }
                 }
-                ToolbarItem(placement: .secondaryAction) {
+                // In the bar itself. As a secondary action it sat in the bar's overflow menu on a phone, where
+                // nothing showed that the room has settings (App run 5: "room.settings" was not on screen).
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Group Settings", systemImage: "slider.horizontal.3") {
                         isSettingsPresented = true
                     }

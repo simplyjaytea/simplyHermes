@@ -52,6 +52,27 @@ public struct SignInOptions: Sendable, Equatable {
         return methods.first
     }
 
+    /// What the sign-in section shows. Every provider the server lists is reachable: one the app does not know
+    /// (a custom `DashboardAuthProvider` plugin) is not a password provider, so it is a browser provider.
+    public struct Offer: Sendable, Equatable {
+        /// One "Continue with" button each. Includes providers of a type the app does not know.
+        public var browserProviders: [AuthProviderInfo]
+        /// The provider behind the user name and password fields, if any.
+        public var passwordProvider: AuthProviderInfo?
+        /// True when the server lists no provider but supports native sign-in, so one generic browser button helps.
+        public var genericBrowser: Bool
+        /// True when the server needs a login but names no way to sign in. The user needs a token or a server fix.
+        public var offersNothing: Bool
+    }
+
+    /// The buttons and fields to show for these options.
+    public var offer: Offer {
+        Offer(
+            browserProviders: browserProviders, passwordProvider: passwordProvider,
+            genericBrowser: browserProviders.isEmpty && passwordProvider == nil && supportsNativePKCE,
+            offersNothing: authRequired && providers.isEmpty && !supportsNativePKCE)
+    }
+
     /// Reads the options. A server whose provider list fails still gets options from `/api/status`.
     public static func detect(using client: RESTClient) async throws -> SignInOptions {
         let status = try await client.status()

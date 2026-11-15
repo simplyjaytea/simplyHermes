@@ -22,7 +22,7 @@
                 .glassEffect(
                     .regular, in: RoundedRectangle(cornerRadius: HermesMetrics.bannerRadius, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.hermesPress)
             .padding(.horizontal, 12)
             .accessibilityLabel(notice.text)
             .accessibilityHint("Dismisses the message")

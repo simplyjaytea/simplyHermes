@@ -29,6 +29,12 @@ import Testing
         #expect(result.outcome == .applied(warning: "This model has no tool calls."))
     }
 
+    @Test func deferredSwitchAppliesOnTheNextTurn() throws {
+        let json = #"{"key":"model","value":"small","deferred":true}"#
+        let result = try JSONDecoder().decode(ConfigSetResult.self, from: Data(json.utf8))
+        #expect(result.outcome == .appliedNextTurn(warning: nil))
+    }
+
     @Test func plainResultIsApplied() throws {
         let json = #"{"key":"reasoning","value":"high","scope":"session"}"#
         let result = try JSONDecoder().decode(ConfigSetResult.self, from: Data(json.utf8))

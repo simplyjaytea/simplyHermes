@@ -15,7 +15,16 @@
         }
 
         @State private var held: Held?
-        @State private var problem: String?
+        @State private var problem: Notice?
+
+        /// A message the user dismisses: a failed switch, or a note about one that worked.
+        private struct Notice {
+            let title: String
+            let message: String
+        }
+
+        private static let switchFailed = "Couldn't switch model"
+        private static let reasoningFailed = "Couldn't change reasoning"
 
         /// Explicit, because the private state above would make the memberwise initializer private.
         init(chat: LiveChatModel) {
@@ -37,11 +46,15 @@
                     }
                 }
                 ForEach(chat.modelOptions?.providers ?? [], id: \.slug) { provider in
-                    Menu(provider.name) {
+                    let connected = provider.authenticated != false
+                    let unavailable = Set(provider.unavailableModels ?? [])
+                    Menu(connected ? provider.name : "\(provider.name) (not connected)") {
                         ForEach(provider.models ?? [], id: \.self) { name in
                             modelMenu(ModelChoice(provider: provider.slug, model: name))
+                                .disabled(unavailable.contains(name))
                         }
                     }
+                    .disabled(!connected)
                 }
                 let levels = chat.reasoningLevels
                 if !levels.isEmpty {
@@ -72,10 +85,13 @@
             } message: { pending in
                 Text(pending.message)
             }
-            .alert("Model", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
+            .alert(
+                problem?.title ?? "Model",
+                isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })
+            ) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(problem ?? "")
+                Text(problem?.message ?? "")
             }
         }
 
@@ -120,12 +136,16 @@
             do {
                 switch try await chat.chooseModel(choice, confirmed: confirmed) {
                 case .applied(let warning):
-                    if let warning, !warning.isEmpty { problem = warning }
+                    if let warning, !warning.isEmpty { problem = Notice(title: "Model", message: warning) }
+                case .appliedNextTurn(let warning):
+                    let note = "Applies on the next turn."
+                    let message = warning.flatMap { $0.isEmpty ? nil : "\($0)\n\n\(note)" } ?? note
+                    problem = Notice(title: "Model", message: message)
                 case .needsConfirmation(let message):
                     held = Held(choice: choice, message: message)
                 }
             } catch {
-                problem = Self.describe(error)
+                problem = Notice(title: Self.switchFailed, message: Self.describe(error))
             }
         }
 
@@ -133,13 +153,25 @@
             do {
                 try await chat.chooseEffort(level)
             } catch {
-                problem = Self.describe(error)
+                problem = Notice(title: Self.reasoningFailed, message: Self.describe(error, forReasoning: true))
             }
         }
 
-        private static func describe(_ error: any Error) -> String {
+        /// What went wrong, in words. A model pick and a reasoning change each say what stays as it was.
+        private static func describe(_ error: any Error, forReasoning: Bool = false) -> String {
             if let rpc = error as? RPCError { return rpc.message }
-            if error is GatewayClientError { return "The server is not reachable." }
+            if let gateway = error as? GatewayClientError {
+                if gateway == .notConnected {
+                    return forReasoning
+                        ? "This chat isn't connected yet. Send a message or wait for it to reconnect, "
+                            + "then pick the reasoning level again."
+                        : "This chat isn't connected yet. Send a message or wait for it to reconnect, "
+                            + "then pick the model again."
+                }
+                return forReasoning
+                    ? "The server is not reachable. The reasoning level stays as it was."
+                    : "The server is not reachable. The chat stays on its current model."
+            }
             return "\(error)"
         }
     }

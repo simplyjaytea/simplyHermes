@@ -52,6 +52,7 @@
                     .hermesListRows()
                 }
                 .hermesThemedList()
+                .hermesKeyboardDismissOnScroll()
                 .navigationTitle("Commit")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {

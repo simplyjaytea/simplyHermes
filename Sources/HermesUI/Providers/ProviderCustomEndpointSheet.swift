@@ -71,6 +71,7 @@
                     }
                 }
                 .hermesThemedList()
+                .hermesKeyboardDismissOnScroll()
                 .navigationTitle("Custom endpoint")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

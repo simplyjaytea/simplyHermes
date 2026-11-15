@@ -62,8 +62,11 @@
         public internal(set) var closedSessionIDs: [String] = []
         /// Unsent text per chat. Kept across launches, so a draft is still there after the app closes.
         public var drafts: [String: String] = [:] {
-            didSet { Self.saveDrafts(drafts, to: draftDefaults) }
+            didSet { scheduleDraftSave() }
         }
+        /// The pending write of `drafts`. Each keystroke replaces it, so typing does not encode and store every draft
+        /// on the main thread once per character.
+        @ObservationIgnored private var draftSaveTask: Task<Void, Never>?
         /// Where drafts are kept across launches. Nil keeps them in memory only, as UI tests need: a draft typed in one
         /// run must not be in the field at the start of the next.
         @ObservationIgnored private let draftDefaults: UserDefaults?
@@ -486,6 +489,24 @@
         }
 
         private static let draftsKey = "composer.drafts"
+
+        /// Writes the drafts shortly after the last change. A burst of keystrokes costs one write.
+        private func scheduleDraftSave() {
+            guard draftDefaults != nil else { return }
+            draftSaveTask?.cancel()
+            draftSaveTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled, let self else { return }
+                Self.saveDrafts(self.drafts, to: self.draftDefaults)
+            }
+        }
+
+        /// Writes the drafts now, for the moment the app leaves the foreground.
+        func flushDrafts() {
+            draftSaveTask?.cancel()
+            draftSaveTask = nil
+            Self.saveDrafts(drafts, to: draftDefaults)
+        }
 
         private static func loadDrafts(from defaults: UserDefaults?) -> [String: String] {
             guard let data = defaults?.data(forKey: draftsKey) else { return [:] }

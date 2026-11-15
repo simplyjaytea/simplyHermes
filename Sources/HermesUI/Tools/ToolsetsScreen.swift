@@ -263,6 +263,7 @@
                 }
             }
             .hermesThemedList()
+            .hermesKeyboardDismissOnScroll()
             .navigationTitle(model.title)
             .navigationBarTitleDisplayMode(.inline)
             .task { await model.load() }
@@ -335,7 +336,7 @@
                     }
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.hermesPress)
             .accessibilityIdentifier("toolset.provider.\(row.name)")
         }
 
@@ -396,7 +397,7 @@
                             }
                         }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.hermesPress)
                     .accessibilityIdentifier("toolset.model.\(option.id)")
                 }
             } header: {

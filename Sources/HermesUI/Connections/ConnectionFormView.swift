@@ -12,6 +12,10 @@
         @State private var saveError: String?
         /// True when the explainer was opened by Test, so its Continue runs the test after the probe.
         @State private var testAfterExplainer = false
+        /// True when the explainer was opened by Connect, so its Continue connects after the probe.
+        @State private var connectAfterExplainer = false
+        /// True from the Connect press until it has passed and saved, or failed.
+        @State private var connecting = false
         @AppStorage("hermes.localNetworkExplained") private var localNetworkExplained = false
 
         /// `onDone` gets the saved connection, or nil when the user cancelled.
@@ -30,11 +34,13 @@
                     switch form.mode {
                     case .gateway:
                         GatewayFormSections(
-                            form: form, connections: connections, localNetworkExplained: localNetworkExplained)
+                            form: form, connections: connections, localNetworkExplained: localNetworkExplained,
+                            onSignedIn: usesConnectButton ? { startConnect() } : nil)
                     case .ssh: SSHFormSections(form: form)
                     }
+                    if usesConnectButton { connectSection }
                     securitySection
-                    testSection
+                    if !usesConnectButton { testSection }
                     if let saveError {
                         Section {
                             Label(saveError, systemImage: "exclamationmark.triangle.fill")
@@ -44,6 +50,7 @@
                     }
                 }
                 .hermesThemedList()
+                .hermesKeyboardDismissOnScroll()
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbar }
@@ -55,14 +62,22 @@
                         localNetworkExplained = true
                         form.showsLocalNetworkExplainer = false
                         let runsTest = testAfterExplainer
+                        let connects = connectAfterExplainer
                         Task {
                             await form.probeAddress(with: connections.services, localNetworkExplained: true)
-                            if runsTest { await form.runTest(with: connections) }
+                            if connects {
+                                await connect(localNetworkExplained: true)
+                            } else if runsTest {
+                                await form.runTest(with: connections)
+                            }
                         }
                     }
                 }
             }
         }
+
+        /// A new gateway connects in one press. An edited gateway and SSH keep Test and Save.
+        private var usesConnectButton: Bool { form.mode == .gateway && form.existingID == nil }
 
         private var title: String {
             switch (form.mode, form.existingID == nil) {
@@ -104,6 +119,27 @@
             .hermesListRows()
         }
 
+        /// The one primary action for a new gateway: test the connection and, when it passes, save it.
+        private var connectSection: some View {
+            Section {
+                Button {
+                    startConnect()
+                } label: {
+                    HStack(spacing: 8) {
+                        if connecting { ProgressView() }
+                        Text("Connect")
+                    }
+                }
+                .buttonStyle(HermesButtonStyle(.primary))
+                .disabled(form.connectMissing != nil || form.isTesting || connecting)
+                .accessibilityIdentifier("connection.connect")
+                ConnectionTestStatus(form: form, connections: connections)
+            } footer: {
+                if let reason = form.connectMissing { Text(reason) }
+            }
+            .hermesListRows()
+        }
+
         private var testSection: some View {
             Section {
                 Button {
@@ -131,6 +167,36 @@
         /// Runs after the explainer closes, so a swiped-away explainer cannot run the test later.
         private func forgetTestAfterExplainer() {
             testAfterExplainer = false
+            connectAfterExplainer = false
+        }
+
+        private func startConnect() {
+            saveError = nil
+            if needsLocalNetwork && !localNetworkExplained {
+                connectAfterExplainer = true
+                form.showsLocalNetworkExplainer = true
+            } else {
+                Task { await connect(localNetworkExplained: localNetworkExplained) }
+            }
+        }
+
+        /// Tests the connection and saves it when the test passes, then closes the form. A failed test stays on the
+        /// form, which shows the failing step.
+        private func connect(localNetworkExplained explained: Bool) async {
+            guard !connecting else { return }
+            connecting = true
+            defer { connecting = false }
+            do {
+                if let saved = try await form.connect(with: connections, localNetworkExplained: explained) {
+                    onDone(saved)
+                }
+            } catch let error as ConnectionSaveError {
+                saveError = error.message
+            } catch let error as ConnectionTestFailure {
+                saveError = error.message
+            } catch {
+                saveError = "\(error)"
+            }
         }
 
         private func startTest() {
@@ -171,19 +237,23 @@
         let connections: ConnectionsModel
         /// False until the explainer has been shown once. A home address waits for it before the probe.
         let localNetworkExplained: Bool
+        /// Called when a browser sign-in on a new server succeeds, so the form can go straight on to Connect.
+        var onSignedIn: (() -> Void)?
+        @FocusState private var addressFocused: Bool
 
         var body: some View {
             Section {
-                TextField("Name (optional)", text: $form.name)
-                    .accessibilityIdentifier("connection.name")
-                TextField("http://192.168.1.20:9119", text: $form.urlText)
+                TextField("192.168.1.20 or box.tailnet.ts.net", text: $form.urlText)
                     .keyboardType(.URL)
                     .textContentType(.URL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .font(HermesFont.code)
+                    .focused($addressFocused)
                     .disabled(form.cloudOrigin != nil)
                     .accessibilityIdentifier("connection.url")
+                TextField("Name (optional)", text: $form.name)
+                    .accessibilityIdentifier("connection.name")
             } header: {
                 Text("Server")
             } footer: {
@@ -199,42 +269,21 @@
                 guard !Task.isCancelled else { return }
                 await form.probeAddress(with: connections.services, localNetworkExplained: localNetworkExplained)
             }
+            .task {
+                // A new server starts with the address ready to type or paste into.
+                guard form.existingID == nil, form.urlText.isEmpty else { return }
+                try? await Task.sleep(for: .milliseconds(400))
+                addressFocused = true
+            }
 
             Section {
-                Picker("Sign in", selection: $form.signInMethod) {
-                    ForEach(form.availableSignInMethods) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("connection.signIn")
-                switch form.signInMethod {
-                case .none:
-                    EmptyView()
-                case .browser:
-                    BrowserSignInRows(form: form, connections: connections)
-                case .password:
-                    TextField("User name", text: $form.username)
-                        .textContentType(.username)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .accessibilityIdentifier("connection.username")
-                    SecureField("Password", text: $form.password)
-                        .textContentType(.password)
-                        .accessibilityIdentifier("connection.password")
-                    Toggle("Remember password", isOn: $form.remembersPassword)
-                        .accessibilityIdentifier("connection.rememberPassword")
-                case .token:
-                    SecureField("Session token", text: $form.token)
-                        .font(HermesFont.code)
-                        .accessibilityIdentifier("connection.token")
-                }
+                SignInMethodSection(form: form, connections: connections, onSignedIn: onSignedIn)
             } header: {
                 HStack {
                     Text("Sign in")
                     Spacer()
                     ProbeBadge(probe: form.probe)
                 }
-            } footer: {
-                SignInFooter(method: form.signInMethod, remembersPassword: form.remembersPassword)
             }
             .hermesListRows()
         }
@@ -324,77 +373,10 @@
         }
     }
 
-    /// Browser sign-in: the provider when the server has several, the button, and the result.
-    struct BrowserSignInRows: View {
-        @Environment(\.hermesPalette) private var palette
-        @Bindable var form: ConnectionFormModel
-        let connections: ConnectionsModel
-
-        var body: some View {
-            if form.browserProviders.count > 1 {
-                Picker("Provider", selection: $form.browserProvider) {
-                    ForEach(form.browserProviders, id: \.name) { provider in
-                        Text(provider.displayName ?? provider.name).tag(String?.some(provider.name))
-                    }
-                }
-                .accessibilityIdentifier("connection.browserProvider")
-            }
-            Button {
-                Task { await form.signInWithBrowser(with: connections.services) }
-            } label: {
-                HStack {
-                    Text(form.browserState.isSignedIn ? "Sign in again" : "Sign in with browser")
-                    Spacer()
-                    if form.browserState == .signingIn { ProgressView() }
-                }
-            }
-            .disabled(form.browserState == .signingIn)
-            .accessibilityIdentifier("connection.browserSignIn")
-            switch form.browserState {
-            case .idle, .signingIn:
-                EmptyView()
-            case .signedIn(let user):
-                Label(user.map { "Signed in as \($0)" } ?? "Signed in", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(palette.statusConnected)
-                    .accessibilityIdentifier("connection.browserSignedIn")
-            case .failed(let message):
-                Label(message, systemImage: "xmark.octagon.fill")
-                    .foregroundStyle(palette.errorText)
-            }
-        }
-    }
-
     extension ConnectionFormModel.BrowserState {
         var isSignedIn: Bool {
             if case .signedIn = self { return true }
             return false
-        }
-    }
-
-    struct SignInFooter: View {
-        let method: ConnectionFormModel.SignInMethod
-        let remembersPassword: Bool
-
-        var body: some View {
-            switch method {
-            case .none:
-                Text("This server doesn't ask for a sign-in.")
-            case .browser:
-                Text("Opens the server's sign-in page. The app keeps the sign-in in the Keychain on this iPhone only.")
-            case .password:
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(
-                        remembersPassword
-                            ? "Kept in the Keychain on this iPhone only, so the app can sign in again by itself."
-                            : "Not stored. The app asks again when the server signs you out.")
-                    Text(
-                        "Tip: set HERMES_DASHBOARD_BASIC_AUTH_SECRET on the server, or every restart signs you out."
-                    )
-                    .accessibilityIdentifier("connection.basicAuthTip")
-                }
-            case .token:
-                Text("Stored in the Keychain on this iPhone only.")
-            }
         }
     }
 #endif

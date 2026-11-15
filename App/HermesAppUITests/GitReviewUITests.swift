@@ -1,6 +1,6 @@
 import XCTest
 
-/// Git review entry (parity gap #4): a server chat with a workspace folder shows "Review changes" in its header, and it
+/// Git review entry (parity gap #4): a server chat with a workspace folder shows "Review changes" in its More menu, and it
 /// opens the Git review of that folder. The testbed's /opt/hermes is a git checkout, so the review loads there. With no
 /// chat on the testbed, the test makes one; it never skips.
 final class GitReviewUITests: XCTestCase {
@@ -30,6 +30,10 @@ final class GitReviewUITests: XCTestCase {
         root.tap()
         XCTAssertTrue(root.waitForNonExistence(timeout: 15), "A successful move closes the picker")
 
+        // Review changes lives in the chat's More menu.
+        let more = element(app, "chat.more")
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "A chat with a folder has a More menu")
+        more.tap()
         let review = element(app, "chat.gitReview")
         XCTAssertTrue(review.waitForExistence(timeout: 10), "A chat with a folder offers Review changes")
         review.tap()
@@ -40,7 +44,10 @@ final class GitReviewUITests: XCTestCase {
 
         element(app, "gitReview.done").tap()
         XCTAssertTrue(app.navigationBars["Git review"].waitForNonExistence(timeout: 5), "Done closes it")
-        XCTAssertTrue(element(app, "chat.gitReview").exists, "Back in the chat")
+        XCTAssertTrue(element(app, "chat.more").waitForExistence(timeout: 5), "Back in the chat")
+        element(app, "chat.more").tap()
+        XCTAssertTrue(
+            element(app, "chat.gitReview").waitForExistence(timeout: 5), "The chat still offers Review changes")
     }
 
     @MainActor

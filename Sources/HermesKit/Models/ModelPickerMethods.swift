@@ -49,7 +49,9 @@ public struct ConfigSetResult: Sendable, Equatable, Codable {
 
     /// What the change did. A pending confirmation comes before a warning.
     public var outcome: ModelSwitchOutcome {
-        guard confirmRequired == true else { return .applied(warning: warning) }
+        guard confirmRequired == true else {
+            return deferred == true ? .appliedNextTurn(warning: warning) : .applied(warning: warning)
+        }
         return .needsConfirmation(message: confirmMessage ?? "Confirm to switch to this model.")
     }
 
@@ -64,8 +66,18 @@ public struct ConfigSetResult: Sendable, Equatable, Codable {
 public enum ModelSwitchOutcome: Sendable, Equatable {
     /// The switch took effect. `warning` is text to show, when the server sent one.
     case applied(warning: String?)
+    /// The server took the switch while a reply runs, so it takes effect on the next turn. `warning` is as above.
+    case appliedNextTurn(warning: String?)
     /// The switch waits. Send the same change again with `confirmExpensiveModel` set.
     case needsConfirmation(message: String)
+
+    /// True when the server took the switch, now or for the next turn.
+    public var isApplied: Bool {
+        switch self {
+        case .applied, .appliedNextTurn: true
+        case .needsConfirmation: false
+        }
+    }
 }
 
 extension GatewayClient {
@@ -90,6 +102,17 @@ extension ModelOptionsResult {
     /// True when the server lists the model under that provider.
     public func lists(_ choice: ModelChoice) -> Bool {
         providers.contains { $0.slug == choice.provider && $0.models?.contains(choice.model) == true }
+    }
+
+    /// The `config.set` value that switches a chat on this server to `choice`. It is ``ModelChoice/configValue``, with
+    /// one exception: the endpoint that the server's own `model:` settings define (source `model-config`), while the
+    /// chat runs on it. Hermes lists that endpoint under a slug that `--provider` does not accept: it answers "Unknown
+    /// provider 'custom'" (seen on upstream 18e659d, 2026-11-15). The chat is already on that provider, so the model
+    /// goes without one.
+    public func configValue(for choice: ModelChoice) -> String {
+        let entry = providers.first { $0.slug == choice.provider }
+        guard entry?.isCurrent == true, entry?.source == "model-config" else { return choice.configValue }
+        return "\(choice.model) --session"
     }
 
     /// The reasoning levels to offer for a model. Empty when the capabilities in `model.options` do not say that the
