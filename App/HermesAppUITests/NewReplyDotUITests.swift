@@ -21,21 +21,8 @@ final class NewReplyDotUITests: XCTestCase {
 
         let field = testbedElement(app, "composer.field")
         XCTAssertTrue(field.waitForExistence(timeout: 10))
-        field.tap()
-        field.typeText("[[scenario:long_stream]] stream please")
-        testbedElement(app, "composer.send").tap()
         let transcript = testbedElement(app, "transcript")
-        XCTAssertTrue(transcript.waitForExistence(timeout: 10))
-        // Scroll up while the reply is still streaming in. The first swipes can land before the transcript is tall
-        // enough to scroll, and the chat then keeps following. The scroll-to-latest button shows only once the chat
-        // has stopped following, so swipe until it is there.
         let toLatest = testbedElement(app, "chat.scrollToBottom")
-        for _ in 0..<8 where !toLatest.exists {
-            transcript.swipeDown()
-            _ = toLatest.waitForExistence(timeout: 1)
-        }
-        XCTAssertTrue(toLatest.exists, "Swiping down should scroll the transcript up and show Scroll to latest")
-
         let dot = testbedElement(app, "chat.newReplyDot")
         // What the screen held, for the message of a failed check.
         func seen() -> String {
@@ -43,6 +30,34 @@ final class NewReplyDotUITests: XCTestCase {
             return "toLatest=\(toLatest.exists ? toLatest.label : "absent") frame=\(toLatest.frame) "
                 + "dot=\(dot.exists) keyboard=\(keyboard.exists ? "\(keyboard.frame)" : "none") "
                 + "transcript=\(transcript.frame) field=\(field.value as? String ?? "nil")"
+        }
+
+        // The stream lasts about ten seconds. On a slow runner the scroll up can take effect only after it ended, and
+        // then no new text arrives to light the dot (run 43649410739), so a second stream gets a second chance.
+        for attempt in 1...2 where !dot.exists {
+            if toLatest.exists { toLatest.tap() }
+            field.tap()
+            field.typeText("[[scenario:long_stream]] stream please \(attempt)")
+            testbedElement(app, "composer.send").tap()
+            XCTAssertTrue(transcript.waitForExistence(timeout: 10))
+            // With the keyboard up the small screen leaves the transcript a strip. Drag from it down over the keyboard:
+            // the transcript dismisses the keyboard interactively.
+            if app.keyboards.firstMatch.exists {
+                transcript.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+                    .press(
+                        forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95))
+                    )
+            }
+            // Scroll up while the reply is still streaming in. The first swipes can land before the transcript is tall
+            // enough to scroll, and the chat then keeps following. The scroll-to-latest button shows only once the
+            // chat has stopped following, so swipe until it is there.
+            for _ in 0..<8 where !toLatest.exists {
+                transcript.swipeDown()
+                _ = toLatest.waitForExistence(timeout: 1)
+            }
+            XCTAssertTrue(
+                toLatest.exists, "Swiping down should scroll the transcript up and show Scroll to latest. \(seen())")
+            _ = dot.waitForExistence(timeout: 15)
         }
         XCTAssertTrue(dot.waitForExistence(timeout: 20), "New text while scrolled up lights the dot. \(seen())")
         toLatest.tap()

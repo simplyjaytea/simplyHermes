@@ -48,6 +48,7 @@
             // phase change is enough), and a new store each time dropped every open chat without retiring it: the
             // screen then made a second model for a session whose first one was still attached and still sending.
             if model.liveChats == nil { model.liveChats = connections.map(LiveChatStore.init) }
+            KeyboardWatcher.start()
             let liveChats = model.liveChats
             // Kept across re-renders: a new one would lose the folder on screen and leave views holding the old one.
             if model.workspaceBrowser == nil { model.workspaceBrowser = connections.map(WorkspaceBrowserModel.init) }
