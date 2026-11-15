@@ -4,6 +4,7 @@ import HermesUI
 import XCTest
 
 /// The one-press Connect flow and the provider-driven sign-in choices.
+@MainActor
 final class ConnectionFormConnectTests: XCTestCase {
     private struct PassingTester: ConnectionTesting {
         func test(
