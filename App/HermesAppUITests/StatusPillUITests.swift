@@ -118,7 +118,13 @@ final class StatusPillUITests: XCTestCase {
 
         // Another chat takes the screen while the gateway is down. The compact layout shows New chat on the chat list,
         // not over an open chat (run 43658919091), so go back to the list first.
-        showChatList(app).tap()
+        let newChat = showChatList(app)
+        // The chat is listed while its message waits: by the server, or under "Waiting to send" when the server does
+        // not list it. This does not tell the two apart.
+        XCTAssertTrue(
+            element(app, "session.\(chatID)").waitForExistence(timeout: 10),
+            "A chat with a waiting message should be listed while the gateway is stopped")
+        newChat.tap()
         XCTAssertTrue(element(app, "composer.field").waitForExistence(timeout: 10))
 
         toggleGateway(app, expecting: "Stop gateway")
