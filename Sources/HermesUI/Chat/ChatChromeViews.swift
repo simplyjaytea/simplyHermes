@@ -69,23 +69,17 @@
         }
     }
 
-    /// A glass capsule above the composer while Hermes is replying: a pulsing dot, the words, and a Stop button.
+    /// A glass capsule above the composer while Hermes is replying: a dot, the words, and a Stop button.
     struct RunningStopCapsule: View {
         let onStop: () -> Void
         @Environment(\.hermesPalette) private var palette
-        @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
-        @Environment(\.hermesReduceMotion) private var reduceMotionOverride
-
-        private var motion: Bool {
-            !HermesMotion.resolveReduceMotion(system: systemReduceMotion, override: reduceMotionOverride)
-        }
 
         var body: some View {
             HStack(spacing: 8) {
+                // A still dot. A repeating animation here would keep the app from going idle for the whole reply.
                 Image(systemName: "circle.fill")
                     .font(.system(size: 8))
                     .foregroundStyle(palette.accent)
-                    .symbolEffect(.pulse, isActive: motion)
                     .accessibilityHidden(true)
                 Text("Hermes is replying")
                     .font(HermesFont.footnote)

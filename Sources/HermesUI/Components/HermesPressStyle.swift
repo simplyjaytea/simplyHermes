@@ -2,8 +2,11 @@
     import SwiftUI
 
     /// Press feedback for a button that draws its own look: chips, pills, icon buttons and rows. The label shrinks and
-    /// dims while it is held, and a light tap plays when the press starts, so the user knows the touch landed. Use it
-    /// where `.buttonStyle(.plain)` would otherwise give no feedback. With Reduce Motion on, the label only dims.
+    /// dims while it is held, so the user knows the touch landed. Use it where `.buttonStyle(.plain)` would otherwise
+    /// give no feedback. With Reduce Motion on, the label only dims.
+    ///
+    /// It plays no haptic. The style sits on every row of long lists. With one feedback generator for each button the
+    /// UI tests ran two to seven times slower (PR #159, run 2), and the haptic was the suspected cause.
     public struct HermesPressStyle: ButtonStyle {
         @Environment(\.isEnabled) private var isEnabled
         @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
@@ -19,7 +22,6 @@
                     HermesMotion.animation(HermesMotion.press, reduceMotion: reduceMotion),
                     value: configuration.isPressed
                 )
-                .sensoryFeedback(.impact(weight: .light), trigger: configuration.isPressed) { _, pressed in pressed }
         }
 
         private var reduceMotion: Bool {
