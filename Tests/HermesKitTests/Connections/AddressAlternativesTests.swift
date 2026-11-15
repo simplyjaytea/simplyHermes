@@ -28,6 +28,9 @@ import Testing
     @Test func publicHostsNeverGetPlainHTTP() throws {
         #expect(try urls("hermes.example.com") == ["https://hermes.example.com:9119"])
         #expect(try urls("https://hermes.example.com/hermes") == ["https://hermes.example.com:9119/hermes"])
+        // The form refuses this address before it asks. Asked directly, there is still nothing to try.
+        let plain = try #require(HermesEndpoint(string: "http://hermes.example.com"))
+        #expect(AddressAlternatives.candidates(for: plain, typed: "http://hermes.example.com").isEmpty)
     }
 
     @Test func aTypedHTTPSSchemeStaysHTTPS() throws {

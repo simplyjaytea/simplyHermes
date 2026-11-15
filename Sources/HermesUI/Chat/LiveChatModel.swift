@@ -463,7 +463,7 @@
             guard let client, let live = state.liveSessionID else { return }
             Task { [weak self] in
                 await self?.loadModelOptions()
-                guard let self, self.state.items.isEmpty, let options = self.modelOptions else { return }
+                guard let self, self.state.isNewChat, let options = self.modelOptions else { return }
                 self.preferences = ModelPreferencesStore.load()
                 let changes = self.preferences.restoreParams(for: info, sessionID: live, options: options)
                 guard !changes.isEmpty else { return }

@@ -143,10 +143,9 @@
                     .task(id: model.pendingSessionReference) { await openPendingSession() }
                     // Leaving the foreground cancels every pending delete: nothing is deleted the user can't see undone.
                     .onChange(of: scenePhase) { _, phase in
-                        if phase == .background {
-                            deletes.cancelAll()
-                            model.flushDrafts()
-                        }
+                        if phase == .background { deletes.cancelAll() }
+                        // The draft write waits 400 ms after a key. Leaving the foreground writes it at once.
+                        if phase != .active { model.flushDrafts() }
                         // WP-12: back in the foreground, a client waiting out its backoff connects now.
                         if phase == .active { Task { await connections?.manager?.reconnectAllNow() } }
                     }

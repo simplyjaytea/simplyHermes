@@ -25,10 +25,16 @@ public struct TranscriptState: Sendable, Equatable {
     public internal(set) var usage: Usage?
     /// Prompts queued behind a busy session.
     public internal(set) var queuedPrompts: [String] = []
+    /// True for a chat with no message in it: the server counted none at the attach and none has been added since.
+    /// False before the first attach.
+    public var isNewChat: Bool { attachedMessageCount == 0 && items.isEmpty }
     /// The highest event `seq` applied. Events at or below it are duplicates and are dropped.
     public internal(set) var lastSeq: Int?
     /// True when the replay ring overflowed: re-read the history and apply ``TranscriptAction/history(_:)``.
     public internal(set) var needsHistoryReload = false
+    /// How many messages the server said the chat held when it was last attached. Nil before the first attach. The
+    /// server may leave the messages out of that answer, so this, not ``items``, says whether the chat is new.
+    public internal(set) var attachedMessageCount: Int?
     /// Set when another device took the session over or the server reaped it.
     public internal(set) var reclaimed: SessionReclaimedEvent?
     /// The last terminal `error` event text.

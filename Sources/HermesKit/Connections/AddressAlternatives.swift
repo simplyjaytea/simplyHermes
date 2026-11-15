@@ -22,7 +22,10 @@ public enum AddressAlternatives {
         let isHTTP = components.scheme?.lowercased() == "http"
         let httpAllowed = ConnectionAddress.classify(host: host) != .publicInternet
         let tries: [(scheme: String, port: Int?)]
-        if isHTTP {
+        if isHTTP && !httpAllowed {
+            // Plain HTTP to a public host is refused before any probe. Offer nothing, so no caller can try it.
+            return []
+        } else if isHTTP {
             tries = [("http", dashboardPort)]
         } else if httpAllowed && !hadScheme {
             tries = [("http", dashboardPort), ("http", nil)]
