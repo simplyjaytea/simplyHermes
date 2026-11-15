@@ -149,11 +149,13 @@ final class StatusPillUITests: XCTestCase {
         if !app.staticTexts["Waiting to send"].waitForExistence(timeout: 10) {
             failWithOutageState(app, "The message should wait")
         }
-        XCTAssertTrue(element(app, "chat.outageBanner").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(app, "chat.outageBanner").waitForExistence(timeout: 5), "The outage banner should show")
 
         toggleGateway(app, expecting: "Stop gateway")
         let tryAgain = element(app, "outage.tryAgain")
-        XCTAssertTrue(tryAgain.waitForExistence(timeout: 5))
+        if !tryAgain.waitForExistence(timeout: 5) {
+            failWithOutageState(app, "Try again should still be offered right after the gateway is back")
+        }
         tryAgain.tap()
 
         let pill = element(app, "chat.pill")
@@ -345,7 +347,8 @@ final class StatusPillUITests: XCTestCase {
     private func showChatList(_ app: XCUIApplication) {
         let newChat = app.buttons.matching(identifier: "shell.newChat").firstMatch
         if !newChat.waitForExistence(timeout: 2) {
-            app.navigationBars.buttons.element(boundBy: 0).tap()
+            let back = app.navigationBars.buttons.firstMatch
+            if back.waitForExistence(timeout: 5) { back.tap() }
         }
         XCTAssertTrue(newChat.waitForExistence(timeout: 10), "The chat list should show New chat")
     }

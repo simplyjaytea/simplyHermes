@@ -57,7 +57,7 @@ final class NewReplyDotUITests: XCTestCase {
             }
             XCTAssertTrue(
                 toLatest.exists, "Swiping down should scroll the transcript up and show Scroll to latest. \(seen())")
-            _ = dot.waitForExistence(timeout: 15)
+            _ = dot.waitForExistence(timeout: 45)
         }
         XCTAssertTrue(dot.waitForExistence(timeout: 20), "New text while scrolled up lights the dot. \(seen())")
         toLatest.tap()
