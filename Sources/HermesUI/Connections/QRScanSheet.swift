@@ -41,7 +41,7 @@
                     Spacer(minLength: 0)
                 }
                 .padding(20)
-                .hermesKeyboardDoneButton()
+                .hermesKeyboardDismissOnScroll()
                 .navigationTitle("Scan QR code")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

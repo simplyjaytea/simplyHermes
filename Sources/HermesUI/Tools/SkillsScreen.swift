@@ -273,7 +273,7 @@
                 }
             }
             .hermesThemedList()
-            .hermesKeyboardDoneButton()
+            .hermesKeyboardDismissOnScroll()
             .navigationTitle(skill.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { editToolbar }

@@ -312,7 +312,7 @@
                     }
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.vertical, 2)
                 .animation(
                     HermesMotion.animation(HermesMotion.snappy, reduceMotion: reduceMotion), value: model.openSessionIDs
                 )

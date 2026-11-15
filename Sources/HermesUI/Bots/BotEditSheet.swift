@@ -42,7 +42,7 @@
                     .hermesListRows()
                 }
                 .hermesThemedList()
-                .hermesKeyboardDoneButton()
+                .hermesKeyboardDismissOnScroll()
                 .navigationTitle(entry.title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

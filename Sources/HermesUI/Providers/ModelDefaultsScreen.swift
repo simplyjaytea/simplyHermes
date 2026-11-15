@@ -90,7 +90,7 @@
                 }
             }
             .hermesThemedList()
-            .hermesKeyboardDoneButton()
+            .hermesKeyboardDismissOnScroll()
             .navigationTitle("Model defaults")
             .task { await model.load() }
         }

@@ -7,14 +7,16 @@
     struct ChatMoreMenu: View {
         /// Whether the chat has any rows to search.
         let canFind: Bool
-        let hasArtifacts: Bool
+        /// Asked while this menu renders, so the scan of the transcript for images runs here and not in the screen.
+        let hasArtifacts: () -> Bool
         let hasGitReview: Bool
         let onFind: () -> Void
         let onArtifacts: () -> Void
         let onGitReview: () -> Void
 
         var body: some View {
-            if canFind || hasArtifacts || hasGitReview {
+            let showsArtifacts = hasArtifacts()
+            if canFind || showsArtifacts || hasGitReview {
                 Menu {
                     if canFind {
                         Button(action: onFind) {
@@ -22,7 +24,7 @@
                         }
                         .accessibilityIdentifier("chat.find")
                     }
-                    if hasArtifacts {
+                    if showsArtifacts {
                         Button(action: onArtifacts) {
                             Label("Artifacts", systemImage: "photo.on.rectangle")
                         }

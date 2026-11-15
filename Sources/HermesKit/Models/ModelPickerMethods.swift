@@ -104,6 +104,17 @@ extension ModelOptionsResult {
         providers.contains { $0.slug == choice.provider && $0.models?.contains(choice.model) == true }
     }
 
+    /// The `config.set` value that switches a chat on this server to `choice`. It is ``ModelChoice/configValue``, with
+    /// one exception: the endpoint that the server's own `model:` settings define (source `model-config`), while the
+    /// chat runs on it. Hermes lists that endpoint under a slug that `--provider` does not accept: it answers "Unknown
+    /// provider 'custom'" (seen on upstream 18e659d, 2026-11-15). The chat is already on that provider, so the model
+    /// goes without one.
+    public func configValue(for choice: ModelChoice) -> String {
+        let entry = providers.first { $0.slug == choice.provider }
+        guard entry?.isCurrent == true, entry?.source == "model-config" else { return choice.configValue }
+        return "\(choice.model) --session"
+    }
+
     /// The reasoning levels to offer for a model. Empty when the capabilities in `model.options` do not say that the
     /// model reasons. "none" is offered only when they say the model can run with reasoning off.
     public func reasoningLevels(for choice: ModelChoice) -> [String] {

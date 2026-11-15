@@ -544,7 +544,7 @@
                 .hermesListRows()
             }
             .hermesThemedList()
-            .hermesKeyboardDoneButton()
+            .hermesKeyboardDismissOnScroll()
             .navigationTitle("Install plugin")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

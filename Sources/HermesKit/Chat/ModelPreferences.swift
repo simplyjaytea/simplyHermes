@@ -17,6 +17,8 @@ public struct ModelChoice: Sendable, Hashable, Codable {
     /// always named, because the server reads `vendor:model` as a model on the current provider. `--session` keeps the
     /// pick to this chat, so the server's profile default stays. The server splits the text on white space, so a model
     /// name with a space in it cannot be sent.
+    /// Send ``ModelOptionsResult/configValue(for:)`` when the server's model list is at hand: it knows the one provider
+    /// that must not be named.
     public var configValue: String {
         "\(model) --provider \(provider) --session"
     }
@@ -67,7 +69,7 @@ public struct ModelPreferences: Sendable, Equatable, Codable {
             running = ModelChoice(provider: provider, model: model)
         }
         if let sticky, sticky != running, options.lists(sticky) {
-            params.append(ConfigSetParams(key: "model", value: sticky.configValue, sessionID: sessionID))
+            params.append(ConfigSetParams(key: "model", value: options.configValue(for: sticky), sessionID: sessionID))
             running = sticky
         }
         let levels = running.map { options.reasoningLevels(for: $0) } ?? []

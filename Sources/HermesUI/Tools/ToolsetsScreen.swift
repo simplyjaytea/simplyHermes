@@ -263,7 +263,7 @@
                 }
             }
             .hermesThemedList()
-            .hermesKeyboardDoneButton()
+            .hermesKeyboardDismissOnScroll()
             .navigationTitle(model.title)
             .navigationBarTitleDisplayMode(.inline)
             .task { await model.load() }

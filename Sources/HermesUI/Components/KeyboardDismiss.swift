@@ -13,16 +13,13 @@
     }
 
     extension View {
-        /// Adds a Done button above the keyboard that closes it. Apply it once at the root of a form or sheet with text
-        /// fields. The chat composers do not use it: they have a Hide keyboard button in their bottom row.
-        func hermesKeyboardDoneButton() -> some View {
-            toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") { HermesKeyboard.dismiss() }
-                        .accessibilityIdentifier("keyboard.done")
-                }
-            }
+        /// Lets a drag on a form or sheet with text fields close the keyboard. Apply it once at the root of the screen.
+        /// The chat composers do not use it: they have a Hide keyboard button in their bottom row.
+        ///
+        /// It was a Done button on the keyboard's toolbar in alpha 5. Typing lagged on the device and the UI tests ran
+        /// slow in that build, and the toolbar was a suspected cause, so the drag replaces it.
+        func hermesKeyboardDismissOnScroll() -> some View {
+            scrollDismissesKeyboard(.interactively)
         }
     }
 

@@ -58,7 +58,7 @@
             }
             .hermesThemedList()
             .searchable(text: $search, prompt: "Search logs")
-            .hermesKeyboardDoneButton()
+            .hermesKeyboardDismissOnScroll()
             .navigationTitle("Logs")
             .refreshable { await model.load(filter) }
             .task(id: filter) {

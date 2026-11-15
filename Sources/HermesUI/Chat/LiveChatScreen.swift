@@ -34,11 +34,7 @@
                 if style == .halfFold { Divider() }
                 #if DEBUG
                     // Hidden: a UI test reads it when an outage assertion fails (WP-8).
-                    Text(debugSendSummary)
-                        .font(.system(size: 1))
-                        .frame(width: 1, height: 1)
-                        .opacity(0.01)
-                        .accessibilityIdentifier("uiTest.chatStatus")
+                    ChatDebugStatus(chat: chat, model: model, sessionID: sessionID)
                 #endif
                 if OutageBanner.shows(chat.status) {
                     OutageBannerView(
@@ -53,7 +49,7 @@
                 }
                 // With the keyboard up a folded screen has little room, so the task list and the notification offer
                 // wait until it goes. The outage banner shortens itself the same way.
-                if !KeyboardWatcher.shared.isUp {
+                KeyboardHidden {
                     if chat.isRunning, let tasks = TaskProgress(chat.state.todos?.todos ?? []) {
                         TaskProgressPill(progress: tasks)
                             .hermesReadableWidth()
@@ -338,7 +334,7 @@
             if !isFinding {
                 ChatMoreMenu(
                     canFind: !chat.state.items.isEmpty,
-                    hasArtifacts: !ChatArtifacts.all(in: chat.state.items).isEmpty,
+                    hasArtifacts: { [chat] in !ChatArtifacts.all(in: chat.state.items).isEmpty },
                     hasGitReview: workspaceFolder != nil && model.workspaceBrowser != nil,
                     onFind: {
                         isFinding = true
@@ -428,17 +424,6 @@
 
         /// The folder this chat runs in: the one it moved to this run, else the one the server reported.
         private var workspaceFolder: String? { chat.workspaceCwd ?? chat.state.info?.cwd }
-
-        #if DEBUG
-            /// The status, and what a send from this screen would use: the chat it is for, the chat the shell has
-            /// selected, the draft, the waiting rows and the last send error. Read by a UI test when a send goes missing.
-            private var debugSendSummary: String {
-                let draft = model.drafts[sessionID, default: ""]
-                let send = "screen=\(sessionID) selected=\(model.selectedSessionID ?? "none") draft=\(draft.count)"
-                let outbox = "waitingRows=\(chat.outboxRows.count) sendError=\(chat.outboxError ?? "none")"
-                return "\(chat.debugStatusSummary) \(send) \(outbox)"
-            }
-        #endif
 
         /// Changes whenever the bottom of the transcript moves: a new row, new text, or an approval card.
         private var followKey: Int {

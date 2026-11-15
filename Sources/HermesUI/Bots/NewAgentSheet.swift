@@ -78,7 +78,7 @@
                     .hermesListRows()
                 }
                 .hermesThemedList()
-                .hermesKeyboardDoneButton()
+                .hermesKeyboardDismissOnScroll()
                 .navigationTitle("New Agent")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

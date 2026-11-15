@@ -46,6 +46,29 @@ import Testing
                 == "anthropic/claude-x --provider openrouter --session")
     }
 
+    @Test func theServersOwnEndpointIsSwitchedWithoutAProviderWhileTheChatRunsOnIt() throws {
+        // The shape upstream 18e659d answers for a bare `model:` block: `--provider custom` is refused there.
+        let own = try options(
+            """
+            {"model":"a","provider":"custom","providers":[
+            {"slug":"custom","name":"Custom endpoint","models":["a","b"],"is_current":true,"source":"model-config"},
+            {"slug":"anthropic","name":"Anthropic","models":["large"],"is_current":false,"source":"hermes"}]}
+            """)
+        #expect(own.configValue(for: ModelChoice(provider: "custom", model: "b")) == "b --session")
+        #expect(own.configValue(for: large) == "large --provider anthropic --session")
+        // The same endpoint while the chat runs on another provider: the provider must be named.
+        let away = try options(
+            """
+            {"model":"large","provider":"anthropic","providers":[
+            {"slug":"custom","name":"Custom endpoint","models":["a","b"],"is_current":false,"source":"model-config"}]}
+            """)
+        #expect(away.configValue(for: ModelChoice(provider: "custom", model: "b")) == "b --provider custom --session")
+        var preferences = ModelPreferences()
+        preferences.sticky = ModelChoice(provider: "custom", model: "b")
+        let current = try info(#"{"model":"a","provider":"custom","reasoning_effort":""}"#)
+        #expect(preferences.restoreParams(for: current, sessionID: "s1", options: own).map(\.value) == ["b --session"])
+    }
+
     @Test func restoreSendsNothingWhenTheChatMatches() throws {
         var preferences = ModelPreferences()
         preferences.sticky = small

@@ -45,7 +45,7 @@
                     .frame(maxWidth: 560)
                     .frame(maxWidth: .infinity)
                 }
-                .hermesKeyboardDoneButton()
+                .hermesKeyboardDismissOnScroll()
                 .background(palette.groupedBackground)
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.inline)

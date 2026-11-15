@@ -143,7 +143,10 @@
                     .task(id: model.pendingSessionReference) { await openPendingSession() }
                     // Leaving the foreground cancels every pending delete: nothing is deleted the user can't see undone.
                     .onChange(of: scenePhase) { _, phase in
-                        if phase == .background { deletes.cancelAll() }
+                        if phase == .background {
+                            deletes.cancelAll()
+                            model.flushDrafts()
+                        }
                         // WP-12: back in the foreground, a client waiting out its backoff connects now.
                         if phase == .active { Task { await connections?.manager?.reconnectAllNow() } }
                     }
@@ -184,6 +187,7 @@
                     )
                 content(for: layout)
                     .environment(\.hermesDisplayLayout, layout)
+                    .onChange(of: layout, initial: true) { _, new in applySidebarDefault(for: new) }
                     .sheet(isPresented: $model.isBugReportPresented, onDismiss: clearBugReportScreenshot) {
                         NavigationStack {
                             BugReportScreen(connections: connections, screenshot: model.bugReportScreenshot)
@@ -369,6 +373,7 @@
                     }
                 }
                 .hermesThemedList()
+                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 300)
                 .searchable(
                     text: $sidebarChatSearch, isPresented: $isSidebarSearchPresented, placement: .sidebar,
                     prompt: "Search chats"
@@ -687,6 +692,18 @@
             columnVisibility = .all
             compactColumn = .sidebar
             isSidebarSearchPresented = true
+        }
+
+        /// Sets the sidebar for a new inner layout: hidden in portrait, so the chat has the whole width and the
+        /// navigation bar's sidebar button brings the chats back; shown in landscape. Runs on a layout change only,
+        /// so a sidebar the user opened or closed is left alone. A pending Search chats request keeps it shown.
+        private func applySidebarDefault(for layout: DisplayLayout) {
+            guard !isSidebarSearchPresented, model.chatSearchRequest == 0 else { return }
+            switch layout {
+            case .innerPortrait: columnVisibility = .detailOnly
+            case .innerLandscape: columnVisibility = .all
+            case .compact, .halfFold, .tent: break
+            }
         }
 
         /// ``visibleSessions`` matching the local list's search, by title or subtitle.

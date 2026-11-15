@@ -27,7 +27,7 @@
                         destinationSection
                     }
                 }
-                .hermesKeyboardDoneButton()
+                .hermesKeyboardDismissOnScroll()
                 .navigationTitle("Send to Hermes")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

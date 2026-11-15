@@ -129,7 +129,7 @@
                     }
                 }
             }
-            .hermesKeyboardDoneButton()
+            .hermesKeyboardDismissOnScroll()
             .navigationTitle("Memory")
             .task { await model.load() }
             .safeAreaInset(edge: .bottom, spacing: 0) { undoBar }

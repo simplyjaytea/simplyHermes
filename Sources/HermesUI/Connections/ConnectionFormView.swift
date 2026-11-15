@@ -50,7 +50,7 @@
                     }
                 }
                 .hermesThemedList()
-                .hermesKeyboardDoneButton()
+                .hermesKeyboardDismissOnScroll()
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbar }
