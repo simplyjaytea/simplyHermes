@@ -118,13 +118,12 @@ final class StatusPillUITests: XCTestCase {
 
         // Another chat takes the screen while the gateway is down. The compact layout shows New chat on the chat list,
         // not over an open chat (run 43658919091), so go back to the list first.
-        showChatList(app)
-        app.buttons.matching(identifier: "shell.newChat").firstMatch.tap()
+        showChatList(app).tap()
         XCTAssertTrue(element(app, "composer.field").waitForExistence(timeout: 10))
 
         toggleGateway(app, expecting: "Stop gateway")
 
-        showChatList(app)
+        _ = showChatList(app)
         let firstChat = element(app, "session.\(chatID)")
         XCTAssertTrue(firstChat.waitForExistence(timeout: 10), "The first chat should be listed")
         firstChat.tap()
@@ -342,17 +341,35 @@ final class StatusPillUITests: XCTestCase {
         }
     }
 
-    /// Shows the chat list. In the compact layout an open chat covers it, and the back button returns to it; in the
-    /// other layouts the list is already on screen.
+    /// Shows the chat list and returns its New chat button. In the compact layout an open chat covers the list.
+    ///
+    /// The back control is the one the other UI tests use: the round `BackButton`, then a titled "Chats". The first
+    /// button of the navigation bar is not it: over an open chat that can be the chat's own Commands button, and
+    /// tapping it never reaches the list (runs 43658919091 to 43682165389 failed here on both tries). New chat has
+    /// hidden copies on the Duo layout, so the one that can be tapped is taken.
     @MainActor
-    private func showChatList(_ app: XCUIApplication) {
-        let newChat = app.buttons.matching(identifier: "shell.newChat").firstMatch
-        // One tap can be taken by the keyboard's dismissal, so go back until the list is there.
-        for _ in 0..<3 where !newChat.waitForExistence(timeout: 2) {
-            let back = app.navigationBars.buttons.firstMatch
-            if back.waitForExistence(timeout: 5) { back.tap() }
+    private func showChatList(_ app: XCUIApplication) -> XCUIElement {
+        let copies = app.buttons.matching(identifier: "shell.newChat")
+        func onScreen() -> XCUIElement? { copies.allElementsBoundByIndex.first(where: \.isHittable) }
+        if let newChat = onScreen() { return newChat }
+        let backButton = app.buttons["BackButton"]
+        if backButton.waitForExistence(timeout: 5), backButton.isHittable {
+            backButton.tap()
+        } else if app.navigationBars.buttons["Chats"].exists {
+            app.navigationBars.buttons["Chats"].tap()
         }
-        XCTAssertTrue(newChat.waitForExistence(timeout: 10), "The chat list should show New chat")
+        let deadline = Date().addingTimeInterval(10)
+        repeat {
+            if let newChat = onScreen() { return newChat }
+            Thread.sleep(forTimeInterval: 0.2)
+        } while Date() < deadline
+        // Say what the screen held, so a failure here is not a guess.
+        let bars = app.navigationBars.allElementsBoundByIndex.map(\.identifier)
+        let barButtons = app.navigationBars.buttons.allElementsBoundByIndex.map { "\($0.identifier)|\($0.label)" }
+        XCTFail(
+            "The chat list should show New chat. copies=\(copies.count) backButton=\(backButton.exists) "
+                + "bars=\(bars) barButtons=\(barButtons) sheets=\(app.sheets.count) keyboard=\(app.keyboards.count)")
+        return copies.firstMatch
     }
 
     @MainActor
