@@ -125,7 +125,8 @@ final class StatusPillUITests: XCTestCase {
 
         _ = showChatList(app)
         let firstChat = element(app, "session.\(chatID)")
-        XCTAssertTrue(firstChat.waitForExistence(timeout: 10), "The first chat should be listed")
+        // The list is read from the server again once the gateway is back, so allow for the reconnect.
+        XCTAssertTrue(firstChat.waitForExistence(timeout: 30), "The first chat should be listed")
         firstChat.tap()
 
         XCTAssertTrue(
@@ -397,10 +398,19 @@ final class StatusPillUITests: XCTestCase {
     /// the rows that leave the screen (run 43658919091 counted 3 before and 2 after).
     @MainActor
     private func replyRowIDs(_ app: XCUIApplication) -> Set<String> {
-        Set(
-            app.descendants(matching: .any)
-                .matching(NSPredicate(format: "identifier BEGINSWITH 'message.'"))
-                .allElementsBoundByIndex.map(\.identifier))
+        // One snapshot of the whole tree. Reading each match by index failed in run 43689903785 with "No matches found
+        // for Element at index 3", when a lazy row left between the count and the read.
+        guard let root = try? app.snapshot() else {
+            XCTFail("The app's element tree could not be read")
+            return []
+        }
+        var ids: Set<String> = []
+        var pending: [any XCUIElementSnapshot] = [root]
+        while let next = pending.popLast() {
+            if next.identifier.hasPrefix("message.") { ids.insert(next.identifier) }
+            pending.append(contentsOf: next.children)
+        }
+        return ids
     }
 
     @MainActor
