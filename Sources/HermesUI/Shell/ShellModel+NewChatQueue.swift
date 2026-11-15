@@ -68,13 +68,27 @@
             return true
         }
 
-        /// Reads the active server's unsent chats from the outbox and lists them (``showUnsentChats(_:serverName:)``).
+        /// Reads the active server's unsent chats from the outbox. All of them are kept in ``waitingChatIDs``, and the
+        /// ones that exist on the server are listed (``showUnsentChats(_:serverName:)``).
         func showUnsentChats(of connections: ConnectionsModel?) async {
             guard let active = connections?.active else { return }
-            let ids = (try? await OutboxServices.store.unsentServerChatIDs(connection: active.id.uuidString)) ?? []
+            let all = (try? await OutboxServices.store.unsentChatIDs(connection: active.id.uuidString)) ?? []
             // The read can outlast a server switch. These rows belong to the server that was read.
             guard connections?.active?.id == active.id else { return }
-            showUnsentChats(ids, serverName: active.name)
+            waitingChatIDs = Set(all)
+            showUnsentChats(all.filter { !PlaceholderChat.isPlaceholderID($0) }, serverName: active.name)
+        }
+
+        /// The chats to list under "Waiting to send" on the phone: the ones with a message not sent yet that the server's
+        /// list does not hold. A placeholder counts while the queue holds a message for it.
+        func waitingChats(notIn listed: Set<String>) -> [ChatSessionSummary] {
+            sessions.filter { session in
+                guard !listed.contains(session.id) else { return false }
+                if unstartedChatIDs.contains(session.id) {
+                    return !(newChatQueue?.waiting[session.id] ?? []).isEmpty
+                }
+                return waitingChatIDs.contains(session.id)
+            }
         }
 
         /// Lists the active server's chats that hold a message not sent yet and that the list does not show. The

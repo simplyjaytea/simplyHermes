@@ -231,6 +231,9 @@
         @ObservationIgnored var startingChats: [String: Task<Void, Never>] = [:]
         /// The first message the queue is saving for a placeholder row, until the save returns. See `adoptQueuedChat`.
         @ObservationIgnored var queuedFirstMessages: [String: String] = [:]
+        /// The chats that hold a message not sent yet, as the outbox last listed them: placeholders and server chats.
+        /// The phone's Chats list shows the ones the server does not list (``waitingChats(notIn:)``).
+        public internal(set) var waitingChatIDs: Set<String> = []
         /// Counts placeholder ids, so a new placeholder never reuses the id of one still open.
         @ObservationIgnored private var placeholderCount = 0
         /// Why the last first message failed, in words. The shell shows it in an alert, which clears it.

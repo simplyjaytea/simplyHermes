@@ -66,7 +66,10 @@
                                 row: row, sessionID: session, serverName: name, on: connectionID,
                                 active: connections.active?.id.uuidString) ?? false
                         // The server's chat list does not hold the new chat until it is read again.
-                        if adopted { Task { await sessionsList?.refresh() } }
+                        Task {
+                            await model?.showUnsentChats(of: connections)
+                            if adopted { await sessionsList?.refresh() }
+                        }
                     }
                     model.newChatQueue = queue
                 }
@@ -319,7 +322,7 @@
         @ViewBuilder
         private var chatList: some View {
             if let sessionsList, connections?.active != nil {
-                SessionsListView(model: sessionsList, needsApproval: model.needsApproval) { model.show($0) }
+                phoneChatList(sessionsList)
             } else {
                 List(searchedSessions) { session in
                     Button {
@@ -660,9 +663,32 @@
         /// back from an outage (iOS run 43689903785). Not while the server is unreachable: a refresh that fails puts
         /// an error line in the list.
         private func refreshChatListIfConnected() async {
+            await model.showUnsentChats(of: connections)
             guard let sessionsList, let active = connections?.active?.id.uuidString, connectedServers.contains(active)
             else { return }
             await sessionsList.refresh()
+        }
+    }
+
+    extension AdaptiveShell {
+        /// The phone's Chats list: the server's chats, with the ones that wait to be sent first.
+        fileprivate func phoneChatList(_ list: SessionsListModel) -> some View {
+            SessionsListView(
+                model: list, needsApproval: model.needsApproval,
+                waiting: waitingChats(notIn: list),
+                onOpenWaiting: { model.open($0) },
+                onOpen: { model.show($0) }
+            )
+            // Each time the list comes on screen: a chat can send its message, or get one that waits, while it is open.
+            .task { await refreshChatListIfConnected() }
+        }
+
+        /// The chats with a message not sent yet that the server's list does not hold, as rows for the phone's list.
+        private func waitingChats(notIn list: SessionsListModel) -> [SessionListItem] {
+            model.waitingChats(notIn: Set(list.items.map(\.id))).map {
+                SessionListItem(
+                    id: $0.id, title: $0.title, time: nil, isPinned: false, serverName: model.serverName(of: $0))
+            }
         }
     }
 
