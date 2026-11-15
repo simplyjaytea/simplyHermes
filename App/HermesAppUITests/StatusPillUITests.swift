@@ -153,10 +153,11 @@ final class StatusPillUITests: XCTestCase {
 
         toggleGateway(app, expecting: "Stop gateway")
         let tryAgain = element(app, "outage.tryAgain")
-        if !tryAgain.waitForExistence(timeout: 5) {
-            failWithOutageState(app, "Try again should still be offered right after the gateway is back")
-        }
-        tryAgain.tap()
+        // The connection also retries by itself when the network path comes back, and on a fast run it is Online
+        // before Try again can be tapped: the banner is then gone, with nothing left to tap (run 43676167671). Try
+        // again is tapped when it is still offered. Either way the chat must be Online in the short window below, and
+        // the waiting message must be sent once.
+        if tryAgain.waitForExistence(timeout: 5) { tryAgain.tap() }
 
         let pill = element(app, "chat.pill")
         let online = XCTNSPredicateExpectation(
@@ -346,7 +347,8 @@ final class StatusPillUITests: XCTestCase {
     @MainActor
     private func showChatList(_ app: XCUIApplication) {
         let newChat = app.buttons.matching(identifier: "shell.newChat").firstMatch
-        if !newChat.waitForExistence(timeout: 2) {
+        // One tap can be taken by the keyboard's dismissal, so go back until the list is there.
+        for _ in 0..<3 where !newChat.waitForExistence(timeout: 2) {
             let back = app.navigationBars.buttons.firstMatch
             if back.waitForExistence(timeout: 5) { back.tap() }
         }
