@@ -80,6 +80,7 @@
                 .hermesListRows()
             }
             .hermesThemedList()
+            .hermesKeyboardDoneButton()
             .navigationTitle("Pairing requests")
             .refreshable { await model.refresh() }
             .task { await model.refresh() }
@@ -195,6 +196,7 @@
                 changeByNameSection
             }
             .hermesThemedList()
+            .hermesKeyboardDoneButton()
             .navigationTitle("Webhooks")
             .refreshable { await model.refresh() }
             .task { await model.refresh() }

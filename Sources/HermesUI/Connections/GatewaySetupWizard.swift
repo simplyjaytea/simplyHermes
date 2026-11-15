@@ -9,7 +9,7 @@
     /// the gateway form's, so the wizard and Enter an address behave the same.
     public struct GatewaySetupWizard: View {
         @Environment(\.hermesPalette) private var palette
-        /// The steps in order. Sign-in only appears when the server asks for a password.
+        /// The steps in order. Sign-in only appears when the server asks for a sign-in.
         enum Step: Equatable {
             case computer
             case find
@@ -45,6 +45,7 @@
                     .frame(maxWidth: 560)
                     .frame(maxWidth: .infinity)
                 }
+                .hermesKeyboardDoneButton()
                 .background(palette.groupedBackground)
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.inline)
@@ -155,32 +156,24 @@
 
         private var signInStep: some View {
             Group {
-                if form.signInMethod == .password {
-                    Text("This server asks for a user name and password. The setup prompt printed them.")
+                Text(
+                    "This server asks you to sign in. Use a button below, or enter the user name and password. "
+                        + "The setup prompt printed them."
+                )
+                .foregroundStyle(palette.secondaryText)
+                HermesCard {
+                    SignInMethodSection(
+                        form: form, connections: connections, idPrefix: "setup", bordered: true,
+                        onSignedIn: { startCheck() })
+                }
+                Button("Check connection") { startCheck() }
+                    .buttonStyle(HermesButtonStyle(.primary))
+                    .disabled(form.connectMissing != nil)
+                    .accessibilityIdentifier("setup.signIn")
+                if let reason = form.connectMissing {
+                    Text(reason)
+                        .font(HermesFont.footnote)
                         .foregroundStyle(palette.secondaryText)
-                    HermesCard {
-                        TextField("User name", text: field(\.username))
-                            .textFieldStyle(.roundedBorder)
-                            .textContentType(.username)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .accessibilityIdentifier("setup.username")
-                        SecureField("Password", text: field(\.password))
-                            .textFieldStyle(.roundedBorder)
-                            .textContentType(.password)
-                            .accessibilityIdentifier("setup.password")
-                        Toggle("Remember password on this iPhone", isOn: field(\.remembersPassword))
-                    }
-                    Button("Check connection") { startCheck() }
-                        .buttonStyle(HermesButtonStyle(.primary))
-                        .disabled(form.username.isEmpty || form.password.isEmpty)
-                        .accessibilityIdentifier("setup.signIn")
-                } else {
-                    Text(
-                        "This server signs in another way. Use Enter an address on the first screen to sign in "
-                            + "with a browser."
-                    )
-                    .foregroundStyle(palette.secondaryText)
                 }
                 Button("Change address") { step = .find }
                     .buttonStyle(HermesButtonStyle(.secondary))

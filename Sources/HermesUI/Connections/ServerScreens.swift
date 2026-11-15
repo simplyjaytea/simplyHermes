@@ -25,19 +25,19 @@
                     header
                     VStack(spacing: 12) {
                         Button {
+                            form = ConnectionFormModel(mode: .gateway)
+                        } label: {
+                            Label("Connect to a server", systemImage: "globe")
+                        }
+                        .buttonStyle(HermesButtonStyle(.primary))
+                        .accessibilityIdentifier("welcome.addGateway")
+                        Button {
                             showsSetup = true
                         } label: {
                             Label("Set up on my computer", systemImage: "desktopcomputer")
                         }
-                        .buttonStyle(HermesButtonStyle(.primary))
-                        .accessibilityIdentifier("welcome.setUp")
-                        Button {
-                            form = ConnectionFormModel(mode: .gateway)
-                        } label: {
-                            Label("Enter an address", systemImage: "globe")
-                        }
                         .buttonStyle(HermesButtonStyle(.secondary))
-                        .accessibilityIdentifier("welcome.addGateway")
+                        .accessibilityIdentifier("welcome.setUp")
                         Button {
                             form = ConnectionFormModel(mode: .ssh)
                         } label: {
@@ -66,8 +66,8 @@
                     HermesCard {
                         Text("Which one?").font(HermesFont.headline)
                         Text(
-                            "Set up on my computer: the guided path. Hermes runs on your computer.\n"
-                                + "Enter an address: a server you already run, over Tailscale or behind a proxy.\n"
+                            "Connect to a server: type or paste the address. The app finds how to sign in.\n"
+                                + "Set up on my computer: the guided path. Hermes runs on your computer.\n"
                                 + "SSH: the app logs in to a computer and starts Hermes itself."
                                 + (HermesCloud.isOfferedInApp
                                     ? "\nHermes Cloud: sign in and pick one of your hosted agents. No address to type."
@@ -257,8 +257,8 @@
 
         var body: some View {
             Menu {
+                Button("Connect to a server", systemImage: "globe") { onPick(ConnectionFormModel(mode: .gateway)) }
                 Button("Set up on my computer", systemImage: "desktopcomputer", action: onSetUp)
-                Button("Enter an address", systemImage: "globe") { onPick(ConnectionFormModel(mode: .gateway)) }
                 Button("SSH server", systemImage: "terminal") { onPick(ConnectionFormModel(mode: .ssh)) }
                 Button("Scan QR code", systemImage: "qrcode.viewfinder", action: onScan)
                 if HermesCloud.isOfferedInApp {

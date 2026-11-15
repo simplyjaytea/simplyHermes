@@ -423,10 +423,10 @@
         /// `.needsConfirmation`. Call again with `confirmed` once the user agrees.
         public func chooseModel(_ choice: ModelChoice, confirmed: Bool = false) async throws -> ModelSwitchOutcome {
             guard let client, let live = state.liveSessionID else { throw GatewayClientError.notConnected }
-            let value = choice.configValue(currentProvider: modelOptions?.provider)
+            let value = choice.configValue
             let params = ConfigSetParams(key: "model", value: value, sessionID: live, confirmExpensiveModel: confirmed)
             let outcome = try await client.configSet(params).outcome
-            if case .applied = outcome {
+            if outcome.isApplied {
                 updatePreferences { $0.sticky = choice }
                 await loadModelOptions()
             }

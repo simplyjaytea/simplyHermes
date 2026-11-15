@@ -159,7 +159,7 @@
                     .font(HermesFont.body.weight(.semibold))
                     .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.hermesPress)
             .glassEffect(.regular, in: Circle())
             .accessibilityLabel(label)
             .accessibilityIdentifier(id)

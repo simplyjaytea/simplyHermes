@@ -82,7 +82,7 @@
                         .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.hermesPress)
                 .accessibilityLabel(Text("Remove \(file.name)"))
                 // The tap area is 44 pt now, so the offset moves the glyph back to the corner it had at 22 pt.
                 .offset(x: 19, y: -19)

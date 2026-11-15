@@ -35,6 +35,7 @@
                     .hermesListRows()
                 }
                 .hermesThemedList()
+                .hermesKeyboardDoneButton()
                 .navigationTitle("Apply layout code")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

@@ -32,7 +32,6 @@
                 content
                     .frame(maxHeight: .infinity)
                 if style == .halfFold { Divider() }
-                ChatStatusBar(strip: chat.strip, pill: chat.status.pill, serverName: chat.serverName)
                 #if DEBUG
                     // Hidden: a UI test reads it when an outage assertion fails (WP-8).
                     Text(debugSendSummary)
@@ -49,15 +48,27 @@
                             model.continueInNewLocalChat(carrying: model.drafts[sessionID, default: ""])
                         }
                     )
+                    .hermesReadableWidth()
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                if chat.isRunning, let tasks = TaskProgress(chat.state.todos?.todos ?? []) {
-                    TaskProgressPill(progress: tasks)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                // With the keyboard up a folded screen has little room, so the task list and the notification offer
+                // wait until it goes. The outage banner shortens itself the same way.
+                if !KeyboardWatcher.shared.isUp {
+                    if chat.isRunning, let tasks = TaskProgress(chat.state.todos?.todos ?? []) {
+                        TaskProgressPill(progress: tasks)
+                            .hermesReadableWidth()
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                    // "Get a notification when Hermes finishes?" after a long turn (notifications spec section 4).
+                    NotificationOfferTip()
+                        .hermesReadableWidth()
                 }
-                // "Get a notification when Hermes finishes?" after a long turn (notifications spec section 4).
-                NotificationOfferTip()
+                // While Hermes replies: one capsule with the words and Stop, right above the composer rows.
+                RunningStopSlot(isRunning: chat.isRunning) { chat.stop() }
+                    .hermesReadableWidth()
+                // One info row: status chip, context ring, model, reasoning and folder, and Hide keyboard.
                 ComposerPills(chat: chat) { showsWorkspaces = true }
+                    .hermesReadableWidth()
                 Composer(
                     text: model.draftBinding(for: sessionID),
                     attachments: model.attachmentsBinding(for: sessionID),
@@ -68,6 +79,7 @@
                     onSteer: chat.isRunning && model.attachments[sessionID, default: []].isEmpty ? { steer() } : nil,
                     voice: voice
                 )
+                .hermesReadableWidth()
                 .background(palette.background)
             }
             .background(palette.background)
@@ -236,7 +248,10 @@
                     Color.clear.frame(height: 1).id("bottom")
                 }
                 .scrollTargetLayout()
-                .padding(.vertical, 12)
+                // The top inset keeps the first message clear of the floating More button.
+                .padding(.top, 12 + HermesMetrics.minTapTarget)
+                .padding(.bottom, 12)
+                .hermesReadableWidth()
             }
             .accessibilityIdentifier("transcript")
             .scrollPosition($position)
@@ -272,13 +287,8 @@
                 if following { replyDot.reachedBottom() }
             }
             .scrollDismissesKeyboard(.interactively)
-            .safeAreaInset(edge: .top) {
-                VStack(spacing: 6) {
-                    header
-                    findBar
-                }
-            }
-            .overlay(alignment: .topTrailing) { findButton }
+            .safeAreaInset(edge: .top) { findBar }
+            .overlay(alignment: .topTrailing) { moreMenu }
             .overlay(alignment: .bottomTrailing) { scrollToBottomButton }
         }
 
@@ -298,7 +308,7 @@
                         .cappedSymbolSize()
                         .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.hermesPress)
                 .glassEffect(.regular, in: Circle())
                 .accessibilityIdentifier("chat.scrollToBottom")
                 .accessibilityLabel(Text(replyDot.isShowing ? "Scroll to latest, new reply" : "Scroll to latest"))
@@ -322,23 +332,23 @@
             TranscriptSearch.matchingIDs(in: chat.state.items, query: query)
         }
 
+        /// Find, Artifacts and Review changes in one menu. It hides while the find bar is open.
         @ViewBuilder
-        private var findButton: some View {
-            if !isFinding, !chat.state.items.isEmpty {
-                Button {
-                    isFinding = true
-                    findFocused = true
-                } label: {
-                    Image(systemName: "magnifyingglass")
-                        .cappedSymbolSize()
-                        .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
-                }
-                .buttonStyle(.plain)
-                .glassEffect(.regular, in: Circle())
+        private var moreMenu: some View {
+            if !isFinding {
+                ChatMoreMenu(
+                    canFind: !chat.state.items.isEmpty,
+                    hasArtifacts: !ChatArtifacts.all(in: chat.state.items).isEmpty,
+                    hasGitReview: workspaceFolder != nil && model.workspaceBrowser != nil,
+                    onFind: {
+                        isFinding = true
+                        findFocused = true
+                    },
+                    onArtifacts: { showsArtifacts = true },
+                    onGitReview: { showsGitReview = true }
+                )
                 .padding(.trailing, 12)
-                .padding(.top, 56)
-                .accessibilityLabel(Text("Find in chat"))
-                .accessibilityIdentifier("chat.find")
+                .padding(.top, 8)
             }
         }
 
@@ -418,30 +428,6 @@
 
         /// The folder this chat runs in: the one it moved to this run, else the one the server reported.
         private var workspaceFolder: String? { chat.workspaceCwd ?? chat.state.info?.cwd }
-
-        @ViewBuilder
-        private var header: some View {
-            if let session = model.session(id: sessionID) {
-                VStack(alignment: .leading, spacing: 6) {
-                    StatusStrip(
-                        connection: StatusStrip.Connection(chat.strip.connection),
-                        serverName: session.serverName,
-                        runningTurn: chat.isRunning ? "Hermes is replying" : nil,
-                        onStop: chat.isRunning ? { chat.stop() } : nil
-                    )
-                    .padding(.horizontal, 12)
-                    .padding(.top, 4)
-                    HStack(spacing: 8) {
-                        ArtifactsButton { showsArtifacts = true }
-                        // Git review of the chat's folder, as the desktop app's right sidebar has it.
-                        if workspaceFolder != nil, model.workspaceBrowser != nil {
-                            GitReviewButton { showsGitReview = true }
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                }
-            }
-        }
 
         #if DEBUG
             /// The status, and what a send from this screen would use: the chat it is for, the chat the shell has

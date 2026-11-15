@@ -32,6 +32,7 @@
                 }
             }
             .hermesThemedList()
+            .hermesKeyboardDoneButton()
             .navigationTitle("API keys")
             .task { await model.load() }
             .refreshable { await model.load() }

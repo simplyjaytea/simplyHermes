@@ -2,24 +2,6 @@
     import HermesKit
     import SwiftUI
 
-    /// The button in the chat header that opens the artifacts gallery (WP-36).
-    struct ArtifactsButton: View {
-        let action: () -> Void
-
-        var body: some View {
-            Button(action: action) {
-                Label("Artifacts", systemImage: "photo.on.rectangle")
-                    .font(HermesFont.caption.weight(.semibold))
-                    .lineLimit(1)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: HermesMetrics.minTapTarget - 8)
-            }
-            .buttonStyle(.plain)
-            .glassEffect(.regular, in: Capsule())
-            .accessibilityIdentifier("chat.artifacts")
-        }
-    }
-
     /// The images this chat generated, as a grid. Tapping one closes the sheet and jumps to the tool row that made it.
     struct ArtifactsSheet: View {
         let artifacts: [ChatArtifact]
@@ -40,7 +22,7 @@
                             } label: {
                                 ArtifactThumbnail(image: artifact.image, load: media)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.hermesPress)
                             .accessibilityLabel(Text("Artifact \(index + 1) of \(artifacts.count)"))
                             .accessibilityHint(Text("Jumps to where it was made in the chat."))
                             .accessibilityIdentifier("artifact.\(artifact.id)")

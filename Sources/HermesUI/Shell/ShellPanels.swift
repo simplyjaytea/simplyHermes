@@ -347,7 +347,7 @@
                     .padding(.leading, 12)
                     .frame(minHeight: HermesMetrics.minTapTarget)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.hermesPress)
                 Button {
                     model.close(session.id)
                 } label: {
@@ -357,7 +357,7 @@
                         .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.hermesPress)
                 .accessibilityLabel(Text("Close \(session.title)"))
                 .padding(.trailing, 4)
             }

@@ -34,7 +34,7 @@
                         } label: {
                             KanbanTaskCard(card: card)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.hermesPress)
                     }
                 }
                 .padding(16)

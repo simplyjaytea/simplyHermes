@@ -80,7 +80,7 @@
                         }
                     }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.hermesPress)
             .accessibilityLabel(Self.label(for: value))
             .accessibilityAddTraits(avatar == value ? .isSelected : [])
         }

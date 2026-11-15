@@ -117,6 +117,7 @@
                     .hermesListRows()
                 }
                 .hermesThemedList()
+                .hermesKeyboardDoneButton()
                 .navigationTitle("Add worktree")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {

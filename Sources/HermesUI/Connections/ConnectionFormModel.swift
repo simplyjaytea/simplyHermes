@@ -23,13 +23,13 @@
             didSet { if signInMethod != oldValue { invalidateTest() } }
         }
         public var username = "" {
-            didSet { if username != oldValue { invalidateTest() } }
+            didSet { credentialChanged(username != oldValue, filled: !username.isEmpty, method: .password) }
         }
         public var password = "" {
-            didSet { if password != oldValue { invalidateTest() } }
+            didSet { credentialChanged(password != oldValue, filled: !password.isEmpty, method: .password) }
         }
         public var token = "" {
-            didSet { if token != oldValue { invalidateTest() } }
+            didSet { credentialChanged(token != oldValue, filled: !token.isEmpty, method: .token) }
         }
         public var remembersPassword = false
         public private(set) var probe: ProbeState = .idle
@@ -202,25 +202,6 @@
             }
         }
 
-        /// The sign-in methods the picker offers: what the server supports, or all of them before it answers.
-        /// The current choice stays listed so an edited connection never loses it.
-        public var availableSignInMethods: [SignInMethod] {
-            var methods: [SignInMethod]
-            if case .found(let found) = probe {
-                methods = Self.methods(for: found)
-            } else {
-                methods = SignInMethod.allCases
-            }
-            if !methods.contains(signInMethod) { methods.append(signInMethod) }
-            return SignInMethod.allCases.filter(methods.contains)
-        }
-
-        /// The server's browser providers (OAuth, OIDC), for the provider picker.
-        public var browserProviders: [AuthProviderInfo] {
-            guard case .found(let found) = probe else { return [] }
-            return found.signIn?.browserProviders ?? []
-        }
-
         /// The endpoint to test and save: the typed one, or the IP address Hermes answered on instead.
         private func effectiveEndpoint(for parsed: ConnectionAddress.Parsed) -> HermesEndpoint {
             guard let adaptedAddress, adaptedAddress.typed == parsed.endpoint.baseURL else { return parsed.endpoint }
@@ -244,17 +225,6 @@
         private var browserSignInResult: BrowserSignInResult? {
             guard case .success(let parsed)? = address, parsed.endpoint.baseURL == browserServer else { return nil }
             return browserResult
-        }
-
-        private static func methods(for found: ServerProbe) -> [SignInMethod] {
-            guard found.authRequired else { return [.none] }
-            if let options = found.signIn { return options.methods.map(SignInMethod.init) }
-            return found.authProviders.contains("basic") ? [.password, .token] : [.token]
-        }
-
-        private static func recommended(for found: ServerProbe) -> SignInMethod {
-            if let method = found.signIn?.recommended { return SignInMethod(method) }
-            return found.authProviders.contains("basic") ? .password : .token
         }
 
         public var isTesting: Bool {
@@ -298,7 +268,7 @@
             probe = .checking
             let found: ServerProbe
             do {
-                found = try await services.probe(parsed.endpoint)
+                found = try await AddressAlternatives.probe(parsed.endpoint, typed: urlText, using: services.probe)
             } catch {
                 guard !Task.isCancelled, address == .success(parsed) else { return }
                 let failure = (error as? ConnectionTestFailure) ?? GatewayConnectionTester.reachFailure(error)
@@ -313,16 +283,18 @@
             } else if signInMethod == .none || !Self.methods(for: found).contains(signInMethod) {
                 signInMethod = Self.recommended(for: found)
             }
-            if browserProvider == nil, let only = found.signIn?.browserProviders, only.count == 1 {
+            if browserProvider == nil, case let only = found.signInOptions.offer.browserProviders, only.count == 1 {
                 browserProvider = only[0].name
             }
         }
 
         /// Opens the browser sign-in and keeps its tokens or cookies for Save.
-        public func signInWithBrowser(with services: ConnectionServices) async {
+        /// Returns true when the sign-in succeeded now.
+        @discardableResult
+        public func signInWithBrowser(with services: ConnectionServices) async -> Bool {
             guard case .success(let parsed)? = address else {
                 browserState = .failed("Enter a valid server address.")
-                return
+                return false
             }
             var options: SignInOptions?
             if case .found(let found) = probe { options = found.signIn }
@@ -334,39 +306,15 @@
                 browserResult = result
                 browserServer = parsed.endpoint.baseURL
                 browserState = .signedIn(user: result.userID)
+                signInMethod = .browser
                 invalidateTest()
+                return true
             } catch NativeSignInError.cancelled {
                 browserState = before == .signingIn ? .idle : before
             } catch {
                 browserState = .failed(Self.browserMessage(for: error))
             }
-        }
-
-        private func restoreBrowserSignIn(_ secrets: ConnectionSecrets, server: URL) {
-            if let tokens = secrets.nativeTokens {
-                browserResult = .tokens(tokens)
-            } else if let cookies = secrets.webCookies {
-                browserResult = .cookies(cookies)
-            }
-            guard let browserResult else { return }
-            browserServer = server
-            browserState = .signedIn(user: browserResult.userID)
-        }
-
-        private static func browserMessage(for error: any Error) -> String {
-            switch error {
-            case NativeSignInError.codeRejected, NativeSignInError.stateMismatch, NativeSignInError.missingCode,
-                RESTError.unauthorized:
-                "The server didn't accept the sign-in. Try again."
-            case NativeSignInError.sessionExpired:
-                "The sign-in expired. Try again."
-            case NativeSignInError.callbackOriginMismatch(let startingURL):
-                "This server's browser sign-in must be started from \(startingURL). Enter that address and start browser sign-in again."
-            case NativeSignInError.server(let detail):
-                "The server refused the sign-in: \(detail)"
-            default:
-                "Couldn't sign in: \(error.localizedDescription)"
-            }
+            return false
         }
 
         /// The connection as typed. Throws a message for the form when a field is wrong.
@@ -599,6 +547,72 @@
     }
 
     extension ConnectionFormModel {
+        /// The sign-in methods the picker offers: what the server supports, or all of them before it answers.
+        /// The current choice stays listed so an edited connection never loses it.
+        public var availableSignInMethods: [SignInMethod] {
+            var methods: [SignInMethod]
+            if case .found(let found) = probe {
+                methods = Self.methods(for: found)
+            } else {
+                methods = SignInMethod.allCases
+            }
+            if !methods.contains(signInMethod) { methods.append(signInMethod) }
+            return SignInMethod.allCases.filter(methods.contains)
+        }
+
+        /// The server's browser providers (OAuth, OIDC), for the provider picker.
+        public var browserProviders: [AuthProviderInfo] {
+            guard case .found(let found) = probe else { return [] }
+            return found.signInOptions.offer.browserProviders
+        }
+
+        fileprivate static func methods(for found: ServerProbe) -> [SignInMethod] {
+            guard found.authRequired else { return [.none] }
+            // Sign-in answers that could not be read: nothing is ruled out, so the user is never locked out.
+            guard found.signInKnown else { return [.browser, .password, .token] }
+            return found.signInOptions.methods.map(SignInMethod.init)
+        }
+
+        fileprivate static func recommended(for found: ServerProbe) -> SignInMethod {
+            if let method = found.signInOptions.recommended { return SignInMethod(method) }
+            return .token
+        }
+
+        /// A credential field changed: clears the test result, and a field with text becomes the sign-in method, so
+        /// typing a password or token is enough to choose it.
+        fileprivate func credentialChanged(_ changed: Bool, filled: Bool, method: SignInMethod) {
+            guard changed else { return }
+            invalidateTest()
+            if filled { signInMethod = method }
+        }
+
+        fileprivate func restoreBrowserSignIn(_ secrets: ConnectionSecrets, server: URL) {
+            if let tokens = secrets.nativeTokens {
+                browserResult = .tokens(tokens)
+            } else if let cookies = secrets.webCookies {
+                browserResult = .cookies(cookies)
+            }
+            guard let browserResult else { return }
+            browserServer = server
+            browserState = .signedIn(user: browserResult.userID)
+        }
+
+        fileprivate static func browserMessage(for error: any Error) -> String {
+            switch error {
+            case NativeSignInError.codeRejected, NativeSignInError.stateMismatch, NativeSignInError.missingCode,
+                RESTError.unauthorized:
+                "The server didn't accept the sign-in. Try again."
+            case NativeSignInError.sessionExpired:
+                "The sign-in expired. Try again."
+            case NativeSignInError.callbackOriginMismatch(let startingURL):
+                "This server's browser sign-in must be started from \(startingURL). Enter that address and start browser sign-in again."
+            case NativeSignInError.server(let detail):
+                "The server refused the sign-in: \(detail)"
+            default:
+                "Couldn't sign in: \(error.localizedDescription)"
+            }
+        }
+
         private struct GatewayTarget: Equatable, Sendable {
             let typed: URL
             let signIn: GatewaySignIn

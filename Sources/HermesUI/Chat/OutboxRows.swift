@@ -52,7 +52,7 @@
                         .font(HermesFont.caption.weight(.semibold))
                         .foregroundStyle(palette.destructive)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.hermesPress)
                 .accessibilityIdentifier("outbox.retry.\(record.id.uuidString)")
                 Text(reason)
                     .font(HermesFont.caption2)

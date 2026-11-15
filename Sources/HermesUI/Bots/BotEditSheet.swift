@@ -42,6 +42,7 @@
                     .hermesListRows()
                 }
                 .hermesThemedList()
+                .hermesKeyboardDoneButton()
                 .navigationTitle(entry.title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

@@ -136,9 +136,8 @@
                         .frame(minWidth: HermesMetrics.minTapTarget, minHeight: HermesMetrics.minTapTarget)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.hermesPress)
                 .disabled(!text.isEmpty)
-                .opacity(text.isEmpty ? 1 : 0.4)
                 .accessibilityIdentifier("composer.undo")
                 .accessibilityHint(Text("Puts back the text that was just sent or cleared"))
                 Spacer(minLength: 0)
@@ -216,7 +215,7 @@
                     .frame(width: HermesMetrics.minTapTarget, height: HermesMetrics.minTapTarget)
                     .background(palette.fill, in: Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.hermesPress)
             .accessibilityLabel(Text("Attach"))
             .accessibilityIdentifier("composer.attach")
             .photosPicker(
@@ -309,7 +308,7 @@
                     .padding(6)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.hermesPress)
             .disabled(!canSend)
             .accessibilityLabel(Text("Send"))
             .accessibilityIdentifier(sendAccessibilityIdentifier ?? "composer.send")

@@ -3,7 +3,7 @@ import XCTest
 /// Shared steps for UI tests that run against the CI testbed (`HERMES_TESTBED_URL`). One copy, so a fix to a flaky
 /// step (watch row 106: "Password sign-in should be picked from the probe") lands once.
 extension XCTestCase {
-    /// The WP-22 connection steps: the welcome screen, the testbed URL, the basic login, Test, then Save.
+    /// The WP-22 connection steps: the welcome screen, the testbed URL, the basic login, then Connect (test and save in one press).
     @MainActor
     func testbedSignIn(_ app: XCUIApplication, url: String) {
         let addGateway = testbedElement(app, "welcome.addGateway")
@@ -27,12 +27,13 @@ extension XCTestCase {
         // password, and connecting it ends in "Sign in again" (run 43495829201). The wizard's own check passes either way.
         testbedRememberPassword(app)
 
-        let test = testbedElement(app, "connection.test")
-        if !test.isHittable { app.swipeUp() }
-        test.tap()
-        XCTAssertTrue(testbedElement(app, "connection.testPassed").waitForExistence(timeout: 30))
-
-        testbedElement(app, "connection.save").tap()
+        // One press tests the connection and saves it when the test passes.
+        let connect = testbedElement(app, "connection.connect")
+        if !connect.isHittable { app.swipeUp() }
+        connect.tap()
+        XCTAssertTrue(
+            testbedElement(app, "welcome.addGateway").waitForNonExistence(timeout: 40),
+            "Connect should pass and save: \(testbedElement(app, "connection.testFailed").label)")
         XCTAssertTrue(testbedElement(app, "welcome.addGateway").waitForNonExistence(timeout: 10))
     }
 

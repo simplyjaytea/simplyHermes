@@ -75,6 +75,7 @@
                 .hermesListRows()
             }
             .hermesThemedList()
+            // No Done button of its own: the Webhooks list pushes this screen and its keyboard toolbar carries over.
             .navigationTitle("New webhook")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

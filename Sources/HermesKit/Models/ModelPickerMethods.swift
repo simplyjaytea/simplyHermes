@@ -49,7 +49,9 @@ public struct ConfigSetResult: Sendable, Equatable, Codable {
 
     /// What the change did. A pending confirmation comes before a warning.
     public var outcome: ModelSwitchOutcome {
-        guard confirmRequired == true else { return .applied(warning: warning) }
+        guard confirmRequired == true else {
+            return deferred == true ? .appliedNextTurn(warning: warning) : .applied(warning: warning)
+        }
         return .needsConfirmation(message: confirmMessage ?? "Confirm to switch to this model.")
     }
 
@@ -64,8 +66,18 @@ public struct ConfigSetResult: Sendable, Equatable, Codable {
 public enum ModelSwitchOutcome: Sendable, Equatable {
     /// The switch took effect. `warning` is text to show, when the server sent one.
     case applied(warning: String?)
+    /// The server took the switch while a reply runs, so it takes effect on the next turn. `warning` is as above.
+    case appliedNextTurn(warning: String?)
     /// The switch waits. Send the same change again with `confirmExpensiveModel` set.
     case needsConfirmation(message: String)
+
+    /// True when the server took the switch, now or for the next turn.
+    public var isApplied: Bool {
+        switch self {
+        case .applied, .appliedNextTurn: true
+        case .needsConfirmation: false
+        }
+    }
 }
 
 extension GatewayClient {

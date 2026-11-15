@@ -51,6 +51,7 @@
                     }
                 }
                 .hermesThemedList()
+                .hermesKeyboardDoneButton()
                 .navigationTitle("New Group")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

@@ -37,17 +37,15 @@ final class ConnectionSetupUITests: XCTestCase {
         password.tap()
         password.typeText("testbed-password")
 
-        let test = element(app, "connection.test")
-        if !test.isHittable { app.swipeUp() }
-        test.tap()
-        let passed = element(app, "connection.testPassed")
-        if !passed.waitForExistence(timeout: 30) {
+        // One press: the app tests the connection and saves it when the test passes.
+        let connect = element(app, "connection.connect")
+        if !connect.isHittable { app.swipeUp() }
+        connect.tap()
+        if !element(app, "welcome.addGateway").waitForNonExistence(timeout: 40) {
             add(XCTAttachment(screenshot: app.screenshot()))
-            XCTFail("Test did not pass: \(element(app, "connection.testFailed").label)")
+            XCTFail("Connect did not pass: \(element(app, "connection.testFailed").label)")
         }
-
-        element(app, "connection.save").tap()
-        // Saving the first server replaces the welcome screen with the app. The chat list then shows
+        // Connecting the first server replaces the welcome screen with the app. The chat list then shows
         // the server's own sessions, so the sample chat titles are not asserted here.
         XCTAssertTrue(element(app, "welcome.addGateway").waitForNonExistence(timeout: 10))
         XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 10))

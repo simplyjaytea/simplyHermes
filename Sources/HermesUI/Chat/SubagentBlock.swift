@@ -36,7 +36,7 @@
                         }
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.hermesPress)
                     .accessibilityIdentifier("subagents.header")
                     if isExpanded {
                         ForEach(rows) { row in

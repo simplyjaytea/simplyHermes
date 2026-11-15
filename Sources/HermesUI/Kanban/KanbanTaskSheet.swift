@@ -85,6 +85,7 @@
                     actionsSection
                 }
                 .hermesThemedList()
+                .hermesKeyboardDoneButton()
                 .navigationTitle("Task")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

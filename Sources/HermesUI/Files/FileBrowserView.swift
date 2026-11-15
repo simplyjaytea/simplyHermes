@@ -32,7 +32,7 @@
                         .frame(minHeight: HermesMetrics.minTapTarget - 12)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.hermesPress)
                     // QuickLook has no Add to chat, so every file offers it here.
                     .contextMenu {
                         if !entry.isDirectory {

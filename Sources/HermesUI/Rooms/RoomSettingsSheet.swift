@@ -61,6 +61,7 @@
                     .hermesListRows()
                 }
                 .hermesThemedList()
+                .hermesKeyboardDoneButton()
                 .navigationTitle("Group Settings")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

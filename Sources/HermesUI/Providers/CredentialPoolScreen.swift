@@ -73,6 +73,7 @@
                 }
             }
             .hermesThemedList()
+            .hermesKeyboardDoneButton()
             .navigationTitle("Credentials pool")
             .task { await model.load() }
             .refreshable { await model.load() }

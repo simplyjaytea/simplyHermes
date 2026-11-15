@@ -213,7 +213,7 @@
                     .frame(minHeight: HermesMetrics.minTapTarget - 12)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.hermesPress)
                 .accessibilityLabel(Text("\(entry.name), \(statusText)"))
                 .accessibilityHint(Text(isExpanded ? "Hides the output" : "Shows the output"))
                 if isExpanded, let body = detail {

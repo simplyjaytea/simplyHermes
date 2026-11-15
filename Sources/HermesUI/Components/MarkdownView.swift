@@ -84,7 +84,7 @@
                         .foregroundStyle(palette.secondaryText)
                         .frame(minHeight: HermesMetrics.minTapTarget - 12)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.hermesPress)
                     .accessibilityLabel(Text("Copy code"))
                 }
                 .padding(.horizontal, 10)

@@ -41,8 +41,11 @@
                 } else if let remembered {
                     rememberedBar(remembered, undo: { undoRemembered(remembered) }, dismiss: { self.remembered = nil })
                 }
+                HideKeyboardRow()
+                    .hermesReadableWidth()
                 // `/` lists the prompt-only skills (local agent abilities, phase 2). They are text; nothing is fetched.
                 Composer(text: draftBinding, completer: Self.skillCompleter) { submit() }
+                    .hermesReadableWidth()
                     .background(palette.background)
             }
             .background(palette.background)
@@ -119,6 +122,7 @@
                     }
                 }
                 .padding()
+                .hermesReadableWidth()
             }
             .defaultScrollAnchor(.bottom)
             .accessibilityIdentifier("local.transcript")
