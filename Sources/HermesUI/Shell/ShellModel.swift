@@ -57,9 +57,9 @@
         public var sessions: [ChatSessionSummary]
         public var selectedSessionID: String?
         /// Chats open as tabs, in the order they were opened.
-        public private(set) var openSessionIDs: [String] = []
+        public internal(set) var openSessionIDs: [String] = []
         /// Closed chats, most recent last, for "Reopen closed chat".
-        public private(set) var closedSessionIDs: [String] = []
+        public internal(set) var closedSessionIDs: [String] = []
         /// Unsent text per chat. Kept across launches, so a draft is still there after the app closes.
         public var drafts: [String: String] = [:] {
             didSet { Self.saveDrafts(drafts, to: draftDefaults) }
@@ -83,7 +83,7 @@
         /// Browses the active server's files for the preview rail (WP-37). Nil when there is no server connection.
         @ObservationIgnored public var workspaceBrowser: WorkspaceBrowserModel?
         /// Ids of the chats the server listed. These open as live chats; the rest stay placeholders.
-        public private(set) var serverSessionIDs: Set<String> = []
+        public internal(set) var serverSessionIDs: Set<String> = []
         /// Bot Chats opened from the Bots screen (WP-42). They are hidden, so the sessions list never lists them.
         public private(set) var botChatIDs: Set<String> = []
         /// Chats made on the server from outside the chat list, which the server does not list yet.
@@ -229,6 +229,8 @@
         @ObservationIgnored var unstartedChatIDs: Set<String> = []
         /// The first message being sent in each New chat. A repeat send there joins it, so a double tap sends once.
         @ObservationIgnored var startingChats: [String: Task<Void, Never>] = [:]
+        /// The first message the queue is saving for a placeholder row, until the save returns. See `adoptQueuedChat`.
+        @ObservationIgnored var queuedFirstMessages: [String: String] = [:]
         /// Counts placeholder ids, so a new placeholder never reuses the id of one still open.
         @ObservationIgnored private var placeholderCount = 0
         /// Why the last first message failed, in words. The shell shows it in an alert, which clears it.

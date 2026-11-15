@@ -19,7 +19,7 @@ final class StatusPillUITests: XCTestCase {
     func testMessageWaitsWhileTheGatewayIsStoppedAndSendsOnceWhenItIsBack() throws {
         let app = try launchWithTestbed()
         openLiveServerChat(app)
-        let repliesBefore = replyRowCount(app)
+        let repliesBefore = replyRowIDs(app)
 
         toggleGateway(app, expecting: "Start gateway")
         typeAndSend(app, draft)
@@ -36,7 +36,9 @@ final class StatusPillUITests: XCTestCase {
         let quiet = XCTestExpectation(description: "No reply in 10 seconds")
         quiet.isInverted = true
         wait(for: [quiet], timeout: 10)
-        XCTAssertEqual(replyRowCount(app), repliesBefore, "No assistant row should appear while the gateway is stopped")
+        XCTAssertEqual(
+            replyRowIDs(app).subtracting(repliesBefore), [],
+            "No assistant row should appear while the gateway is stopped")
         XCTAssertEqual(element(app, "uiTest.localReplies").label, "0", "The on-device model must not answer")
 
         toggleGateway(app, expecting: "Stop gateway")
@@ -62,7 +64,9 @@ final class StatusPillUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
         field.typeText(draft)
-        let repliesBefore = replyRowCount(app)
+        let repliesBefore = replyRowIDs(app)
+        // What the composer and the chat held right after typing, for the message of a failed draft check below.
+        let typed = "field=\(field.value as? String ?? "nil") \(element(app, "uiTest.chatStatus").label)"
 
         let banner = element(app, "chat.outageBanner")
         if !banner.waitForExistence(timeout: 10) {
@@ -74,19 +78,22 @@ final class StatusPillUITests: XCTestCase {
         tryAgain.tap()
         XCTAssertTrue(
             banner.waitForExistence(timeout: 10), "Try again should keep the banner while the gateway is stopped")
-        XCTAssertEqual(replyRowCount(app), repliesBefore, "Try again must not produce an assistant row")
+        XCTAssertEqual(
+            replyRowIDs(app).subtracting(repliesBefore), [], "Try again must not produce an assistant row")
 
         let continueLocal = element(app, "outage.continueLocal")
         XCTAssertTrue(continueLocal.waitForExistence(timeout: 5))
         XCTAssertEqual(continueLocal.label, "Continue in a new Local chat")
         continueLocal.tap()
 
-        let local = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'session.local-'")).firstMatch
+        // The compact layout pushes the new chat over the server's chat list, which has no Local rows, so no
+        // `session.local-` row is on screen. The Local chat's own transcript shows that it opened.
+        let local = element(app, "local.transcript")
         XCTAssertTrue(local.waitForExistence(timeout: 10), "A new Local chat should open")
         let carried = element(app, "composer.field")
         XCTAssertTrue(carried.waitForExistence(timeout: 10))
-        XCTAssertEqual(carried.value as? String, draft, "The new Local chat should carry the draft")
+        XCTAssertEqual(
+            carried.value as? String, draft, "The new Local chat should carry the draft. After typing: \(typed)")
         XCTAssertEqual(element(app, "uiTest.localReplies").label, "0", "Nothing answers until the user sends")
     }
 
@@ -103,15 +110,23 @@ final class StatusPillUITests: XCTestCase {
             failWithOutageState(app, "The message should wait")
         }
 
-        // Another chat takes the screen while the gateway is down.
-        app.buttons.matching(identifier: "shell.newChat").firstMatch.tap()
+        // The chat's own id, from the hidden status ("screen=<id>"), so its row is found again whatever the list's order.
+        let status = element(app, "uiTest.chatStatus").label
+        let chatID = try XCTUnwrap(
+            status.components(separatedBy: " ").first { $0.hasPrefix("screen=") }?.dropFirst("screen=".count),
+            "The hidden status should name the chat on screen: \(status)")
+
+        // Another chat takes the screen while the gateway is down. The compact layout shows New chat on the chat list,
+        // not over an open chat (run 43658919091), so go back to the list first.
+        showChatList(app).tap()
         XCTAssertTrue(element(app, "composer.field").waitForExistence(timeout: 10))
 
         toggleGateway(app, expecting: "Stop gateway")
 
-        let firstChat = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'session.'")).element(boundBy: 1)
-        XCTAssertTrue(firstChat.waitForExistence(timeout: 10), "The first chat should be listed")
+        _ = showChatList(app)
+        let firstChat = element(app, "session.\(chatID)")
+        // The list is read from the server again once the gateway is back, so allow for the reconnect.
+        XCTAssertTrue(firstChat.waitForExistence(timeout: 30), "The first chat should be listed")
         firstChat.tap()
 
         XCTAssertTrue(
@@ -134,12 +149,15 @@ final class StatusPillUITests: XCTestCase {
         if !app.staticTexts["Waiting to send"].waitForExistence(timeout: 10) {
             failWithOutageState(app, "The message should wait")
         }
-        XCTAssertTrue(element(app, "chat.outageBanner").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(app, "chat.outageBanner").waitForExistence(timeout: 5), "The outage banner should show")
 
         toggleGateway(app, expecting: "Stop gateway")
         let tryAgain = element(app, "outage.tryAgain")
-        XCTAssertTrue(tryAgain.waitForExistence(timeout: 5))
-        tryAgain.tap()
+        // The connection also retries by itself when the network path comes back, and on a fast run it is Online
+        // before Try again can be tapped: the banner is then gone, with nothing left to tap (run 43676167671). Try
+        // again is tapped when it is still offered. Either way the chat must be Online in the short window below, and
+        // the waiting message must be sent once.
+        if tryAgain.waitForExistence(timeout: 5) { tryAgain.tap() }
 
         let pill = element(app, "chat.pill")
         let online = XCTNSPredicateExpectation(
@@ -186,6 +204,9 @@ final class StatusPillUITests: XCTestCase {
             "banner=\(element(app, "chat.outageBanner").exists)",
             "switch=\(element(app, "uiTest.gatewayToggle").label)",
             "waiting=\(app.staticTexts["Waiting to send"].exists)",
+            "fields=\(app.descendants(matching: .any).matching(identifier: "composer.field").count)",
+            "field=\(element(app, "composer.field").value as? String ?? "nil")",
+            "alerts=\(app.alerts.allElementsBoundByIndex.map(\.label))",
             "summary=\(element(app, "uiTest.chatStatus").label)",
         ].joined(separator: " ")
         // continueAfterFailure is false (setUp), so the test stops here.
@@ -321,20 +342,75 @@ final class StatusPillUITests: XCTestCase {
         }
     }
 
+    /// Shows the chat list and returns its New chat button. In the compact layout an open chat covers the list.
+    ///
+    /// The back control is the one the other UI tests use: the round `BackButton`, then a titled "Chats". The first
+    /// button of the navigation bar is not it: over an open chat that can be the chat's own Commands button, and
+    /// tapping it never reaches the list (runs 43658919091 to 43682165389 failed here on both tries). New chat has
+    /// hidden copies on the Duo layout, so the one that can be tapped is taken.
+    @MainActor
+    private func showChatList(_ app: XCUIApplication) -> XCUIElement {
+        let copies = app.buttons.matching(identifier: "shell.newChat")
+        func onScreen() -> XCUIElement? { copies.allElementsBoundByIndex.first(where: \.isHittable) }
+        if let newChat = onScreen() { return newChat }
+        let backButton = app.buttons["BackButton"]
+        if backButton.waitForExistence(timeout: 5), backButton.isHittable {
+            backButton.tap()
+        } else if app.navigationBars.buttons["Chats"].exists {
+            app.navigationBars.buttons["Chats"].tap()
+        }
+        let deadline = Date().addingTimeInterval(10)
+        repeat {
+            if let newChat = onScreen() { return newChat }
+            Thread.sleep(forTimeInterval: 0.2)
+        } while Date() < deadline
+        // Say what the screen held, so a failure here is not a guess.
+        let bars = app.navigationBars.allElementsBoundByIndex.map(\.identifier)
+        let barButtons = app.navigationBars.buttons.allElementsBoundByIndex.map { "\($0.identifier)|\($0.label)" }
+        XCTFail(
+            "The chat list should show New chat. copies=\(copies.count) backButton=\(backButton.exists) "
+                + "bars=\(bars) barButtons=\(barButtons) sheets=\(app.sheets.count) keyboard=\(app.keyboards.count)")
+        return copies.firstMatch
+    }
+
     @MainActor
     private func typeAndSend(_ app: XCUIApplication, _ text: String) {
         let field = element(app, "composer.field")
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
         field.typeText(text)
-        element(app, "composer.send").tap()
+        let send = element(app, "composer.send")
+        // A send button under the keyboard cannot be tapped: the tap lands on a key (run 43641154917 typed "P" and a
+        // suggestion into the draft and sent nothing). Say so, with the frames, and do not tap blind.
+        let keyboard = app.keyboards.firstMatch
+        if keyboard.exists, keyboard.frame.intersects(send.frame) {
+            add(XCTAttachment(screenshot: app.screenshot()))
+            XCTFail(
+                "The composer's send button is under the keyboard. send=\(send.frame) field=\(field.frame) "
+                    + "keyboard=\(keyboard.frame) banner=\(element(app, "chat.outageBanner").frame) "
+                    + "transcript=\(element(app, "transcript").frame) window=\(app.windows.firstMatch.frame)")
+        }
+        send.tap()
     }
 
-    /// The transcript's message rows. Each message row carries a `message.` identifier.
+    /// The ids of the transcript's message rows on screen. Each message row carries a `message.` identifier. A check
+    /// for "no new row" compares ids, not a count: the banner takes room from the transcript, and a lazy stack drops
+    /// the rows that leave the screen (run 43658919091 counted 3 before and 2 after).
     @MainActor
-    private func replyRowCount(_ app: XCUIApplication) -> Int {
-        app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'message.'")).count
+    private func replyRowIDs(_ app: XCUIApplication) -> Set<String> {
+        // One snapshot of the whole tree. Reading each match by index failed in run 43689903785 with "No matches found
+        // for Element at index 3", when a lazy row left between the count and the read.
+        guard let root = try? app.snapshot() else {
+            XCTFail("The app's element tree could not be read")
+            return []
+        }
+        var ids: Set<String> = []
+        var pending: [any XCUIElementSnapshot] = [root]
+        while let next = pending.popLast() {
+            if next.identifier.hasPrefix("message.") { ids.insert(next.identifier) }
+            pending.append(contentsOf: next.children)
+        }
+        return ids
     }
 
     @MainActor

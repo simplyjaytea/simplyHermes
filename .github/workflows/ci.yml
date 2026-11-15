@@ -270,7 +270,19 @@ jobs:
           set -euo pipefail
           brew install uv
           ref=$(sed -n 's/^ARG HERMES_REF=//p' testbed/hermes/Dockerfile)
-          src="$RUNNER_TEMP/hermes"
+          # The scripted LLM the dashboard answers with. Without it every chat turn ends in "Connection error", and
+          # the UI tests that wait for a reply fail (run 43610131710).
+          FAKE_LLM_DEFAULT=text nohup python3 testbed/fake-llm/server.py > "$RUNNER_TEMP/fake-llm.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8700/health > /dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8700/health
+          # Same path as testbed/hermes/Dockerfile: the UI tests pick the workspace "/opt/hermes", and the Git review
+          # test needs it to be a git checkout.
+          src=/opt/hermes
+          sudo mkdir -p "$src"
+          sudo chown "$(id -un)" "$src"
           git init -q "$src"
           git -C "$src" remote add origin https://github.com/NousResearch/hermes-agent
           git -C "$src" fetch -q --depth 1 origin "$ref"
@@ -282,7 +294,8 @@ jobs:
           HERMES_DASHBOARD_BASIC_AUTH_USERNAME=tester \
           HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=testbed-password \
           HERMES_DASHBOARD_BASIC_AUTH_SECRET=testbed-stable-secret-0123456789abcdef \
-            nohup "$src/.venv/bin/hermes" serve --host 0.0.0.0 --port 9119 > "$RUNNER_TEMP/hermes-serve.log" 2>&1 &
+            nohup sh -c "cd '$src' && exec .venv/bin/hermes serve --host 0.0.0.0 --port 9119" \
+            > "$RUNNER_TEMP/hermes-serve.log" 2>&1 &
           for _ in $(seq 1 90); do
             curl -fsS http://127.0.0.1:9119/api/status > /dev/null 2>&1 && break
             sleep 2
@@ -477,7 +490,9 @@ jobs:
           retention-days: 14
       - name: Testbed dashboard log
         if: failure()
-        run: tail -n 200 "$RUNNER_TEMP/hermes-serve.log" || true
+        run: |
+          tail -n 200 "$RUNNER_TEMP/hermes-serve.log" || true
+          tail -n 50 "$RUNNER_TEMP/fake-llm.log" || true
       - name: Upload results
         # About 230 MB per run, so only when something failed, kept 7 days, and never the cause of a red job.
         if: failure()

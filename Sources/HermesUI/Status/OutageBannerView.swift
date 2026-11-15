@@ -11,21 +11,29 @@
         let onContinueInNewLocalChat: () -> Void
         @Environment(\.hermesPalette) private var palette
 
+        /// With the keyboard up there is little room above it: on a small screen the full banner pushed the composer
+        /// under the keyboard and left no transcript (iOS run 43649410739). The banner then keeps its title on one
+        /// line and its actions, and leaves the message out until the keyboard goes.
+        private var isCompact: Bool { KeyboardWatcher.shared.isUp }
+
         var body: some View {
             VStack(alignment: .leading, spacing: 8) {
                 Label(OutageBanner.title(serverName: serverName), systemImage: "wifi.exclamationmark")
                     .font(HermesFont.headline)
                     .foregroundStyle(palette.primaryText)
-                Text(OutageBanner.message)
-                    .font(HermesFont.subheadline)
-                    .foregroundStyle(palette.secondaryText)
+                    .lineLimit(isCompact ? 1 : nil)
+                if !isCompact {
+                    Text(OutageBanner.message)
+                        .font(HermesFont.subheadline)
+                        .foregroundStyle(palette.secondaryText)
+                }
                 // Side by side at normal sizes; stacked when the labels no longer fit (large Dynamic Type, outer screen).
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 8) { buttons }
                     VStack(alignment: .leading, spacing: 8) { buttons }
                 }
             }
-            .padding(12)
+            .padding(isCompact ? 8 : 12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: HermesMetrics.bannerRadius, style: .continuous))
             .padding(.horizontal, 12)

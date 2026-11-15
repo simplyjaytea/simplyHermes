@@ -54,7 +54,7 @@ extension XCTestCase {
         XCTAssertTrue(remember.waitForExistence(timeout: 5), "The form should offer Remember password")
         let isOn = NSPredicate(format: "value == '1'")
         func settled() -> Bool {
-            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: isOn, object: remember)], timeout: 2)
+            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: isOn, object: remember)], timeout: 4)
                 == .completed
         }
         if (remember.value as? String) != "1" {
@@ -64,7 +64,9 @@ extension XCTestCase {
             } else {
                 remember.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
             }
-            if !settled() {
+            // Read the value again before the second try: a tap on a switch that did flip, but reported it late,
+            // would turn it back off.
+            if !settled(), (remember.value as? String) != "1" {
                 // Still off, so the first tap did nothing. Try the other way once.
                 if inner.exists {
                     remember.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
@@ -75,7 +77,9 @@ extension XCTestCase {
             }
         }
         XCTAssertEqual(
-            remember.value as? String, "1", "Remember password should be on, or the saved server can't sign in")
+            remember.value as? String, "1",
+            "Remember password should be on, or the saved server can't sign in. "
+                + "frame=\(remember.frame) hittable=\(remember.isHittable) keyboard=\(app.keyboards.count)")
     }
 
     /// Waits until the saved server's row in Settings › Servers reads Connected, starting the connection up to three

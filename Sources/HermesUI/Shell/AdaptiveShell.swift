@@ -48,6 +48,7 @@
             // phase change is enough), and a new store each time dropped every open chat without retiring it: the
             // screen then made a second model for a session whose first one was still attached and still sending.
             if model.liveChats == nil { model.liveChats = connections.map(LiveChatStore.init) }
+            KeyboardWatcher.start()
             let liveChats = model.liveChats
             // Kept across re-renders: a new one would lose the folder on screen and leave views holding the old one.
             if model.workspaceBrowser == nil { model.workspaceBrowser = connections.map(WorkspaceBrowserModel.init) }
@@ -60,9 +61,12 @@
                         // Only on the server the chat was made on: another active server must never list this
                         // session id or get its message. There the row goes, and the chat comes back with its
                         // waiting message when its own server is active (`showUnsentChats`).
-                        model?.queuedChatCreated(
-                            row: row, sessionID: session, serverName: name, on: connectionID,
-                            active: connections.active?.id.uuidString)
+                        let adopted =
+                            model?.queuedChatCreated(
+                                row: row, sessionID: session, serverName: name, on: connectionID,
+                                active: connections.active?.id.uuidString) ?? false
+                        // The server's chat list does not hold the new chat until it is read again.
+                        if adopted { Task { await sessionsList?.refresh() } }
                     }
                     model.newChatQueue = queue
                 }
@@ -123,6 +127,7 @@
                     }
                     .task(id: connectedServers) {
                         for id in connectedServers { await model.newChatQueue?.serverMayBeBack(id) }
+                        await refreshChatListIfConnected()
                     }
                     .task(id: connections?.active?.id) {
                         await bots?.reload()
@@ -149,20 +154,6 @@
                         }
                     }
             }
-        }
-
-        /// Changes when the active server or the profile chosen on it changes. The chat list follows it (WP-40, WP-41).
-        private var sessionScopeKey: String {
-            "\(connections?.active?.id.uuidString ?? "")|\(profiles?.selection.chosen ?? "")"
-        }
-
-        /// Lists the active profile's chats in the shell (WP-40), again when the server or the profile changes.
-        private func attachSessions() async {
-            await model.loadLocalChats()
-            await model.showUnsentChats(of: connections)
-            guard let sessionsList else { return }
-            sessionsList.observeItems { model.syncSessions($0) }
-            await sessionsList.attach(profile: profiles?.selection.chosen)
         }
 
         /// Opens the chat an `@session:` link names, and shows a calm message when it cannot (WP-40).
@@ -643,6 +634,35 @@
             } else {
                 content
             }
+        }
+    }
+
+    // MARK: The server's chat list
+
+    extension AdaptiveShell {
+        /// Changes when the active server or the profile chosen on it changes. The chat list follows it (WP-40, WP-41).
+        private var sessionScopeKey: String {
+            "\(connections?.active?.id.uuidString ?? "")|\(profiles?.selection.chosen ?? "")"
+        }
+
+        /// Lists the active profile's chats in the shell (WP-40), again when the server or the profile changes.
+        private func attachSessions() async {
+            await model.loadLocalChats()
+            await model.showUnsentChats(of: connections)
+            guard let sessionsList else { return }
+            sessionsList.observeItems { model.syncSessions($0) }
+            await sessionsList.attach(profile: profiles?.selection.chosen)
+        }
+
+        /// Reads the server's chat list again when the active server is connected. The list read itself only when the
+        /// server or the profile changed, so a chat made since then was missing from it. In the compact layout this
+        /// list is the Chats screen: a new chat was not listed after going back, also not once its server had come
+        /// back from an outage (iOS run 43689903785). Not while the server is unreachable: a refresh that fails puts
+        /// an error line in the list.
+        private func refreshChatListIfConnected() async {
+            guard let sessionsList, let active = connections?.active?.id.uuidString, connectedServers.contains(active)
+            else { return }
+            await sessionsList.refresh()
         }
     }
 

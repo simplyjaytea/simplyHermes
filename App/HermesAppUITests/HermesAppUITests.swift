@@ -109,12 +109,12 @@ final class HermesAppUITests: XCTestCase {
     @MainActor
     private func switchLayout(_ app: XCUIApplication, to layout: String, until marker: XCUIElement) {
         var problem = ""
-        for attempt in 1...2 {
+        for attempt in 1...4 {
             problem = pickFromLayoutMenu(app, layout) ?? "the layout did not change"
             if marker.waitForExistence(timeout: 5) { return }
             if attempt == 1 { add(XCTAttachment(string: app.debugDescription)) }
         }
-        XCTFail("Switching to \(layout) did not show its layout after two tries: \(problem)")
+        XCTFail("Switching to \(layout) did not show its layout after four tries: \(problem)")
     }
 
     /// Opens the debug layout menu and taps `layout`. Returns what went wrong, or nil when the item was tapped. It
@@ -123,8 +123,9 @@ final class HermesAppUITests: XCTestCase {
     private func pickFromLayoutMenu(_ app: XCUIApplication, _ layout: String) -> String? {
         let menu = element(app, "debugLayoutMenu")
         guard menu.waitForExistence(timeout: 5) else { return "the debug layout menu is missing" }
-        menu.tap()
         let item = app.buttons[layout]
+        // A menu left open by the last try is used as it is: a second tap on the menu button would close it.
+        if !item.exists { menu.tap() }
         guard item.waitForExistence(timeout: 5) else { return "the \(layout) item did not appear" }
         // The item can exist before the menu lays it out, and asking whether it is hittable then fails the test
         // ("Activation point invalid", run 43593302488). Wait until its frame stops moving, then tap its middle.
@@ -132,7 +133,8 @@ final class HermesAppUITests: XCTestCase {
         var steady = false
         for _ in 0..<25 {
             let frame = item.frame
-            if !frame.isEmpty, frame == last {
+            // An item that is not laid out yet can report an infinite frame, and a tap there throws (run 43667342189).
+            if !frame.isEmpty, frame.midX.isFinite, frame.midY.isFinite, frame == last {
                 steady = true
                 break
             }

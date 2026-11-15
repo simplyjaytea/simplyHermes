@@ -35,7 +35,7 @@
                 ChatStatusBar(strip: chat.strip, pill: chat.status.pill, serverName: chat.serverName)
                 #if DEBUG
                     // Hidden: a UI test reads it when an outage assertion fails (WP-8).
-                    Text(chat.debugStatusSummary)
+                    Text(debugSendSummary)
                         .font(.system(size: 1))
                         .frame(width: 1, height: 1)
                         .opacity(0.01)
@@ -287,6 +287,9 @@
         private var scrollToBottomButton: some View {
             if !isFollowing, !chat.state.items.isEmpty {
                 Button {
+                    // A tap while the user's own scroll is still coasting: without this, the scroll's end would work out
+                    // the follow again from a position that is not at the end yet, and undo the tap.
+                    isUserScrolling = false
                     isFollowing = true
                     withAnimation(.snappy) { position.scrollTo(edge: .bottom) }
                 } label: {
@@ -297,17 +300,20 @@
                 }
                 .buttonStyle(.plain)
                 .glassEffect(.regular, in: Circle())
+                .accessibilityIdentifier("chat.scrollToBottom")
+                .accessibilityLabel(Text(replyDot.isShowing ? "Scroll to latest, new reply" : "Scroll to latest"))
+                // The dot is its own element. Under the button's identifier and label it was folded into the button.
                 .overlay(alignment: .topTrailing) {
                     if replyDot.isShowing {
                         Circle()
                             .fill(palette.accent)
                             .frame(width: 10, height: 10)
+                            .accessibilityElement()
+                            .accessibilityLabel(Text("New reply"))
                             .accessibilityIdentifier("chat.newReplyDot")
                     }
                 }
                 .padding(12)
-                .accessibilityIdentifier("chat.scrollToBottom")
-                .accessibilityLabel(Text(replyDot.isShowing ? "Scroll to latest, new reply" : "Scroll to latest"))
                 .transition(.scale.combined(with: .opacity))
             }
         }
@@ -437,11 +443,27 @@
             }
         }
 
+        #if DEBUG
+            /// The status, and what a send from this screen would use: the chat it is for, the chat the shell has
+            /// selected, the draft, the waiting rows and the last send error. Read by a UI test when a send goes missing.
+            private var debugSendSummary: String {
+                let draft = model.drafts[sessionID, default: ""]
+                let send = "screen=\(sessionID) selected=\(model.selectedSessionID ?? "none") draft=\(draft.count)"
+                let outbox = "waitingRows=\(chat.outboxRows.count) sendError=\(chat.outboxError ?? "none")"
+                return "\(chat.debugStatusSummary) \(send) \(outbox)"
+            }
+        #endif
+
         /// Changes whenever the bottom of the transcript moves: a new row, new text, or an approval card.
         private var followKey: Int {
             var hasher = Hasher()
             hasher.combine(chat.state.items.count)
             hasher.combine(chat.approvals.count)
+            // Waiting messages and the notes under the transcript move its bottom too. Without them a message saved
+            // during an outage was added below the fold, and a lazy stack does not build a row that is off screen.
+            hasher.combine(chat.outboxRows.count)
+            hasher.combine(chat.outboxError != nil)
+            hasher.combine(chat.state.connectionNote != nil)
             if case .assistant(let entry)? = chat.state.items.last?.content { hasher.combine(entry.text.count) }
             return hasher.finalize()
         }
