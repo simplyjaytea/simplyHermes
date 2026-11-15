@@ -39,7 +39,13 @@ final class ConnectionSetupUITests: XCTestCase {
 
         // One press: the app tests the connection and saves it when the test passes.
         let connect = element(app, "connection.connect")
-        if !connect.isHittable { app.swipeUp() }
+        // The form is lazy and the keyboard covers its lower half, so the button may not be loaded yet. Drag the
+        // part of the form above the keyboard until the button is there.
+        for _ in 0..<4 where !(connect.exists && connect.isHittable) {
+            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+            from.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)))
+        }
+        if !connect.exists { add(XCTAttachment(screenshot: app.screenshot())) }
         connect.tap()
         if !element(app, "welcome.addGateway").waitForNonExistence(timeout: 40) {
             add(XCTAttachment(screenshot: app.screenshot()))

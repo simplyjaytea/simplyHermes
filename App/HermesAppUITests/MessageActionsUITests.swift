@@ -144,11 +144,21 @@ final class MessageActionsUITests: XCTestCase {
     /// The sample chat's last answer that is on screen.
     @MainActor
     private func visibleAnswer(_ app: XCUIApplication) -> XCUIElement {
-        for index in stride(from: 24, through: 1, by: -1) {
-            let answer = app.descendants(matching: .any)["message.backup-a\(index)"]
-            if answer.exists, answer.isHittable { return answer }
+        // The chat opens at its end, where the last rows are not answers. On a short screen no answer may be in
+        // reach there, so the transcript is scrolled back until one is.
+        for attempt in 0..<4 {
+            for index in stride(from: 24, through: 1, by: -1) {
+                let answer = app.descendants(matching: .any)["message.backup-a\(index)"]
+                if answer.exists, answer.isHittable { return answer }
+            }
+            if attempt < 3 { app.descendants(matching: .any)["transcript"].swipeDown(velocity: .slow) }
         }
-        XCTFail("No answer of the sample chat is on screen")
+        // Say what is there, so the log of a failed run shows which rows were loaded and which could be touched.
+        let rows = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "message.")).allElementsBoundByIndex
+        let seen = rows.prefix(40).map { "\($0.identifier)\($0.isHittable ? "" : " (not hittable)")" }
+        add(XCTAttachment(screenshot: app.screenshot()))
+        XCTFail("No answer of the sample chat is on screen. Rows: \(seen.joined(separator: ", "))")
         return app.descendants(matching: .any)["message.backup-a24"]
     }
 
